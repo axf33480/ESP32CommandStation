@@ -21,7 +21,7 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 // RELEASE VERSION
 /////////////////////////////////////////////////////////////////////////////////////
 
-#define VERSION "1.3.0"
+#define VERSION "1.4.0"
 
 #include <Arduino.h>
 #include <algorithm>

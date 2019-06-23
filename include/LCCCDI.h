@@ -34,7 +34,7 @@ namespace openlcb {
 
     /// Modify this value whenever the config needs to be reinitialized on the
     /// node for a firmware update.
-    static constexpr uint16_t CANONICAL_VERSION = 0x0130;
+    static constexpr uint16_t CANONICAL_VERSION = 0x0140;
 
     /// Defines the main segment in the configuration CDI. This is laid out at
     /// origin 128 to give space for the ACDI user data at the beginning.
