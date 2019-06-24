@@ -23,17 +23,21 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 #define VERSION "1.4.0"
 
-#include <Arduino.h>
 #include <algorithm>
 #include <functional>
-#include <StringArray.h>
+#include <string>
+
+#include <Arduino.h>
 #include <ArduinoJson.h>
-#include <SPI.h>
+#include <esp_task_wdt.h>
 #include <FS.h>
+#include <SPI.h>
 #include <SPIFFS.h>
+#include <StringArray.h>
 
 #include <utils/format_utils.hxx>
 #include <utils/logging.h>
+#include <utils/macros.h>
 #include <utils/StringPrintf.hxx>
 
 #include "Config.h"

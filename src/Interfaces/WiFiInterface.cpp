@@ -22,15 +22,10 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #include <ESPAsyncWebServer.h>
 #include <IPAddress.h>
 #include "WebServer.h"
-#include <esp_log.h>
-#include <esp_task_wdt.h>
 
 #include <freertos_drivers/arduino/WifiDefs.hxx>
 
 #include <utils/socket_listener.hxx>
-#include <utils/macros.h>
-
-#include <string>
 
 #if HC12_RADIO_ENABLED
 #include "HC12Interface.h"

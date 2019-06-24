@@ -17,8 +17,6 @@ COPYRIGHT (c) 2018-2019 NormHal, Mike Dunston
 
 #include "ESP32CommandStation.h"
 
-#include <bits/stdc++.h> 
-
 #ifndef NEXTION_UART_NUM
 #define NEXTION_UART_NUM 2
 #endif
