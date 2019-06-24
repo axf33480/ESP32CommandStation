@@ -26,6 +26,7 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #include <algorithm>
 #include <functional>
 #include <string>
+#include <sstream>
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
