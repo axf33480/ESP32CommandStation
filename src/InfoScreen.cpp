@@ -113,8 +113,8 @@ void InfoScreen::init() {
     LOG(WARNING, "Unable to initialize InfoScreen");
     if(scanI2C) {
       LOG(INFO, "Scanning for I2C devices...\n");
-      LOG(INFO, "     0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f\n");
-      LOG(INFO, "00:         ");
+      printf("     0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f\n");
+      printf("00:         ");
       for (uint8_t addr=3; addr < 0x78; addr++) {
         if (addr % 16 == 0) {
           printf("\n%.2x:", addr);
