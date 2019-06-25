@@ -41,6 +41,8 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #include <utils/macros.h>
 #include <utils/StringPrintf.hxx>
 
+#include <OpenMRNLite.h>
+
 #include "Config.h"
 
 /////////////////////////////////////////////////////////////////////////////////////
@@ -116,10 +118,6 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #define HC12_RADIO_ENABLED false
 #endif
 
-#ifndef LCC_ENABLED
-#define LCC_ENABLED false
-#endif
-
 #ifndef LCC_FORCE_FACTORY_RESET_ON_STARTUP 
 #define LCC_FORCE_FACTORY_RESET_ON_STARTUP false
 #endif
@@ -165,10 +163,7 @@ constexpr uint16_t S88_MAX_SENSORS_PER_BUS = 512;
 #include "Locomotive.h"
 #include "Outputs.h"
 #include "NextionInterface.h"
-#if LCC_ENABLED
-#include <OpenMRNLite.h>
 #include "LCCInterface.h"
-#endif
 
 extern std::vector<uint8_t> restrictedPins;
 
@@ -396,72 +391,70 @@ void setStatusLED(const STATUS_LED, const STATUS_LED_COLOR);
 /////////////////////////////////////////////////////////////////////////////////////
 // LCC interface configuration validations
 /////////////////////////////////////////////////////////////////////////////////////
-#if LCC_ENABLED
-  #if LCC_CAN_RX_PIN != NOT_A_PIN
-    #if STATUS_LED_ENABLED && STATUS_LED_DATA_PIN == LCC_CAN_RX_PIN
-    #error "Invalid Configuration detected, STATUS_LED_DATA_PIN and LCC_CAN_RX_PIN must be unique."
+#if LCC_CAN_RX_PIN != NOT_A_PIN
+  #if STATUS_LED_ENABLED && STATUS_LED_DATA_PIN == LCC_CAN_RX_PIN
+  #error "Invalid Configuration detected, STATUS_LED_DATA_PIN and LCC_CAN_RX_PIN must be unique."
+  #endif
+  #if S88_ENABLED
+    #if S88_CLOCK_PIN == LCC_CAN_RX_PIN
+    #error "Invalid Configuration detected, LCC_CAN_RX_PIN and S88_CLOCK_PIN must be unique."
     #endif
-    #if S88_ENABLED
-      #if S88_CLOCK_PIN == LCC_CAN_RX_PIN
-      #error "Invalid Configuration detected, LCC_CAN_RX_PIN and S88_CLOCK_PIN must be unique."
-      #endif
-      #if S88_CLOCK_PIN == LCC_CAN_RX_PIN
-      #error "Invalid Configuration detected, LCC_CAN_RX_PIN and S88_CLOCK_PIN must be unique."
-      #endif
-      #if S88_RESET_PIN == LCC_CAN_RX_PIN
-      #error "Invalid Configuration detected, LCC_CAN_RX_PIN and S88_CLOCK_PIN must be unique."
-      #endif
+    #if S88_CLOCK_PIN == LCC_CAN_RX_PIN
+    #error "Invalid Configuration detected, LCC_CAN_RX_PIN and S88_CLOCK_PIN must be unique."
     #endif
-    #if LOCONET_ENABLED
-      #if LCC_CAN_RX_PIN == LOCONET_RX_PIN
-      #error "Invalid Configuration detected, LCC_CAN_RX_PIN and LOCONET_RX_PIN must be unique."
-      #endif
-      #if LCC_CAN_RX_PIN == LOCONET_TX_PIN
-      #error "Invalid Configuration detected, LCC_CAN_RX_PIN and LOCONET_TX_PIN must be unique."
-      #endif
-    #endif
-    #if NEXTION_ENABLED
-      #if LCC_CAN_RX_PIN == NEXTION_RX_PIN
-      #error "Invalid Configuration detected, LCC_CAN_RX_PIN and NEXTION_RX_PIN must be unique."
-      #endif
-      #if LCC_CAN_RX_PIN == NEXTION_TX_PIN
-      #error "Invalid Configuration detected, LCC_CAN_RX_PIN and NEXTION_TX_PIN must be unique."
-      #endif
+    #if S88_RESET_PIN == LCC_CAN_RX_PIN
+    #error "Invalid Configuration detected, LCC_CAN_RX_PIN and S88_CLOCK_PIN must be unique."
     #endif
   #endif
-  #if LCC_CAN_TX_PIN != NOT_A_PIN
-    #if STATUS_LED_ENABLED && STATUS_LED_DATA_PIN == LCC_CAN_TX_PIN
-    #error "Invalid Configuration detected, STATUS_LED_DATA_PIN and LCC_CAN_TX_PIN must be unique."
+  #if LOCONET_ENABLED
+    #if LCC_CAN_RX_PIN == LOCONET_RX_PIN
+    #error "Invalid Configuration detected, LCC_CAN_RX_PIN and LOCONET_RX_PIN must be unique."
     #endif
-    #if S88_ENABLED
-      #if S88_CLOCK_PIN == LCC_CAN_TX_PIN
-      #error "Invalid Configuration detected, LCC_CAN_TX_PIN and S88_CLOCK_PIN must be unique."
-      #endif
-      #if S88_CLOCK_PIN == LCC_CAN_TX_PIN
-      #error "Invalid Configuration detected, LCC_CAN_TX_PIN and S88_CLOCK_PIN must be unique."
-      #endif
-      #if S88_RESET_PIN == LCC_CAN_TX_PIN
-      #error "Invalid Configuration detected, LCC_CAN_TX_PIN and S88_CLOCK_PIN must be unique."
-      #endif
-    #endif
-    #if LOCONET_ENABLED
-      #if LCC_CAN_TX_PIN == LOCONET_RX_PIN
-      #error "Invalid Configuration detected, LCC_CAN_TX_PIN and LOCONET_RX_PIN must be unique."
-      #endif
-      #if LCC_CAN_TX_PIN == LOCONET_TX_PIN
-      #error "Invalid Configuration detected, LCC_CAN_TX_PIN and LOCONET_TX_PIN must be unique."
-      #endif
-    #endif
-    #if NEXTION_ENABLED
-      #if LCC_CAN_TX_PIN == NEXTION_RX_PIN
-      #error "Invalid Configuration detected, LCC_CAN_TX_PIN and NEXTION_RX_PIN must be unique."
-      #endif
-      #if LCC_CAN_TX_PIN == NEXTION_TX_PIN
-      #error "Invalid Configuration detected, LCC_CAN_TX_PIN and NEXTION_TX_PIN must be unique."
-      #endif
+    #if LCC_CAN_RX_PIN == LOCONET_TX_PIN
+    #error "Invalid Configuration detected, LCC_CAN_RX_PIN and LOCONET_TX_PIN must be unique."
     #endif
   #endif
-  #if LCC_CAN_RX_PIN == LCC_CAN_TX_PIN && LCC_CAN_RX_PIN != NOT_A_PIN && LCC_CAN_TX_PIN != NOT_A_PIN
-    #error "Invalid Configuration detected, LCC_CAN_RX_PIN and LCC_CAN_TX_PIN must be unique."
+  #if NEXTION_ENABLED
+    #if LCC_CAN_RX_PIN == NEXTION_RX_PIN
+    #error "Invalid Configuration detected, LCC_CAN_RX_PIN and NEXTION_RX_PIN must be unique."
+    #endif
+    #if LCC_CAN_RX_PIN == NEXTION_TX_PIN
+    #error "Invalid Configuration detected, LCC_CAN_RX_PIN and NEXTION_TX_PIN must be unique."
+    #endif
   #endif
+#endif
+#if LCC_CAN_TX_PIN != NOT_A_PIN
+  #if STATUS_LED_ENABLED && STATUS_LED_DATA_PIN == LCC_CAN_TX_PIN
+  #error "Invalid Configuration detected, STATUS_LED_DATA_PIN and LCC_CAN_TX_PIN must be unique."
+  #endif
+  #if S88_ENABLED
+    #if S88_CLOCK_PIN == LCC_CAN_TX_PIN
+    #error "Invalid Configuration detected, LCC_CAN_TX_PIN and S88_CLOCK_PIN must be unique."
+    #endif
+    #if S88_CLOCK_PIN == LCC_CAN_TX_PIN
+    #error "Invalid Configuration detected, LCC_CAN_TX_PIN and S88_CLOCK_PIN must be unique."
+    #endif
+    #if S88_RESET_PIN == LCC_CAN_TX_PIN
+    #error "Invalid Configuration detected, LCC_CAN_TX_PIN and S88_CLOCK_PIN must be unique."
+    #endif
+  #endif
+  #if LOCONET_ENABLED
+    #if LCC_CAN_TX_PIN == LOCONET_RX_PIN
+    #error "Invalid Configuration detected, LCC_CAN_TX_PIN and LOCONET_RX_PIN must be unique."
+    #endif
+    #if LCC_CAN_TX_PIN == LOCONET_TX_PIN
+    #error "Invalid Configuration detected, LCC_CAN_TX_PIN and LOCONET_TX_PIN must be unique."
+    #endif
+  #endif
+  #if NEXTION_ENABLED
+    #if LCC_CAN_TX_PIN == NEXTION_RX_PIN
+    #error "Invalid Configuration detected, LCC_CAN_TX_PIN and NEXTION_RX_PIN must be unique."
+    #endif
+    #if LCC_CAN_TX_PIN == NEXTION_TX_PIN
+    #error "Invalid Configuration detected, LCC_CAN_TX_PIN and NEXTION_TX_PIN must be unique."
+    #endif
+  #endif
+#endif
+#if LCC_CAN_RX_PIN == LCC_CAN_TX_PIN && LCC_CAN_RX_PIN != NOT_A_PIN && LCC_CAN_TX_PIN != NOT_A_PIN
+  #error "Invalid Configuration detected, LCC_CAN_RX_PIN and LCC_CAN_TX_PIN must be unique."
 #endif

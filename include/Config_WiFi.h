@@ -47,8 +47,9 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 /////////////////////////////////////////////////////////////////////////////////////
 //
-// DEFINE HOSTNAME TO USE FOR WiFi CONNECTIONS AND mDNS BROADCASTS
+// This defines the hostname prefix to use for the ESP32 Command Station. The LCC
+// Node ID will be appended to this value.
 //
-#define HOSTNAME "ESP32CS"
+#define HOSTNAME_PREFIX "ESP32CS_"
 
 /////////////////////////////////////////////////////////////////////////////////////

@@ -17,16 +17,19 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 #pragma once
 
-#include <ESPAsyncWebServer.h>
-
 class WiFiInterface {
 public:
   WiFiInterface();
-  void begin();
+  void init();
   void showConfiguration();
   void showInitInfo();
   void send(const String &);
   void print(const __FlashStringHelper *fmt, ...);
+  void setIP(tcpip_adapter_ip_info_t ip) {
+    _ip_info.ip = ip.ip;
+  }
+private:
+  tcpip_adapter_ip_info_t _ip_info;
 };
 
 extern WiFiInterface wifiInterface;

@@ -47,6 +47,7 @@
 #include "utils/macros.h"
 
 #include <freertos/event_groups.h>
+#include <esp_event_loop.h>
 
 namespace openmrn_arduino
 {
@@ -89,7 +90,8 @@ public:
     /// Note: Both ssid and password must remain in memory for the duration of
     /// node uptime.
     Esp32WiFiManager(const char *ssid, const char *password,
-        openlcb::SimpleCanStack *stack, const WiFiConfiguration &cfg);
+        openlcb::SimpleCanStack *stack, const WiFiConfiguration &cfg,
+        const char *hostname="esp32_");
 
     /// Constructor.
     ///
@@ -126,14 +128,27 @@ public:
     /// @param fd is the file descriptor used for the configuration settings.
     void factory_reset(int fd) override;
 
-    /// Processes an Esp32 WiFi event based on the event_id raised by the
+    /// Processes an ESP-IDF WiFi event based on the event raised by the
     /// ESP-IDF event loop processor. This should be used when the
-    /// Esp32WiFiManager is not managing the WiFi or MDNS systems so that it
-    /// can react to WiFi events to cleanup or recreate the hub or uplink
-    /// connections as required.
+    /// Esp32WiFiManager is not managing the WiFi or MDNS systems so that
+    /// it can react to WiFi events to cleanup or recreate the hub or uplink
+    /// connections as required. When Esp32WiFiManager is managing the WiFi
+    /// connection this method will be called automatically from the
+    /// esp_event_loop. Note that ESP-IDF only supports one callback being
+    /// registered. 
     ///
-    /// @param event_id is the system_event_t.event_id value.
-    void process_wifi_event(int event_id);
+    /// @param event is the system_event_t raised by ESP-IDF.
+    void process_wifi_event(system_event_t *event);
+
+    /// Adds a callback to receive WiFi events as they are received/processed
+    /// by the Esp32WiFiManager.
+    ///
+    /// @param callback is the callback to invoke when events are received,
+    /// the only parameter is the system_event_t that was received.
+    void add_event_callback(std::function<void(system_event_t *)> callback)
+    {
+        eventCallbacks_.push_back(callback);
+    }
 
     /// If called, setsthe ESP32 wifi stack to log verbose information to the
     /// ESP32 serial port.
@@ -190,7 +205,7 @@ private:
     os_thread_t wifiTaskHandle_;
 
     /// Dynamically generated hostname for this node, esp32_{node-id}.
-    std::string hostname_{"esp32_"};
+    std::string hostname_{""};
 
     /// User provided SSID to connect to.
     const char *ssid_;
@@ -231,6 +246,9 @@ private:
 
     /// @ref SocketClient for this node's uplink.
     std::unique_ptr<SocketClient> uplink_;
+
+    /// Collection of registered WiFi event callback handlers.
+    std::vector<std::function<void(system_event_t *)>> eventCallbacks_;
 
     /// Internal event group used to track the IP assignment events.
     EventGroupHandle_t wifiStatusEventGroup_;

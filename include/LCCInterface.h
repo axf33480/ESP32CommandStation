@@ -17,6 +17,7 @@ COPYRIGHT (c) 2019 Mike Dunston
 
 #pragma once
 
+#include <dcc/RailcomHub.hxx>
 #include <executor/StateFlow.hxx>
 
 class LCCInterface {
@@ -52,6 +53,12 @@ public:
     uint32_t getExecutorCount() const {
         return executorCount_;
     }
+    size_t getPoolFreeCount() const {
+        return stack_->can_hub()->pool()->free_items();
+    }
+    size_t getPoolSize() const {
+        return stack_->can_hub()->pool()->total_size();
+    }
 private:
     openlcb::SimpleCanStack *stack_;
     StateFlowTimer timer_{this};
@@ -62,3 +69,4 @@ private:
 
 extern LCCInterface lccInterface;
 extern InfoScreenStatCollector infoScreenCollector;
+extern dcc::RailcomHubFlow railComHub;

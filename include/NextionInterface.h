@@ -264,7 +264,10 @@ protected:
   void displayPage() override {
     _versionText.setText(VERSION);
     _ssidText.setText(SSID_NAME);
-    _ipAddrText.setText(WiFi.localIP().toString().c_str());
+    tcpip_adapter_ip_info_t ip;
+    tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_STA, &ip);
+
+    _ipAddrText.setText(IPAddress(ip.ip.addr).toString().c_str());
   }
 
 private:

@@ -17,8 +17,6 @@ COPYRIGHT (c) 2019 Mike Dunston
 
 #include "ESP32CommandStation.h"
 
-#if LCC_ENABLED
-
 // if both RX and TX pins are defined as valid pins enable the CAN interface
 #if LCC_CAN_RX_PIN != NOT_A_PIN && LCC_CAN_TX_PIN != NOT_A_PIN
 #define LCC_CAN_ENABLED true
@@ -68,7 +66,8 @@ string dummystring("abcdef");
 static constexpr ConfigDef cfg(0);
 
 // WiFi manager instance, this will cover the LCC uplink etc.
-Esp32WiFiManager wifi_mgr(openmrn.stack(), cfg.seg().wifi());
+Esp32WiFiManager wifi_mgr(SSID_NAME, SSID_PASSWORD, openmrn.stack(),
+                          cfg.seg().wifi(), HOSTNAME_PREFIX);
 
 // RailCom Hub interface for LCC
 RailcomHubFlow railComHub(openmrn.stack()->service());
@@ -258,8 +257,5 @@ void LCCInterface::update() {
 }
 
 void LCCInterface::processWiFiEvent(system_event_id_t event) {
-    wifi_mgr.process_wifi_event(event);
+    //wifi_mgr.process_wifi_event(event);
 }
-
-#endif
-

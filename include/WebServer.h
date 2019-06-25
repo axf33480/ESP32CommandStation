@@ -16,26 +16,26 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 **********************************************************************/
 #pragma once
 
+#include <os/MDNS.hxx>
 #include <ESPAsyncWebServer.h>
-#include <ESPmDNS.h>
-
 #include "InfoScreen.h"
 
 class ESP32CSWebServer : public AsyncWebServer {
 public:
-  ESP32CSWebServer();
+  ESP32CSWebServer(MDNS *mdns);
   void begin() {
-    MDNS.addService("http", "tcp", 80);
+    _mdns->publish("websvr", "_http._tcp", 80);
     AsyncWebServer::begin();
 #if INFO_SCREEN_WS_CLIENTS_LINE >= 0
     InfoScreen::replaceLine(INFO_SCREEN_WS_CLIENTS_LINE, F("WS Clients: 0"));
 #endif
   }
   void broadcastToWS(const String &buf) {
-    webSocket.textAll(buf);
+    _webSocket.textAll(buf);
   }
 private:
-  AsyncWebSocket webSocket;
+  AsyncWebSocket _webSocket;
+  MDNS *_mdns;
   void handleESPInfo(AsyncWebServerRequest *);
   void handleProgrammer(AsyncWebServerRequest *);
   void handlePower(AsyncWebServerRequest *);

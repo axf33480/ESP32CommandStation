@@ -76,10 +76,8 @@ void setup() {
   nextionInterfaceInit();
 #endif
   configStore.init();
-#if LCC_ENABLED
+  wifiInterface.init();
   lccInterface.init();
-#endif
-  wifiInterface.begin();
   MotorBoardManager::registerBoard(MOTORBOARD_CURRENT_SENSE_OPS,
                                    MOTORBOARD_ENABLE_PIN_OPS,
                                    MOTORBOARD_TYPE_OPS,
@@ -260,8 +258,8 @@ void setup() {
   // Enable watchdog timers
   enableLoopWDT();
 
-  LOG(INFO, "ESP32 Command Station READY!");
-  InfoScreen::replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, F("ESP32-CS READY!"));
+  LOG(INFO, "ESP32 Command Station Started!");
+  InfoScreen::replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, F("ESP32-CS Started"));
 }
 
 void loop() {
@@ -273,9 +271,7 @@ void loop() {
   MotorBoardManager::check();
   if(!otaInProgress) {
     InfoScreen::update();
-#if LCC_ENABLED
     lccInterface.update();
-#endif
 #if HC12_RADIO_ENABLED
     HC12Interface::update();
 #endif

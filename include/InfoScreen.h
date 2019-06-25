@@ -18,6 +18,7 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #pragma once
 
 #include <WString.h>
+#include <mutex>
 #include "Config.h"
 
 #if defined(INFO_SCREEN_OLED) && INFO_SCREEN_OLED
@@ -51,4 +52,5 @@ class InfoScreen {
     static void update();
   private:
     static bool _enabled;
+    static std::mutex _mux;
 };

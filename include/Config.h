@@ -29,6 +29,13 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 /////////////////////////////////////////////////////////////////////////////////////
 //
+// The LCC interface is part of the ESP32 Command Station core functionality, by
+// default only the WiFi interface is enabled but a hardware CAN interface can be
+// enabled.
+#include "Config_LCC.h"
+
+/////////////////////////////////////////////////////////////////////////////////////
+//
 // The Status module allows the Command Station to report visually the current state
 // of the WiFi, OPS and PROG outputs.
 //#include "Config_Status.h"
@@ -74,12 +81,6 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 // you must uncomment the next line and edit the Config_LocoNet.h file to match your
 // configuration.
 //#include "Config_LocoNet.h"
-
-/////////////////////////////////////////////////////////////////////////////////////
-//
-// The LCC interface is an optional module, by default the WiFi interface is available
-// uncomment the line below if you wish to have a hardware CAN interface used as well.
-//#include "Config_LCC.h"
 
 /////////////////////////////////////////////////////////////////////////////////////
 //

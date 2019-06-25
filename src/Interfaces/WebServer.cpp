@@ -88,7 +88,7 @@ static const char * _err2str(uint8_t _error){
     return ("UNKNOWN");
 }
 
-ESP32CSWebServer::ESP32CSWebServer() : AsyncWebServer(80), webSocket("/ws") {
+ESP32CSWebServer::ESP32CSWebServer(MDNS *mdns) : AsyncWebServer(80), _webSocket("/ws"), _mdns(mdns) {
   rewrite("/", "/index.html");
   on("/index.html", HTTP_GET,
     [](AsyncWebServerRequest *request) {
@@ -189,7 +189,7 @@ ESP32CSWebServer::ESP32CSWebServer() : AsyncWebServer(80), webSocket("/ws") {
     }
   });
 
-  webSocket.onEvent([](AsyncWebSocket * server, AsyncWebSocketClient * client,
+  _webSocket.onEvent([](AsyncWebSocket * server, AsyncWebSocketClient * client,
       AwsEventType type, void * arg, uint8_t *data, size_t len) {
     if (type == WS_EVT_CONNECT) {
       webSocketClients.add(new WebSocketClient(client->id(), client->remoteIP()));
@@ -218,7 +218,7 @@ ESP32CSWebServer::ESP32CSWebServer() : AsyncWebServer(80), webSocket("/ws") {
       }
     }
   });
-  addHandler(&webSocket);
+  addHandler(&_webSocket);
   addHandler(new SPIFFSEditor(SPIFFS));
 }
 
