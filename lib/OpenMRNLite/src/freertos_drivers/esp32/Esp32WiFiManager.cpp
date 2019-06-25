@@ -878,7 +878,7 @@ int mdns_lookup(
     if (!results)
     {
         // failed to find any matches
-        LOG(WARNING, "[mDNS] No matches found for service: %s.", service);
+        LOG(VERBOSE, "[mDNS] No matches found for service: %s.", service);
         return EAI_AGAIN;
     }
 
