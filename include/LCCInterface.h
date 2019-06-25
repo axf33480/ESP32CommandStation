@@ -17,12 +17,48 @@ COPYRIGHT (c) 2019 Mike Dunston
 
 #pragma once
 
+#include <executor/StateFlow.hxx>
+
 class LCCInterface {
 public:
   LCCInterface();
   void init();
   void update();
   void processWiFiEvent(system_event_id_t event);
+  size_t getNodeAliasCount();
+};
+
+class InfoScreenStatCollector : public StateFlowBase {
+public:
+    InfoScreenStatCollector(openlcb::SimpleCanStack *stack) : StateFlowBase(stack->service()), stack_(stack) {
+        start_flow(STATE(delay));
+    }
+    StateFlowBase::Action delay() {
+        return sleep_and_call(&timer_, SEC_TO_NSEC(5), STATE(update_count));
+    }
+    StateFlowBase::Action update_count() {
+        // TODO: adjust this to capture actual node counts rather than just cache size
+        remoteNodeCount_ = stack_->iface()->remote_aliases()->size();
+        localNodeCount_ = stack_->iface()->local_aliases()->size();
+        executorCount_ = stack_->service()->executor()->sequence();
+        return call_immediately(STATE(delay));
+    }
+    size_t getRemoteNodeCount() const {
+        return remoteNodeCount_;
+    }
+    size_t getLocalNodeCount() const {
+        return localNodeCount_;
+    }
+    uint32_t getExecutorCount() const {
+        return executorCount_;
+    }
+private:
+    openlcb::SimpleCanStack *stack_;
+    StateFlowTimer timer_{this};
+    size_t remoteNodeCount_{0};
+    size_t localNodeCount_{0};
+    uint32_t executorCount_{0};
 };
 
 extern LCCInterface lccInterface;
+extern InfoScreenStatCollector infoScreenCollector;

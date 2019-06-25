@@ -94,6 +94,8 @@ void IRAM_ATTR cpuTickTimerCallback() {
 }
 #endif
 
+InfoScreenStatCollector infoScreenCollector(openmrn.stack());
+
 // when the command station starts up the first time the config is blank
 // and needs to be reset to factory settings. This class being declared here
 // takes care of that.

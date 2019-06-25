@@ -245,6 +245,7 @@ void InfoScreen::update() {
   }
 #endif
 #if LCC_ENABLED
+  static uint8_t _lccStatusIndex = 0;
   static uint8_t _firstLCCIndex = 0;
   if(!_firstLCCIndex) {
     _firstLCCIndex = _rotatingStatusLineCount;
@@ -301,9 +302,24 @@ void InfoScreen::update() {
 #endif
 #if LCC_ENABLED
       } else if (_rotatingStatusIndex == _firstLCCIndex) {
-        // placeholder until LCC stats can be exported and displayed
-        replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, F("LCC: %d"),
-          openmrn.stack()->can_hub()->size());
+        ++_lccStatusIndex %= 5;
+        if(_lccStatusIndex == 0) {
+          replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, F("LCC Nodes: %d"),
+            infoScreenCollector.getRemoteNodeCount());
+        } else if (_lccStatusIndex == 1) {
+          replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, F("LCC Local Nodes: %d"),
+            infoScreenCollector.getLocalNodeCount());
+        } else if (_lccStatusIndex == 2) {
+          replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, F("LCC dg_svc: %d"),
+            openmrn.stack()->dg_service()->client_allocator()->pending());
+        } else if (_lccStatusIndex == 3) {
+          replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, F("LCC Ex: %d"),
+            infoScreenCollector.getExecutorCount());
+        } else if (_lccStatusIndex == 4) {
+          replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, F("LCC Pool: %d/%d"),
+            openmrn.stack()->can_hub()->pool()->free_items(),
+            openmrn.stack()->can_hub()->pool()->total_size());
+        }
 #endif
       }
     }
