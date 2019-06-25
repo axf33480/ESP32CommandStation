@@ -37,9 +37,9 @@ public:
         return sleep_and_call(&timer_, SEC_TO_NSEC(5), STATE(update_count));
     }
     StateFlowBase::Action update_count() {
-        // TODO: adjust this to capture actual node counts rather than just cache size
-        remoteNodeCount_ = stack_->iface()->remote_aliases()->size();
-        localNodeCount_ = stack_->iface()->local_aliases()->size();
+        // TODO: Migrate to DG listener to capture node aliases as they are announced.
+        remoteNodeCount_ = static_cast<openlcb::IfCan *>(stack_->iface())->remote_aliases()->size();
+        localNodeCount_ = static_cast<openlcb::IfCan *>(stack_->iface())->local_aliases()->size();
         executorCount_ = stack_->service()->executor()->sequence();
         return call_immediately(STATE(delay));
     }
