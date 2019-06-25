@@ -1,10 +1,10 @@
-/** @copyright
- * Copyright (c) 2018, Stuart W Baker
+/** \copyright
+ * Copyright (c) 2014, Balazs Racz
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are  permitted provided that the following conditions are met:
- * 
+ *
  *  - Redistributions of source code must retain the above copyright notice,
  *    this list of conditions and the following disclaimer.
  *
@@ -24,33 +24,38 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  *
- * @file os_private.h
- * This file is a bit of a hack and should only used under extreme caution.
- * its purpose is to allow alternate niche platform support for the OS API's
+ * \file UpdateLoop.hxx
  *
- * @author Stuart W. Baker
- * @date 29 December 2018
+ * Proxy implementation to the global update loop.
+ *
+ * @author Balazs Racz
+ * @date 10 May 2014
  */
 
-#ifndef _OS_OS_PRIVATE_H_
-#define _OS_OS_PRIVATE_H_
+#include "dcc/UpdateLoop.hxx"
+#include "utils/Singleton.hxx"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+namespace dcc {
 
-#if defined (__FreeRTOS__)
-extern void os_thread_start(void *arg);
-#endif // __FreeRTOS__
+void packet_processor_notify_update(PacketSource* source, unsigned code) {
+  Singleton<UpdateLoopBase>::instance()->notify_update(source, code);
+}
 
-/// Locks a single global Atomic used to guard some OS structures.
-void os_atomic_lock(void);
-/// Unlocks a single global Atomic used to guard some OS structures.
-void os_atomic_unlock(void);
+/** Adds a new refresh source to the background refresh loop. */
+bool packet_processor_add_refresh_source(
+    PacketSource *source, unsigned priority)
+{
+    return Singleton<UpdateLoopBase>::instance()->add_refresh_source(
+        source, priority);
+}
 
-#ifdef __cplusplus
-} // extern "C"
-#endif
+/** Removes a refresh source from the background refresh loop. */
+void packet_processor_remove_refresh_source(PacketSource* source) {
+  Singleton<UpdateLoopBase>::instance()->remove_refresh_source(source);
+}
 
-#endif // _OS_OS_PRIVATE_H_
+UpdateLoopBase::~UpdateLoopBase() {}
 
+}
+
+//DEFINE_SINGLETON_INSTANCE(dcc::UpdateLoopBase);
