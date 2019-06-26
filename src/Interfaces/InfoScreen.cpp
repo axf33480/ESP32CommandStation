@@ -297,7 +297,7 @@ void InfoScreen::update() {
             infoScreenCollector.getLocalNodeCount());
         } else if (_lccStatusIndex == 2) {
           replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, F("LCC dg_svc: %d"),
-            openmrn.stack()->dg_service()->client_allocator()->pending());
+            infoScreenCollector.getDatagramCount());
         } else if (_lccStatusIndex == 3) {
           replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, F("LCC Ex: %d"),
             infoScreenCollector.getExecutorCount());

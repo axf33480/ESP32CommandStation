@@ -59,6 +59,9 @@ public:
     size_t getPoolSize() const {
         return stack_->can_hub()->pool()->total_size();
     }
+    uint32_t getDatagramCount() const {
+        return stack_->dg_service()->client_allocator()->pending();
+    }
 private:
     openlcb::SimpleCanStack *stack_;
     StateFlowTimer timer_{this};
