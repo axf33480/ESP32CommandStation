@@ -24,8 +24,6 @@ COPYRIGHT (c) 2019 Mike Dunston
 #define LCC_CAN_ENABLED false
 #endif
 
-#include <ESPmDNS.h>
-
 #include <openlcb/TcpDefs.hxx>
 #include <openlcb/DccAccyConsumer.hxx>
 #include <openlcb/DccAccyProducer.hxx>
@@ -65,9 +63,41 @@ string dummystring("abcdef");
 // layout. The argument of offset zero is ignored and will be removed later.
 static constexpr ConfigDef cfg(0);
 
-// WiFi manager instance, this will cover the LCC uplink etc.
+// SoftAP uses a hardcoded IP address of 8.8.8.8 so that Android devices will
+// connect to it for DNS by default.
+tcpip_adapter_ip_info_t APstaticIP = {
+    htonl(LWIP_MAKEU32(8, 8, 8, 8)),
+    htonl(LWIP_MAKEU32(255, 255, 255, 0)),
+    htonl(LWIP_MAKEU32(8, 8, 8, 8))
+};
+
+#if WIFI_ENABLE_SOFT_AP
+const wifi_mode_t wifi_mgr_wifi_mode = WIFI_MODE_APSTA;
+#else
+const wifi_mode_t wifi_mgr_wifi_mode = WIFI_MODE_STA;
+#endif
+
+#if !defined(WIFI_STATIC_IP_ADDRESS) || !defined(WIFI_STATIC_IP_GATEWAY) || !defined(WIFI_STATIC_IP_SUBNET)
+tcpip_adapter_ip_info_t *stationStaticIP = nullptr;
+ip_addr_t stationDNSServer = ip_addr_any;
+#else
+tcpip_adapter_ip_info_t _staticIP = {
+    htonl(WIFI_STATIC_IP_ADDRESS),
+    htonl(WIFI_STATIC_IP_SUBNET),
+    htonl(WIFI_STATIC_IP_GATEWAY)
+};
+tcpip_adapter_ip_info_t *stationStaticIP = &_staticIP;
+#ifdef WIFI_STATIC_IP_DNS
+ip_addr_t stationDNSServer = IPADDR4_INIT(htonl(WIFI_STATIC_IP_DNS));
+#else
+ip_addr_t stationDNSServer = ip_addr_any;
+#endif
+#endif
+
 Esp32WiFiManager wifi_mgr(SSID_NAME, SSID_PASSWORD, openmrn.stack(),
-                          cfg.seg().wifi(), HOSTNAME_PREFIX);
+                          cfg.seg().wifi(), HOSTNAME_PREFIX, wifi_mgr_wifi_mode,
+                          stationStaticIP, stationDNSServer,
+                          1, 4, WIFI_AUTH_OPEN, &APstaticIP);
 
 // RailCom Hub interface for LCC
 RailcomHubFlow railComHub(openmrn.stack()->service());

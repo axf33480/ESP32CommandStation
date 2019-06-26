@@ -17,16 +17,26 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 #include "ESP32CommandStation.h"
 #include <ESPAsyncWebServer.h>
+#include <ESPAsyncDNSServer.h>
 #include <SPIFFSEditor.h>
 #include <AsyncJson.h>
 #include <Update.h>
 
-#include "WebServer.h"
 #include "Outputs.h"
 #include "Turnouts.h"
 #include "S88Sensors.h"
 #include "RemoteSensors.h"
 #include "index_html.h"
+#include "jquery_min_js.h"
+#include "jquery_mobile_js.h"
+#include "jquery_mobile_css.h"
+#include "jquery_simple_websocket.h"
+#include "jq_clock.h"
+#include "ajax_loader.h"
+
+AsyncWebServer webServer(80);
+AsyncDNSServer asyncDNS;
+AsyncWebSocket webSocket("/ws");
 
 enum HTTP_STATUS_CODES {
   STATUS_OK = 200,
@@ -56,6 +66,36 @@ private:
   IPAddress _remoteIP;
 };
 LinkedList<WebSocketClient *> webSocketClients([](WebSocketClient *client) {delete client;});
+
+void handleWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client,
+                                     AwsEventType type, void * arg, uint8_t *data, size_t len) {
+  if (type == WS_EVT_CONNECT) {
+    webSocketClients.add(new WebSocketClient(client->id(), client->remoteIP()));
+    client->printf("<iDCC++ ESP32 Command Station: V-%s / %s %s>", VERSION, __DATE__, __TIME__);
+#if INFO_SCREEN_WS_CLIENTS_LINE >= 0
+    InfoScreen::print(12, INFO_SCREEN_WS_CLIENTS_LINE, F("%02d"), webSocketClients.length());
+#endif
+  } else if (type == WS_EVT_DISCONNECT) {
+    WebSocketClient *toRemove = nullptr;
+    for (const auto& clientNode : webSocketClients) {
+      if(clientNode->getID() == client->id()) {
+        toRemove = clientNode;
+      }
+    }
+    if(toRemove != nullptr) {
+      webSocketClients.remove(toRemove);
+    }
+#if INFO_SCREEN_WS_CLIENTS_LINE >= 0
+    InfoScreen::print(12, INFO_SCREEN_WS_CLIENTS_LINE, F("%02d"), webSocketClients.length());
+#endif
+  } else if (type == WS_EVT_DATA) {
+    for (const auto& clientNode : webSocketClients) {
+      if(clientNode->getID() == client->id()) {
+        clientNode->feed(data, len);
+      }
+    }
+  }
+}
 
 static const char * _err2str(uint8_t _error){
     if(_error == UPDATE_ERROR_OK){
@@ -88,21 +128,28 @@ static const char * _err2str(uint8_t _error){
     return ("UNKNOWN");
 }
 
-ESP32CSWebServer::ESP32CSWebServer(MDNS *mdns) : AsyncWebServer(80), _webSocket("/ws"), _mdns(mdns) {
-  rewrite("/", "/index.html");
-  on("/index.html", HTTP_GET,
-    [](AsyncWebServerRequest *request) {
-      const char * htmlBuildTime = __DATE__ " " __TIME__;
-      if (request->header("If-Modified-Since").equals(htmlBuildTime)) {
-        request->send(STATUS_NOT_MODIFIED);
-      } else {
-        AsyncWebServerResponse *response = request->beginResponse_P(STATUS_OK, "text/html", indexHtmlGz, indexHtmlGz_size);
-        response->addHeader("Content-Encoding", "gzip");
-        response->addHeader("Last-Modified", htmlBuildTime);
-        request->send(response);
-      }
-    });
-  on("/features", HTTP_GET, [](AsyncWebServerRequest *request) {
+void handleOTAUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final);
+
+ESP32CSWebServer::ESP32CSWebServer(MDNS *mdns) : _mdns(mdns) {
+}
+
+void ESP32CSWebServer::begin() {
+#if WIFI_ENABLE_SOFT_AP
+  tcpip_adapter_ip_info_t ip_info;
+  // start the async dns on the softap address
+  tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_AP, &ip_info);
+  asyncDNS.setErrorReplyCode(AsyncDNSReplyCode::NoError);
+  asyncDNS.start(53, "*", ip_info.ip);
+#endif
+  webServer.rewrite("/", "/index.html");
+  webServer.on("/index.html", HTTP_ANY, std::bind(&ESP32CSWebServer::streamChunkedResource, this, std::placeholders::_1));
+  webServer.on("/jquery.min.js", HTTP_ANY, std::bind(&ESP32CSWebServer::streamChunkedResource, this, std::placeholders::_1));
+  webServer.on("/jquery.mobile-1.5.0-rc1.min.js", HTTP_ANY, std::bind(&ESP32CSWebServer::streamChunkedResource, this, std::placeholders::_1));
+  webServer.on("/jquery.mobile-1.5.0-rc1.min.css", HTTP_ANY, std::bind(&ESP32CSWebServer::streamChunkedResource, this, std::placeholders::_1));
+  webServer.on("/jquery.simple.websocket.min.js", HTTP_ANY, std::bind(&ESP32CSWebServer::streamChunkedResource, this, std::placeholders::_1));
+  webServer.on("/jqClock-lite.min.js", HTTP_ANY, std::bind(&ESP32CSWebServer::streamChunkedResource, this, std::placeholders::_1));
+  webServer.on("/images/ajax-loader.gif", HTTP_ANY, std::bind(&ESP32CSWebServer::streamChunkedResource, this, std::placeholders::_1));
+  webServer.on("/features", HTTP_GET, [](AsyncWebServerRequest *request) {
     auto jsonResponse = new AsyncJsonResponse();
     JsonObject &root = jsonResponse->getRoot();
 #if S88_ENABLED
@@ -115,111 +162,59 @@ ESP32CSWebServer::ESP32CSWebServer(MDNS *mdns) : AsyncWebServer(80), _webSocket(
     jsonResponse->setLength();
     request->send(jsonResponse);
   });
-  on("/programmer", HTTP_GET | HTTP_POST,
+  webServer.on("/programmer", HTTP_GET | HTTP_POST,
     std::bind(&ESP32CSWebServer::handleProgrammer, this, std::placeholders::_1));
-  on("/power", HTTP_GET | HTTP_PUT,
+  webServer.on("/power", HTTP_GET | HTTP_PUT,
     std::bind(&ESP32CSWebServer::handlePower, this, std::placeholders::_1));
-  on("/outputs", HTTP_GET | HTTP_POST | HTTP_PUT | HTTP_DELETE,
+  webServer.on("/outputs", HTTP_GET | HTTP_POST | HTTP_PUT | HTTP_DELETE,
     std::bind(&ESP32CSWebServer::handleOutputs, this, std::placeholders::_1));
-  on("/turnouts", HTTP_GET | HTTP_POST | HTTP_PUT | HTTP_DELETE,
+  webServer.on("/turnouts", HTTP_GET | HTTP_POST | HTTP_PUT | HTTP_DELETE,
     std::bind(&ESP32CSWebServer::handleTurnouts, this, std::placeholders::_1));
-  on("/sensors", HTTP_GET | HTTP_POST | HTTP_DELETE,
+  webServer.on("/sensors", HTTP_GET | HTTP_POST | HTTP_DELETE,
     std::bind(&ESP32CSWebServer::handleSensors, this, std::placeholders::_1));
 #if S88_ENABLED
-  on("/s88sensors", HTTP_GET | HTTP_POST | HTTP_DELETE,
+  webServer.on("/s88sensors", HTTP_GET | HTTP_POST | HTTP_DELETE,
     std::bind(&ESP32CSWebServer::handleS88Sensors, this, std::placeholders::_1));
 #endif
-  on("/remoteSensors", HTTP_GET | HTTP_POST | HTTP_DELETE,
+  webServer.on("/remoteSensors", HTTP_GET | HTTP_POST | HTTP_DELETE,
     std::bind(&ESP32CSWebServer::handleRemoteSensors, this, std::placeholders::_1));
-  on("/config", HTTP_POST | HTTP_DELETE,
+  webServer.on("/config", HTTP_POST | HTTP_DELETE,
     std::bind(&ESP32CSWebServer::handleConfig, this, std::placeholders::_1));
-  on("/locomotive", HTTP_GET | HTTP_POST | HTTP_PUT | HTTP_DELETE,
+  webServer.on("/locomotive", HTTP_GET | HTTP_POST | HTTP_PUT | HTTP_DELETE,
     std::bind(&ESP32CSWebServer::handleLocomotive, this, std::placeholders::_1));
-  on("/update", HTTP_POST, [](AsyncWebServerRequest *request) {
+  webServer.on("/update", HTTP_POST, [](AsyncWebServerRequest *request) {
     request->send(STATUS_OK, "text/plain", _err2str(Update.getError()));
-  }, [](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
-    if (!index) {
-#if NEXTION_ENABLED
-      nextionPages[TITLE_PAGE]->show();
-      static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(0, "Firmware Upload Started...");
-#endif
-      otaInProgress = true;
-      LOG(INFO, "Update starting...");
-      InfoScreen::replaceLine(INFO_SCREEN_STATION_INFO_LINE, "Update starting");
-      MotorBoardManager::powerOffAll();
-      stopDCCSignalGenerators();
-      if (!Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH)) {
-#if NEXTION_ENABLED
-        static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(1, _err2str(Update.getError()));
-#endif
-        InfoScreen::replaceLine(INFO_SCREEN_STATION_INFO_LINE, _err2str(Update.getError()));
-        request->send(STATUS_BAD_REQUEST, "text/plain", _err2str(Update.getError()));
-        Update.printError(Serial);
-      }
-    }
-    if (Update.write(data, len) != len) {
-#if NEXTION_ENABLED
-      static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(1, _err2str(Update.getError()));
-#endif
-      InfoScreen::replaceLine(INFO_SCREEN_STATION_INFO_LINE, _err2str(Update.getError()));
-      request->send(STATUS_BAD_REQUEST, "text/plain", _err2str(Update.getError()));
-      Update.printError(Serial);
+  }, &handleOTAUpload);
+
+  webServer.onNotFound([](AsyncWebServerRequest *request) {
+#if WIFI_ENABLE_SOFT_AP
+    if(request->url() == "/generate_204" || request->url() == "/gen_204" || request->url() == "/fwlink") {
+      tcpip_adapter_ip_info_t ip_info;
+      tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_AP, &ip_info);
+      // redirect to main page
+      LOG(INFO, "[WebSrv %s] Redirect to http://" IPSTR "/index.html", request->client()->remoteIP().toString().c_str(), IP2STR(&ip_info.ip));
+      request->send(STATUS_OK, "text/html", StringPrintf("<html><body>Click <a href=\"http://" IPSTR "/index.html\">here</a> for ESP32 Command Station</body></html>", IP2STR(&ip_info.ip)).c_str());
     } else {
-      InfoScreen::replaceLine(INFO_SCREEN_STATION_INFO_LINE, "Updating: %d", Update.progress());
-#if NEXTION_ENABLED
-      static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(1, String("Progress: ") + String(Update.progress()));
 #endif
+      LOG(INFO, "[WebSrv %s] 404: %s", request->client()->remoteIP().toString().c_str(), request->url().c_str());
+      request->send(STATUS_NOT_FOUND, "text/plain", "File Not Found");
+#if WIFI_ENABLE_SOFT_AP
     }
-    if (final) {
-      if (Update.end(true)) {
-#if NEXTION_ENABLED
-        static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(1, "Update Complete");
-        static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(2, "Rebooting");
 #endif
-        InfoScreen::replaceLine(INFO_SCREEN_STATION_INFO_LINE, "Update Complete");
-        otaComplete = true;
-      } else {
-#if NEXTION_ENABLED
-        static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(1, _err2str(Update.getError()));
-#endif
-        InfoScreen::replaceLine(INFO_SCREEN_STATION_INFO_LINE, _err2str(Update.getError()));
-        request->send(STATUS_BAD_REQUEST, "text/plain", _err2str(Update.getError()));
-        Update.printError(Serial);
-      }
-    }
   });
 
-  _webSocket.onEvent([](AsyncWebSocket * server, AsyncWebSocketClient * client,
-      AwsEventType type, void * arg, uint8_t *data, size_t len) {
-    if (type == WS_EVT_CONNECT) {
-      webSocketClients.add(new WebSocketClient(client->id(), client->remoteIP()));
-      client->printf("<iDCC++ ESP32 Command Station: V-%s / %s %s>", VERSION, __DATE__, __TIME__);
-  #if INFO_SCREEN_WS_CLIENTS_LINE >= 0
-      InfoScreen::print(12, INFO_SCREEN_WS_CLIENTS_LINE, F("%02d"), webSocketClients.length());
-  #endif
-    } else if (type == WS_EVT_DISCONNECT) {
-      WebSocketClient *toRemove = nullptr;
-      for (const auto& clientNode : webSocketClients) {
-        if(clientNode->getID() == client->id()) {
-          toRemove = clientNode;
-        }
-      }
-      if(toRemove != nullptr) {
-        webSocketClients.remove(toRemove);
-      }
-  #if INFO_SCREEN_WS_CLIENTS_LINE >= 0
-      InfoScreen::print(12, INFO_SCREEN_WS_CLIENTS_LINE, F("%02d"), webSocketClients.length());
-  #endif
-    } else if (type == WS_EVT_DATA) {
-      for (const auto& clientNode : webSocketClients) {
-        if(clientNode->getID() == client->id()) {
-          clientNode->feed(data, len);
-        }
-      }
-    }
-  });
-  addHandler(&_webSocket);
-  addHandler(new SPIFFSEditor(SPIFFS));
+  webSocket.onEvent(handleWsEvent);
+  webServer.addHandler(&webSocket);
+  webServer.addHandler(new SPIFFSEditor(SPIFFS));
+  webServer.begin();
+  _mdns->publish("websvr", "_http._tcp", 80);
+#if INFO_SCREEN_WS_CLIENTS_LINE >= 0
+  InfoScreen::replaceLine(INFO_SCREEN_WS_CLIENTS_LINE, F("WS Clients: 0"));
+#endif
+}
+
+void ESP32CSWebServer::broadcastToWS(const String &buf) {
+  webSocket.textAll(buf);
 }
 
 void ESP32CSWebServer::handleProgrammer(AsyncWebServerRequest *request) {
@@ -695,3 +690,83 @@ void ESP32CSWebServer::handleLocomotive(AsyncWebServerRequest *request) {
   request->send(jsonResponse);
 }
 
+void handleOTAUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
+  if (!index) {
+#if NEXTION_ENABLED
+    nextionPages[TITLE_PAGE]->show();
+    static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(0, "Firmware Upload Started...");
+#endif
+    otaInProgress = true;
+    LOG(INFO, "Update starting...");
+    InfoScreen::replaceLine(INFO_SCREEN_STATION_INFO_LINE, "Update starting");
+    MotorBoardManager::powerOffAll();
+    stopDCCSignalGenerators();
+    if (!Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH)) {
+#if NEXTION_ENABLED
+      static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(1, _err2str(Update.getError()));
+#endif
+      InfoScreen::replaceLine(INFO_SCREEN_STATION_INFO_LINE, _err2str(Update.getError()));
+      request->send(STATUS_BAD_REQUEST, "text/plain", _err2str(Update.getError()));
+      Update.printError(Serial);
+    }
+  }
+  if (Update.write(data, len) != len) {
+#if NEXTION_ENABLED
+    static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(1, _err2str(Update.getError()));
+#endif
+    InfoScreen::replaceLine(INFO_SCREEN_STATION_INFO_LINE, _err2str(Update.getError()));
+    request->send(STATUS_BAD_REQUEST, "text/plain", _err2str(Update.getError()));
+    Update.printError(Serial);
+  } else {
+    InfoScreen::replaceLine(INFO_SCREEN_STATION_INFO_LINE, "Updating: %d", Update.progress());
+#if NEXTION_ENABLED
+    static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(1, String("Progress: ") + String(Update.progress()));
+#endif
+  }
+  if (final) {
+    if (Update.end(true)) {
+#if NEXTION_ENABLED
+      static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(1, "Update Complete");
+      static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(2, "Rebooting");
+#endif
+      InfoScreen::replaceLine(INFO_SCREEN_STATION_INFO_LINE, "Update Complete");
+      otaComplete = true;
+    } else {
+#if NEXTION_ENABLED
+      static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(1, _err2str(Update.getError()));
+#endif
+      InfoScreen::replaceLine(INFO_SCREEN_STATION_INFO_LINE, _err2str(Update.getError()));
+      request->send(STATUS_BAD_REQUEST, "text/plain", _err2str(Update.getError()));
+      Update.printError(Serial);
+    }
+  }
+}
+
+#define STREAM_RESOURCE(request, uri, mimeType, totalSize, resource) \
+  if (request->url() == uri) { \
+    LOG(INFO, "[WebSrv %s] Streaming %s (%d, %s)", request->client()->remoteIP().toString().c_str(), uri, totalSize, mimeType); \
+    response = request->beginResponse_P(STATUS_OK, mimeType, resource, totalSize); \
+  }
+
+void ESP32CSWebServer::streamChunkedResource(AsyncWebServerRequest *request) {
+  const char * htmlBuildTime = __DATE__ " " __TIME__;
+  if (request->header("If-Modified-Since").equals(htmlBuildTime)) {
+    request->send(STATUS_NOT_MODIFIED);
+  } else {
+    AsyncWebServerResponse *response = nullptr;
+    STREAM_RESOURCE(request, "/index.html", "text/html", indexHtmlGz_size, indexHtmlGz)
+    STREAM_RESOURCE(request, "/jquery.min.js", "text/javascript", jqueryJsGz_size, jqueryJsGz)
+    STREAM_RESOURCE(request, "/jquery.mobile-1.5.0-rc1.min.js", "text/javascript", jqueryMobileJsGz_size, jqueryMobileJsGz)
+    STREAM_RESOURCE(request, "/jquery.mobile-1.5.0-rc1.min.css", "text/css", jqueryMobileCssGz_size, jqueryMobileCssGz)
+    STREAM_RESOURCE(request, "/jquery.simple.websocket.min.js", "text/javascript", jquerySimpleWebSocketGz_size, jquerySimpleWebSocketGz)
+    STREAM_RESOURCE(request, "/jqClock-lite.min.js", "text/javascript", jqClockGz_size, jqClockGz)
+    STREAM_RESOURCE(request, "/images/ajax-loader.gif", "image/gif", ajaxLoaderGz_size, ajaxLoaderGz)
+    if(response) {
+      response->addHeader("Content-Encoding", "gzip");
+      response->addHeader("Last-Modified", htmlBuildTime);
+      request->send(response);
+    } else {
+      request->redirect("/404");
+    }
+  }
+}

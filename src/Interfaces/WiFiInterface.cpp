@@ -17,7 +17,6 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 #include "ESP32CommandStation.h"
 #include <esp_event.h>
-#include <ESPAsyncWebServer.h>
 #include "WebServer.h"
 
 #include <freertos_drivers/arduino/WifiDefs.hxx>
@@ -52,20 +51,6 @@ void WiFiInterface::init() {
 
   InfoScreen::replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, F("Init WiFI"));
   InfoScreen::replaceLine(INFO_SCREEN_IP_ADDR_LINE, F("IP:Pending"));
-/*
-#if defined(WIFI_STATIC_IP_ADDRESS) && defined(WIFI_STATIC_IP_GATEWAY) && defined(WIFI_STATIC_IP_SUBNET)
-  IPAddress staticIP, gatewayIP, subnetMask, dnsServer;
-  staticIP.fromString(WIFI_STATIC_IP_ADDRESS);
-  gatewayIP.fromString(WIFI_STATIC_IP_GATEWAY);
-  subnetMask.fromString(WIFI_STATIC_IP_SUBNET);
-#if defined(WIFI_STATIC_IP_DNS)
-  dnsServer.fromString(WIFI_STATIC_IP_DNS);
-#else
-  dnsServer.fromString("8.8.8.8");
-#endif
-  WiFi.config(staticIP, gatewayIP, subnetMask, dnsServer);
-#endif
-*/
   wifi_mgr.add_event_callback([](system_event_t *event) {
     if(event->event_id == SYSTEM_EVENT_STA_GOT_IP) {
 #if STATUS_LED_ENABLED
@@ -87,8 +72,8 @@ void WiFiInterface::init() {
                         JMRI_CLIENT_PRIORITY, JMRI_CLIENT_STACK_SIZE,
                         jmriClientHandler, (void *)fd);
       }));
-      esp32csWebServer.begin();
       mDNS.publish("jmri", "_esp32cs._tcp", JMRI_LISTENER_PORT);
+      esp32csWebServer.begin();
 #if NEXTION_ENABLED
       static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->clearStatusText();
       // transition to next screen since WiFi connection is complete

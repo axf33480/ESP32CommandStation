@@ -47,7 +47,8 @@
 #include "utils/macros.h"
 
 #include <freertos/event_groups.h>
-#include <esp_event_loop.h>
+#include <esp_event.h>
+#include <esp_wifi_types.h>
 
 namespace openmrn_arduino
 {
@@ -86,12 +87,39 @@ public:
     /// @param cfg is the WiFiConfiguration instance used for this node. This
     /// will be monitored for changes and the WiFi behavior altered
     /// accordingly.
+    /// @param hostname_prefix is the hostname prefix to use for this node.
+    /// The @ref NodeID will be appended to this value. The maximum length for
+    /// final hostname is 32 bytes.
+    /// @param wifi_mode is the WiFi operating mode. When set to WIFI_MODE_STA
+    /// the Esp32WiFiManager will attempt to connect to the provided WiFi SSID.
+    /// When the wifi_mode is WIFI_MODE_AP the Esp32WiFiManager will create an
+    /// AP with the provided SSID and PASSWORD. When the wifi_mode is
+    /// WIFI_MODE_APSTA the Esp32WiFiManager will connect to the provided WiFi
+    /// AP and create an AP with the SSID of "<hostname>" and the provided
+    /// password.
+    /// @param station_static_ip is the static IP configuration to use for the
+    /// Station WiFi connection. If not specified DHCP will be used instead.
+    /// @param primary_dns_server is the primary DNS server to use when a
+    /// static IP address is being used. If left as the default (ip_addr_any)
+    /// the Esp32WiFiManager will use 8.8.8.8 if using a static IP address.
+    /// @param soft_ap_channel is the WiFi channel to use for the SoftAP.
+    /// @param soft_ap_max_clients is the maximum number of stations that can
+    /// connect to the SoftAP. This is limited to 1-4.
+    /// @param softap_static_ip is the static IP configuration for the SoftAP,
+    /// when not specified the SoftAP will have an IP address of 192.168.4.1.
     ///
     /// Note: Both ssid and password must remain in memory for the duration of
     /// node uptime.
     Esp32WiFiManager(const char *ssid, const char *password,
         openlcb::SimpleCanStack *stack, const WiFiConfiguration &cfg,
-        const char *hostname="esp32_");
+        const char *hostname_prefix = "esp32_",
+        wifi_mode_t wifi_mode = WIFI_MODE_STA,
+        tcpip_adapter_ip_info_t *station_static_ip = nullptr,
+        ip_addr_t primary_dns_server = ip_addr_any,
+        uint8_t soft_ap_channel = 1,
+        uint8_t soft_ap_max_stations = 4,
+        wifi_auth_mode_t soft_ap_auth = WIFI_AUTH_OPEN,
+        tcpip_adapter_ip_info_t *softap_static_ip=nullptr);
 
     /// Constructor.
     ///
@@ -147,10 +175,11 @@ public:
     /// the only parameter is the system_event_t that was received.
     void add_event_callback(std::function<void(system_event_t *)> callback)
     {
-        eventCallbacks_.push_back(callback);
+        OSMutexLock l(&eventCallbacksLock_);
+        eventCallbacks_.emplace_back(std::move(callback));
     }
 
-    /// If called, setsthe ESP32 wifi stack to log verbose information to the
+    /// If called, sets the ESP32 wifi stack to log verbose information to the
     /// ESP32 serial port.
     void enable_verbose_logging();
 
@@ -204,7 +233,8 @@ private:
     /// periodic health checks of the connected hubs or clients.
     os_thread_t wifiTaskHandle_;
 
-    /// Dynamically generated hostname for this node, esp32_{node-id}.
+    /// Dynamically generated hostname for this node, esp32_{node-id}. This is
+    /// also used for the SoftAP SSID name (if enabled).
     std::string hostname_{""};
 
     /// User provided SSID to connect to.
@@ -220,8 +250,31 @@ private:
     /// some environments this may be managed externally.
     const bool manageWiFi_;
 
-    /// OpenMRN stack for the Arduino system
+    /// OpenMRN stack for the Arduino system.
     openlcb::SimpleCanStack *stack_;
+
+    /// WiFi operating mode.
+    wifi_mode_t wifiMode_{WIFI_MODE_STA};
+
+    /// Static IP Address configuration for the Station connection.
+    tcpip_adapter_ip_info_t *staticIPInfo_{nullptr};
+
+    /// Primary DNS Address to use when configured for Static IP.
+    ip_addr_t primaryDNSAddress_{ip_addr_any};
+
+    /// Channel to use for the SoftAP interface.
+    uint8_t softAPChannel_{1};
+
+    /// Maximum number of station connections to the SoftAP, supported
+    /// values: 1-4.
+    uint8_t softAPMaxStations_{4};
+
+    /// Authentication mode to use for the SoftAP. If not set to WIFI_AUTH_OPEN
+    /// @ref password_ will be used.
+    wifi_auth_mode_t softAPAuthMode_{WIFI_AUTH_OPEN};
+
+    /// Static IP Address configuration for the SoftAP.
+    tcpip_adapter_ip_info_t *softAPIPInfo_{nullptr};
 
     /// Cached copy of the file descriptor passed into apply_configuration.
     /// This is internally used by the wifi_manager_task to processed deferred
@@ -249,6 +302,9 @@ private:
 
     /// Collection of registered WiFi event callback handlers.
     std::vector<std::function<void(system_event_t *)>> eventCallbacks_;
+
+    /// Protects eventCallbacks_ vector.
+    OSMutex eventCallbacksLock_;
 
     /// Internal event group used to track the IP assignment events.
     EventGroupHandle_t wifiStatusEventGroup_;

@@ -27,13 +27,13 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 // DEFINE STATIC IP ADDRESS DETAILS OR LEAVE COMMENTED FOR DHCP
 //
 
-//#define WIFI_STATIC_IP_ADDRESS "192.168.0.115"
-//#define WIFI_STATIC_IP_GATEWAY "192.168.0.1"
-//#define WIFI_STATIC_IP_SUBNET "255.255.255.0"
+//#define WIFI_STATIC_IP_ADDRESS LWIP_MAKEU32(10, 0, 0, 155)
+//#define WIFI_STATIC_IP_GATEWAY LWIP_MAKEU32(10, 0, 0, 1)
+//#define WIFI_STATIC_IP_SUBNET LWIP_MAKEU32(255, 255, 255, 0)
 
 // WIFI_STATIC_IP_DNS is optional, if not defined the value below will be used
 // automatically. This is a Google provided DNS server.
-//#define WIFI_STATIC_IP_DNS "8.8.8.8"
+//#define WIFI_STATIC_IP_DNS LWIP_MAKEU32(8,8,8,8)
 
 /////////////////////////////////////////////////////////////////////////////////////
 //
@@ -51,5 +51,8 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 // Node ID will be appended to this value.
 //
 #define HOSTNAME_PREFIX "ESP32CS_"
+
+
+//#define WIFI_ENABLE_SOFT_AP true
 
 /////////////////////////////////////////////////////////////////////////////////////

@@ -142,6 +142,10 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #define LOCONET_ENABLE_RX_PIN_PULLUP false
 #endif
 
+#ifndef WIFI_ENABLE_SOFT_AP
+#define WIFI_ENABLE_SOFT_AP false
+#endif
+
 /////////////////////////////////////////////////////////////////////////////////////
 // S88 Maximum sensors per bus.
 /////////////////////////////////////////////////////////////////////////////////////
@@ -153,6 +157,7 @@ constexpr uint16_t S88_MAX_SENSORS_PER_BUS = 512;
 #include "JsonConstants.h"
 #include "ConfigurationManager.h"
 #include "WiFiInterface.h"
+#include "WebServer.h"
 #include "InfoScreen.h"
 #include "DCCppProtocol.h"
 #include "DCCSignalGenerator.h"

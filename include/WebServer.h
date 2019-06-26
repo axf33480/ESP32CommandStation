@@ -20,21 +20,13 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #include <ESPAsyncWebServer.h>
 #include "InfoScreen.h"
 
-class ESP32CSWebServer : public AsyncWebServer {
+class ESP32CSWebServer {
 public:
   ESP32CSWebServer(MDNS *mdns);
-  void begin() {
-    _mdns->publish("websvr", "_http._tcp", 80);
-    AsyncWebServer::begin();
-#if INFO_SCREEN_WS_CLIENTS_LINE >= 0
-    InfoScreen::replaceLine(INFO_SCREEN_WS_CLIENTS_LINE, F("WS Clients: 0"));
-#endif
-  }
-  void broadcastToWS(const String &buf) {
-    _webSocket.textAll(buf);
-  }
+  void begin();
+  void broadcastToWS(const String &buf);
 private:
-  AsyncWebSocket _webSocket;
+  
   MDNS *_mdns;
   void handleESPInfo(AsyncWebServerRequest *);
   void handleProgrammer(AsyncWebServerRequest *);
@@ -48,4 +40,6 @@ private:
   void handleS88Sensors(AsyncWebServerRequest *);
 #endif
   void handleRemoteSensors(AsyncWebServerRequest *);
+
+  void streamChunkedResource(AsyncWebServerRequest *);
 };
