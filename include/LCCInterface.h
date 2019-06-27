@@ -39,7 +39,8 @@ public:
         // TODO: Migrate to DG listener to capture node aliases as they are announced.
         remoteNodeCount_ = static_cast<openlcb::IfCan *>(stack_->iface())->remote_aliases()->size();
         localNodeCount_ = static_cast<openlcb::IfCan *>(stack_->iface())->local_aliases()->size();
-        executorCount_ = stack_->service()->executor()->sequence();
+        uint32_t prevCount = executorCount_;
+        executorCount_ = stack_->service()->executor()->sequence() - prevCount;
         return call_immediately(STATE(delay));
     }
     size_t getRemoteNodeCount() const {
