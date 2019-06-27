@@ -4,7 +4,7 @@
 #include "LocoNet.h"
 #include "LocoNetESP32.h"
 
-#include <EEPROM.h>
+//#include <EEPROM.h>
 
 static LocoNetESP32 *locoNetInstance = nullptr;
 
@@ -274,19 +274,19 @@ uint8_t LocoNetSystemVariable::readSVStorage(uint16_t offset) {
         return _swVersion;
     }
     offset -= 2;    // Map SV Address to EEPROM Offset - Skip SV_ADDR_EEPROM_SIZE & SV_ADDR_SW_VERSION
-    return EEPROM.read(offset);
+    return 0xFF; //EEPROM.read(offset);
 }
 
 uint8_t LocoNetSystemVariable::writeSVStorage(uint16_t offset, uint8_t value) {
     offset -= 2;      // Map SV Address to EEPROM Offset - Skip SV_ADDR_EEPROM_SIZE & SV_ADDR_SW_VERSION
-    uint8_t oldValue = EEPROM.read(offset);
+    uint8_t oldValue = 0xFF; // EEPROM.read(offset);
     if(oldValue != value) {
-        EEPROM.write(offset, value);
+        //EEPROM.write(offset, value);
         if(_svChangeCallback) {
             _svChangeCallback(offset + 2, value, oldValue);
         }
     }
-    return EEPROM.read(offset);
+    return 0xFF; //EEPROM.read(offset);
 }
 
 void LocoNetSystemVariable::reconfigure() {
