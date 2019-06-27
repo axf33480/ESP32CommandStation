@@ -45,18 +45,18 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 class InfoScreen : public StateFlowBase {
 public:
-  InfoScreen(openlcb::SimpleCanStack *stack) : StateFlowBase(stack->service()), stack_(stack) {
+  InfoScreen(openlcb::SimpleCanStack *stack) : StateFlowBase(stack->service()) {
     start_flow(STATE(init));
   }
-  StateFlowBase::Action init();
   void clear();
   void print(int, int, const std::string&, ...);
   void replaceLine(int, const std::string&, ...);
-  StateFlowBase::Action update();
 private:
-  openlcb::SimpleCanStack *stack_;
+  StateFlowBase::Action init();
+  StateFlowBase::Action initOLED();
+  StateFlowBase::Action initLCD();
+  StateFlowBase::Action update();
   std::string screenLines_[5]{"", "", "", "", ""};
-  bool lineChanged_[5]{true, true, true, true, true};
   bool redraw_{true};
   StateFlowTimer timer_{this};
 };

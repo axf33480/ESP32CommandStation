@@ -41,45 +41,49 @@ SSD1306Wire oledDisplay(INFO_SCREEN_OLED_I2C_ADDRESS, INFO_SCREEN_SDA_PIN, INFO_
 LiquidCrystal_PCF8574 lcdDisplay(INFO_SCREEN_LCD_I2C_ADDRESS);
 #endif
 
+void InfoScreen::clear() {
+  LOG(VERBOSE, "[InfoScreen] clear screen");
+  for(int i = 0; i < 5; i++) {
+    screenLines_[i] = ""; 
+  }
+}
+
+void InfoScreen::print(int col, int row, const std::string &format, ...) {
+  char buf[512] = {0};
+  va_list args;
+  va_start(args, format);
+  vsnprintf(buf, sizeof(buf), format.c_str(), args);
+  va_end(args);
+  screenLines_[row] = screenLines_[row].substr(0, col) + buf + screenLines_[row].substr(col + strlen(buf));
+  LOG(VERBOSE, "[InfoScreen] print(%d,%d): %s", col, row, buf);
+}
+
+void InfoScreen::replaceLine(int row, const std::string &format, ...) {
+  char buf[512] = {0};
+  va_list args;
+  va_start(args, format);
+  vsnprintf(buf, sizeof(buf), format.c_str(), args);
+  va_end(args);
+  screenLines_[row] = buf;
+  LOG(VERBOSE, "[InfoScreen] replaceLine(%d): %s", row, buf);
+}
+
 StateFlowBase::Action InfoScreen::init() {
-  LOG(INFO, "[InfoScreen] init start");
   replaceLine(INFO_SCREEN_STATION_INFO_LINE, "ESP32-CS: v%s", VERSION);
   replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Starting Up");
 
 #if INFO_SCREEN_ENABLED
+  LOG(INFO, "[InfoScreen] Initializing");
   if(Wire.begin(INFO_SCREEN_SDA_PIN, INFO_SCREEN_SCL_PIN)) {
-  // if we have a reset pin defined, attempt to reset the I2C screen
-#if defined(INFO_SCREEN_RESET_PIN)
-    pinMode(INFO_SCREEN_RESET_PIN, OUTPUT);
-    digitalWrite(INFO_SCREEN_RESET_PIN, LOW);
-    delay(50);
-    digitalWrite(INFO_SCREEN_RESET_PIN, HIGH);
-#endif
-
     // Check that we can find the screen by its address before attempting to
     // use/configure it.
     Wire.beginTransmission(INFO_SCREEN_I2C_TEST_ADDRESS);
     if(Wire.endTransmission() == 0) {
 #if INFO_SCREEN_OLED
-      LOG(INFO, "[InfoScreen] init OLED");
-      oledDisplay.init();
-      oledDisplay.setContrast(255);
-      if(INFO_SCREEN_OLED_VERTICAL_FLIP == true) {
-        oledDisplay.flipScreenVertically();
-      }
-
-      // NOTE: If the InfoScreen_OLED_font.h file is modified with a new font
-      // definition, the name of the font needs to be declared on the next line.
-      oledDisplay.setFont(Monospaced_plain_10);
+      return call_immediately(STATE(initOLED));
 #elif INFO_SCREEN_LCD
-      LOG(INFO, "[InfoScreen] init LCD");
-      lcdDisplay.begin(INFO_SCREEN_LCD_COLUMNS, INFO_SCREEN_LCD_LINES);
-      lcdDisplay.setBacklight(255);
-      lcdDisplay.clear();
-      enabled = true;
+      return call_immediately(STATE(initLCD));
 #endif
-      LOG(INFO, "[InfoScreen] init done, setup callback");
-      return sleep_and_call(&timer_, MSEC_TO_NSEC(500), STATE(update));
     }
     LOG(WARNING, "OLED/LCD screen not found at 0x%x\n", INFO_SCREEN_I2C_TEST_ADDRESS);
     printf("Scanning for I2C devices...\n");
@@ -103,46 +107,66 @@ StateFlowBase::Action InfoScreen::init() {
         INFO_SCREEN_SCL_PIN);
   }
 #endif
+  LOG(VERBOSE, "[InfoScreen] no output device");
   return exit();
 }
 
-void InfoScreen::clear() {
-  LOG(VERBOSE, "[InfoScreen] clear screen");
-  for(int i = 0; i < 5; i++) {
-    screenLines_[i] = "";
+StateFlowBase::Action InfoScreen::initOLED() {
+#if INFO_SCREEN_OLED
+#if defined(INFO_SCREEN_RESET_PIN)
+  static bool resetCalled = false;
+  if(!resetCalled) {
+    // if we have a reset pin defined, attempt to reset the I2C screen
+    LOG(INFO, "[InfoScreen] Resetting OLED display");
+    pinMode(INFO_SCREEN_RESET_PIN, OUTPUT);
+    digitalWrite(INFO_SCREEN_RESET_PIN, LOW);
+    return sleep_and_call(&timer_, MSEC_TO_NSEC(50), STATE(initOLED));
+    resetCalled = true;;
+  } else {
+    digitalWrite(INFO_SCREEN_RESET_PIN, HIGH);
   }
-  redraw_ = true;
+#endif
+  LOG(INFO,
+      "[InfoScreen] Detected OLED on address %02x, initializing display...",
+      INFO_SCREEN_I2C_TEST_ADDRESS);
+  if(!oledDisplay.init()) {
+    LOG_ERROR("[InfoScreen] Failed to initailize OLED screen, disabling!");
+    return exit();
+  }
+  oledDisplay.setContrast(255);
+#if INFO_SCREEN_OLED_VERTICAL_FLIP
+  oledDisplay.flipScreenVertically();
+#endif
+  // NOTE: If the InfoScreen_OLED_font.h file is modified with a new font
+  // definition, the name of the font needs to be declared on the next line.
+  oledDisplay.setFont(Monospaced_plain_10);
+  return call_immediately(STATE(update));
+#else
+  return exit();
+#endif
 }
 
-void InfoScreen::print(int col, int row, const std::string &format, ...) {
-  char buf[512] = {0};
-  va_list args;
-  va_start(args, format);
-  vsnprintf(buf, sizeof(buf), format.c_str(), args);
-  va_end(args);
-  screenLines_[row] = screenLines_[row].substr(0, col) + buf + screenLines_[row].substr(col + strlen(buf));
-  lineChanged_[row] = true;
-  LOG(VERBOSE, "[InfoScreen] print(%d,%d): %s", col, row, buf);
-}
-
-void InfoScreen::replaceLine(int row, const std::string &format, ...) {
-  char buf[512] = {0};
-  va_list args;
-  va_start(args, format);
-  vsnprintf(buf, sizeof(buf), format.c_str(), args);
-  va_end(args);
-  screenLines_[row] = buf;
-  lineChanged_[row] = true;
-  LOG(VERBOSE, "[InfoScreen] replaceLine(%d): %s", row, buf);
+StateFlowBase::Action InfoScreen::initLCD() {
+#if INFO_SCREEN_LCD
+  LOG(INFO,
+      "[InfoScreen] Detected LCD on address %02x, initializing %dx%x display...",
+      INFO_SCREEN_I2C_TEST_ADDRESS, INFO_SCREEN_LCD_COLUMNS, INFO_SCREEN_LCD_LINES);
+  lcdDisplay.begin(INFO_SCREEN_LCD_COLUMNS, INFO_SCREEN_LCD_LINES);
+  lcdDisplay.setBacklight(255);
+  lcdDisplay.clear();
+  return call_immediately(STATE(update));
+#else
+  return exit();
+#endif
 }
 
 StateFlowBase::Action InfoScreen::update() {
   static uint8_t _rotatingStatusIndex = 0;
   static uint8_t _rotatingStatusLineCount = 4;
   static uint8_t _motorboardIndex = 0;
-  static uint32_t _lastRotation = millis();
-  static uint32_t _lastUpdate = millis();
   static uint8_t _lccStatusIndex = 0;
+  static uint64_t _lastRotation = os_get_time_monotonic();
+  static uint64_t _lastUpdate = os_get_time_monotonic();
 #if LOCONET_ENABLED
   static uint8_t _firstLocoNetIndex = 0;
   if(!_firstLocoNetIndex) {
@@ -151,13 +175,13 @@ StateFlowBase::Action InfoScreen::update() {
   }
 #endif
   // switch to next status line detail set every five seconds
-  if(millis() - _lastRotation >= 5000) {
-    _lastRotation = millis();
+  if(os_get_time_monotonic() - _lastRotation >= SEC_TO_NSEC(5)) {
+    _lastRotation = os_get_time_monotonic();
     ++_rotatingStatusIndex %= _rotatingStatusLineCount;
   }
   // update the status line details every second
-  if(millis() - _lastUpdate >= 950) {
-    _lastUpdate = millis();
+  if(os_get_time_monotonic() - _lastUpdate >= MSEC_TO_NSEC(950)) {
+    _lastUpdate = os_get_time_monotonic();
     if(_rotatingStatusIndex == 0) {
       replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Free Heap:%d",
         ESP.getFreeHeap());
