@@ -30,18 +30,19 @@ public:
 class InfoScreenStatCollector : public StateFlowBase {
 public:
     InfoScreenStatCollector(openlcb::SimpleCanStack *stack) : StateFlowBase(stack->service()), stack_(stack) {
-        start_flow(STATE(delay));
+        start_flow(STATE(startup_delay));
     }
-    StateFlowBase::Action delay() {
+    StateFlowBase::Action startup_delay() {
         return sleep_and_call(&timer_, SEC_TO_NSEC(5), STATE(update_count));
     }
     StateFlowBase::Action update_count() {
         // TODO: Migrate to DG listener to capture node aliases as they are announced.
         remoteNodeCount_ = static_cast<openlcb::IfCan *>(stack_->iface())->remote_aliases()->size();
         localNodeCount_ = static_cast<openlcb::IfCan *>(stack_->iface())->local_aliases()->size();
-        uint32_t prevCount = executorCount_;
-        executorCount_ = stack_->service()->executor()->sequence() - prevCount;
-        return call_immediately(STATE(delay));
+        uint32_t currentCount = stack_->service()->executor()->sequence();
+        executorCount_ = currentCount - lastExecutorCount_;
+        lastExecutorCount_ = currentCount;
+        return sleep_and_call(&timer_, SEC_TO_NSEC(5), STATE(update_count));
     }
     size_t getRemoteNodeCount() const {
         return remoteNodeCount_;
@@ -67,6 +68,7 @@ private:
     size_t remoteNodeCount_{0};
     size_t localNodeCount_{0};
     uint32_t executorCount_{0};
+    uint32_t lastExecutorCount_{0};
 };
 
 extern LCCInterface lccInterface;
