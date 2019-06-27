@@ -582,7 +582,8 @@ void Esp32WiFiManager::process_wifi_event(system_event_t *event)
             "[SoftAP] MAC Address: %02x:%02x:%02x:%02x:%02x:%02x",
             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 
-        if (softAPIPInfo_)
+        if (softAPIPInfo_ &&
+            (wifiMode_ == WIFI_MODE_APSTA || wifiMode_ == WIFI_MODE_AP))
         {
             // Stop the DHCP server so we can reconfigure it.
             LOG(INFO, "[SoftAP] Stoping DHCP Server (if running).");

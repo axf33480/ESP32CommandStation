@@ -9,7 +9,10 @@ The primary focus of v1.4.0 will be improvements to the DCC signal code and addi
 ### General (misc)
 
 - [ ] CMake and VisualGDB support (https://github.com/atanisoft/ESP32CommandStation/pull/22)
-- [ ] Re-enable support for Static IP for the CS.
+
+### Config
+
+- [ ] SoftAP support for initial config and "non-home" network. (https://github.com/atanisoft/ESP32CommandStation/issues/4)
 
 ### DCC System
 
@@ -52,7 +55,6 @@ The entries below are not tracked to a specific release or in any particular pri
 
 - [ ] Dynamic WiFi configuration support (multiple SSID, strength based selection of SSID, etc)
 - [ ] Dynamic command station feature support (S88, OLED, LCD, LocoNet, Nextion, LCC, etc)
-- [ ] SoftAP support for initial config and "non-home" network. (https://github.com/atanisoft/ESP32CommandStation/issues/4)
 
 ### Web Interface
 

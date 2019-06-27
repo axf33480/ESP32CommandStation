@@ -26,6 +26,8 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #include "Turnouts.h"
 #include "S88Sensors.h"
 #include "RemoteSensors.h"
+
+// generated web content
 #include "index_html.h"
 #include "jquery_min_js.h"
 #include "jquery_mobile_js.h"
@@ -97,40 +99,9 @@ void handleWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client,
   }
 }
 
-static const char * _err2str(uint8_t _error){
-    if(_error == UPDATE_ERROR_OK){
-        return ("No Error");
-    } else if(_error == UPDATE_ERROR_WRITE){
-        return ("Flash Write Failed");
-    } else if(_error == UPDATE_ERROR_ERASE){
-        return ("Flash Erase Failed");
-    } else if(_error == UPDATE_ERROR_READ){
-        return ("Flash Read Failed");
-    } else if(_error == UPDATE_ERROR_SPACE){
-        return ("Not Enough Space");
-    } else if(_error == UPDATE_ERROR_SIZE){
-        return ("Bad Size Given");
-    } else if(_error == UPDATE_ERROR_STREAM){
-        return ("Stream Read Timeout");
-    } else if(_error == UPDATE_ERROR_MD5){
-        return ("MD5 Check Failed");
-    } else if(_error == UPDATE_ERROR_MAGIC_BYTE){
-        return ("Wrong Magic Byte");
-    } else if(_error == UPDATE_ERROR_ACTIVATE){
-        return ("Could Not Activate The Firmware");
-    } else if(_error == UPDATE_ERROR_NO_PARTITION){
-        return ("Partition Could Not be Found");
-    } else if(_error == UPDATE_ERROR_BAD_ARGUMENT){
-        return ("Bad Argument");
-    } else if(_error == UPDATE_ERROR_ABORT){
-        return ("Aborted");
-    }
-    return ("UNKNOWN");
-}
+void handleOTAUpload(AsyncWebServerRequest *, const String&, size_t, uint8_t *, size_t, bool);
 
-void handleOTAUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final);
-
-ESP32CSWebServer::ESP32CSWebServer(MDNS *mdns) : _mdns(mdns) {
+ESP32CSWebServer::ESP32CSWebServer(MDNS *mdns) : mdns_(mdns) {
 }
 
 void ESP32CSWebServer::begin() {
@@ -140,74 +111,55 @@ void ESP32CSWebServer::begin() {
   tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_AP, &ip_info);
   asyncDNS.setErrorReplyCode(AsyncDNSReplyCode::NoError);
   asyncDNS.start(53, "*", ip_info.ip);
+  softAPAddress_ = StringPrintf(IPSTR, IP2STR(&ip_info.ip));
 #endif
   webServer.rewrite("/", "/index.html");
-  webServer.on("/index.html", HTTP_ANY, std::bind(&ESP32CSWebServer::streamChunkedResource, this, std::placeholders::_1));
-  webServer.on("/jquery.min.js", HTTP_ANY, std::bind(&ESP32CSWebServer::streamChunkedResource, this, std::placeholders::_1));
-  webServer.on("/jquery.mobile-1.5.0-rc1.min.js", HTTP_ANY, std::bind(&ESP32CSWebServer::streamChunkedResource, this, std::placeholders::_1));
-  webServer.on("/jquery.mobile-1.5.0-rc1.min.css", HTTP_ANY, std::bind(&ESP32CSWebServer::streamChunkedResource, this, std::placeholders::_1));
-  webServer.on("/jquery.simple.websocket.min.js", HTTP_ANY, std::bind(&ESP32CSWebServer::streamChunkedResource, this, std::placeholders::_1));
-  webServer.on("/jqClock-lite.min.js", HTTP_ANY, std::bind(&ESP32CSWebServer::streamChunkedResource, this, std::placeholders::_1));
-  webServer.on("/images/ajax-loader.gif", HTTP_ANY, std::bind(&ESP32CSWebServer::streamChunkedResource, this, std::placeholders::_1));
-  webServer.on("/features", HTTP_GET, [](AsyncWebServerRequest *request) {
-    auto jsonResponse = new AsyncJsonResponse();
-    JsonObject &root = jsonResponse->getRoot();
-#if S88_ENABLED
-    root[JSON_S88_NODE] = JSON_VALUE_TRUE;
-    root[JSON_S88_SENSOR_BASE_NODE] = S88_FIRST_SENSOR;
-#else
-    root[JSON_S88_NODE] = JSON_VALUE_FALSE;
-#endif
-    jsonResponse->setCode(STATUS_OK);
-    jsonResponse->setLength();
-    request->send(jsonResponse);
-  });
+  webServer.on("/index.html", HTTP_GET,
+               std::bind(&ESP32CSWebServer::streamResource, this, std::placeholders::_1));
+  webServer.on("/jquery.min.js", HTTP_GET,
+               std::bind(&ESP32CSWebServer::streamResource, this, std::placeholders::_1));
+  webServer.on("/jquery.mobile-1.5.0-rc1.min.js", HTTP_GET,
+               std::bind(&ESP32CSWebServer::streamResource, this, std::placeholders::_1));
+  webServer.on("/jquery.mobile-1.5.0-rc1.min.css", HTTP_GET,
+               std::bind(&ESP32CSWebServer::streamResource, this, std::placeholders::_1));
+  webServer.on("/jquery.simple.websocket.min.js", HTTP_GET,
+               std::bind(&ESP32CSWebServer::streamResource, this, std::placeholders::_1));
+  webServer.on("/jqClock-lite.min.js", HTTP_GET,
+               std::bind(&ESP32CSWebServer::streamResource, this, std::placeholders::_1));
+  webServer.on("/images/ajax-loader.gif", HTTP_GET,
+               std::bind(&ESP32CSWebServer::streamResource, this, std::placeholders::_1));
+  webServer.on("/features", HTTP_GET,
+               std::bind(&ESP32CSWebServer::handleFeatures, this, std::placeholders::_1));
   webServer.on("/programmer", HTTP_GET | HTTP_POST,
-    std::bind(&ESP32CSWebServer::handleProgrammer, this, std::placeholders::_1));
+               std::bind(&ESP32CSWebServer::handleProgrammer, this, std::placeholders::_1));
   webServer.on("/power", HTTP_GET | HTTP_PUT,
-    std::bind(&ESP32CSWebServer::handlePower, this, std::placeholders::_1));
+               std::bind(&ESP32CSWebServer::handlePower, this, std::placeholders::_1));
   webServer.on("/outputs", HTTP_GET | HTTP_POST | HTTP_PUT | HTTP_DELETE,
-    std::bind(&ESP32CSWebServer::handleOutputs, this, std::placeholders::_1));
+               std::bind(&ESP32CSWebServer::handleOutputs, this, std::placeholders::_1));
   webServer.on("/turnouts", HTTP_GET | HTTP_POST | HTTP_PUT | HTTP_DELETE,
-    std::bind(&ESP32CSWebServer::handleTurnouts, this, std::placeholders::_1));
+               std::bind(&ESP32CSWebServer::handleTurnouts, this, std::placeholders::_1));
   webServer.on("/sensors", HTTP_GET | HTTP_POST | HTTP_DELETE,
-    std::bind(&ESP32CSWebServer::handleSensors, this, std::placeholders::_1));
+               std::bind(&ESP32CSWebServer::handleSensors, this, std::placeholders::_1));
 #if S88_ENABLED
   webServer.on("/s88sensors", HTTP_GET | HTTP_POST | HTTP_DELETE,
-    std::bind(&ESP32CSWebServer::handleS88Sensors, this, std::placeholders::_1));
+               std::bind(&ESP32CSWebServer::handleS88Sensors, this, std::placeholders::_1));
 #endif
   webServer.on("/remoteSensors", HTTP_GET | HTTP_POST | HTTP_DELETE,
-    std::bind(&ESP32CSWebServer::handleRemoteSensors, this, std::placeholders::_1));
+               std::bind(&ESP32CSWebServer::handleRemoteSensors, this, std::placeholders::_1));
   webServer.on("/config", HTTP_POST | HTTP_DELETE,
-    std::bind(&ESP32CSWebServer::handleConfig, this, std::placeholders::_1));
+               std::bind(&ESP32CSWebServer::handleConfig, this, std::placeholders::_1));
   webServer.on("/locomotive", HTTP_GET | HTTP_POST | HTTP_PUT | HTTP_DELETE,
-    std::bind(&ESP32CSWebServer::handleLocomotive, this, std::placeholders::_1));
-  webServer.on("/update", HTTP_POST, [](AsyncWebServerRequest *request) {
-    request->send(STATUS_OK, "text/plain", _err2str(Update.getError()));
-  }, &handleOTAUpload);
-
-  webServer.onNotFound([](AsyncWebServerRequest *request) {
-#if WIFI_ENABLE_SOFT_AP
-    if(request->url() == "/generate_204" || request->url() == "/gen_204" || request->url() == "/fwlink") {
-      tcpip_adapter_ip_info_t ip_info;
-      tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_AP, &ip_info);
-      // redirect to main page
-      LOG(INFO, "[WebSrv %s] Redirect to http://" IPSTR "/index.html", request->client()->remoteIP().toString().c_str(), IP2STR(&ip_info.ip));
-      request->send(STATUS_OK, "text/html", StringPrintf("<html><body>Click <a href=\"http://" IPSTR "/index.html\">here</a> for ESP32 Command Station</body></html>", IP2STR(&ip_info.ip)).c_str());
-    } else {
-#endif
-      LOG(INFO, "[WebSrv %s] 404: %s", request->client()->remoteIP().toString().c_str(), request->url().c_str());
-      request->send(STATUS_NOT_FOUND, "text/plain", "File Not Found");
-#if WIFI_ENABLE_SOFT_AP
-    }
-#endif
-  });
+               std::bind(&ESP32CSWebServer::handleLocomotive, this, std::placeholders::_1));
+  webServer.on("/update", HTTP_POST,
+               std::bind(&ESP32CSWebServer::handleOTA, this, std::placeholders::_1),
+               &handleOTAUpload);
+  webServer.onNotFound(std::bind(&ESP32CSWebServer::notFoundHandler, this, std::placeholders::_1));
 
   webSocket.onEvent(handleWsEvent);
   webServer.addHandler(&webSocket);
   webServer.addHandler(new SPIFFSEditor(SPIFFS));
   webServer.begin();
-  _mdns->publish("websvr", "_http._tcp", 80);
+  mdns_->publish("websvr", "_http._tcp", 80);
 #if INFO_SCREEN_WS_CLIENTS_LINE >= 0
   InfoScreen::replaceLine(INFO_SCREEN_WS_CLIENTS_LINE, F("WS Clients: 0"));
 #endif
@@ -690,7 +642,42 @@ void ESP32CSWebServer::handleLocomotive(AsyncWebServerRequest *request) {
   request->send(jsonResponse);
 }
 
-void handleOTAUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
+static const char * _err2str(uint8_t _error){
+    if(_error == UPDATE_ERROR_OK){
+        return ("No Error");
+    } else if(_error == UPDATE_ERROR_WRITE){
+        return ("Flash Write Failed");
+    } else if(_error == UPDATE_ERROR_ERASE){
+        return ("Flash Erase Failed");
+    } else if(_error == UPDATE_ERROR_READ){
+        return ("Flash Read Failed");
+    } else if(_error == UPDATE_ERROR_SPACE){
+        return ("Not Enough Space");
+    } else if(_error == UPDATE_ERROR_SIZE){
+        return ("Bad Size Given");
+    } else if(_error == UPDATE_ERROR_STREAM){
+        return ("Stream Read Timeout");
+    } else if(_error == UPDATE_ERROR_MD5){
+        return ("MD5 Check Failed");
+    } else if(_error == UPDATE_ERROR_MAGIC_BYTE){
+        return ("Wrong Magic Byte");
+    } else if(_error == UPDATE_ERROR_ACTIVATE){
+        return ("Could Not Activate The Firmware");
+    } else if(_error == UPDATE_ERROR_NO_PARTITION){
+        return ("Partition Could Not be Found");
+    } else if(_error == UPDATE_ERROR_BAD_ARGUMENT){
+        return ("Bad Argument");
+    } else if(_error == UPDATE_ERROR_ABORT){
+        return ("Aborted");
+    }
+    return ("UNKNOWN");
+}
+
+void ESP32CSWebServer::handleOTA(AsyncWebServerRequest *request) {
+  request->send(STATUS_OK, "text/plain", _err2str(Update.getError()));
+}
+
+void handleOTAUpload(AsyncWebServerRequest *request, const String& filename, size_t index, uint8_t *data, size_t len, bool final) {
   if (!index) {
 #if NEXTION_ENABLED
     nextionPages[TITLE_PAGE]->show();
@@ -742,31 +729,87 @@ void handleOTAUpload(AsyncWebServerRequest *request, String filename, size_t ind
   }
 }
 
-#define STREAM_RESOURCE(request, uri, mimeType, totalSize, resource) \
+void ESP32CSWebServer::handleFeatures(AsyncWebServerRequest *request) {
+  auto jsonResponse = new AsyncJsonResponse();
+  JsonObject &root = jsonResponse->getRoot();
+#if S88_ENABLED
+  root[JSON_S88_NODE] = JSON_VALUE_TRUE;
+  root[JSON_S88_SENSOR_BASE_NODE] = S88_FIRST_SENSOR;
+#else
+  root[JSON_S88_NODE] = JSON_VALUE_FALSE;
+#endif
+  jsonResponse->setCode(STATUS_OK);
+  jsonResponse->setLength();
+  request->send(jsonResponse);
+}
+
+#define STREAM_RESOURCE_NO_REDIRECT(request, uri, mimeType, totalSize, resource) \
   if (request->url() == uri) { \
     LOG(INFO, "[WebSrv %s] Streaming %s (%d, %s)", request->client()->remoteIP().toString().c_str(), uri, totalSize, mimeType); \
     response = request->beginResponse_P(STATUS_OK, mimeType, resource, totalSize); \
+    if(String(mimeType).startsWith("text/")) { \
+      response->addHeader("Content-Encoding", "gzip"); \
+    } \
   }
 
-void ESP32CSWebServer::streamChunkedResource(AsyncWebServerRequest *request) {
+#if WIFI_ENABLE_SOFT_AP
+#define STREAM_RESOURCE(request, uri, fallback, mimeType, totalSize, resource) \
+  if (request->url() == uri && softAPAddress_.compare(request->host().c_str()) == 0) { \
+    LOG(INFO, "[WebSrv %s] Streaming %s (%d, %s)", request->client()->remoteIP().toString().c_str(), uri, totalSize, mimeType); \
+    response = request->beginResponse_P(STATUS_OK, mimeType, resource, totalSize); \
+    if(String(mimeType).startsWith("text/")) { \
+      response->addHeader("Content-Encoding", "gzip"); \
+    } \
+  } else if (request->url() == uri) { \
+    LOG(INFO, "[WebSrv %s] redirecting %s to %s", request->client()->remoteIP().toString().c_str(), uri, fallback); \
+    request->redirect(fallback); \
+  }
+#else
+#define STREAM_RESOURCE(request, uri, fallback, mimeType, totalSize, resource) \
+  if (request->url() == uri) { \
+    LOG(INFO, "[WebSrv %s] Streaming %s (%d, %s)", request->client()->remoteIP().toString().c_str(), uri, totalSize, mimeType); \
+    response = request->beginResponse_P(STATUS_OK, mimeType, resource, totalSize); \
+    if(String(mimeType).startsWith("text/")) { \
+      response->addHeader("Content-Encoding", "gzip"); \
+    } \
+  }
+#endif
+
+void ESP32CSWebServer::streamResource(AsyncWebServerRequest *request) {
   const char * htmlBuildTime = __DATE__ " " __TIME__;
   if (request->header("If-Modified-Since").equals(htmlBuildTime)) {
     request->send(STATUS_NOT_MODIFIED);
   } else {
     AsyncWebServerResponse *response = nullptr;
-    STREAM_RESOURCE(request, "/index.html", "text/html", indexHtmlGz_size, indexHtmlGz)
-    STREAM_RESOURCE(request, "/jquery.min.js", "text/javascript", jqueryJsGz_size, jqueryJsGz)
-    STREAM_RESOURCE(request, "/jquery.mobile-1.5.0-rc1.min.js", "text/javascript", jqueryMobileJsGz_size, jqueryMobileJsGz)
-    STREAM_RESOURCE(request, "/jquery.mobile-1.5.0-rc1.min.css", "text/css", jqueryMobileCssGz_size, jqueryMobileCssGz)
-    STREAM_RESOURCE(request, "/jquery.simple.websocket.min.js", "text/javascript", jquerySimpleWebSocketGz_size, jquerySimpleWebSocketGz)
-    STREAM_RESOURCE(request, "/jqClock-lite.min.js", "text/javascript", jqClockGz_size, jqClockGz)
-    STREAM_RESOURCE(request, "/images/ajax-loader.gif", "image/gif", ajaxLoaderGz_size, ajaxLoaderGz)
+    STREAM_RESOURCE_NO_REDIRECT(request, "/index.html", "text/html", indexHtmlGz_size, indexHtmlGz)
+    STREAM_RESOURCE(request, "/jquery.min.js", "https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js", "text/javascript", jqueryJsGz_size, jqueryJsGz)
+    STREAM_RESOURCE(request, "/jquery.mobile-1.5.0-rc1.min.js", "https://code.jquery.com/mobile/1.5.0-rc1/jquery.mobile-1.5.0-rc1.min.js", "text/javascript", jqueryMobileJsGz_size, jqueryMobileJsGz)
+    STREAM_RESOURCE(request, "/jquery.mobile-1.5.0-rc1.min.css", "https://code.jquery.com/mobile/1.5.0-rc1/jquery.mobile-1.5.0-rc1.min.css", "text/css", jqueryMobileCssGz_size, jqueryMobileCssGz)
+    STREAM_RESOURCE(request, "/jquery.simple.websocket.min.js", "https://cdn.rawgit.com/jbloemendal/jquery-simple-websocket/master/dist/jquery.simple.websocket.min.js", "text/javascript", jquerySimpleWebSocketGz_size, jquerySimpleWebSocketGz)
+    STREAM_RESOURCE(request, "/jqClock-lite.min.js", "https://cdn.rawgit.com/JohnRDOrazio/jQuery-Clock-Plugin/master/jqClock-lite.min.js", "text/javascript", jqClockGz_size, jqClockGz)
+    STREAM_RESOURCE(request, "/images/ajax-loader.gif", "https://code.jquery.com/mobile/1.5.0-rc1/images/ajax-loader.gif", "image/gif", ajaxLoader_size, ajaxLoader)
     if(response) {
-      response->addHeader("Content-Encoding", "gzip");
       response->addHeader("Last-Modified", htmlBuildTime);
       request->send(response);
     } else {
-      request->redirect("/404");
+      request->send(STATUS_NOT_FOUND, "text/plain", "URI Not Found");
     }
   }
 }
+
+void ESP32CSWebServer::notFoundHandler(AsyncWebServerRequest *request) {
+#if WIFI_ENABLE_SOFT_AP
+    if(request->url() == "/generate_204" || request->url() == "/gen_204" || request->url() == "/fwlink") {
+      tcpip_adapter_ip_info_t ip_info;
+      tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_AP, &ip_info);
+      // redirect to main page
+      LOG(INFO, "[WebSrv %s] Redirect to http://" IPSTR "/index.html", request->client()->remoteIP().toString().c_str(), IP2STR(&ip_info.ip));
+      request->send(STATUS_OK, "text/html", StringPrintf("<html><body>Click <a href=\"http://" IPSTR "/index.html\">here</a> for ESP32 Command Station</body></html>", IP2STR(&ip_info.ip)).c_str());
+    } else {
+#endif
+      LOG(INFO, "[WebSrv %s] 404: %s", request->client()->remoteIP().toString().c_str(), request->url().c_str());
+      request->send(STATUS_NOT_FOUND, "text/plain", "URI Not Found");
+#if WIFI_ENABLE_SOFT_AP
+    }
+#endif
+  }

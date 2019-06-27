@@ -26,8 +26,8 @@ public:
   void begin();
   void broadcastToWS(const String &buf);
 private:
-  
-  MDNS *_mdns;
+  MDNS *mdns_;
+  std::string softAPAddress_;
   void handleESPInfo(AsyncWebServerRequest *);
   void handleProgrammer(AsyncWebServerRequest *);
   void handlePower(AsyncWebServerRequest *);
@@ -40,6 +40,8 @@ private:
   void handleS88Sensors(AsyncWebServerRequest *);
 #endif
   void handleRemoteSensors(AsyncWebServerRequest *);
-
-  void streamChunkedResource(AsyncWebServerRequest *);
+  void handleOTA(AsyncWebServerRequest *);
+  void handleFeatures(AsyncWebServerRequest *);
+  void streamResource(AsyncWebServerRequest *);
+  void notFoundHandler(AsyncWebServerRequest *);
 };
