@@ -9,6 +9,7 @@ The primary focus of v1.4.0 will be improvements to the DCC signal code and addi
 ### General (misc)
 
 - [ ] CMake and VisualGDB support (https://github.com/atanisoft/ESP32CommandStation/pull/22)
+- [x] Split up build_index_header.py into a common py module and PIO script.
 
 ### Config
 
