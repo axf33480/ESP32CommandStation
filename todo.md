@@ -37,8 +37,8 @@ The primary focus of v1.4.0 will be improvements to the DCC signal code and addi
 
 ### InfoScreen
 
-- [ ] Move to background task.
-- [ ] Remove usages of String and __FlashStringHelper.
+- [x] Move to StateFlow interface
+- [x] Remove usages of String and __FlashStringHelper.
 
 ## Future planning:
 The entries below are not tracked to a specific release or in any particular priority order.

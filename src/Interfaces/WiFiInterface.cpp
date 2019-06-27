@@ -36,7 +36,7 @@ std::unique_ptr<SocketListener> JMRIListener;
 WiFiInterface wifiInterface;
 extern Esp32WiFiManager wifi_mgr;
 
-constexpr int JMRI_CLIENT_PRIORITY = 0;
+constexpr int JMRI_CLIENT_PRIORITY = 1;
 constexpr size_t JMRI_CLIENT_STACK_SIZE = 4096;
 constexpr uint16_t JMRI_LISTENER_PORT = 2560;
 
@@ -48,23 +48,21 @@ void WiFiInterface::init() {
   auto nextionTitlePage = static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE]);
   nextionTitlePage->setStatusText(0, "Initializing WiFi");
 #endif
+  infoScreen.replaceLine(INFO_SCREEN_IP_ADDR_LINE, "IP:Pending");
+#if INFO_SCREEN_WS_CLIENTS_LINE > 0
+  infoScreen.replaceLine(INFO_SCREEN_WS_CLIENTS_LINE, "WS Clients: 00");
+#endif
 
-  InfoScreen::replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, F("Init WiFI"));
-  InfoScreen::replaceLine(INFO_SCREEN_IP_ADDR_LINE, F("IP:Pending"));
   wifi_mgr.add_event_callback([](system_event_t *event) {
     if(event->event_id == SYSTEM_EVENT_STA_GOT_IP) {
-#if STATUS_LED_ENABLED
       setStatusLED(STATUS_LED::WIFI_LED, STATUS_LED_COLOR::LED_GREEN);
-#endif
       tcpip_adapter_ip_info_t ip_info;
       tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_STA, &ip_info);
       wifiInterface.setIP(ip_info);
-#if INFO_SCREEN_ENABLED
-  #if INFO_SCREEN_LCD && INFO_SCREEN_LCD_COLUMNS < 20
-      InfoScreen::replaceLine(INFO_SCREEN_IP_ADDR_LINE, F(IPSTR), IP2STR(&ip_info.ip));
-  #else
-      InfoScreen::replaceLine(INFO_SCREEN_IP_ADDR_LINE, F("IP: " IPSTR), IP2STR(&ip_info.ip));
-  #endif
+#if INFO_SCREEN_LCD && INFO_SCREEN_LCD_COLUMNS < 20
+      infoScreen.replaceLine(INFO_SCREEN_IP_ADDR_LINE, IPSTR, IP2STR(&ip_info.ip));
+#else
+      infoScreen.replaceLine(INFO_SCREEN_IP_ADDR_LINE, "IP: " IPSTR, IP2STR(&ip_info.ip));
 #endif
       JMRIListener.reset(new SocketListener(JMRI_LISTENER_PORT, [](int fd) {
         jmriClients.push_back(fd);
@@ -80,25 +78,13 @@ void WiFiInterface::init() {
       nextionPages[THROTTLE_PAGE]->display();
 #endif
     } else if (event->event_id == SYSTEM_EVENT_STA_LOST_IP) {
-#if STATUS_LED_ENABLED
       setStatusLED(STATUS_LED::WIFI_LED, STATUS_LED_COLOR::LED_RED);
-#endif
       JMRIListener.reset(nullptr);
-#if INFO_SCREEN_ENABLED
-  #if INFO_SCREEN_LCD && INFO_SCREEN_LCD_COLUMNS < 20
-      InfoScreen::replaceLine(INFO_SCREEN_IP_ADDR_LINE, "Disconnected");
-  #else
-      InfoScreen::print(3, INFO_SCREEN_IP_ADDR_LINE, "Disconnected");
-  #endif
-#endif
+      infoScreen.replaceLine(INFO_SCREEN_IP_ADDR_LINE, "Disconnected");
     } else if (event->event_id == SYSTEM_EVENT_STA_DISCONNECTED) {
-#if STATUS_LED_ENABLED
       setStatusLED(STATUS_LED::WIFI_LED, STATUS_LED_COLOR::LED_RED);
-#endif
     } else if (event->event_id == SYSTEM_EVENT_STA_START) {
-#if STATUS_LED_ENABLED
       setStatusLED(STATUS_LED::WIFI_LED, STATUS_LED_COLOR::LED_GREEN_BLINK);
-#endif
 #if NEXTION_ENABLED
       nextionTitlePage->setStatusText(0, "Connecting to WiFi");
 #endif

@@ -17,8 +17,10 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 #pragma once
 
-#include <WString.h>
-#include <mutex>
+#include <string>
+#include <executor/StateFlow.hxx>
+#include <openlcb/SimpleStack.hxx>
+
 #include "Config.h"
 
 #if defined(INFO_SCREEN_OLED) && INFO_SCREEN_OLED
@@ -41,16 +43,22 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #define INFO_SCREEN_ROTATING_STATUS_LINE 1
 #endif
 
-class InfoScreen {
-  public:
-    static void init();
-    static void clear();
-    static void print(int, int, const __FlashStringHelper *, ...);
-    static void print(int, int, const String &, ...);
-    static void replaceLine(int, const __FlashStringHelper *, ...);
-    static void replaceLine(int, const String &, ...);
-    static void update();
-  private:
-    static bool _enabled;
-    static std::mutex _mux;
+class InfoScreen : public StateFlowBase {
+public:
+  InfoScreen(openlcb::SimpleCanStack *stack) : StateFlowBase(stack->service()), stack_(stack) {
+    start_flow(STATE(init));
+  }
+  StateFlowBase::Action init();
+  void clear();
+  void print(int, int, const std::string&, ...);
+  void replaceLine(int, const std::string&, ...);
+  StateFlowBase::Action update();
+private:
+  openlcb::SimpleCanStack *stack_;
+  std::string screenLines_[5]{"", "", "", "", ""};
+  bool lineChanged_[5]{true, true, true, true, true};
+  bool redraw_{true};
+  StateFlowTimer timer_{this};
 };
+
+extern InfoScreen infoScreen;

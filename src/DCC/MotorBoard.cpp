@@ -170,7 +170,7 @@ uint16_t GenericMotorBoard::captureSample(uint8_t sampleCount, bool logResults) 
 }
 
 void MotorBoardManager::registerBoard(adc1_channel_t sensePin, uint8_t enablePin, MOTOR_BOARD_TYPE type, String name, bool programmingTrack) {
-  InfoScreen::replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, F("%s Init"), name.c_str());
+  infoScreen.replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "%s Init", name.c_str());
   uint32_t maxAmps = 0;
   uint32_t triggerAmps = 0;
   switch(type) {
@@ -205,7 +205,7 @@ void MotorBoardManager::registerBoard(adc1_channel_t sensePin, uint8_t enablePin
 }
 
 void MotorBoardManager::registerNonMonitoredBoard(uint8_t enablePin, String name) {
-  InfoScreen::replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, F("%s Init"), name.c_str());
+  infoScreen.replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "%s Init", name.c_str());
   motorBoards.add(new NonMonitoredMotorBoard(enablePin, name));
 }
 
@@ -236,7 +236,7 @@ void MotorBoardManager::powerOnAll() {
   setStatusLED(STATUS_LED::OPS_LED, STATUS_LED_COLOR::LED_GREEN);
 #endif
 #if INFO_SCREEN_TRACK_POWER_LINE >= 0
-  InfoScreen::print(13, INFO_SCREEN_TRACK_POWER_LINE, F("ON   "));
+  infoScreen.print(13, INFO_SCREEN_TRACK_POWER_LINE, "ON   ");
 #endif
 #if LOCONET_ENABLED
   locoNet.reportPower(true);
@@ -255,7 +255,7 @@ void MotorBoardManager::powerOffAll() {
   setStatusLED(STATUS_LED::OPS_LED, STATUS_LED_COLOR::LED_OFF);
 #endif
 #if INFO_SCREEN_TRACK_POWER_LINE >= 0
-  InfoScreen::print(13, INFO_SCREEN_TRACK_POWER_LINE, F("OFF  "));
+  infoScreen.print(13, INFO_SCREEN_TRACK_POWER_LINE, "OFF  ");
 #endif
 #if LOCONET_ENABLED
   locoNet.reportPower(false);

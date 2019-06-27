@@ -59,19 +59,11 @@ void setup() {
   restrictedPins.push_back(15);
 #endif
 
-#if STATUS_LED_ENABLED
   initStatusLEDs();
-#endif
 
   // set up ADC1 here since we use it for all motor boards
   adc1_config_width(ADC_WIDTH_BIT_12);
 
-  InfoScreen::init();
-  InfoScreen::replaceLine(INFO_SCREEN_STATION_INFO_LINE, F("ESP32-CS: v%s"), VERSION);
-  InfoScreen::replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, F("Starting Up"));
-#if INFO_SCREEN_STATION_INFO_LINE == INFO_SCREEN_IP_ADDR_LINE
-  delay(500);
-#endif
 #if NEXTION_ENABLED
   nextionInterfaceInit();
 #endif
@@ -103,7 +95,7 @@ void setup() {
   HC12Interface::init();
 #endif
 #if LOCONET_ENABLED
-  InfoScreen::replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, F("LocoNet Init"));
+  infoScreen.replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "LocoNet Init");
   locoNet.begin();
   locoNet.onPacket(OPC_GPON, [](lnMsg *msg) {
     MotorBoardManager::powerOnAll();
@@ -248,7 +240,7 @@ void setup() {
 #if ENERGIZE_OPS_TRACK_ON_STARTUP
   MotorBoardManager::powerOnAll();
 #elif INFO_SCREEN_TRACK_POWER_LINE >= 0
-  InfoScreen::replaceLine(INFO_SCREEN_TRACK_POWER_LINE, F("TRACK POWER: OFF"));
+  infoScreen.replaceLine(INFO_SCREEN_TRACK_POWER_LINE, "TRACK POWER: OFF");
 #endif
 
   LOG(INFO, "[WatchDog] Reconfiguring Timer (15sec)");
@@ -259,7 +251,7 @@ void setup() {
   enableLoopWDT();
 
   LOG(INFO, "ESP32 Command Station Started!");
-  InfoScreen::replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, F("ESP32-CS Started"));
+  infoScreen.replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "ESP32-CS Started");
 }
 
 void loop() {
@@ -270,7 +262,6 @@ void loop() {
   }
   MotorBoardManager::check();
   if(!otaInProgress) {
-    InfoScreen::update();
     lccInterface.update();
 #if HC12_RADIO_ENABLED
     HC12Interface::update();

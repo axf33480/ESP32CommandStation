@@ -47,7 +47,6 @@ ConfigurationManager::~ConfigurationManager() {
 }
 
 void ConfigurationManager::init() {
-  InfoScreen::replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, F("Loading Config"));
 #if CONFIG_USE_SPIFFS
   if(!SPIFFS.begin()) {
     LOG(INFO, "[Config] SPIFFS mount failed, formatting SPIFFS and retrying");

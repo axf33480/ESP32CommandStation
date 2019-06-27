@@ -115,6 +115,7 @@ void IRAM_ATTR cpuTickTimerCallback() {
 }
 #endif
 
+InfoScreen infoScreen(openmrn.stack());
 InfoScreenStatCollector infoScreenCollector(openmrn.stack());
 
 // when the command station starts up the first time the config is blank

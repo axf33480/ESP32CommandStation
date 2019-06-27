@@ -161,14 +161,14 @@ SignalGenerator_RMT::SignalGenerator_RMT(String name, uint16_t maxPackets, uint8
     _rmtChannel((rmt_channel_t)signalID), _signalPin(signalPin), _outputEnablePin(outputEnablePin),
     _brakeEnablePin(brakeEnablePin), _railComEnablePin(railComEnablePin), _railComShortPin(railComShortPin) {
 
-    InfoScreen::replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "%s RMT Init", getName());
+    infoScreen.replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "%s RMT Init", getName());
 
     LOG(INFO, "[%s] Configuring RMT-%d using pin %d and bit timing: zero: %duS, one: %duS",
         getName(), _rmtChannel, _signalPin, ZERO_BIT_PULSE_USEC, ONE_BIT_PULSE_USEC);
 
     if(_outputEnablePin != NOT_A_PIN && _railComEnablePin != NOT_A_PIN && _brakeEnablePin != NOT_A_PIN &&
        railComReceivePin != NOT_A_PIN && railComUART != NOT_A_PIN) {
-        InfoScreen::replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "%s RailCom Init", getName());
+        infoScreen.replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "%s RailCom Init", getName());
         LOG(INFO, "[%s] Configuring RailCom detector (hb-en: %d, rc-en: %d, br-en: %d, rc: %d, uart: %d)",
             getName(), _outputEnablePin, _railComEnablePin, _brakeEnablePin, railComReceivePin, railComUART);
         pinMode(_railComEnablePin, OUTPUT);

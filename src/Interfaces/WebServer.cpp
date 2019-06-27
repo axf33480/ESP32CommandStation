@@ -75,7 +75,7 @@ void handleWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client,
     webSocketClients.add(new WebSocketClient(client->id(), client->remoteIP()));
     client->printf("<iDCC++ ESP32 Command Station: V-%s / %s %s>", VERSION, __DATE__, __TIME__);
 #if INFO_SCREEN_WS_CLIENTS_LINE >= 0
-    InfoScreen::print(12, INFO_SCREEN_WS_CLIENTS_LINE, F("%02d"), webSocketClients.length());
+    infoScreen.replaceLine(INFO_SCREEN_WS_CLIENTS_LINE, "WS Clients: %02d", webSocketClients.length());
 #endif
   } else if (type == WS_EVT_DISCONNECT) {
     WebSocketClient *toRemove = nullptr;
@@ -88,7 +88,7 @@ void handleWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client,
       webSocketClients.remove(toRemove);
     }
 #if INFO_SCREEN_WS_CLIENTS_LINE >= 0
-    InfoScreen::print(12, INFO_SCREEN_WS_CLIENTS_LINE, F("%02d"), webSocketClients.length());
+    infoScreen.replaceLine(INFO_SCREEN_WS_CLIENTS_LINE, "WS Clients: %02d", webSocketClients.length());
 #endif
   } else if (type == WS_EVT_DATA) {
     for (const auto& clientNode : webSocketClients) {
@@ -161,9 +161,6 @@ void ESP32CSWebServer::begin() {
   webServer.addHandler(new SPIFFSEditor(SPIFFS));
   webServer.begin();
   mdns_->publish("websvr", "_http._tcp", 80);
-#if INFO_SCREEN_WS_CLIENTS_LINE >= 0
-  InfoScreen::replaceLine(INFO_SCREEN_WS_CLIENTS_LINE, F("WS Clients: 0"));
-#endif
 }
 
 void ESP32CSWebServer::broadcastToWS(const String &buf) {
@@ -686,14 +683,14 @@ void handleOTAUpload(AsyncWebServerRequest *request, const String& filename, siz
 #endif
     otaInProgress = true;
     LOG(INFO, "Update starting...");
-    InfoScreen::replaceLine(INFO_SCREEN_STATION_INFO_LINE, "Update starting");
+    infoScreen.replaceLine(INFO_SCREEN_STATION_INFO_LINE, "Update starting");
     MotorBoardManager::powerOffAll();
     stopDCCSignalGenerators();
     if (!Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH)) {
 #if NEXTION_ENABLED
       static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(1, _err2str(Update.getError()));
 #endif
-      InfoScreen::replaceLine(INFO_SCREEN_STATION_INFO_LINE, _err2str(Update.getError()));
+      infoScreen.replaceLine(INFO_SCREEN_STATION_INFO_LINE, _err2str(Update.getError()));
       request->send(STATUS_BAD_REQUEST, "text/plain", _err2str(Update.getError()));
       Update.printError(Serial);
     }
@@ -702,11 +699,11 @@ void handleOTAUpload(AsyncWebServerRequest *request, const String& filename, siz
 #if NEXTION_ENABLED
     static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(1, _err2str(Update.getError()));
 #endif
-    InfoScreen::replaceLine(INFO_SCREEN_STATION_INFO_LINE, _err2str(Update.getError()));
+    infoScreen.replaceLine(INFO_SCREEN_STATION_INFO_LINE, _err2str(Update.getError()));
     request->send(STATUS_BAD_REQUEST, "text/plain", _err2str(Update.getError()));
     Update.printError(Serial);
   } else {
-    InfoScreen::replaceLine(INFO_SCREEN_STATION_INFO_LINE, "Updating: %d", Update.progress());
+    infoScreen.replaceLine(INFO_SCREEN_STATION_INFO_LINE, "Updating: %d", Update.progress());
 #if NEXTION_ENABLED
     static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(1, String("Progress: ") + String(Update.progress()));
 #endif
@@ -717,13 +714,13 @@ void handleOTAUpload(AsyncWebServerRequest *request, const String& filename, siz
       static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(1, "Update Complete");
       static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(2, "Rebooting");
 #endif
-      InfoScreen::replaceLine(INFO_SCREEN_STATION_INFO_LINE, "Update Complete");
+      infoScreen.replaceLine(INFO_SCREEN_STATION_INFO_LINE, "Update Complete");
       otaComplete = true;
     } else {
 #if NEXTION_ENABLED
       static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(1, _err2str(Update.getError()));
 #endif
-      InfoScreen::replaceLine(INFO_SCREEN_STATION_INFO_LINE, _err2str(Update.getError()));
+      infoScreen.replaceLine(INFO_SCREEN_STATION_INFO_LINE, _err2str(Update.getError()));
       request->send(STATUS_BAD_REQUEST, "text/plain", _err2str(Update.getError()));
       Update.printError(Serial);
     }

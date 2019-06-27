@@ -190,8 +190,6 @@ void esp32_restart();
 extern bool otaComplete;
 extern bool otaInProgress;
 
-#if STATUS_LED_ENABLED
-
 enum STATUS_LED_COLOR {
     LED_OFF,
     LED_RED,
@@ -211,8 +209,6 @@ enum STATUS_LED {
 
 void initStatusLEDs();
 void setStatusLED(const STATUS_LED, const STATUS_LED_COLOR);
-#endif
-
 
 #define MUTEX_LOCK(mutex)    do {} while (xSemaphoreTake(mutex, portMAX_DELAY) != pdPASS)
 #define MUTEX_UNLOCK(mutex)  xSemaphoreGive(mutex)

@@ -17,8 +17,6 @@ COPYRIGHT (c) 2019 Mike Dunston
 
 #include "ESP32CommandStation.h"
 
-#if STATUS_LED_ENABLED
-
 #include <NeoPixelBrightnessBus.h>
 
 #if STATUS_LED_COLOR_ORDER == RGB
@@ -51,7 +49,9 @@ COPYRIGHT (c) 2019 Mike Dunston
 #define NEO_METHOD NeoLc8812Method
 #endif
 
+#if STATUS_LED_ENABLED
 NeoPixelBrightnessBus<NEO_COLOR_MODE, NEO_METHOD> statusLED(STATUS_LED::MAX_STATUS_LED, STATUS_LED_DATA_PIN);
+#endif
 
 static NEO_COLOR_TYPE RGB_RED = NEO_COLOR_TYPE(255, 0, 0);
 static NEO_COLOR_TYPE RGB_GREEN = NEO_COLOR_TYPE(0, 255, 0);
@@ -63,6 +63,7 @@ bool statusLEDState[STATUS_LED::MAX_STATUS_LED] = {false, false, false};
 int64_t statusLEDStateUpdate[STATUS_LED::MAX_STATUS_LED] = {0, 0, 0};
 TaskHandle_t statusTaskHandle;
 
+#if STATUS_LED_ENABLED
 void updateStatusLEDs(void *arg) {
     esp_task_wdt_add(NULL);
     statusLED.Begin();
@@ -93,11 +94,13 @@ void updateStatusLEDs(void *arg) {
         ulTaskNotifyTake(true, pdMS_TO_TICKS(500));
     }
 }
+#endif
 
 void setStatusLED(const STATUS_LED led, const STATUS_LED_COLOR color) {
     statusLEDColors[led] = color;
     statusLEDState[led] = false;
     statusLEDStateUpdate[led] = 0;
+#if STATUS_LED_ENABLED
     // BLINK state will be handled in the task exclusively
     if(statusLEDColors[led] == LED_RED) {
         statusLED.SetPixelColor(led, RGB_RED);
@@ -110,10 +113,11 @@ void setStatusLED(const STATUS_LED led, const STATUS_LED_COLOR color) {
     }
     // wake up task to update the LEDs
     xTaskNotifyGive(statusTaskHandle);
+#endif
 }
 
 void initStatusLEDs() {
+#if STATUS_LED_ENABLED
    xTaskCreatePinnedToCore(updateStatusLEDs, "LED", 2048, nullptr, 2, &statusTaskHandle, 1);
-}
-
 #endif
+}
