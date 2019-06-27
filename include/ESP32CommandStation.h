@@ -30,10 +30,6 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
-#include <esp_task_wdt.h>
-#include <FS.h>
-#include <SPI.h>
-#include <SPIFFS.h>
 #include <StringArray.h>
 
 #include <utils/format_utils.hxx>

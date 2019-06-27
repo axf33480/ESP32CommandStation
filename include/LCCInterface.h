@@ -25,8 +25,6 @@ public:
   LCCInterface();
   void init();
   void update();
-  void processWiFiEvent(system_event_id_t event);
-  size_t getNodeAliasCount();
 };
 
 class InfoScreenStatCollector : public StateFlowBase {

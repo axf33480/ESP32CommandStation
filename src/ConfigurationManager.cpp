@@ -17,6 +17,8 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 #include "ESP32CommandStation.h"
 
+#include <sys/stat.h>
+
 ConfigurationManager configStore;
 
 StaticJsonBuffer<20480> jsonConfigBuffer;
@@ -26,95 +28,133 @@ StaticJsonBuffer<20480> jsonConfigBuffer;
 #endif
 
 #if CONFIG_USE_SPIFFS
-#define CONFIG_FS SPIFFS
-#elif COFNIG_USE_SD
-#define CONFIG_FS SD_MMC
-#endif
-
+#include <esp_spiffs.h>
 // All ESP32 Command Station configuration files live under this directory on
 // the configured filesystem starting with v1.3.0.
-static constexpr const char *ESP32CS_CONFIG_DIR = "/ESP32CS";
+static constexpr const char *ESP32CS_CONFIG_DIR = "/spiffs/ESP32CS";
 
 // Prior to v1.3.0 this was the configuration location, it is retained here only
 // to support migration of data from previous releases.
-static constexpr const char *OLD_CONFIG_DIR = "/DCCppESP32";
+static constexpr const char *OLD_CONFIG_DIR = "/spiffs/DCCppESP32";
+
+#elif COFNIG_USE_SD
+#include <esp_vfs_fat.h>
+#include <driver/sdmmc_host.h>
+#include <driver/sdspi_host.h>
+#include <sdmmc_cmd.h>
+sdmmc_card_t *sdcard = nullptr;
+
+// All ESP32 Command Station configuration files live under this directory on
+// the configured filesystem starting with v1.3.0.
+static constexpr const char *ESP32CS_CONFIG_DIR = "/sdcard/ESP32CS";
+
+// Prior to v1.3.0 this was the configuration location, it is retained here only
+// to support migration of data from previous releases.
+static constexpr const char *OLD_CONFIG_DIR = "/sdcard/DCCppESP32";
+#endif
 
 ConfigurationManager::ConfigurationManager() {
 }
 
 ConfigurationManager::~ConfigurationManager() {
-  CONFIG_FS.end();
+#if CONFIG_USE_SPIFFS
+  if(esp_spiffs_mounted(NULL)) {
+    ESP_ERROR_CHECK(esp_vfs_spiffs_unregister(NULL));
+  }
+#elif CONFIG_USE_SD
+  if(sdcard) {
+    esp_vfs_fat_sdmmc_unmount();
+  }
+#endif
 }
 
 void ConfigurationManager::init() {
 #if CONFIG_USE_SPIFFS
-  if(!SPIFFS.begin()) {
-    LOG(INFO, "[Config] SPIFFS mount failed, formatting SPIFFS and retrying");
-    if(!SPIFFS.begin(true)) {
-      LOG(INFO, "[Config] SPIFFS mount failed even after formatting!");
-      delay(10000);
-      LOG(FATAL, "[Config] Aborting due to SPIFFS mount failure.");
-    }
+  esp_vfs_spiffs_conf_t conf = {
+    .base_path = "/spiffs",
+    .partition_label = NULL,
+    .max_files = 5,
+    .format_if_mount_failed = true
+  };
+  // Attempt to mount the partition
+  esp_err_t res = esp_vfs_spiffs_register(&conf);
+  // check that the partition mounted
+  if(res != ESP_OK) {
+    LOG(FATAL,
+        "[Config] Failed to mount SPIFFS partition, err %s (%d), giving up!",
+        esp_err_to_name(res), res);
+  }
+  size_t total = 0, used = 0;
+  res = esp_spiffs_info(NULL, &total, &used);
+  if(res == ESP_OK) {
+    LOG(INFO, "[Config] SPIFFS usage: %d/%d bytes", used, total);
   }
 #elif COFNIG_USE_SD
-  if(!SD_MMC.begin()) {
-    LOG(INFO, "[Config] SD_MMC mount failed, is there an SD card inserted?");
-    delay(10000);
-    LOG(FATAL, "[Config] Aborting due to SD_MMC mount failure.");
+  sdmmc_host_t host = SDSPI_HOST_DEFAULT();
+  sdspi_slot_config_t slot_config = SDSPI_SLOT_CONFIG_DEFAULT();
+  esp_vfs_fat_sdmmc_mount_config_t mount_config = {
+    .format_if_mount_failed = false,
+    .max_files = 5,
+    .allocation_unit_size = 16 * 1024
+  };
+  esp_err_t res = esp_vfs_fat_sdmmc_mount("/sdcard", &host, &slot_config, &mount_config, &sdcard);
+  if (res == ESP_FAIL) {
+    LOG(FATAL, "[Config] Failed to mount the SD card. Is there an SD card inserted?");
+  } else if(res != ESP_OK) {
+    LOG(FATAL,
+        "[Config] Failed to mount the SD card. %s (%d)",
+        esp_err_to_name(res), res);
   }
+  sdmmc_card_print_info(stdout, sdcard);
 #endif
-  CONFIG_FS.mkdir(ESP32CS_CONFIG_DIR);
+  mkdir(ESP32CS_CONFIG_DIR, ACCESSPERMS);
 }
 
 void ConfigurationManager::clear() {
-  CONFIG_FS.rmdir(ESP32CS_CONFIG_DIR);
-  CONFIG_FS.mkdir(ESP32CS_CONFIG_DIR);
+  rmdir(ESP32CS_CONFIG_DIR);
+  mkdir(ESP32CS_CONFIG_DIR, ACCESSPERMS);
 }
 
 bool ConfigurationManager::exists(const char *name) {
   std::string oldConfigFilePath = StringPrintf("%s/%s", OLD_CONFIG_DIR, name);
   std::string configFilePath = StringPrintf("%s/%s", ESP32CS_CONFIG_DIR, name);
-  if(CONFIG_FS.exists(oldConfigFilePath.c_str()) && !CONFIG_FS.exists(configFilePath.c_str())) {
-    LOG(INFO, "[Config] Migrating configuration file %s to %s.", oldConfigFilePath.c_str(), configFilePath.c_str());
-    CONFIG_FS.rename(oldConfigFilePath.c_str(), configFilePath.c_str());
+  if(access(oldConfigFilePath.c_str(), F_OK) != -1 && !access(configFilePath.c_str(), F_OK)) {
+    LOG(INFO,
+        "[Config] Migrating configuration file %s to %s.",
+        oldConfigFilePath.c_str(), configFilePath.c_str());
+    rename(oldConfigFilePath.c_str(), configFilePath.c_str());
   }
-  return CONFIG_FS.exists(configFilePath.c_str());
+  return !access(configFilePath.c_str(), F_OK);
 }
 
 void ConfigurationManager::remove(const char *name) {
   std::string configFilePath = StringPrintf("%s/%s", ESP32CS_CONFIG_DIR, name);
-  CONFIG_FS.remove(configFilePath.c_str());
+  unlink(configFilePath.c_str());
 }
 
 JsonObject &ConfigurationManager::load(const char *name) {
   std::string configFilePath = StringPrintf("%s/%s", ESP32CS_CONFIG_DIR, name);
   LOG(INFO, "[Config] Loading %s", configFilePath.c_str());
-  File configFile = CONFIG_FS.open(configFilePath.c_str(), FILE_READ);
+  std::string configFileContent = read_file_to_string(configFilePath.c_str());
   jsonConfigBuffer.clear();
-  JsonObject &root = jsonConfigBuffer.parseObject(configFile);
-  configFile.close();
+  JsonObject &root = jsonConfigBuffer.parseObject(configFileContent);
   return root;
 }
 
 JsonObject &ConfigurationManager::load(const char *name, DynamicJsonBuffer &buffer) {
   std::string configFilePath = StringPrintf("%s/%s", ESP32CS_CONFIG_DIR, name);
   LOG(INFO, "[Config] Loading %s", configFilePath.c_str());
-  File configFile = CONFIG_FS.open(configFilePath.c_str(), FILE_READ);
-  JsonObject &root = buffer.parseObject(configFile);
-  configFile.close();
+  std::string configFileContent = read_file_to_string(configFilePath.c_str());
+  JsonObject &root = buffer.parseObject(configFileContent);
   return root;
 }
 
 void ConfigurationManager::store(const char *name, const JsonObject &json) {
   std::string configFilePath = StringPrintf("%s/%s", ESP32CS_CONFIG_DIR, name);
   LOG(INFO, "[Config] Storing %s", configFilePath.c_str());
-  File configFile = CONFIG_FS.open(configFilePath.c_str(), FILE_WRITE);
-  if(!configFile) {
-    LOG_ERROR("[Config] Failed to open %s", configFilePath.c_str());
-    return;
-  }
-  json.printTo(configFile);
-  configFile.close();
+  std::string configFileContent = "";
+  json.printTo(configFileContent);
+  write_string_to_file(configFilePath, configFileContent);
 }
 
 JsonObject &ConfigurationManager::createRootNode(bool clearBuffer) {

@@ -18,7 +18,6 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #include "ESP32CommandStation.h"
 #include <ESPAsyncWebServer.h>
 #include <ESPAsyncDNSServer.h>
-#include <SPIFFSEditor.h>
 #include <AsyncJson.h>
 #include <Update.h>
 
@@ -158,7 +157,6 @@ void ESP32CSWebServer::begin() {
 
   webSocket.onEvent(handleWsEvent);
   webServer.addHandler(&webSocket);
-  webServer.addHandler(new SPIFFSEditor(SPIFFS));
   webServer.begin();
   mdns_->publish("websvr", "_http._tcp", 80);
 }

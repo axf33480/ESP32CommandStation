@@ -209,10 +209,8 @@ DccAccyConsumer dccAccessoryConsumer{openmrn.stack()->node(), &dccPacketInjector
 
 #if LCC_USE_SPIFFS
 #define CDI_CONFIG_PREFIX "/spiffs"
-#define LCC_FS SPIFFS
 #elif LCC_USE_SD
 #define CDI_CONFIG_PREFIX "/sdcard"
-#define LCC_FS SD_MMC
 #endif
 
 namespace openlcb
@@ -232,6 +230,8 @@ namespace openlcb
     // Default to store the dynamic SNIP data is stored in the same persistant
     // data file as general configuration data.
     const char *const SNIP_DYNAMIC_FILENAME = CONFIG_FILENAME;
+
+    const char *const CONFIG_DIR = CDI_CONFIG_PREFIX LCC_CONFIG_DIR;
 }
 
 LCCInterface lccInterface;
@@ -240,11 +240,11 @@ LCCInterface::LCCInterface() {
 }
 
 void LCCInterface::init() {
-    LCC_FS.mkdir(LCC_CONFIG_DIR);
+    mkdir(openlcb::CONFIG_DIR, ACCESSPERMS);
 
 #if LCC_FORCE_FACTORY_RESET_ON_STARTUP
-    LCC_FS.remove(LCC_CDI_FILE);
-    LCC_FS.remove(LCC_CONFIG_FILE);
+    unlink(LCC_CDI_FILE);
+    unlink(LCC_CONFIG_FILE);
 #endif
 
     // Create the CDI.xml dynamically
@@ -278,8 +278,4 @@ void LCCInterface::update() {
         cpuLoadLogger = new CpuLoadLog(openmrn.stack()->service());
     }
 #endif
-}
-
-void LCCInterface::processWiFiEvent(system_event_id_t event) {
-    //wifi_mgr.process_wifi_event(event);
 }
