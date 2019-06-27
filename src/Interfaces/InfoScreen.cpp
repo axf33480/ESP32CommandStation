@@ -165,8 +165,7 @@ StateFlowBase::Action InfoScreen::update() {
   static uint8_t _rotatingStatusLineCount = 4;
   static uint8_t _motorboardIndex = 0;
   static uint8_t _lccStatusIndex = 0;
-  static uint64_t _lastRotation = os_get_time_monotonic();
-  static uint64_t _lastUpdate = os_get_time_monotonic();
+  static uint8_t _lastRotation = 0;
 #if LOCONET_ENABLED
   static uint8_t _firstLocoNetIndex = 0;
   if(!_firstLocoNetIndex) {
@@ -174,14 +173,13 @@ StateFlowBase::Action InfoScreen::update() {
     _rotatingStatusLineCount += 2;
   }
 #endif
-  // switch to next status line detail set every five seconds
-  if(os_get_time_monotonic() - _lastRotation >= SEC_TO_NSEC(5)) {
-    _lastRotation = os_get_time_monotonic();
+  // switch to next status line detail set after 10 iterations
+  if(++_lastRotation > 10) {
+    _lastRotation = 0;
     ++_rotatingStatusIndex %= _rotatingStatusLineCount;
   }
-  // update the status line details every second
-  if(os_get_time_monotonic() - _lastUpdate >= MSEC_TO_NSEC(950)) {
-    _lastUpdate = os_get_time_monotonic();
+  // update the status line details every other iteration
+  if(_lastRotation % 2) {
     if(_rotatingStatusIndex == 0) {
       replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Free Heap:%d",
         ESP.getFreeHeap());
@@ -209,7 +207,7 @@ StateFlowBase::Action InfoScreen::update() {
         replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "LCC Nodes: %d",
           infoScreenCollector.getRemoteNodeCount());
       } else if (_lccStatusIndex == 1) {
-        replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "LCC Local Nodes: %d",
+        replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "LCC Lcl: %d",
           infoScreenCollector.getLocalNodeCount());
       } else if (_lccStatusIndex == 2) {
         replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "LCC dg_svc: %d",
@@ -241,6 +239,10 @@ StateFlowBase::Action InfoScreen::update() {
 #elif INFO_SCREEN_LCD
   for(int line = 0; line < INFO_SCREEN_LCD_LINES; line++) {
     lcdDisplay.setCursor(0, line);
+    // space pad to the width of the LCD
+    while(screenLines_[line].length() < INFO_SCREEN_LCD_COLUMNS) {
+      screenLines_[line] += ' ';
+    }
     lcdDisplay.print(screenLines_[line].c_str());
   }
 #endif
