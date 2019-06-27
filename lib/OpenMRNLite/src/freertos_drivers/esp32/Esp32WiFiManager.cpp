@@ -636,26 +636,16 @@ void Esp32WiFiManager::process_wifi_event(system_event_t *event)
     else if (event->event_id == SYSTEM_EVENT_AP_STACONNECTED)
     {
         LOG(INFO,
-            "[SoftAP] Station %d (%02x:%02x:%02x:%02x:%02x:%02x) connected",
+            "[SoftAP aid:%d] " MACSTR " connected.",
             event->event_info.sta_connected.aid,
-            event->event_info.sta_connected.mac[0],
-            event->event_info.sta_connected.mac[1],
-            event->event_info.sta_connected.mac[2],
-            event->event_info.sta_connected.mac[3],
-            event->event_info.sta_connected.mac[4],
-            event->event_info.sta_connected.mac[5]);
+            MAC2STR(event->event_info.sta_connected.mac));
     }
     else if (event->event_id == SYSTEM_EVENT_AP_STADISCONNECTED)
     {
         LOG(INFO,
-            "[SoftAP] Station %d (%02x:%02x:%02x:%02x:%02x:%02x) disconnected",
+            "[SoftAP aid:%d] " MACSTR " disconnected.",
             event->event_info.sta_disconnected.aid,
-            event->event_info.sta_disconnected.mac[0],
-            event->event_info.sta_disconnected.mac[1],
-            event->event_info.sta_disconnected.mac[2],
-            event->event_info.sta_disconnected.mac[3],
-            event->event_info.sta_disconnected.mac[4],
-            event->event_info.sta_disconnected.mac[5]);
+            MAC2STR(event->event_info.sta_connected.mac));
     }
 
     {

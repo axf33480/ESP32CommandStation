@@ -63,14 +63,6 @@ string dummystring("abcdef");
 // layout. The argument of offset zero is ignored and will be removed later.
 static constexpr ConfigDef cfg(0);
 
-// SoftAP uses a hardcoded IP address of 8.8.8.8 so that Android devices will
-// connect to it for DNS by default.
-tcpip_adapter_ip_info_t APstaticIP = {
-    htonl(LWIP_MAKEU32(8, 8, 8, 8)),
-    htonl(LWIP_MAKEU32(255, 255, 255, 0)),
-    htonl(LWIP_MAKEU32(8, 8, 8, 8))
-};
-
 #if WIFI_ENABLE_SOFT_AP
 const wifi_mode_t wifi_mgr_wifi_mode = WIFI_MODE_APSTA;
 #else
@@ -97,7 +89,7 @@ ip_addr_t stationDNSServer = ip_addr_any;
 Esp32WiFiManager wifi_mgr(SSID_NAME, SSID_PASSWORD, openmrn.stack(),
                           cfg.seg().wifi(), HOSTNAME_PREFIX, wifi_mgr_wifi_mode,
                           stationStaticIP, stationDNSServer,
-                          1, 4, WIFI_AUTH_OPEN, &APstaticIP);
+                          WIFI_SOFT_AP_CHANNEL, WIFI_SOFT_AP_MAX_CLIENTS, WIFI_AUTH_OPEN);
 
 // RailCom Hub interface for LCC
 RailcomHubFlow railComHub(openmrn.stack()->service());
@@ -262,6 +254,7 @@ void LCCInterface::init() {
         openlcb::CANONICAL_VERSION, openlcb::CONFIG_FILE_SIZE);
 
     // Start the OpenMRN stack
+    //wifi_mgr.enable_verbose_logging();
     openmrn.begin();
     openmrn.start_executor_thread();
 #if LCC_CAN_ENABLED

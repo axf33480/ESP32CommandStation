@@ -1,7 +1,6 @@
 #include "ESPAsyncDNSServer.h"
 #include <lwip/def.h>
-#include <WString.h>
-
+#include <esp32-hal-log.h>
 
 AsyncDNSServer::AsyncDNSServer() : _ttl(htonl(DNS_DEFAULT_TTL)), _errorReplyCode(AsyncDNSReplyCode::NonExistentDomain) {
 }
@@ -52,7 +51,6 @@ void AsyncDNSServer::processRequest(AsyncUDPPacket &packet) {
     }
 
     String domainNameWithoutWwwPrefix = getDomainNameWithoutWwwPrefix(buffer);
-    //printf("DNS: %s\n", domainNameWithoutWwwPrefix.c_str());
 
     if (dnsHeader.QR == DNS_QR_QUERY && dnsHeader.OPCode == DNS_OPCODE_QUERY &&
         (_domainName == "*" || domainNameWithoutWwwPrefix == _domainName)
@@ -85,9 +83,9 @@ void AsyncDNSServer::processRequest(AsyncUDPPacket &packet) {
       msg.write((uint8_t *)&answerIPv4, 2);
       msg.write((uint8_t *)&_resolvedIP.addr, sizeof(_resolvedIP.addr));
       packet.send(msg);
-      //printf("DNS responds with IP: " IPSTR "\n", IP2STR(&_resolvedIP));
+      log_d("[DNS] %s -> IP: " IPSTR "\n", domainNameWithoutWwwPrefix.c_str(), IP2STR(&_resolvedIP));
     } else if (dnsHeader.QR == DNS_QR_QUERY) {
-      //printf("DNS: reply with Code %d\n", _errorReplyCode);
+      log_d("[DNS] Reply with Code %d\n", _errorReplyCode);
       AsyncUDPMessage msg(packet.length());
       msg.write(packet.data(), packet.length());
       DNSHeader * responseHeader = (DNSHeader *)msg.data();

@@ -107,15 +107,13 @@ ESP32CSWebServer::ESP32CSWebServer(MDNS *mdns) : mdns_(mdns) {
 void ESP32CSWebServer::begin() {
 #if WIFI_ENABLE_SOFT_AP
   tcpip_adapter_ip_info_t ip_info;
-  // start the async dns on the softap address
   tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_AP, &ip_info);
-  asyncDNS.setErrorReplyCode(AsyncDNSReplyCode::NoError);
-  asyncDNS.start(53, "*", ip_info.ip);
+  // store the IP address for use in the 404 handler
   softAPAddress_ = StringPrintf(IPSTR, IP2STR(&ip_info.ip));
+
+  // start the async dns on the softap address
+  asyncDNS.start(53, "*", ip_info.ip);
 #endif
-  webServer.rewrite("/", "/index.html");
-  webServer.on("/index.html", HTTP_GET,
-               std::bind(&ESP32CSWebServer::streamResource, this, std::placeholders::_1));
   webServer.on("/jquery.min.js", HTTP_GET,
                std::bind(&ESP32CSWebServer::streamResource, this, std::placeholders::_1));
   webServer.on("/jquery.mobile-1.5.0-rc1.min.js", HTTP_GET,
@@ -153,6 +151,9 @@ void ESP32CSWebServer::begin() {
   webServer.on("/update", HTTP_POST,
                std::bind(&ESP32CSWebServer::handleOTA, this, std::placeholders::_1),
                &handleOTAUpload);
+  webServer.on("/index.html", HTTP_GET,
+               std::bind(&ESP32CSWebServer::streamResource, this, std::placeholders::_1));
+  webServer.rewrite("/", "/index.html");
   webServer.onNotFound(std::bind(&ESP32CSWebServer::notFoundHandler, this, std::placeholders::_1));
 
   webSocket.onEvent(handleWsEvent);
@@ -761,17 +762,14 @@ void ESP32CSWebServer::handleFeatures(AsyncWebServerRequest *request) {
       response->addHeader("Content-Encoding", "gzip"); \
     } \
   } else if (request->url() == uri) { \
-    LOG(INFO, "[WebSrv %s] redirecting %s to %s", request->client()->remoteIP().toString().c_str(), uri, fallback); \
+    LOG(INFO, "[WebSrv %s] redirecting %s to CDN %s", request->client()->remoteIP().toString().c_str(), uri, fallback); \
     request->redirect(fallback); \
   }
 #else
 #define STREAM_RESOURCE(request, uri, fallback, mimeType, totalSize, resource) \
   if (request->url() == uri) { \
-    LOG(INFO, "[WebSrv %s] Streaming %s (%d, %s)", request->client()->remoteIP().toString().c_str(), uri, totalSize, mimeType); \
-    response = request->beginResponse_P(STATUS_OK, mimeType, resource, totalSize); \
-    if(String(mimeType).startsWith("text/")) { \
-      response->addHeader("Content-Encoding", "gzip"); \
-    } \
+    LOG(INFO, "[WebSrv %s] redirecting %s to CDN %s", request->client()->remoteIP().toString().c_str(), uri, fallback); \
+    request->redirect(fallback); \
   }
 #endif
 
@@ -797,19 +795,57 @@ void ESP32CSWebServer::streamResource(AsyncWebServerRequest *request) {
   }
 }
 
+// Known captive portal checks to respond with http 200 and redirect link
+String portalCheckRedirect[] = {
+  "/generate_204",                  // Android
+  "/gen_204",                       // Android 9.0
+  "/mobile/status.php",             // Android 8.0 (Samsung s9+)
+  "/ncsi.txt",                      // Windows
+  "/success.txt",                   // OSX
+  "/hotspot-detect.html",           // iOS 8/9
+  "/hotspotdetect.html",            // iOS 8/9
+  "/library/test/success.html"      // iOS 8/9
+  "/kindle-wifi/wifiredirect.html"  // Kindle
+  "/kindle-wifi/wifistub.html"      // Kindle
+};
+
+static constexpr const char * const REDIRECT_HTML =
+  "<html>"
+  "<title>ESP32 Command Station v%s</title>"                                          // VERSION
+  "<meta http-equiv=\"refresh\" content=\"5;url='http://%s/index.html'\" /> "         // softAPAddress_
+  "<body>"
+  "<h1>Welcome to the ESP32 Command Station</h1>"
+  "<p>Click <a href=\"http://%s/index.html\">here</a> for ESP32 Command Station if "  // softAPAddress_
+  "you are not automatically redirected in a few seconds.</p>"
+  "</body>"
+  "</html>";
+
 void ESP32CSWebServer::notFoundHandler(AsyncWebServerRequest *request) {
 #if WIFI_ENABLE_SOFT_AP
-    if(request->url() == "/generate_204" || request->url() == "/gen_204" || request->url() == "/fwlink") {
-      tcpip_adapter_ip_info_t ip_info;
-      tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_AP, &ip_info);
-      // redirect to main page
-      LOG(INFO, "[WebSrv %s] Redirect to http://" IPSTR "/index.html", request->client()->remoteIP().toString().c_str(), IP2STR(&ip_info.ip));
-      request->send(STATUS_OK, "text/html", StringPrintf("<html><body>Click <a href=\"http://" IPSTR "/index.html\">here</a> for ESP32 Command Station</body></html>", IP2STR(&ip_info.ip)).c_str());
-    } else {
-#endif
-      LOG(INFO, "[WebSrv %s] 404: %s", request->client()->remoteIP().toString().c_str(), request->url().c_str());
-      request->send(STATUS_NOT_FOUND, "text/plain", "URI Not Found");
-#if WIFI_ENABLE_SOFT_AP
+  for(auto uri : portalCheckRedirect) {
+    if(request->url() == uri) {
+      LOG(INFO,
+          "[WebSrv %s] %s%s: Appears to be a captive portal check, redirecting to http://%s/index.html",
+          request->client()->remoteIP().toString().c_str(),
+          request->host().c_str(),
+          request->url().c_str(),
+          softAPAddress_.c_str());
+      request->send(STATUS_OK,
+                    "text/html",
+                    StringPrintf(REDIRECT_HTML,
+                                 VERSION,
+                                 softAPAddress_.c_str(),
+                                 softAPAddress_.c_str()).c_str());
+      return;
     }
-#endif
   }
+  LOG(INFO, "[WebSrv %s] 404: %s%s",
+      request->client()->remoteIP().toString().c_str(),
+      request->host().c_str(),
+      request->url().c_str());
+  request->send(STATUS_NOT_FOUND, "text/plain", "URI Not Found");
+#else
+  LOG(INFO, "[WebSrv %s] 404: %s", request->client()->remoteIP().toString().c_str(), request->url().c_str());
+  request->send(STATUS_NOT_FOUND, "text/plain", "URI Not Found");
+#endif
+}

@@ -146,6 +146,14 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #define WIFI_ENABLE_SOFT_AP false
 #endif
 
+#ifndef WIFI_SOFT_AP_CHANNEL
+#define WIFI_SOFT_AP_CHANNEL 6
+#endif
+
+#ifndef WIFI_SOFT_AP_MAX_CLIENTS
+#define WIFI_SOFT_AP_MAX_CLIENTS 4
+#endif
+
 /////////////////////////////////////////////////////////////////////////////////////
 // S88 Maximum sensors per bus.
 /////////////////////////////////////////////////////////////////////////////////////
