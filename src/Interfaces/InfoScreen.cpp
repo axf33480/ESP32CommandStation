@@ -49,6 +49,9 @@ void InfoScreen::clear() {
 }
 
 void InfoScreen::print(int col, int row, const std::string &format, ...) {
+  if(row < 0) {
+    return;
+  }
   char buf[512] = {0};
   va_list args;
   va_start(args, format);
@@ -59,6 +62,9 @@ void InfoScreen::print(int col, int row, const std::string &format, ...) {
 }
 
 void InfoScreen::replaceLine(int row, const std::string &format, ...) {
+  if(row < 0) {
+    return;
+  }
   char buf[512] = {0};
   va_list args;
   va_start(args, format);
@@ -72,42 +78,48 @@ StateFlowBase::Action InfoScreen::init() {
   replaceLine(INFO_SCREEN_STATION_INFO_LINE, "ESP32-CS: v%s", VERSION);
   replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Starting Up");
 
-#if INFO_SCREEN_ENABLED
   LOG(INFO, "[InfoScreen] Initializing");
   if(Wire.begin(INFO_SCREEN_SDA_PIN, INFO_SCREEN_SCL_PIN)) {
-    // Check that we can find the screen by its address before attempting to
-    // use/configure it.
+    // Verify that there is an I2C device on the expected address
     Wire.beginTransmission(INFO_SCREEN_I2C_TEST_ADDRESS);
     if(Wire.endTransmission() == 0) {
+      // Device found, initialize it
 #if INFO_SCREEN_OLED
       return call_immediately(STATE(initOLED));
 #elif INFO_SCREEN_LCD
       return call_immediately(STATE(initLCD));
 #endif
     }
-    LOG(WARNING, "OLED/LCD screen not found at 0x%x\n", INFO_SCREEN_I2C_TEST_ADDRESS);
-    printf("Scanning for I2C devices...\n");
-    printf("     0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f\n");
-    printf("00:         ");
+    // No device found, perform an I2C scan and dump the output.
+    std::string scanresults =
+      "Scanning for I2C devices...\n"
+      "     0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f\n"
+      "00:         ";
+    scanresults.reserve(256);
     for (uint8_t addr=3; addr < 0x78; addr++) {
       if (addr % 16 == 0) {
-        printf("\n%.2x:", addr);
+        scanresults += "\n" + int64_to_string_hex(addr) + ":";
       }
       Wire.beginTransmission(addr);
       if(Wire.endTransmission() == 0) {
-        printf(" %.2x", addr);
+        scanresults += int64_to_string_hex(addr);
       } else {
-        printf(" --");
+        scanresults += " --";
       }
     }
+    LOG(WARNING,
+        "I2C display not found at 0x%02x\n%s",
+        INFO_SCREEN_I2C_TEST_ADDRESS,
+        scanresults.c_str());
   } else {
     LOG(FATAL,
         "Failed to initialize I2C bus with SDA: %d, SCL: %d!",
         INFO_SCREEN_SDA_PIN,
         INFO_SCREEN_SCL_PIN);
   }
-#endif
-  LOG(VERBOSE, "[InfoScreen] no output device");
+  // The only time we should encounter this case is if the I2C init
+  // fails. Cleanup and exit the flow.
+  LOG(WARNING, "[InfoScreen] no output device");
   return exit();
 }
 

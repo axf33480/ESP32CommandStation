@@ -202,7 +202,5 @@ static constexpr DRAM_ATTR uint8_t DCC_PACKET_BIT_MASK[] = {
 };
 
 extern SignalGenerator *dccSignal[MAX_DCC_SIGNAL_GENERATORS];
-void startDCCSignalGenerators();
-bool stopDCCSignalGenerators();
 bool isDCCSignalEnabled();
 void sendDCCEmergencyStop();

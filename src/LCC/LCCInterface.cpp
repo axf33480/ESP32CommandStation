@@ -151,7 +151,6 @@ SimpleEventCallbackHandler emergencyPowerOffHandler(Defs::EMERGENCY_OFF_EVENT,
     CallbackEventHandler::RegistryEntryBits::IS_CONSUMER,
     openmrn.stack()->node(),
     [](const EventRegistryEntry &registry_entry, EventReport *report, BarrierNotifiable *done) {
-        stopDCCSignalGenerators();
         // shutdown all track power outputs
         MotorBoardManager::powerOffAll();
     }, nullptr);
@@ -160,7 +159,6 @@ SimpleEventCallbackHandler emergencyPowerOffClearHandler(Defs::CLEAR_EMERGENCY_O
     CallbackEventHandler::RegistryEntryBits::IS_CONSUMER,
     openmrn.stack()->node(),
     [](const EventRegistryEntry &registry_entry, EventReport *report, BarrierNotifiable *done) {
-        startDCCSignalGenerators();
         // Note this will not power on the PROG track as that is only managed via the programming interface
         MotorBoardManager::powerOnAll();
     }, nullptr);

@@ -638,67 +638,51 @@ void ESP32CSWebServer::handleLocomotive(AsyncWebServerRequest *request) {
   request->send(jsonResponse);
 }
 
-static const char * _err2str(uint8_t _error){
-    if(_error == UPDATE_ERROR_OK){
-        return ("No Error");
-    } else if(_error == UPDATE_ERROR_WRITE){
-        return ("Flash Write Failed");
-    } else if(_error == UPDATE_ERROR_ERASE){
-        return ("Flash Erase Failed");
-    } else if(_error == UPDATE_ERROR_READ){
-        return ("Flash Read Failed");
-    } else if(_error == UPDATE_ERROR_SPACE){
-        return ("Not Enough Space");
-    } else if(_error == UPDATE_ERROR_SIZE){
-        return ("Bad Size Given");
-    } else if(_error == UPDATE_ERROR_STREAM){
-        return ("Stream Read Timeout");
-    } else if(_error == UPDATE_ERROR_MD5){
-        return ("MD5 Check Failed");
-    } else if(_error == UPDATE_ERROR_MAGIC_BYTE){
-        return ("Wrong Magic Byte");
-    } else if(_error == UPDATE_ERROR_ACTIVATE){
-        return ("Could Not Activate The Firmware");
-    } else if(_error == UPDATE_ERROR_NO_PARTITION){
-        return ("Partition Could Not be Found");
-    } else if(_error == UPDATE_ERROR_BAD_ARGUMENT){
-        return ("Bad Argument");
-    } else if(_error == UPDATE_ERROR_ABORT){
-        return ("Aborted");
-    }
-    return ("UNKNOWN");
-}
+static constexpr char const * OTA_ERROR_STRINGS[] = {
+  "No Error", // UPDATE_ERROR_OK
+  "Flash Write Failed", // UPDATE_ERROR_WRITE
+  "Flash Erase Failed", // UPDATE_ERROR_ERASE
+  "Flash Read Failed", // UPDATE_ERROR_READ
+  "Not Enough Space", // UPDATE_ERROR_SPACE
+  "Bad Size Given", // UPDATE_ERROR_SIZE
+  "Stream Read Timeout", // UPDATE_ERROR_STREAM
+  "MD5 Check Failed", // UPDATE_ERROR_MD5
+  "Wrong Magic Byte", // UPDATE_ERROR_MAGIC_BYTE
+  "Could Not Activate The Firmware", // UPDATE_ERROR_ACTIVATE
+  "Partition Could Not be Found", // UPDATE_ERROR_NO_PARTITION
+  "Bad Argument", // UPDATE_ERROR_BAD_ARGUMENT
+  "Aborted", // UPDATE_ERROR_ABORT
+};
 
 void ESP32CSWebServer::handleOTA(AsyncWebServerRequest *request) {
-  request->send(STATUS_OK, "text/plain", _err2str(Update.getError()));
+  request->send(STATUS_OK, "text/plain", OTA_ERROR_STRINGS[Update.getError()]);
 }
 
 void handleOTAUpload(AsyncWebServerRequest *request, const String& filename, size_t index, uint8_t *data, size_t len, bool final) {
   if (!index) {
 #if NEXTION_ENABLED
     nextionPages[TITLE_PAGE]->show();
-    static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(0, "Firmware Upload Started...");
+    static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(0, "OTA Upload Started...");
 #endif
     otaInProgress = true;
-    LOG(INFO, "Update starting...");
+    LOG(INFO, "[WebSrv] OTA Update starting...");
     infoScreen.replaceLine(INFO_SCREEN_STATION_INFO_LINE, "Update starting");
     MotorBoardManager::powerOffAll();
-    stopDCCSignalGenerators();
     if (!Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH)) {
 #if NEXTION_ENABLED
-      static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(1, _err2str(Update.getError()));
+      static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(1, OTA_ERROR_STRINGS[Update.getError()]);
 #endif
-      infoScreen.replaceLine(INFO_SCREEN_STATION_INFO_LINE, _err2str(Update.getError()));
-      request->send(STATUS_BAD_REQUEST, "text/plain", _err2str(Update.getError()));
+      infoScreen.replaceLine(INFO_SCREEN_STATION_INFO_LINE, OTA_ERROR_STRINGS[Update.getError()]);
+      request->send(STATUS_BAD_REQUEST, "text/plain", OTA_ERROR_STRINGS[Update.getError()]);
       Update.printError(Serial);
     }
   }
   if (Update.write(data, len) != len) {
 #if NEXTION_ENABLED
-    static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(1, _err2str(Update.getError()));
+    static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(1, OTA_ERROR_STRINGS[Update.getError()]);
 #endif
-    infoScreen.replaceLine(INFO_SCREEN_STATION_INFO_LINE, _err2str(Update.getError()));
-    request->send(STATUS_BAD_REQUEST, "text/plain", _err2str(Update.getError()));
+    infoScreen.replaceLine(INFO_SCREEN_STATION_INFO_LINE, OTA_ERROR_STRINGS[Update.getError()]);
+    request->send(STATUS_BAD_REQUEST, "text/plain", OTA_ERROR_STRINGS[Update.getError()]);
     Update.printError(Serial);
   } else {
     infoScreen.replaceLine(INFO_SCREEN_STATION_INFO_LINE, "Updating: %d", Update.progress());
@@ -714,12 +698,13 @@ void handleOTAUpload(AsyncWebServerRequest *request, const String& filename, siz
 #endif
       infoScreen.replaceLine(INFO_SCREEN_STATION_INFO_LINE, "Update Complete");
       otaComplete = true;
+      LOG(INFO, "[WebSrv] OTA Update Complete!");
     } else {
 #if NEXTION_ENABLED
-      static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(1, _err2str(Update.getError()));
+      static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(1, OTA_ERROR_STRINGS[Update.getError()]);
 #endif
-      infoScreen.replaceLine(INFO_SCREEN_STATION_INFO_LINE, _err2str(Update.getError()));
-      request->send(STATUS_BAD_REQUEST, "text/plain", _err2str(Update.getError()));
+      infoScreen.replaceLine(INFO_SCREEN_STATION_INFO_LINE, OTA_ERROR_STRINGS[Update.getError()]);
+      request->send(STATUS_BAD_REQUEST, "text/plain", OTA_ERROR_STRINGS[Update.getError()]);
       Update.printError(Serial);
     }
   }
@@ -741,7 +726,7 @@ void ESP32CSWebServer::handleFeatures(AsyncWebServerRequest *request) {
 
 #define STREAM_RESOURCE_NO_REDIRECT(request, uri, mimeType, totalSize, resource) \
   if (request->url() == uri) { \
-    LOG(INFO, "[WebSrv %s] Streaming %s (%d, %s)", request->client()->remoteIP().toString().c_str(), uri, totalSize, mimeType); \
+    LOG(INFO, "[WebSrv %s] Sending %s from MEMORY (%d, %s)", request->client()->remoteIP().toString().c_str(), uri, totalSize, mimeType); \
     response = request->beginResponse_P(STATUS_OK, mimeType, resource, totalSize); \
     if(String(mimeType).startsWith("text/")) { \
       response->addHeader("Content-Encoding", "gzip"); \
@@ -751,19 +736,19 @@ void ESP32CSWebServer::handleFeatures(AsyncWebServerRequest *request) {
 #if WIFI_ENABLE_SOFT_AP
 #define STREAM_RESOURCE(request, uri, fallback, mimeType, totalSize, resource) \
   if (request->url() == uri && softAPAddress_.compare(request->host().c_str()) == 0) { \
-    LOG(INFO, "[WebSrv %s] Streaming %s (%d, %s)", request->client()->remoteIP().toString().c_str(), uri, totalSize, mimeType); \
+    LOG(INFO, "[WebSrv %s] Sending %s from MEMORY (%d, %s)", request->client()->remoteIP().toString().c_str(), uri, totalSize, mimeType); \
     response = request->beginResponse_P(STATUS_OK, mimeType, resource, totalSize); \
     if(String(mimeType).startsWith("text/")) { \
       response->addHeader("Content-Encoding", "gzip"); \
     } \
   } else if (request->url() == uri) { \
-    LOG(INFO, "[WebSrv %s] redirecting %s to CDN %s", request->client()->remoteIP().toString().c_str(), uri, fallback); \
+    LOG(INFO, "[WebSrv %s] Requested %s => CDN %s", request->client()->remoteIP().toString().c_str(), uri, fallback); \
     request->redirect(fallback); \
   }
 #else
 #define STREAM_RESOURCE(request, uri, fallback, mimeType, totalSize, resource) \
   if (request->url() == uri) { \
-    LOG(INFO, "[WebSrv %s] redirecting %s to CDN %s", request->client()->remoteIP().toString().c_str(), uri, fallback); \
+    LOG(INFO, "[WebSrv %s] Requested %s => CDN %s", request->client()->remoteIP().toString().c_str(), uri, fallback); \
     request->redirect(fallback); \
   }
 #endif
@@ -820,7 +805,7 @@ void ESP32CSWebServer::notFoundHandler(AsyncWebServerRequest *request) {
   for(auto uri : portalCheckRedirect) {
     if(request->url() == uri) {
       LOG(INFO,
-          "[WebSrv %s] %s%s: Appears to be a captive portal check, redirecting to http://%s/index.html",
+          "[WebSrv %s] Requested %s%s: Appears to be a captive portal check, redirecting to http://%s/index.html",
           request->client()->remoteIP().toString().c_str(),
           request->host().c_str(),
           request->url().c_str(),
@@ -834,13 +819,11 @@ void ESP32CSWebServer::notFoundHandler(AsyncWebServerRequest *request) {
       return;
     }
   }
-  LOG(INFO, "[WebSrv %s] 404: %s%s",
+#endif
+  LOG(INFO,
+      "[WebSrv %s] 404: %s%s",
       request->client()->remoteIP().toString().c_str(),
       request->host().c_str(),
       request->url().c_str());
-  request->send(STATUS_NOT_FOUND, "text/plain", "URI Not Found");
-#else
-  LOG(INFO, "[WebSrv %s] 404: %s", request->client()->remoteIP().toString().c_str(), request->url().c_str());
-  request->send(STATUS_NOT_FOUND, "text/plain", "URI Not Found");
-#endif
+  request->send(STATUS_NOT_FOUND, "", "");
 }

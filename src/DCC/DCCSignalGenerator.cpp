@@ -18,24 +18,6 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #include "ESP32CommandStation.h"
 
 SignalGenerator *dccSignal[MAX_DCC_SIGNAL_GENERATORS];
-void startDCCSignalGenerators() {
-  // NOTE: DCC_SIGNAL_PROGRAMMING is intentionally not started here, it will be managed with
-  // the programming track methods below.
-  if(!dccSignal[DCC_SIGNAL_OPERATIONS]->isEnabled()) {
-    dccSignal[DCC_SIGNAL_OPERATIONS]->startSignal();
-  }
-}
-
-bool stopDCCSignalGenerators() {
-  bool reEnableNeeded = dccSignal[DCC_SIGNAL_OPERATIONS]->isEnabled();
-  if(dccSignal[DCC_SIGNAL_OPERATIONS]->isEnabled()) {
-    dccSignal[DCC_SIGNAL_OPERATIONS]->stopSignal();
-  }
-  if(dccSignal[DCC_SIGNAL_PROGRAMMING]->isEnabled()) {
-    dccSignal[DCC_SIGNAL_PROGRAMMING]->stopSignal();
-  }
-  return reEnableNeeded;
-}
 
 bool isDCCSignalEnabled() {
   if(dccSignal[DCC_SIGNAL_OPERATIONS]->isEnabled() || dccSignal[DCC_SIGNAL_PROGRAMMING]->isEnabled()) {

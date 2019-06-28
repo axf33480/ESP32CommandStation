@@ -34,7 +34,6 @@ LinkedList<DCCPPProtocolCommand *> registeredCommands([](DCCPPProtocolCommand *c
 class ConfigErase : public DCCPPProtocolCommand {
 public:
   void process(const std::vector<String> arguments) {
-    bool reEnable = stopDCCSignalGenerators();
     configStore.clear();
     TurnoutManager::clear();
     SensorManager::clear();
@@ -44,9 +43,6 @@ public:
     OutputManager::clear();
     LocomotiveManager::clear();
     wifiInterface.send(COMMAND_SUCCESSFUL_RESPONSE);
-    if(reEnable) {
-      startDCCSignalGenerators();
-    }
   }
   String getID() {
     return "e";
@@ -59,7 +55,6 @@ public:
 class ConfigStore : public DCCPPProtocolCommand {
 public:
   void process(const std::vector<String> arguments) {
-    bool reEnable = stopDCCSignalGenerators();
 #if S88_ENABLED
     wifiInterface.print(F("<e %d %d %d %d %d>"),
       TurnoutManager::store(),
@@ -74,9 +69,6 @@ public:
       OutputManager::store(),
       LocomotiveManager::store());
 #endif
-    if(reEnable) {
-      startDCCSignalGenerators();
-    }
   }
   String getID() {
     return "E";
