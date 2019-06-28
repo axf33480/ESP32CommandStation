@@ -49,9 +49,7 @@ void WiFiInterface::init() {
   nextionTitlePage->setStatusText(0, "Initializing WiFi");
 #endif
   infoScreen.replaceLine(INFO_SCREEN_IP_ADDR_LINE, "IP:Pending");
-#if INFO_SCREEN_WS_CLIENTS_LINE > 0
   infoScreen.replaceLine(INFO_SCREEN_WS_CLIENTS_LINE, "WS Clients: 00");
-#endif
 
   wifi_mgr.add_event_callback([](system_event_t *event) {
     if(event->event_id == SYSTEM_EVENT_STA_GOT_IP) {

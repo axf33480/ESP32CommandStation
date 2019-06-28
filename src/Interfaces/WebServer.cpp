@@ -73,9 +73,7 @@ void handleWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client,
   if (type == WS_EVT_CONNECT) {
     webSocketClients.add(new WebSocketClient(client->id(), client->remoteIP()));
     client->printf("<iDCC++ ESP32 Command Station: V-%s / %s %s>", VERSION, __DATE__, __TIME__);
-#if INFO_SCREEN_WS_CLIENTS_LINE >= 0
     infoScreen.replaceLine(INFO_SCREEN_WS_CLIENTS_LINE, "WS Clients: %02d", webSocketClients.length());
-#endif
   } else if (type == WS_EVT_DISCONNECT) {
     WebSocketClient *toRemove = nullptr;
     for (const auto& clientNode : webSocketClients) {
@@ -86,9 +84,7 @@ void handleWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client,
     if(toRemove != nullptr) {
       webSocketClients.remove(toRemove);
     }
-#if INFO_SCREEN_WS_CLIENTS_LINE >= 0
     infoScreen.replaceLine(INFO_SCREEN_WS_CLIENTS_LINE, "WS Clients: %02d", webSocketClients.length());
-#endif
   } else if (type == WS_EVT_DATA) {
     for (const auto& clientNode : webSocketClients) {
       if(clientNode->getID() == client->id()) {
