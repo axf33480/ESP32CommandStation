@@ -844,8 +844,8 @@ void Esp32WiFiManager::start_wifi_system()
 // Starts a background task for the Esp32WiFiManager.
 void Esp32WiFiManager::start_wifi_task()
 {
-    LOG(INFO, "[WiFiMgr] Starting WiFi Manager task");
-    os_thread_create(&wifiTaskHandle_, "OpenMRN-WiFiMgr", WIFI_TASK_PRIORITY,
+    LOG(INFO, "[WiFi] Starting WiFi Manager task");
+    os_thread_create(&wifiTaskHandle_, "Esp32WiFiMgr", WIFI_TASK_PRIORITY,
         WIFI_TASK_STACK_SIZE, wifi_manager_task, this);
 }
 
