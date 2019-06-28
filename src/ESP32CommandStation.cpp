@@ -44,7 +44,7 @@ void esp32_restart() {
 void setup() {
   Serial.begin(115200L);
   Serial.setDebugOutput(true);
-  LOG(INFO, "ESP32 Command Station v%s starting up", VERSION);
+  LOG(INFO, "\n\nESP32 Command Station v%s starting up", VERSION);
 #ifndef ALLOW_USAGE_OF_RESTRICTED_GPIO_PINS
   restrictedPins.push_back(0);
   restrictedPins.push_back(2);
@@ -237,10 +237,9 @@ void setup() {
   });
 #endif
 
+  infoScreen.replaceLine(INFO_SCREEN_TRACK_POWER_LINE, "TRACK POWER: OFF");
 #if ENERGIZE_OPS_TRACK_ON_STARTUP
   MotorBoardManager::powerOnAll();
-#elif INFO_SCREEN_TRACK_POWER_LINE >= 0
-  infoScreen.replaceLine(INFO_SCREEN_TRACK_POWER_LINE, "TRACK POWER: OFF");
 #endif
 
   LOG(INFO, "[WatchDog] Reconfiguring Timer (15sec)");
