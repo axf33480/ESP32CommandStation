@@ -31,7 +31,7 @@ LinkedList<GenericMotorBoard *> motorBoards([](GenericMotorBoard *board) {delete
 
 class NonMonitoredMotorBoard : public GenericMotorBoard {
 public:
-  NonMonitoredMotorBoard(uint8_t enablePin, String name) : GenericMotorBoard(ADC1_CHANNEL_0, enablePin, 0, 0, name, false) {}
+  NonMonitoredMotorBoard(uint8_t enablePin, String name) : GenericMotorBoard(ADC1_CHANNEL_0, enablePin, 0, 1, name, false) {}
   virtual void check() {}
   virtual uint16_t captureSample(uint8_t sampleCount, bool logResults=false) {
     return 0;
