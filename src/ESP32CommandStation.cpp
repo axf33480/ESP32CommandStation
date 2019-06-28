@@ -237,9 +237,10 @@ void setup() {
   });
 #endif
 
-  infoScreen.replaceLine(INFO_SCREEN_TRACK_POWER_LINE, "TRACK POWER: OFF");
 #if ENERGIZE_OPS_TRACK_ON_STARTUP
   MotorBoardManager::powerOnAll();
+#else
+  MotorBoardManager::powerOffAll();
 #endif
 
   LOG(INFO, "[WatchDog] Reconfiguring Timer (15sec)");

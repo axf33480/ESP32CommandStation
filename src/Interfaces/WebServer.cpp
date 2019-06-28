@@ -54,26 +54,32 @@ enum HTTP_STATUS_CODES {
 class WebSocketClient : public DCCPPProtocolConsumer {
 public:
   WebSocketClient(int clientID, IPAddress remoteIP) : _id(clientID), _remoteIP(remoteIP) {
+    LOG(INFO, "[WS %s] Connected", getName().c_str());
   }
-  virtual ~WebSocketClient() {}
+  virtual ~WebSocketClient() {
+    LOG(INFO, "[WS %s] Disonnected", getName().c_str());
+  }
   int getID() {
     return _id;
   }
-  String getName() {
-    return _remoteIP.toString() + "/" + String(_id);
+  std::string getName() {
+    return StringPrintf("%s/%d", _remoteIP.toString().c_str(), _id);
   }
 private:
   uint32_t _id;
   IPAddress _remoteIP;
 };
 LinkedList<WebSocketClient *> webSocketClients([](WebSocketClient *client) {delete client;});
+extern std::vector<int> jmriClients;
 
 void handleWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client,
                                      AwsEventType type, void * arg, uint8_t *data, size_t len) {
   if (type == WS_EVT_CONNECT) {
     webSocketClients.add(new WebSocketClient(client->id(), client->remoteIP()));
     client->printf("<iDCC++ ESP32 Command Station: V-%s / %s %s>", VERSION, __DATE__, __TIME__);
-    infoScreen.replaceLine(INFO_SCREEN_WS_CLIENTS_LINE, "WS Clients: %02d", webSocketClients.length());
+    infoScreen.replaceLine(INFO_SCREEN_CLIENTS_LINE, 
+                           "TCP Conn: %02d",
+                           webSocketClients.length() + jmriClients.size());
   } else if (type == WS_EVT_DISCONNECT) {
     WebSocketClient *toRemove = nullptr;
     for (const auto& clientNode : webSocketClients) {
@@ -84,7 +90,9 @@ void handleWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client,
     if(toRemove != nullptr) {
       webSocketClients.remove(toRemove);
     }
-    infoScreen.replaceLine(INFO_SCREEN_WS_CLIENTS_LINE, "WS Clients: %02d", webSocketClients.length());
+    infoScreen.replaceLine(INFO_SCREEN_CLIENTS_LINE,
+                           "TCP Conn: %02d",
+                           webSocketClients.length() + jmriClients.size());
   } else if (type == WS_EVT_DATA) {
     for (const auto& clientNode : webSocketClients) {
       if(clientNode->getID() == client->id()) {

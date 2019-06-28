@@ -48,24 +48,11 @@ void InfoScreen::clear() {
   }
 }
 
-void InfoScreen::print(int col, int row, const std::string &format, ...) {
-  if(row < 0) {
-    return;
-  }
-  char buf[64] = {0};
-  va_list args;
-  va_start(args, format);
-  vsnprintf(buf, sizeof(buf), format.c_str(), args);
-  va_end(args);
-  screenLines_[row] = screenLines_[row].substr(0, col) + buf + screenLines_[row].substr(col + strlen(buf));
-  LOG(VERBOSE, "[InfoScreen] print(%d,%d): %s", col, row, buf);
-}
-
 void InfoScreen::replaceLine(int row, const std::string &format, ...) {
   if(row < 0) {
     return;
   }
-  char buf[64] = {0};
+  char buf[256] = {0};
   va_list args;
   va_start(args, format);
   vsnprintf(buf, sizeof(buf), format.c_str(), args);

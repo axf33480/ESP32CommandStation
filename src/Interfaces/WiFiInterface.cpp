@@ -35,6 +35,8 @@ std::vector<int> jmriClients;
 std::unique_ptr<SocketListener> JMRIListener;
 WiFiInterface wifiInterface;
 extern Esp32WiFiManager wifi_mgr;
+class WebSocketClient;
+extern LinkedList<WebSocketClient *> webSocketClients;
 
 constexpr int JMRI_CLIENT_PRIORITY = 1;
 constexpr size_t JMRI_CLIENT_STACK_SIZE = 4096;
@@ -49,7 +51,7 @@ void WiFiInterface::init() {
   nextionTitlePage->setStatusText(0, "Initializing WiFi");
 #endif
   infoScreen.replaceLine(INFO_SCREEN_IP_ADDR_LINE, "IP:Pending");
-  infoScreen.replaceLine(INFO_SCREEN_WS_CLIENTS_LINE, "WS Clients: 00");
+  infoScreen.replaceLine(INFO_SCREEN_CLIENTS_LINE, "TCP Conn: 00");
 
   wifi_mgr.add_event_callback([](system_event_t *event) {
     if(event->event_id == SYSTEM_EVENT_STA_GOT_IP) {
@@ -67,6 +69,9 @@ void WiFiInterface::init() {
         os_thread_create(nullptr, StringPrintf("jmri-%d", fd).c_str(),
                         JMRI_CLIENT_PRIORITY, JMRI_CLIENT_STACK_SIZE,
                         jmriClientHandler, (void *)fd);
+        infoScreen.replaceLine(INFO_SCREEN_CLIENTS_LINE,
+                               "TCP Conn: %02d",
+                               webSocketClients.length() + jmriClients.size());
       }));
       mDNS.publish("jmri", "_esp32cs._tcp", JMRI_LISTENER_PORT);
       esp32csWebServer.begin();
@@ -143,6 +148,10 @@ void *jmriClientHandler(void *arg) {
   if (it != jmriClients.end()) {
     jmriClients.erase(it);
   }
+  infoScreen.replaceLine(INFO_SCREEN_CLIENTS_LINE,
+                         "TCP Conn: %02d",
+                         webSocketClients.length() + jmriClients.size());
+
   ::close(fd);
   return nullptr;
 }
