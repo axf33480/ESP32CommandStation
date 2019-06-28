@@ -52,7 +52,7 @@ void InfoScreen::print(int col, int row, const std::string &format, ...) {
   if(row < 0) {
     return;
   }
-  char buf[512] = {0};
+  char buf[64] = {0};
   va_list args;
   va_start(args, format);
   vsnprintf(buf, sizeof(buf), format.c_str(), args);
@@ -65,7 +65,7 @@ void InfoScreen::replaceLine(int row, const std::string &format, ...) {
   if(row < 0) {
     return;
   }
-  char buf[512] = {0};
+  char buf[64] = {0};
   va_list args;
   va_start(args, format);
   vsnprintf(buf, sizeof(buf), format.c_str(), args);
