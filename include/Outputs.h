@@ -17,9 +17,7 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 #pragma once
 
-#include <Arduino.h>
-#include <ArduinoJson.h>
-#include "DCCppProtocol.h"
+#include "ESP32CommandStation.h"
 
 const uint8_t OUTPUT_IFLAG_INVERT = 0;
 const uint8_t OUTPUT_IFLAG_RESTORE_STATE = 1;

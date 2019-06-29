@@ -16,7 +16,6 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 **********************************************************************/
 #pragma once
 
-#include <Arduino.h>
 #include <mutex>
 #include <queue>
 #include <stdint.h>
