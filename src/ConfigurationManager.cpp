@@ -26,7 +26,7 @@ ConfigurationManager *configStore;
 
 StaticJsonBuffer<20480> jsonConfigBuffer;
 
-#define CONFIG_USE_SD true
+//#define CONFIG_USE_SD true
 
 #define SPIFFS_FILESYSTEM_PREFIX "/spiffs"
 
