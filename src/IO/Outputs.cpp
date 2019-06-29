@@ -99,8 +99,8 @@ static constexpr const char * OUTPUTS_JSON_FILE = "outputs.json";
 
 void OutputManager::init() {
   LOG(INFO, "[Output] Initializing outputs");
-  if(configStore.exists(OUTPUTS_JSON_FILE)) {
-    JsonObject &root = configStore.load(OUTPUTS_JSON_FILE);
+  if(configStore->exists(OUTPUTS_JSON_FILE)) {
+    JsonObject &root = configStore->load(OUTPUTS_JSON_FILE);
     JsonVariant count = root[JSON_COUNT_NODE];
     uint16_t outputCount = count.success() ? count.as<int>() : 0;
     infoScreen.replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Found %02d Outputs", outputCount);
@@ -115,11 +115,10 @@ void OutputManager::init() {
 
 void OutputManager::clear() {
   outputs.free();
-  store();
 }
 
 uint16_t OutputManager::store() {
-  JsonObject &root = configStore.createRootNode();
+  JsonObject &root = configStore->createRootNode();
   JsonArray &array = root.createNestedArray(JSON_OUTPUTS_NODE);
   uint16_t outputStoredCount = 0;
   for (const auto& output : outputs) {
@@ -127,7 +126,7 @@ uint16_t OutputManager::store() {
     outputStoredCount++;
   }
   root[JSON_COUNT_NODE] = outputStoredCount;
-  configStore.store(OUTPUTS_JSON_FILE, root);
+  configStore->store(OUTPUTS_JSON_FILE, root);
   return outputStoredCount;
 }
 

@@ -84,8 +84,8 @@ static constexpr const char *TURNOUT_TYPE_STRINGS[] = {
 
 void TurnoutManager::init() {
   LOG(INFO, "[Turnout] Initializing turnout list");
-  if(configStore.exists(TURNOUTS_JSON_FILE)) {
-    JsonObject &root = configStore.load(TURNOUTS_JSON_FILE);
+  if(configStore->exists(TURNOUTS_JSON_FILE)) {
+    JsonObject &root = configStore->load(TURNOUTS_JSON_FILE);
     JsonVariant count = root[JSON_COUNT_NODE];
     uint16_t turnoutCount = count.success() ? count.as<int>() : 0;
     infoScreen.replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Found %02d Turnouts", turnoutCount);
@@ -100,11 +100,10 @@ void TurnoutManager::init() {
 
 void TurnoutManager::clear() {
   turnouts.free();
-  store();
 }
 
 uint16_t TurnoutManager::store() {
-  JsonObject &root = configStore.createRootNode();
+  JsonObject &root = configStore->createRootNode();
   JsonArray &array = root.createNestedArray(JSON_TURNOUTS_NODE);
   uint16_t turnoutStoredCount = 0;
   for (const auto& turnout : turnouts) {
@@ -112,7 +111,7 @@ uint16_t TurnoutManager::store() {
     turnoutStoredCount++;
   }
   root[JSON_COUNT_NODE] = turnoutStoredCount;
-  configStore.store(TURNOUTS_JSON_FILE, root);
+  configStore->store(TURNOUTS_JSON_FILE, root);
   return turnoutStoredCount;
 }
 

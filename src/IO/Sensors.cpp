@@ -86,8 +86,8 @@ static constexpr const char * SENSORS_JSON_FILE = "sensors.json";
 void SensorManager::init() {
   _lock = xSemaphoreCreateMutex();
   LOG(INFO, "[Sensors] Initializing sensors");
-  if(configStore.exists(SENSORS_JSON_FILE)) {
-    JsonObject &root = configStore.load(SENSORS_JSON_FILE);
+  if(configStore->exists(SENSORS_JSON_FILE)) {
+    JsonObject &root = configStore->load(SENSORS_JSON_FILE);
     JsonVariant count = root[JSON_COUNT_NODE];
     uint16_t sensorCount = count.success() ? count.as<int>() : 0;
     infoScreen.replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Found %02d Sensors", sensorCount);
@@ -102,14 +102,11 @@ void SensorManager::init() {
 }
 
 void SensorManager::clear() {
-  MUTEX_LOCK(_lock);
   sensors.free();
-  store();
-  MUTEX_UNLOCK(_lock);
 }
 
 uint16_t SensorManager::store() {
-  JsonObject &root = configStore.createRootNode();
+  JsonObject &root = configStore->createRootNode();
   JsonArray &array = root.createNestedArray(JSON_SENSORS_NODE);
   uint16_t sensorStoredCount = 0;
   for (const auto& sensor : sensors) {
@@ -119,7 +116,7 @@ uint16_t SensorManager::store() {
     }
   }
   root[JSON_COUNT_NODE] = sensorStoredCount;
-  configStore.store(SENSORS_JSON_FILE, root);
+  configStore->store(SENSORS_JSON_FILE, root);
   return sensorStoredCount;
 }
 

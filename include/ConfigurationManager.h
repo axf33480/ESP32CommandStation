@@ -35,4 +35,4 @@ public:
   JsonObject &createRootNode(bool=true);
 };
 
-extern ConfigurationManager configStore;
+extern ConfigurationManager *configStore;

@@ -34,7 +34,7 @@ LinkedList<DCCPPProtocolCommand *> registeredCommands([](DCCPPProtocolCommand *c
 class ConfigErase : public DCCPPProtocolCommand {
 public:
   void process(const std::vector<String> arguments) {
-    configStore.clear();
+    configStore->clear();
     TurnoutManager::clear();
     SensorManager::clear();
 #if S88_ENABLED

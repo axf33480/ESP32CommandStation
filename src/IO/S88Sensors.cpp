@@ -80,7 +80,7 @@ void S88BusManager::init() {
   pinMode(S88_LOAD_PIN, OUTPUT);
 
   LOG(INFO, "[S88] Initializing SensorBus list");
-  JsonObject &root = configStore.load(S88_SENSORS_JSON_FILE);
+  JsonObject &root = configStore->load(S88_SENSORS_JSON_FILE);
   JsonVariant count = root[JSON_COUNT_NODE];
   uint16_t s88BusCount = count.success() ? count.as<int>() : 0;
   InfoScreen::replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, F("Found %02d S88 Bus"), s88BusCount);
@@ -95,14 +95,11 @@ void S88BusManager::init() {
 }
 
 void S88BusManager::clear() {
-  MUTEX_LOCK(_s88SensorLock);
   s88SensorBus.free();
-  store();
-  MUTEX_UNLOCK(_s88SensorLock);
 }
 
 uint8_t S88BusManager::store() {
-  JsonObject &root = configStore.createRootNode();
+  JsonObject &root = configStore->createRootNode();
   JsonArray &array = root.createNestedArray(JSON_SENSORS_NODE);
   uint8_t sensorBusIndex = 0;
   for (const auto& bus : s88SensorBus) {

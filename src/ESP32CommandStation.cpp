@@ -67,7 +67,10 @@ void setup() {
 #if NEXTION_ENABLED
   nextionInterfaceInit();
 #endif
-  configStore.init();
+  configStore = new ConfigurationManager();
+
+  DCCPPProtocolHandler::init();
+
   wifiInterface.init();
   lccInterface.init();
   MotorBoardManager::registerBoard(MOTORBOARD_CURRENT_SENSE_OPS,
@@ -82,15 +85,15 @@ void setup() {
   dccSignal[DCC_SIGNAL_OPERATIONS] = new SignalGenerator_RMT("OPS", 512, DCC_SIGNAL_OPERATIONS, DCC_SIGNAL_PIN_OPERATIONS, MOTORBOARD_ENABLE_PIN_OPS);
   dccSignal[DCC_SIGNAL_PROGRAMMING] = new SignalGenerator_RMT("PROG", 10, DCC_SIGNAL_PROGRAMMING, DCC_SIGNAL_PIN_PROGRAMMING, MOTORBOARD_ENABLE_PIN_PROG);
 
-  DCCPPProtocolHandler::init();
-  OutputManager::init();
+  LocomotiveManager::init();
   TurnoutManager::init();
+
+  OutputManager::init();
   SensorManager::init();
 #if S88_ENABLED
   S88BusManager::init();
 #endif
   RemoteSensorManager::init();
-  LocomotiveManager::init();
 #if HC12_RADIO_ENABLED
   HC12Interface::init();
 #endif
@@ -255,16 +258,18 @@ void setup() {
 }
 
 void loop() {
-  if(otaComplete) {
-    LOG(INFO, "OTA binary has been received, preparing to reboot!");
-    delay(250);
-    esp32_restart();
+  lccInterface.update();
+  // When OTA is in progress we suspend all other operations.
+  if(otaInProgress) {
+    if(otaComplete) {
+      LOG(INFO, "OTA binary has been received, preparing to reboot!");
+      delay(250);
+      esp32_restart();
+    }
+    return;
   }
   MotorBoardManager::check();
-  if(!otaInProgress) {
-    lccInterface.update();
 #if HC12_RADIO_ENABLED
-    HC12Interface::update();
+  HC12Interface::update();
 #endif
-  }
 }

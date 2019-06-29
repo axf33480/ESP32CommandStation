@@ -32,7 +32,7 @@ Locomotive::Locomotive(uint8_t registerNumber) : _registerNumber(registerNumber)
 
 Locomotive::Locomotive(const char *filename) {
   DynamicJsonBuffer buf;
-  JsonObject &entry = configStore.load(filename, buf);
+  JsonObject &entry = configStore->load(filename, buf);
   _locoAddress = entry[JSON_ADDRESS_NODE];
   _speed = entry[JSON_SPEED_NODE];
   _direction = entry[JSON_DIRECTION_NODE] == JSON_VALUE_FORWARD;
