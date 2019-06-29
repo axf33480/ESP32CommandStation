@@ -18,10 +18,15 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #include "ESP32CommandStation.h"
 
 #include <dirent.h>
+#include <driver/sdmmc_defs.h>
+#include <driver/sdmmc_host.h>
+#include <driver/sdmmc_types.h>
+#include <driver/sdspi_host.h>
 #include <esp_spiffs.h>
+#include <esp_vfs_fat.h>
+#include <sdmmc_cmd.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-
 ConfigurationManager *configStore;
 
 StaticJsonBuffer<20480> jsonConfigBuffer;
@@ -30,15 +35,10 @@ StaticJsonBuffer<20480> jsonConfigBuffer;
 
 #define SPIFFS_FILESYSTEM_PREFIX "/spiffs"
 
-#if CONFIG_USE_SD
-#include <esp_vfs_fat.h>
-#include <driver/sdmmc_defs.h>
-#include <driver/sdmmc_host.h>
-#include <driver/sdmmc_types.h>
-#include <driver/sdspi_host.h>
-#include <sdmmc_cmd.h>
+// Handle for the SD card (if mounted)
 sdmmc_card_t *sdcard = nullptr;
 
+#if CONFIG_USE_SD
 #define FILESYSTEM_PREFIX "/sdcard"
 #else
 // default to SPIFFS storage
@@ -133,15 +133,16 @@ ConfigurationManager::ConfigurationManager() {
 }
 
 ConfigurationManager::~ConfigurationManager() {
-#if CONFIG_USE_SPIFFS
+  // Unmount the SPIFFS partition
   if(esp_spiffs_mounted(NULL)) {
+    LOG(INFO, "[Config] Unmounting SPIFFS...");
     ESP_ERROR_CHECK(esp_vfs_spiffs_unregister(NULL));
   }
-#elif CONFIG_USE_SD
+  // Unmount the SD card if it was mounted
   if(sdcard) {
+    LOG(INFO, "[Config] Unmounting SD...");
     esp_vfs_fat_sdmmc_unmount();
   }
-#endif
 }
 
 void ConfigurationManager::clear() {

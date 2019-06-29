@@ -188,8 +188,6 @@ extern std::vector<uint8_t> restrictedPins;
 extern LocoNetESP32Uart locoNet;
 #endif
 
-void esp32_restart();
-
 extern bool otaComplete;
 extern bool otaInProgress;
 

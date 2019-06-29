@@ -32,14 +32,6 @@ LocoNetESP32Uart locoNet(LOCONET_RX_PIN, LOCONET_TX_PIN, LOCONET_UART, LOCONET_I
 bool otaComplete = false;
 bool otaInProgress = false;
 
-// esp32 doesn't have a true restart method exposed so use the watchdog to
-// force a restart
-void esp32_restart() {
-  esp_task_wdt_init(1, true);
-  esp_task_wdt_add(NULL);
-  while(true);
-}
-
 void setup() {
   Serial.begin(115200L);
   Serial.setDebugOutput(true);
@@ -253,14 +245,15 @@ void setup() {
 
 void loop() {
   lccInterface.update();
-  // When OTA is in progress we suspend all other operations.
-  if(otaInProgress) {
-    if(otaComplete) {
-      LOG(INFO, "OTA binary has been received, preparing to reboot!");
-      delay(250);
-      esp32_restart();
-    }
-    return;
+  if(otaInProgress && otaComplete) {
+    LOG(INFO, "OTA binary has been received, preparing to reboot!");
+
+    // shutdown and cleanup the configuration manager
+    delete configStore;
+
+    // wait for the WDT to restart the ESP32
+    esp_task_wdt_init(1, true);
+    while(true);
   }
   MotorBoardManager::check();
 }
