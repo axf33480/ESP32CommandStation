@@ -723,8 +723,7 @@ protected:
         return call_immediately(h->nextState_);
     }
 
-
-#ifdef HAVE_BSDSOCKET
+#ifdef OPENMRN_FEATURE_BSD_SOCKETS
     /** Wait for a listen socket to become active and ready to accept an
      * incoming connection.
      * @param helper selectable helper for maintaining the select metadata
