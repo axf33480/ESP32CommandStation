@@ -17,107 +17,38 @@ COPYRIGHT (c) 2019 Mike Dunston
 
 #include "ESP32CommandStation.h"
 
-#include <NeoPixelBrightnessBus.h>
+StateFlowBase::Action StatusLED::init() {
+  LOG(INFO, "[StatusLED] Initializing LEDs");
+  bus_.reset(new NeoPixelBrightnessBus<NEO_COLOR_MODE, NEO_METHOD>(LED::MAX_LED, STATUS_LED_DATA_PIN));
+  bus_->Begin();
+  bus_->SetBrightness(STATUS_LED_BRIGHTNESS);
+  bus_->ClearTo(RGB_OFF_);
+  bus_->Show();
+  return sleep_and_call(&timer_, updateInterval_, STATE(update));
+}
 
-#if STATUS_LED_COLOR_ORDER == RGB
-#define NEO_COLOR_MODE NeoRgbFeature
-#define NEO_COLOR_TYPE RgbColor
-#elif STATUS_LED_COLOR_ORDER == GRB
-#define NEO_COLOR_MODE NeoGrbFeature
-#define NEO_COLOR_TYPE RgbColor
-#elif STATUS_LED_COLOR_ORDER == RGBW
-#define NEO_COLOR_MODE NeoRgbwFeature
-#define NEO_COLOR_TYPE RgbwColor
-#elif STATUS_LED_COLOR_ORDER == GRBW
-#define NEO_COLOR_MODE NeoGrbwFeature
-#define NEO_COLOR_TYPE RgbwColor
-#elif STATUS_LED_COLOR_ORDER == BRG
-#define NEO_COLOR_MODE NeoBrgFeature
-#define NEO_COLOR_TYPE RgbColor
-#elif STATUS_LED_COLOR_ORDER == RBG
-#define NEO_COLOR_MODE NeoRbgFeature
-#define NEO_COLOR_TYPE RgbColor
-#endif
-
-#if STATUS_LED_TYPE == WS281X_800
-#define NEO_METHOD Neo800KbpsMethod
-#elif STATUS_LED_TYPE == WS281X_400
-#define NEO_METHOD Neo400KbpsMethod
-#elif STATUS_LED_TYPE == SK6812
-#define NEO_METHOD NeoSk6812Method
-#elif STATUS_LED_TYPE == LC6812
-#define NEO_METHOD NeoLc8812Method
-#endif
-
-#if STATUS_LED_ENABLED
-NeoPixelBrightnessBus<NEO_COLOR_MODE, NEO_METHOD> statusLED(STATUS_LED::MAX_STATUS_LED, STATUS_LED_DATA_PIN);
-#endif
-
-static NEO_COLOR_TYPE RGB_RED = NEO_COLOR_TYPE(255, 0, 0);
-static NEO_COLOR_TYPE RGB_GREEN = NEO_COLOR_TYPE(0, 255, 0);
-static NEO_COLOR_TYPE RGB_YELLOW = NEO_COLOR_TYPE(255, 255, 0);
-static NEO_COLOR_TYPE RGB_OFF = NEO_COLOR_TYPE(0);
-
-STATUS_LED_COLOR statusLEDColors[STATUS_LED::MAX_STATUS_LED] = {STATUS_LED_COLOR::LED_OFF, STATUS_LED_COLOR::LED_OFF, STATUS_LED_COLOR::LED_OFF};
-bool statusLEDState[STATUS_LED::MAX_STATUS_LED] = {false, false, false};
-int64_t statusLEDStateUpdate[STATUS_LED::MAX_STATUS_LED] = {0, 0, 0};
-TaskHandle_t statusTaskHandle;
-
-#if STATUS_LED_ENABLED
-void updateStatusLEDs(void *arg) {
-    esp_task_wdt_add(NULL);
-    statusLED.Begin();
-    statusLED.SetBrightness(STATUS_LED_BRIGHTNESS);
-    statusLED.ClearTo(RGB_OFF);
-    statusLED.Show();
-    while(true) {
-        esp_task_wdt_reset();
-        for(int led = 0; led < STATUS_LED::MAX_STATUS_LED; led++) {
-            // if the LED is set to blink and it has been at least 450ms since we updated it, update it
-            if((statusLEDColors[led] == LED_RED_BLINK || statusLEDColors[led] == LED_GREEN_BLINK || statusLEDColors[led] == LED_YELLOW_BLINK) &&
-               (esp_timer_get_time() - 450 > statusLEDStateUpdate[led])) {
-                if(statusLEDState[led]) {
-                    statusLED.SetPixelColor(led, RGB_OFF);
-                } else if(statusLEDColors[led] == LED_RED_BLINK) {
-                    statusLED.SetPixelColor(led, RGB_RED);
-                } else if(statusLEDColors[led] == LED_GREEN_BLINK) {
-                    statusLED.SetPixelColor(led, RGB_GREEN);
-                } else if(statusLEDColors[led] == LED_YELLOW_BLINK) {
-                    statusLED.SetPixelColor(led, RGB_YELLOW);
-                }
-                statusLEDState[led] = !statusLEDState[led];
-                statusLEDStateUpdate[led] = esp_timer_get_time();
-            }
-        }
-        statusLED.Show();
-        // go to sleep for up to ~500ms
-        ulTaskNotifyTake(true, pdMS_TO_TICKS(500));
+StateFlowBase::Action StatusLED::update() {
+  for(int led = 0; led < LED::MAX_LED; led++) {
+    // if the LED is set to blink, toggle it
+    if(colors_[led] == RED_BLINK || colors_[led] == GREEN_BLINK || colors_[led] == YELLOW_BLINK) {
+      if(state_[led]) {
+        bus_->SetPixelColor(led, RGB_OFF_);
+      } else if(colors_[led] == RED_BLINK) {
+        bus_->SetPixelColor(led, RGB_RED_);
+      } else if(colors_[led] == GREEN_BLINK) {
+        bus_->SetPixelColor(led, RGB_GREEN_);
+      } else if(colors_[led] == YELLOW_BLINK) {
+        bus_->SetPixelColor(led, RGB_YELLOW_);
+      }
+      state_[led] = !state_[led];
     }
-}
-#endif
-
-void setStatusLED(const STATUS_LED led, const STATUS_LED_COLOR color) {
-    statusLEDColors[led] = color;
-    statusLEDState[led] = false;
-    statusLEDStateUpdate[led] = 0;
-#if STATUS_LED_ENABLED
-    // BLINK state will be handled in the task exclusively
-    if(statusLEDColors[led] == LED_RED) {
-        statusLED.SetPixelColor(led, RGB_RED);
-    } else if(statusLEDColors[led] == LED_GREEN) {
-        statusLED.SetPixelColor(led, RGB_GREEN);
-    } else if(statusLEDColors[led] == LED_YELLOW) {
-        statusLED.SetPixelColor(led, RGB_YELLOW);
-    } else if(statusLEDColors[led] == LED_OFF) {
-        statusLED.SetPixelColor(led, RGB_OFF);
-    }
-    // wake up task to update the LEDs
-    xTaskNotifyGive(statusTaskHandle);
-#endif
+  }
+  bus_->Show();
+  return sleep_and_call(&timer_, updateInterval_, STATE(update));
 }
 
-void initStatusLEDs() {
-#if STATUS_LED_ENABLED
-   xTaskCreatePinnedToCore(updateStatusLEDs, "LED", 2048, nullptr, 2, &statusTaskHandle, 1);
-#endif
+void StatusLED::setStatusLED(const LED led, const COLOR color, const bool on) {
+  colors_[led] = color;
+  state_[led] = on;
 }
+

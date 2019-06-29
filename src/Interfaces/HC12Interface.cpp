@@ -16,7 +16,6 @@ COPYRIGHT (c) 2018-2019 Mike Dunston
 **********************************************************************/
 
 #include "ESP32CommandStation.h"
-#include "HC12Interface.h"
 
 #ifndef HC12_RADIO_BAUD
 #define HC12_RADIO_BAUD 19200
@@ -31,22 +30,32 @@ COPYRIGHT (c) 2018-2019 Mike Dunston
 #define HC12_TX_PIN 10
 #endif
 
-HardwareSerial hc12Serial(HC12_UART_NUM);
-DCCPPProtocolConsumer hc12Consumer;
-
-void HC12Interface::init() {
-  hc12Serial.begin(HC12_RADIO_BAUD, SERIAL_8N1, HC12_RX_PIN, HC12_TX_PIN);
-}
-
-void HC12Interface::update() {
-  uint8_t buf[128];
-  while (hc12Serial.available()) {
-    auto len = hc12Serial.available();
-    auto added = hc12Serial.readBytes(&buf[0], len < 128 ? len : 128);
-    hc12Consumer.feed(&buf[0], added);
+StateFlowBase::Action HC12Interface::init() {
+  LOG(INFO, "[HC12] Initializing UART(%d) at %ul baud on RX %d, TX %d",
+      HC12_UART_NUM, HC12_RADIO_BAUD, HC12_RX_PIN, HC12_TX_PIN);
+  // initialize the uart device with a 256 byte buffer
+  uart_ = uartBegin(HC12_UART_NUM, HC12_RADIO_BAUD, SERIAL_8N1, HC12_RX_PIN, HC12_TX_PIN, 256, false);
+  if(uart_) {
+    return sleep_and_call(&timer_, updateInterval_, STATE(update));
   }
+  LOG_ERROR("[HC12] Initialization failed");
+  return exit();
 }
 
-void HC12Interface::send(const String &buf) {
-  hc12Serial.print(buf);
+StateFlowBase::Action HC12Interface::update() {
+  if (uartAvailable(uart_)) {
+    uint8_t buf[128] = {0};
+    auto len = std::min(uartAvailable(uart_), (uint32_t)128);
+    for (int index = 0; index < len; index++) {
+      buf[index] = uartRead(uart_);
+    }
+    consumer_.feed(&buf[0], len);
+  }
+  return sleep_and_call(&timer_, updateInterval_, STATE(update));
+}
+
+void HC12Interface::send(const std::string &buf) {
+  if(uart_) {
+    uartWriteBuf(uart_, (uint8_t *)(buf.c_str()), buf.length());
+  }
 }

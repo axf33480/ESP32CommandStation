@@ -23,10 +23,6 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #include <os/MDNS.hxx>
 #include <utils/socket_listener.hxx>
 
-#if HC12_RADIO_ENABLED
-#include "HC12Interface.h"
-#endif
-
 void *jmriClientHandler(void *arg);
 
 MDNS mDNS;
@@ -55,7 +51,7 @@ void WiFiInterface::init() {
 
   wifi_mgr.add_event_callback([](system_event_t *event) {
     if(event->event_id == SYSTEM_EVENT_STA_GOT_IP) {
-      setStatusLED(STATUS_LED::WIFI_LED, STATUS_LED_COLOR::LED_GREEN);
+      statusLED.setStatusLED(StatusLED::LED::WIFI, StatusLED::COLOR::GREEN);
       tcpip_adapter_ip_info_t ip_info;
       tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_STA, &ip_info);
       wifiInterface.setIP(ip_info);
@@ -81,13 +77,13 @@ void WiFiInterface::init() {
       nextionPages[THROTTLE_PAGE]->display();
 #endif
     } else if (event->event_id == SYSTEM_EVENT_STA_LOST_IP) {
-      setStatusLED(STATUS_LED::WIFI_LED, STATUS_LED_COLOR::LED_RED);
+      statusLED.setStatusLED(StatusLED::LED::WIFI, StatusLED::COLOR::RED);
       JMRIListener.reset(nullptr);
       infoScreen.replaceLine(INFO_SCREEN_IP_ADDR_LINE, "Disconnected");
     } else if (event->event_id == SYSTEM_EVENT_STA_DISCONNECTED) {
-      setStatusLED(STATUS_LED::WIFI_LED, STATUS_LED_COLOR::LED_RED);
+      statusLED.setStatusLED(StatusLED::LED::WIFI, StatusLED::COLOR::GREEN_BLINK);
     } else if (event->event_id == SYSTEM_EVENT_STA_START) {
-      setStatusLED(STATUS_LED::WIFI_LED, STATUS_LED_COLOR::LED_GREEN_BLINK);
+      statusLED.setStatusLED(StatusLED::LED::WIFI, StatusLED::COLOR::GREEN_BLINK);
 #if NEXTION_ENABLED
       nextionTitlePage->setStatusText(0, "Connecting to WiFi");
 #endif
@@ -104,9 +100,7 @@ void WiFiInterface::send(const String &buf) {
     ::write(client, buf.c_str(), buf.length());
   }
   esp32csWebServer.broadcastToWS(buf);
-#if HC12_RADIO_ENABLED
-  HC12Interface::send(buf);
-#endif
+  hc12.send(buf.c_str());
 }
 
 void WiFiInterface::print(const __FlashStringHelper *fmt, ...) {

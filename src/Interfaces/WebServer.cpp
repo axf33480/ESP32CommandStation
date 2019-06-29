@@ -669,6 +669,9 @@ void handleOTAUpload(AsyncWebServerRequest *request, const String& filename, siz
     static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(0, "OTA Upload Started...");
 #endif
     otaInProgress = true;
+    // set the status LEDs to alternating green blink while OTA in progress
+    statusLED.setStatusLED(StatusLED::LED::EXT_1, StatusLED::COLOR::GREEN_BLINK, true);
+    statusLED.setStatusLED(StatusLED::LED::EXT_2, StatusLED::COLOR::GREEN_BLINK);
     LOG(INFO, "[WebSrv] OTA Update starting...");
     infoScreen.replaceLine(INFO_SCREEN_STATION_INFO_LINE, "Update starting");
     MotorBoardManager::powerOffAll();
@@ -703,6 +706,9 @@ void handleOTAUpload(AsyncWebServerRequest *request, const String& filename, siz
       infoScreen.replaceLine(INFO_SCREEN_STATION_INFO_LINE, "Update Complete");
       otaComplete = true;
       LOG(INFO, "[WebSrv] OTA Update Complete!");
+      // update successful, set to green and they will go dark after reboot
+      statusLED.setStatusLED(StatusLED::LED::EXT_1, StatusLED::COLOR::GREEN);
+      statusLED.setStatusLED(StatusLED::LED::EXT_2, StatusLED::COLOR::GREEN);
     } else {
 #if NEXTION_ENABLED
       static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(1, OTA_ERROR_STRINGS[Update.getError()]);
@@ -710,6 +716,9 @@ void handleOTAUpload(AsyncWebServerRequest *request, const String& filename, siz
       infoScreen.replaceLine(INFO_SCREEN_STATION_INFO_LINE, OTA_ERROR_STRINGS[Update.getError()]);
       request->send(STATUS_BAD_REQUEST, "text/plain", OTA_ERROR_STRINGS[Update.getError()]);
       Update.printError(Serial);
+      // setup blink pattern for failure
+      statusLED.setStatusLED(StatusLED::LED::EXT_1, StatusLED::COLOR::RED_BLINK, true);
+      statusLED.setStatusLED(StatusLED::LED::EXT_2, StatusLED::COLOR::RED_BLINK);
     }
   }
 }

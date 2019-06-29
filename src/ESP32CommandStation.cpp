@@ -19,7 +19,6 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #include "Turnouts.h"
 #include "S88Sensors.h"
 #include "RemoteSensors.h"
-#include "HC12Interface.h"
 #include "NextionInterface.h"
 
 const char * buildTime = __DATE__ " " __TIME__;
@@ -59,8 +58,6 @@ void setup() {
   restrictedPins.push_back(15);
 #endif
 
-  initStatusLEDs();
-
   // set up ADC1 here since we use it for all motor boards
   adc1_config_width(ADC_WIDTH_BIT_12);
 
@@ -94,9 +91,6 @@ void setup() {
   S88BusManager::init();
 #endif
   RemoteSensorManager::init();
-#if HC12_RADIO_ENABLED
-  HC12Interface::init();
-#endif
 #if LOCONET_ENABLED
   infoScreen.replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "LocoNet Init");
   locoNet.begin();
@@ -269,7 +263,4 @@ void loop() {
     return;
   }
   MotorBoardManager::check();
-#if HC12_RADIO_ENABLED
-  HC12Interface::update();
-#endif
 }

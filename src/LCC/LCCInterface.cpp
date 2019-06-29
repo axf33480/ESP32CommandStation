@@ -118,6 +118,10 @@ void IRAM_ATTR cpuTickTimerCallback() {
 InfoScreen infoScreen(openmrn.stack());
 InfoScreenStatCollector infoScreenCollector(openmrn.stack());
 
+StatusLED statusLED(openmrn.stack());
+
+HC12Interface hc12(openmrn.stack());
+
 // when the command station starts up the first time the config is blank
 // and needs to be reset to factory settings. This class being declared here
 // takes care of that.

@@ -65,10 +65,10 @@ void GenericMotorBoard::powerOn(bool announce) {
     // enable the DCC signal
     if(_progTrack && !dccSignal[DCC_SIGNAL_PROGRAMMING]->isEnabled()) {
       dccSignal[DCC_SIGNAL_PROGRAMMING]->startSignal(false);
-      setStatusLED(STATUS_LED::PROG_LED, STATUS_LED_COLOR::LED_GREEN);
+      statusLED.setStatusLED(StatusLED::LED::PROG_TRACK, StatusLED::COLOR::GREEN);
     } else if(!dccSignal[DCC_SIGNAL_OPERATIONS]->isEnabled()) {
       dccSignal[DCC_SIGNAL_OPERATIONS]->startSignal();
-      setStatusLED(STATUS_LED::OPS_LED, STATUS_LED_COLOR::LED_GREEN);
+      statusLED.setStatusLED(StatusLED::LED::OPS_TRACK, StatusLED::COLOR::GREEN);
       infoScreen.replaceLine(INFO_SCREEN_TRACK_POWER_LINE, "Track: ON");
     }
   }
@@ -85,13 +85,13 @@ void GenericMotorBoard::powerOff(bool announce, bool overCurrent) {
         locoNet.send(OPC_IDLE, 0, 0);
 #endif
         wifiInterface.print(F("<p2 %s>"), _name.c_str());
-        setStatusLED(STATUS_LED::OPS_LED, STATUS_LED_COLOR::LED_RED);
+        statusLED.setStatusLED(StatusLED::LED::OPS_TRACK, StatusLED::COLOR::RED);
       } else {
 #if LOCONET_ENABLED
         locoNet.reportPower(false);
 #endif
         wifiInterface.print(F("<p0 %s>"), _name.c_str());
-        setStatusLED(STATUS_LED::OPS_LED, STATUS_LED_COLOR::LED_GREEN);
+        statusLED.setStatusLED(StatusLED::LED::OPS_TRACK, StatusLED::COLOR::GREEN);
       }
     }
   }
@@ -99,10 +99,10 @@ void GenericMotorBoard::powerOff(bool announce, bool overCurrent) {
     // disable the DCC signal
     if(_progTrack) {
       dccSignal[DCC_SIGNAL_PROGRAMMING]->stopSignal();
-      setStatusLED(STATUS_LED::PROG_LED, STATUS_LED_COLOR::LED_OFF);
+      statusLED.setStatusLED(StatusLED::LED::PROG_TRACK, StatusLED::COLOR::OFF);
     } else if(MotorBoardManager::getCountOfOPSBoards() == 1) {
       dccSignal[DCC_SIGNAL_OPERATIONS]->stopSignal();
-      setStatusLED(STATUS_LED::OPS_LED, STATUS_LED_COLOR::LED_OFF);
+      statusLED.setStatusLED(StatusLED::LED::OPS_TRACK, StatusLED::COLOR::OFF);
       infoScreen.replaceLine(INFO_SCREEN_TRACK_POWER_LINE, "Track: OFF");
     }
   }
@@ -222,7 +222,7 @@ void MotorBoardManager::powerOnAll() {
       board->showStatus();
     }
   }
-  setStatusLED(STATUS_LED::OPS_LED, STATUS_LED_COLOR::LED_GREEN);
+  statusLED.setStatusLED(StatusLED::LED::OPS_TRACK, StatusLED::COLOR::GREEN);
   infoScreen.replaceLine(INFO_SCREEN_TRACK_POWER_LINE, "Track: ON");
 #if LOCONET_ENABLED
   locoNet.reportPower(true);
@@ -244,8 +244,8 @@ void MotorBoardManager::powerOffAll() {
   if(dccSignal[DCC_SIGNAL_PROGRAMMING]->isEnabled()) {
     dccSignal[DCC_SIGNAL_PROGRAMMING]->stopSignal();
   }
-  setStatusLED(STATUS_LED::OPS_LED, STATUS_LED_COLOR::LED_OFF);
-  setStatusLED(STATUS_LED::PROG_LED, STATUS_LED_COLOR::LED_OFF);
+  statusLED.setStatusLED(StatusLED::LED::OPS_TRACK, StatusLED::COLOR::OFF);
+  statusLED.setStatusLED(StatusLED::LED::PROG_TRACK, StatusLED::COLOR::OFF);
   infoScreen.replaceLine(INFO_SCREEN_TRACK_POWER_LINE, "Track: OFF");
 #if LOCONET_ENABLED
   locoNet.reportPower(false);

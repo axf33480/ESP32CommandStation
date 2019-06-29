@@ -150,6 +150,11 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #define WIFI_SOFT_AP_MAX_CLIENTS 4
 #endif
 
+#ifndef STATUS_LED_ENABLED
+#define STATUS_LED_TYPE WS281X_800
+#define STATUS_LED_COLOR_ORDER RGB
+#endif
+
 /////////////////////////////////////////////////////////////////////////////////////
 // S88 Maximum sensors per bus.
 /////////////////////////////////////////////////////////////////////////////////////
@@ -173,6 +178,8 @@ constexpr uint16_t S88_MAX_SENSORS_PER_BUS = 512;
 #include "Outputs.h"
 #include "NextionInterface.h"
 #include "LCCInterface.h"
+#include "StatusLED.h"
+#include "HC12Interface.h"
 
 extern std::vector<uint8_t> restrictedPins;
 
@@ -185,26 +192,6 @@ void esp32_restart();
 
 extern bool otaComplete;
 extern bool otaInProgress;
-
-enum STATUS_LED_COLOR {
-    LED_OFF,
-    LED_RED,
-    LED_GREEN,
-    LED_YELLOW,
-    LED_RED_BLINK,
-    LED_GREEN_BLINK,
-    LED_YELLOW_BLINK,
-};
-
-enum STATUS_LED {
-    WIFI_LED,
-    OPS_LED,
-    PROG_LED,
-    MAX_STATUS_LED
-};
-
-void initStatusLEDs();
-void setStatusLED(const STATUS_LED, const STATUS_LED_COLOR);
 
 #define MUTEX_LOCK(mutex)    do {} while (xSemaphoreTake(mutex, portMAX_DELAY) != pdPASS)
 #define MUTEX_UNLOCK(mutex)  xSemaphoreGive(mutex)
