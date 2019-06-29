@@ -69,7 +69,7 @@ StateFlowBase::Action InfoScreen::init() {
   if(Wire.begin(INFO_SCREEN_SDA_PIN, INFO_SCREEN_SCL_PIN)) {
     // Verify that there is an I2C device on the expected address
     Wire.beginTransmission(INFO_SCREEN_I2C_TEST_ADDRESS);
-    if(Wire.endTransmission() == 0) {
+    if(Wire.endTransmission() == I2C_ERROR_OK) {
       // Device found, initialize it
 #if INFO_SCREEN_OLED
       return call_immediately(STATE(initOLED));
@@ -77,27 +77,7 @@ StateFlowBase::Action InfoScreen::init() {
       return call_immediately(STATE(initLCD));
 #endif
     }
-    // No device found, perform an I2C scan and dump the output.
-    std::string scanresults =
-      "Scanning for I2C devices...\n"
-      "     0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f\n"
-      "00:         ";
-    scanresults.reserve(256);
-    for (uint8_t addr=3; addr < 0x78; addr++) {
-      if (addr % 16 == 0) {
-        scanresults += "\n" + int64_to_string_hex(addr) + ":";
-      }
-      Wire.beginTransmission(addr);
-      if(Wire.endTransmission() == 0) {
-        scanresults += int64_to_string_hex(addr);
-      } else {
-        scanresults += " --";
-      }
-    }
-    LOG(WARNING,
-        "I2C display not found at 0x%02x\n%s",
-        INFO_SCREEN_I2C_TEST_ADDRESS,
-        scanresults.c_str());
+    return yield_and_call(STATE(i2cScan));
   } else {
     LOG(FATAL,
         "Failed to initialize I2C bus with SDA: %d, SCL: %d!",
@@ -107,6 +87,33 @@ StateFlowBase::Action InfoScreen::init() {
   // The only time we should encounter this case is if the I2C init
   // fails. Cleanup and exit the flow.
   LOG(WARNING, "[InfoScreen] no output device");
+  return exit();
+}
+
+StateFlowBase::Action InfoScreen::i2cScan() {
+  // Scan the I2C bus and dump the output of devices that respond
+  std::string scanresults =
+    "Scanning for I2C devices...\n"
+    "     0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f\n"
+    "00:         ";
+  scanresults.reserve(256);
+  for (uint8_t addr=3; addr < 0x78; addr++) {
+    if (addr % 16 == 0) {
+      scanresults += "\n" + int64_to_string_hex(addr) + ":";
+    }
+    Wire.beginTransmission(addr);
+    if(Wire.endTransmission() == 0) {
+      scanresults += int64_to_string_hex(addr);
+    } else {
+      scanresults += " --";
+    }
+  }
+  LOG(WARNING,
+      "I2C display not found at 0x%02x\n%s",
+      INFO_SCREEN_I2C_TEST_ADDRESS,
+      scanresults.c_str());
+
+  // we are done, shutdown the flow
   return exit();
 }
 

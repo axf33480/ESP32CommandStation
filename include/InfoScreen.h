@@ -54,6 +54,7 @@ public:
   void replaceLine(int, const std::string&, ...);
 private:
   STATE_FLOW_STATE(init);
+  STATE_FLOW_STATE(i2cScan);
   STATE_FLOW_STATE(initOLED);
   STATE_FLOW_STATE(initLCD);
   STATE_FLOW_STATE(update);
