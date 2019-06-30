@@ -17,13 +17,17 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 /////////////////////////////////////////////////////////////////////////////////////
 //
-// DEFINE INFO SCREEN Parameters
+// An LCD display can be used to display runtime status information about the
+// command station.
 //
-// BOTH OLED AND LCD SCREENS ARE SUPPORTED
 
-// LCD SCREEN PARAMETERS
+// LCD Display I2C address, most use 0x27
 #define INFO_SCREEN_LCD_I2C_ADDRESS 0x27
+
+// Number of visible lines on the LCD, usually 2 or 4 lines.
 #define INFO_SCREEN_LCD_LINES 4
+
+// Number of visible characters in one line on the LCD, usually 16 or 20.
 #define INFO_SCREEN_LCD_COLUMNS 20
 
 /////////////////////////////////////////////////////////////////////////////////////
