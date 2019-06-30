@@ -17,13 +17,6 @@ COPYRIGHT (c) 2019 Mike Dunston
 
 #include "ESP32CommandStation.h"
 
-// if both RX and TX pins are defined as valid pins enable the CAN interface
-#if LCC_CAN_RX_PIN != NOT_A_PIN && LCC_CAN_TX_PIN != NOT_A_PIN
-#define LCC_CAN_ENABLED true
-#else
-#define LCC_CAN_ENABLED false
-#endif
-
 #include <openlcb/TcpDefs.hxx>
 #include <openlcb/DccAccyConsumer.hxx>
 #include <openlcb/DccAccyProducer.hxx>
@@ -38,6 +31,7 @@ COPYRIGHT (c) 2019 Mike Dunston
 using dcc::PacketFlowInterface;
 using dcc::RailcomHubFlow;
 using dcc::RailcomPrintfFlow;
+using dcc::SimpleUpdateLoop;
 using openlcb::CallbackEventHandler;
 using openlcb::ConfigDef;
 using openlcb::DccAccyConsumer;
@@ -95,23 +89,35 @@ Esp32WiFiManager wifi_mgr(SSID_NAME, SSID_PASSWORD, openmrn.stack(),
 RailcomHubFlow railComHub(openmrn.stack()->service());
 RailcomPrintfFlow railComDataDumper(&railComHub);
 
-#if LCC_CPULOAD_REPORTING
 #include <esp_spi_flash.h>
 #include <freertos_drivers/arduino/CpuLoad.hxx>
 #include <esp32-hal-timer.h>
 
+#if LCC_CPULOAD_REPORTING
 CpuLoad cpuLogTracker;
 hw_timer_t *cpuTickTimer = nullptr;
-CpuLoadLog *cpuLoadLogger = nullptr;
+CpuLoadLog cpuLoadLogger(openmrn.stack()->service());
+
 constexpr uint8_t LCC_CPU_TIMER_NUMBER = 3;
 constexpr uint8_t LCC_CPU_TIMER_DIVIDER = 80;
 
-void IRAM_ATTR cpuTickTimerCallback() {
-    if (spi_flash_cache_enabled()) {
+os_thread_t cpuTickTaskHandle;
+
+void *cpuTickTask(void *param) {
+    while(true) {
+        // go to sleep until next interval
+        ulTaskNotifyTake(true, portMAX_DELAY);
         // Retrieves the vtable pointer from the currently running executable.
         unsigned *pp = (unsigned *)openmrn.stack()->executor()->current();
         cpuload_tick(pp ? pp[0] | 1 : 0);
     }
+    return nullptr;
+}
+
+void IRAM_ATTR cpuTickTimerCallback() {
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+    vTaskNotifyGiveFromISR(cpuTickTaskHandle, &xHigherPriorityTaskWoken);
+    portYIELD_FROM_ISR();
 }
 #endif
 
@@ -209,6 +215,8 @@ DccPacketQueueInjector dccPacketInjector;
 
 DccAccyConsumer dccAccessoryConsumer{openmrn.stack()->node(), &dccPacketInjector};
 
+//SimpleUpdateLoop dccUpdateLoop(openmrn.stack()->service(), &dccPacketInjector);
+
 #if LCC_USE_SPIFFS
 #define CDI_CONFIG_PREFIX "/spiffs"
 #elif LCC_USE_SD
@@ -257,11 +265,20 @@ void LCCInterface::init() {
         openlcb::CANONICAL_VERSION, openlcb::CONFIG_FILE_SIZE);
 
     // Start the OpenMRN stack
-    //wifi_mgr.enable_verbose_logging();
     openmrn.begin();
     openmrn.start_executor_thread();
-#if LCC_CAN_ENABLED
-    // Add the hardware CAN device as a bridge
+
+#if LCC_CPULOAD_REPORTING
+    os_thread_create(&cpuTickTaskHandle, "loadtick", 1, 0, &cpuTickTask, nullptr);
+    cpuTickTimer = timerBegin(LCC_CPU_TIMER_NUMBER, LCC_CPU_TIMER_DIVIDER, true);
+    timerAttachInterrupt(cpuTickTimer, &cpuTickTimerCallback, true);
+    // 1MHz clock, 163 ticks per second desired.
+    timerAlarmWrite(cpuTickTimer, 1000000/163, true);
+    timerAlarmEnable(cpuTickTimer);
+#endif
+
+    // if both RX and TX pins are defined as valid pins enable the CAN interface
+#if LCC_CAN_RX_PIN != NOT_A_PIN && LCC_CAN_TX_PIN != NOT_A_PIN
     openmrn.add_can_port(
         new Esp32HardwareCan("esp32can", (gpio_num_t)LCC_CAN_RX_PIN, (gpio_num_t)LCC_CAN_TX_PIN, false));
 #endif
@@ -270,14 +287,4 @@ void LCCInterface::init() {
 void LCCInterface::update() {
     // Call into the OpenMRN stack for its periodic updates
     openmrn.loop();
-#if LCC_CPULOAD_REPORTING
-    if(!cpuLoadLogger) {
-        cpuTickTimer = timerBegin(LCC_CPU_TIMER_NUMBER, LCC_CPU_TIMER_DIVIDER, true);
-        timerAttachInterrupt(cpuTickTimer, &cpuTickTimerCallback, true);
-        // 1MHz clock, 163 ticks per second desired.
-        timerAlarmWrite(cpuTickTimer, 1000000/163, true);
-        timerAlarmEnable(cpuTickTimer);
-        cpuLoadLogger = new CpuLoadLog(openmrn.stack()->service());
-    }
-#endif
 }
