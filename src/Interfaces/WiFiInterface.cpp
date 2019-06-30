@@ -17,7 +17,6 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 #include "ESP32CommandStation.h"
 #include <esp_event.h>
-#include "WebServer.h"
 
 #include <freertos_drivers/arduino/WifiDefs.hxx>
 #include <os/MDNS.hxx>

@@ -4,11 +4,5 @@
 .gcc-flags.json
 .vscode
 utils/*.pyc
-include/index_html.h
-include/jquery_min_js.h
-include/jquery_mobile_js.h
-include/jquery_mobile_css.h
-include/jquery_simple_websocket.h
-include/jq_clock.h
-include/ajax_loader.h
+include/generated/*
 *.code-workspace

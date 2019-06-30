@@ -16,24 +16,19 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 **********************************************************************/
 
 #include "ESP32CommandStation.h"
-#include <ESPAsyncWebServer.h>
+
 #include <ESPAsyncDNSServer.h>
 #include <AsyncJson.h>
 #include <Update.h>
 
-#include "Outputs.h"
-#include "Turnouts.h"
-#include "S88Sensors.h"
-#include "RemoteSensors.h"
-
 // generated web content
-#include "index_html.h"
-#include "jquery_min_js.h"
-#include "jquery_mobile_js.h"
-#include "jquery_mobile_css.h"
-#include "jquery_simple_websocket.h"
-#include "jq_clock.h"
-#include "ajax_loader.h"
+#include "generated/index_html.h"
+#include "generated/jquery_min_js.h"
+#include "generated/jquery_mobile_js.h"
+#include "generated/jquery_mobile_css.h"
+#include "generated/jquery_simple_websocket.h"
+#include "generated/jq_clock.h"
+#include "generated/ajax_loader.h"
 
 AsyncWebServer webServer(80);
 AsyncDNSServer asyncDNS;

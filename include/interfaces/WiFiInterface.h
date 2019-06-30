@@ -33,3 +33,31 @@ private:
 };
 
 extern WiFiInterface wifiInterface;
+
+
+
+class ESP32CSWebServer {
+public:
+  ESP32CSWebServer(MDNS *mdns);
+  void begin();
+  void broadcastToWS(const String &buf);
+private:
+  MDNS *mdns_;
+  std::string softAPAddress_;
+  void handleESPInfo(AsyncWebServerRequest *);
+  void handleProgrammer(AsyncWebServerRequest *);
+  void handlePower(AsyncWebServerRequest *);
+  void handleOutputs(AsyncWebServerRequest *);
+  void handleTurnouts(AsyncWebServerRequest *);
+  void handleSensors(AsyncWebServerRequest *);
+  void handleConfig(AsyncWebServerRequest *);
+  void handleLocomotive(AsyncWebServerRequest *);
+#if S88_ENABLED
+  void handleS88Sensors(AsyncWebServerRequest *);
+#endif
+  void handleRemoteSensors(AsyncWebServerRequest *);
+  void handleOTA(AsyncWebServerRequest *);
+  void handleFeatures(AsyncWebServerRequest *);
+  void streamResource(AsyncWebServerRequest *);
+  void notFoundHandler(AsyncWebServerRequest *);
+};

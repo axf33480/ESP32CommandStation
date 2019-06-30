@@ -15,12 +15,9 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
   along with this program.  If not, see http://www.gnu.org/licenses
 **********************************************************************/
 
-#ifndef _S88_SENSORS_H_
-#define _S88_SENSORS_H_
+#pragma once
 
-#include <ArduinoJson.h>
-#include "Sensors.h"
-#include "DCCppProtocol.h"
+#include "ESP32CommandStation.h"
 
 class S88Sensor : public Sensor {
 public:
@@ -100,4 +97,3 @@ public:
   }
 };
 
-#endif

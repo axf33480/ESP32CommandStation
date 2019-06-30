@@ -26,7 +26,7 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 #include <Wire.h>
 #if INFO_SCREEN_OLED
-#include "InfoScreen_OLED_font.h"
+#include "interfaces/InfoScreen_OLED_font.h"
 #define INFO_SCREEN_I2C_TEST_ADDRESS INFO_SCREEN_OLED_I2C_ADDRESS
 #if OLED_CHIPSET == SH1106
 #include <SH1106Wire.h>

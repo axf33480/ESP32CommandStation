@@ -18,9 +18,7 @@ COPYRIGHT (c) 2018 Dan Worth
 
 #pragma once
 
-#include <ArduinoJson.h>
-#include "Sensors.h"
-#include "DCCppProtocol.h"
+#include "ESP32CommandStation.h"
 
 class RemoteSensor : public Sensor {
 public:

@@ -14,10 +14,10 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
   You should have received a copy of the GNU General Public License
   along with this program.  If not, see http://www.gnu.org/licenses
 **********************************************************************/
+
 #pragma once
 
-#include <ArduinoJson.h>
-#include "DCCppProtocol.h"
+#include "ESP32CommandStation.h"
 
 enum TurnoutType {
   LEFT=0,

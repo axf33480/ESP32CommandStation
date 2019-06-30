@@ -18,13 +18,16 @@ COPYRIGHT (c) 2018-2019 Mike Dunston
 #pragma once
 
 #include "ESP32CommandStation.h"
-#include <esp32-hal-uart.h>
 #include <executor/StateFlow.hxx>
 #include <openlcb/SimpleStack.hxx>
 
-class HC12Interface : public StateFlowBase {
+#ifndef HC12_UART_NUM
+#define HC12_UART_NUM 1
+#endif
+
+class HC12Radio : public StateFlowBase {
 public:
-  HC12Interface(openlcb::SimpleCanStack *stack) : StateFlowBase(stack->service()) {
+  HC12Radio(openlcb::SimpleCanStack *stack) : StateFlowBase(stack->service()) {
 #if HC12_RADIO_ENABLED
     start_flow(STATE(init));
 #endif
@@ -32,11 +35,11 @@ public:
   void send(const std::string &text);
 private:
   StateFlowTimer timer_{this};
-  uart_t *uart_{nullptr};
+  uart_port_t uart_{(uart_port_t)HC12_UART_NUM};
   DCCPPProtocolConsumer consumer_;
   const uint64_t updateInterval_{MSEC_TO_NSEC(250)};
   STATE_FLOW_STATE(init);
   STATE_FLOW_STATE(update);
 };
 
-extern HC12Interface hc12;
+extern HC12Radio hc12;

@@ -17,9 +17,7 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 #pragma once
 
-#include <ArduinoJson.h>
-#include "DCCppProtocol.h"
-#include "WiFiInterface.h"
+#include "ESP32CommandStation.h"
 
 const int8_t NON_STORED_SENSOR_PIN=-1;
 

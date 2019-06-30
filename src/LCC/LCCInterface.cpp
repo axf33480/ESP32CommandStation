@@ -26,7 +26,7 @@ COPYRIGHT (c) 2019 Mike Dunston
 #include <dcc/RailcomPortDebug.hxx>
 #include <openlcb/ConfiguredTcpConnection.hxx>
 
-#include "LCCCDI.h"
+#include "cdi/LCCCDI.h"
 
 using dcc::PacketFlowInterface;
 using dcc::RailcomHubFlow;
@@ -126,7 +126,7 @@ InfoScreenStatCollector infoScreenCollector(openmrn.stack());
 
 StatusLED statusLED(openmrn.stack());
 
-HC12Interface hc12(openmrn.stack());
+HC12Radio hc12(openmrn.stack());
 
 // when the command station starts up the first time the config is blank
 // and needs to be reset to factory settings. This class being declared here
@@ -215,7 +215,7 @@ DccPacketQueueInjector dccPacketInjector;
 
 DccAccyConsumer dccAccessoryConsumer{openmrn.stack()->node(), &dccPacketInjector};
 
-//SimpleUpdateLoop dccUpdateLoop(openmrn.stack()->service(), &dccPacketInjector);
+SimpleUpdateLoop dccUpdateLoop(openmrn.stack()->service(), &dccPacketInjector);
 
 #if LCC_USE_SPIFFS
 #define CDI_CONFIG_PREFIX "/spiffs"

@@ -22,10 +22,6 @@ and has been adapter for use in ESP32 COMMAND STATION.
 
 #include "ESP32CommandStation.h"
 
-#include "Turnouts.h"
-#include "S88Sensors.h"
-#include "RemoteSensors.h"
-
 LinkedList<DCCPPProtocolCommand *> registeredCommands([](DCCPPProtocolCommand *command) {delete command; });
 
 // <e> command handler, this command will clear all stored configuration data

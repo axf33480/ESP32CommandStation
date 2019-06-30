@@ -34,6 +34,8 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #include <ArduinoJson.h>
 #include <StringArray.h>
 
+#include <dcc/Loco.hxx>
+#include <dcc/Packet.hxx>
 #include <dcc/SimpleUpdateLoop.hxx>
 
 #include <utils/format_utils.hxx>
@@ -42,6 +44,9 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #include <utils/StringPrintf.hxx>
 
 #include <OpenMRNLite.h>
+
+#include <os/MDNS.hxx>
+#include <ESPAsyncWebServer.h>
 
 #include "Config.h"
 
@@ -167,23 +172,31 @@ constexpr uint16_t S88_MAX_SENSORS_PER_BUS = 512;
 #define S88_FIRST_SENSOR S88_MAX_SENSORS_PER_BUS
 #endif
 
+
 #include "JsonConstants.h"
 #include "ConfigurationManager.h"
-#include "WiFiInterface.h"
-#include "WebServer.h"
-#include "InfoScreen.h"
-#include "DCCppProtocol.h"
-#include "DCCSignalGenerator.h"
-#include "DCCSignalGenerator_RMT.h"
-#include "DCCProgrammer.h"
-#include "MotorBoard.h"
-#include "Sensors.h"
-#include "Locomotive.h"
-#include "Outputs.h"
-#include "NextionInterface.h"
-#include "LCCInterface.h"
-#include "StatusLED.h"
-#include "HC12Interface.h"
+
+#include "dcc/DCCSignalGenerator.h"
+#include "dcc/DCCSignalGenerator_RMT.h"
+#include "dcc/DCCProgrammer.h"
+#include "dcc/Locomotive.h"
+#include "dcc/MotorBoard.h"
+#include "dcc/Turnouts.h"
+
+#include "interfaces/LCCInterface.h"
+
+#include "interfaces/DCCppProtocol.h"
+#include "interfaces/NextionInterface.h"
+#include "interfaces/WiFiInterface.h"
+
+#include "stateflows/InfoScreen.h"
+#include "stateflows/StatusLED.h"
+#include "stateflows/HC12Radio.h"
+
+#include "io/Outputs.h"
+#include "io/Sensors.h"
+#include "io/S88Sensors.h"
+#include "io/RemoteSensors.h"
 
 extern std::vector<uint8_t> restrictedPins;
 

@@ -18,9 +18,9 @@ COPYRIGHT (c) 2018-2019 Mike Dunston
 
 #pragma once
 
-#include "Locomotive.h"
-#include "Turnouts.h"
-#include <HardwareSerial.h>
+#include "ESP32CommandStation.h"
+#include "dcc/Turnouts.h"
+
 #include <Nextion.h>
 #include <NextionPage.h>
 #include <NextionButton.h>

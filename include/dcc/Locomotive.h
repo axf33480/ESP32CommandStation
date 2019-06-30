@@ -17,10 +17,12 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 #pragma once
 
+#include "interfaces/DCCppProtocol.h"
+
 #define MAX_LOCOMOTIVE_FUNCTIONS 29
 #define MAX_LOCOMOTIVE_FUNCTION_PACKETS 5
 
-class Locomotive {
+class Locomotive/* : public dcc::Dcc128Train*/ {
 public:
   Locomotive(uint8_t);
   Locomotive(JsonObject &);

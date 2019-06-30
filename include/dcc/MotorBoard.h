@@ -21,8 +21,7 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #include <ArduinoJson.h>
 #include <driver/adc.h>
 #include <esp_adc_cal.h>
-#include "DCCppProtocol.h"
-#include "DCCSignalGenerator.h"
+#include "interfaces/DCCppProtocol.h"
 
 enum MOTOR_BOARD_TYPE { ARDUINO_SHIELD, POLOLU, LMD18200, BTS7960B_5A, BTS7960B_10A };
 
