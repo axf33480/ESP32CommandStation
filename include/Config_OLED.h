@@ -17,9 +17,9 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 /////////////////////////////////////////////////////////////////////////////////////
 //
-// DEFINE INFO SCREEN Parameters
+// An OLED display can be used to display runtime status information about the
+// command station. 
 //
-// BOTH OLED AND LCD SCREENS ARE SUPPORTED
 
 // For the Heltec or TTGO boards the below checks will automatically enable the OLED
 // and configure it for use. To use this setup be sure to select the correct board
@@ -44,20 +44,29 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 //#define INFO_SCREEN_SDA_PIN 5
 //#define INFO_SCREEN_SCL_PIN 4
 
-// If the ESP32 board does not use standard SDA/SCL pins as defined in pins_arduino.h
-// uncomment the next two lines and define the pins that need to be used instead.
+// If the ESP32 board does not (or can not) use standard SDA/SCL pins as defined in
+// pins_arduino.h, the following lines can be used to reconfigure the SDA/SCL pins
+// to any free pins.
 //#define INFO_SCREEN_SDA_PIN 23
-//#define INFO_SCREEN_SCL_PIN 22
+//#define INFO_SCREEN_SCL_PIN 21
 
 // If the OLED screen requires a reset pulse on startup, uncomment the following line
-// to enable the reset pulse support.
+// to enable the reset pulse support. This will result in a 50mS low/high pulse.
 //#define INFO_SCREEN_RESET_PIN 15
 
-// OLED SUPPORTED CHIPSETS: SH1106, SSD1306
+// OLED Display Chipset, currently supported: SH1106 and SSD1306
 #define OLED_CHIPSET SH1106
+
+// OLED Display I2C address, most use 0x3C
 #define INFO_SCREEN_OLED_I2C_ADDRESS 0x3C
+
+// Set this to true if the OLED display is rendered upside down.
 #define INFO_SCREEN_OLED_VERTICAL_FLIP false
+
+// Set this to the number of lines that can be displayed by the OLED display.
+// Currently only 5 lines is supported, setting to lower may lead to unexpected results.
 #define INFO_SCREEN_OLED_LINES 5
+
 #endif
 
 /////////////////////////////////////////////////////////////////////////////////////
