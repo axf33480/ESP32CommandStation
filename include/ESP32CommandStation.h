@@ -28,9 +28,13 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #include <string>
 #include <sstream>
 
+#include <driver/uart.h>
+
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <StringArray.h>
+
+#include <dcc/SimpleUpdateLoop.hxx>
 
 #include <utils/format_utils.hxx>
 #include <utils/logging.h>

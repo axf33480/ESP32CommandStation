@@ -23,7 +23,19 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 const char * buildTime = __DATE__ " " __TIME__;
 
+#ifndef ALLOW_USAGE_OF_RESTRICTED_GPIO_PINS
+std::vector<uint8_t> restrictedPins{
+  0, // Bootstrap / Firmware Flash Download
+  1, // UART0 TX
+  2, // Bootstrap / Firmware Flash Download
+  3, // UART0 RX
+  5, // Bootstrap
+  6, 7, 8, 9, 10, 11, // on-chip flash pins
+  12, 15 // Bootstrap / SD pins
+};
+#else
 std::vector<uint8_t> restrictedPins;
+#endif
 
 #if LOCONET_ENABLED
 LocoNetESP32Uart locoNet(LOCONET_RX_PIN, LOCONET_TX_PIN, LOCONET_UART, LOCONET_INVERTED_LOGIC, LOCONET_ENABLE_RX_PIN_PULLUP);
@@ -33,22 +45,19 @@ bool otaComplete = false;
 bool otaInProgress = false;
 
 void setup() {
-  Serial.begin(115200L);
-  Serial.setDebugOutput(true);
+
+  // Setup UART0 115200 8N1 TX: 1, RX: 3, 2k buffer
+  uart_config_t uart0 = {
+    .baud_rate = 115200,
+    .data_bits = UART_DATA_8_BITS,
+    .parity    = UART_PARITY_DISABLE,
+    .stop_bits = UART_STOP_BITS_1,
+    .flow_ctrl = UART_HW_FLOWCTRL_DISABLE
+  };
+  uart_param_config(UART_NUM_0, &uart0);
+  uart_driver_install(UART_NUM_0, 2048, 0, 0, NULL, 0);
+
   LOG(INFO, "\n\nESP32 Command Station v%s starting up", VERSION);
-#ifndef ALLOW_USAGE_OF_RESTRICTED_GPIO_PINS
-  restrictedPins.push_back(0);
-  restrictedPins.push_back(2);
-  restrictedPins.push_back(5);
-  restrictedPins.push_back(6);
-  restrictedPins.push_back(7);
-  restrictedPins.push_back(8);
-  restrictedPins.push_back(9);
-  restrictedPins.push_back(10);
-  restrictedPins.push_back(11);
-  restrictedPins.push_back(12);
-  restrictedPins.push_back(15);
-#endif
 
   // set up ADC1 here since we use it for all motor boards
   adc1_config_width(ADC_WIDTH_BIT_12);
