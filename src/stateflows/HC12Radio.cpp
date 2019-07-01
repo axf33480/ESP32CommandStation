@@ -68,5 +68,7 @@ StateFlowBase::Action HC12Radio::update() {
 }
 
 void HC12Radio::send(const std::string &buf) {
+#if HC12_RADIO_ENABLED
   uart_write_bytes(uart_, buf.c_str(), buf.length());
+#endif
 }
