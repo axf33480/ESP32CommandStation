@@ -175,10 +175,10 @@ public:
   RosterEntry(const JsonObject &);
   RosterEntry(const char *);
   void toJson(JsonObject &);
-  void setDescription(String description) {
+  void setDescription(std::string description) {
     _description = description;
   }
-  String getDescription() {
+  std::string getDescription() {
     return _description;
   }
   void setAddress(const uint16_t address) {
@@ -187,10 +187,10 @@ public:
   uint16_t getAddress() {
     return _address;
   }
-  void setType(String type) {
+  void setType(std::string type) {
     _type = type;
   }
-  String getType() {
+  std::string getType() {
     return _type;
   }
   void setIdleOnStartup(bool value=false) {
@@ -207,9 +207,9 @@ public:
   }
 
 private:
-  String _description;
+  std::string _description;
   uint16_t _address;
-  String _type;
+  std::string _type;
   bool _idleOnStartup;
   bool _defaultOnThrottles;
 };
@@ -222,11 +222,11 @@ public:
   // removes a locomotive from management, sends speed zero before removal
   static void removeLocomotive(const uint16_t);
   static bool removeLocomotiveConsist(const uint16_t);
-  static void processThrottle(const std::vector<String>);
-  static void processThrottleEx(const std::vector<String>);
-  static void processFunction(const std::vector<String>);
-  static void processFunctionEx(const std::vector<String>);
-  static void processConsistThrottle(const std::vector<String>);
+  static void processThrottle(const std::vector<std::string>);
+  static void processThrottleEx(const std::vector<std::string>);
+  static void processFunction(const std::vector<std::string>);
+  static void processFunctionEx(const std::vector<std::string>);
+  static void processConsistThrottle(const std::vector<std::string>);
   static void showStatus();
   static void showConsistStatus();
   static void update(void *);
@@ -259,10 +259,10 @@ private:
 // locomotive control packet.
 class ThrottleCommandAdapter : public DCCPPProtocolCommand {
 public:
-  void process(const std::vector<String> arguments) {
+  void process(const std::vector<std::string> arguments) {
     LocomotiveManager::processThrottle(arguments);
   }
-  String getID() {
+  std::string getID() {
     return "t";
   }
 };
@@ -272,10 +272,10 @@ public:
 // locomotive control packet.
 class ThrottleExCommandAdapter : public DCCPPProtocolCommand {
 public:
-  void process(const std::vector<String> arguments) {
+  void process(const std::vector<std::string> arguments) {
     LocomotiveManager::processThrottleEx(arguments);
   }
-  String getID() {
+  std::string getID() {
     return "tex";
   }
 };
@@ -284,10 +284,10 @@ public:
 // locomotive function update into a compatible DCC function control packet.
 class FunctionCommandAdapter : public DCCPPProtocolCommand {
 public:
-  void process(const std::vector<String> arguments) {
+  void process(const std::vector<std::string> arguments) {
     LocomotiveManager::processFunction(arguments);
   }
-  String getID() {
+  std::string getID() {
     return "f";
   }
 };
@@ -296,10 +296,10 @@ public:
 // locomotive function update into a compatible DCC function control packet.
 class FunctionExCommandAdapter : public DCCPPProtocolCommand {
 public:
-  void process(const std::vector<String> arguments) {
+  void process(const std::vector<std::string> arguments) {
     LocomotiveManager::processFunctionEx(arguments);
   }
-  String getID() {
+  std::string getID() {
     return "fex";
   }
 };
@@ -312,8 +312,8 @@ public:
 // SHOW  : <C>
 class ConsistCommandAdapter : public DCCPPProtocolCommand {
 public:
-  void process(const std::vector<String>);
-  String getID() {
+  void process(const std::vector<std::string>);
+  std::string getID() {
     return "C";
   }
 };

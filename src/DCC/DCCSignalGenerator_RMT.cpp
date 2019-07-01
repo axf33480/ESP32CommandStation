@@ -155,7 +155,7 @@ static void RMT_task_entry(void *param) {
     vTaskDelete(NULL);
 }
 
-SignalGenerator_RMT::SignalGenerator_RMT(String name, uint16_t maxPackets, uint8_t signalID, uint8_t signalPin,
+SignalGenerator_RMT::SignalGenerator_RMT(std::string name, uint16_t maxPackets, uint8_t signalID, uint8_t signalPin,
     int8_t outputEnablePin, int8_t brakeEnablePin, int8_t railComEnablePin, int8_t railComShortPin,
     int8_t railComUART, int8_t railComReceivePin) : SignalGenerator(name, maxPackets, signalID, signalPin),
     _rmtChannel((rmt_channel_t)signalID), _signalPin(signalPin), _outputEnablePin(outputEnablePin),

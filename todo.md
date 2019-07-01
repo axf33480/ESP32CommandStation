@@ -10,6 +10,7 @@ The primary focus of v1.4.0 will be improvements to the DCC signal code and addi
 
 - [ ] CMake and VisualGDB support (https://github.com/atanisoft/ESP32CommandStation/pull/22)
 - [x] Split up build_index_header.py into a common py module and PIO script.
+- [ ] Remove usages of String and __FlashStringHelper.
 
 ### Config
 
@@ -32,14 +33,13 @@ The primary focus of v1.4.0 will be improvements to the DCC signal code and addi
 ### LCC Integration
 
 - [x] migrate to Esp32WiFiManager instead of Arduino WiFi library.
-- [ ] Refresh OpenMRNLite lib to latest openmrn code.
+- [x] Refresh OpenMRNLite lib to latest openmrn code.
 - [ ] adjust InfoScreen LCC details so they are actually useful, right now it is a placeholder.
 - [ ] implement CV memory space.
 
 ### InfoScreen
 
 - [x] Move to StateFlow interface
-- [x] Remove usages of String and __FlashStringHelper.
 
 ## Future planning:
 The entries below are not tracked to a specific release or in any particular priority order.

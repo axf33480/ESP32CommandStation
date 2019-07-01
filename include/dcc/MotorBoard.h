@@ -27,7 +27,7 @@ enum MOTOR_BOARD_TYPE { ARDUINO_SHIELD, POLOLU, LMD18200, BTS7960B_5A, BTS7960B_
 
 class GenericMotorBoard {
 public:
-  GenericMotorBoard(adc1_channel_t, uint8_t, uint16_t, uint32_t, String, bool);
+  GenericMotorBoard(adc1_channel_t, uint8_t, uint16_t, uint32_t, std::string, bool);
   virtual ~GenericMotorBoard() {}
   void powerOn(bool=true);
   void powerOff(bool=true, bool=false);
@@ -39,7 +39,7 @@ public:
   bool isOverCurrent() {
     return _triggered;
   }
-  const String getName() {
+  const std::string getName() {
     return _name;
   }
   const adc1_channel_t getADC1Channel() {
@@ -59,7 +59,7 @@ public:
   }
   virtual uint16_t captureSample(uint8_t, bool=false);
 private:
-  const String _name;
+  const std::string _name;
   const adc1_channel_t _senseChannel;
   const uint8_t _enablePin;
   const uint32_t _maxMilliAmps;
@@ -75,17 +75,17 @@ private:
 
 class MotorBoardManager {
 public:
-  static void registerBoard(adc1_channel_t, uint8_t, MOTOR_BOARD_TYPE, String, bool=false);
-  static void registerNonMonitoredBoard(uint8_t, String);
-  static GenericMotorBoard *getBoardByName(String);
-  static std::vector<String> getBoardNames();
+  static void registerBoard(adc1_channel_t, uint8_t, MOTOR_BOARD_TYPE, std::string, bool=false);
+  static void registerNonMonitoredBoard(uint8_t, std::string);
+  static GenericMotorBoard *getBoardByName(std::string);
+  static std::vector<std::string> getBoardNames();
   static uint8_t getMotorBoardCount();
   static void check();
   static void powerOnAll();
-  static bool powerOn(const String);
+  static bool powerOn(const std::string);
   static void powerOffAll();
-  static bool powerOff(const String);
-  static int getLastRead(const String);
+  static bool powerOff(const std::string);
+  static int getLastRead(const std::string);
   static void showStatus();
   static void getState(JsonArray &);
   static bool isTrackPowerOn();
@@ -94,24 +94,24 @@ public:
 
 class CurrentDrawCommand : public DCCPPProtocolCommand {
 public:
-  void process(const std::vector<String>);
-  String getID() {
+  void process(const std::vector<std::string>);
+  std::string getID() {
     return "c";
   }
 };
 
 class PowerOnCommand : public DCCPPProtocolCommand {
 public:
-  void process(const std::vector<String>);
-  String getID() {
+  void process(const std::vector<std::string>);
+  std::string getID() {
     return "1";
   }
 };
 
 class PowerOffCommand : public DCCPPProtocolCommand {
 public:
-  void process(const std::vector<String>);
-  String getID() {
+  void process(const std::vector<std::string>);
+  std::string getID() {
     return "0";
   }
 };

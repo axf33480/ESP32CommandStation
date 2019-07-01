@@ -46,52 +46,47 @@ enum HTTP_STATUS_CODES {
   STATUS_SERVER_ERROR = 500
 };
 
-class WebSocketClient : public DCCPPProtocolConsumer {
-public:
-  WebSocketClient(int clientID, IPAddress remoteIP) : _id(clientID), _remoteIP(remoteIP) {
-    LOG(INFO, "[WS %s] Connected", getName().c_str());
-  }
-  virtual ~WebSocketClient() {
-    LOG(INFO, "[WS %s] Disonnected", getName().c_str());
-  }
-  int getID() {
-    return _id;
-  }
-  std::string getName() {
-    return StringPrintf("%s/%d", _remoteIP.toString().c_str(), _id);
-  }
-private:
-  uint32_t _id;
-  IPAddress _remoteIP;
-};
-LinkedList<WebSocketClient *> webSocketClients([](WebSocketClient *client) {delete client;});
-extern std::vector<int> jmriClients;
+Atomic webSocketAtomic;
+std::vector<WebSocketClient *> webSocketClients;
 
-void handleWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client,
-                                     AwsEventType type, void * arg, uint8_t *data, size_t len) {
+void handleWsEvent(AsyncWebSocket * server,
+                   AsyncWebSocketClient * client,
+                   AwsEventType type,
+                   void * arg,
+                   uint8_t *data,
+                   size_t len) {
   if (type == WS_EVT_CONNECT) {
-    webSocketClients.add(new WebSocketClient(client->id(), client->remoteIP()));
+    {
+      AtomicHolder h(&webSocketAtomic);
+      webSocketClients.push_back(new WebSocketClient(client->id(), ntohl(client->remoteIP())));
+    }
     client->printf("<iDCC++ ESP32 Command Station: V-%s / %s %s>", VERSION, __DATE__, __TIME__);
     infoScreen->replaceLine(INFO_SCREEN_CLIENTS_LINE, 
                             "TCP Conn: %02d",
-                            webSocketClients.length() + jmriClients.size());
+                            webSocketClients.size() + jmriClients.size());
   } else if (type == WS_EVT_DISCONNECT) {
-    WebSocketClient *toRemove = nullptr;
-    for (const auto& clientNode : webSocketClients) {
-      if(clientNode->getID() == client->id()) {
-        toRemove = clientNode;
+    {
+      AtomicHolder h(&webSocketAtomic);
+      auto elem = std::find_if(webSocketClients.begin(), webSocketClients.end(),
+        [client](WebSocketClient *clientNode) -> bool {
+          return (clientNode->getID() == client->id());
+        }
+      );
+      if(elem != webSocketClients.end()) {
+        delete *elem;
+        webSocketClients.erase(elem);
       }
-    }
-    if(toRemove != nullptr) {
-      webSocketClients.remove(toRemove);
     }
     infoScreen->replaceLine(INFO_SCREEN_CLIENTS_LINE,
                             "TCP Conn: %02d",
-                            webSocketClients.length() + jmriClients.size());
+                            webSocketClients.size() + jmriClients.size());
   } else if (type == WS_EVT_DATA) {
-    for (const auto& clientNode : webSocketClients) {
-      if(clientNode->getID() == client->id()) {
-        clientNode->feed(data, len);
+    {
+      AtomicHolder h(&webSocketAtomic);
+      for (auto clientNode : webSocketClients) {
+        if(clientNode->getID() == client->id()) {
+          clientNode->feed(data, len);
+        }
       }
     }
   }
@@ -160,8 +155,8 @@ void ESP32CSWebServer::begin() {
   mdns_->publish("websvr", "_http._tcp", 80);
 }
 
-void ESP32CSWebServer::broadcastToWS(const String &buf) {
-  webSocket.textAll(buf);
+void ESP32CSWebServer::broadcastToWS(const std::string &buf) {
+  webSocket.textAll(buf.c_str());
 }
 
 void ESP32CSWebServer::handleProgrammer(AsyncWebServerRequest *request) {
@@ -325,9 +320,9 @@ void ESP32CSWebServer::handlePower(AsyncWebServerRequest *request) {
       }
     } else if(request->hasArg(JSON_NAME_NODE)) {
       if(request->arg(JSON_STATE_NODE).equalsIgnoreCase(JSON_VALUE_TRUE)) {
-        MotorBoardManager::powerOn(request->arg(JSON_NAME_NODE));
+        MotorBoardManager::powerOn(request->arg(JSON_NAME_NODE).c_str());
       } else {
-        MotorBoardManager::powerOff(request->arg(JSON_NAME_NODE));
+        MotorBoardManager::powerOff(request->arg(JSON_NAME_NODE).c_str());
       }
     } else {
       jsonResponse->setCode(STATUS_BAD_REQUEST);
@@ -496,7 +491,7 @@ void ESP32CSWebServer::handleSensors(AsyncWebServerRequest *request) {
 }
 
 void ESP32CSWebServer::handleConfig(AsyncWebServerRequest *request) {
-  std::vector<String> arguments;
+  std::vector<std::string> arguments;
   if(request->method() == HTTP_POST) {
     DCCPPProtocolHandler::getCommandHandler("E")->process(arguments);
   } else {
@@ -571,10 +566,10 @@ void ESP32CSWebServer::handleLocomotive(AsyncWebServerRequest *request) {
         RosterEntry *entry = LocomotiveManager::getRosterEntry(request->arg(JSON_ADDRESS_NODE).toInt());
         if(request->method() == HTTP_PUT || request->method() == HTTP_POST) {
           if(request->hasArg(JSON_DESCRIPTION_NODE)) {
-            entry->setDescription(request->arg(JSON_DESCRIPTION_NODE));
+            entry->setDescription(request->arg(JSON_DESCRIPTION_NODE).c_str());
           }
           if(request->hasArg(JSON_TYPE_NODE)) {
-            entry->setType(request->arg(JSON_TYPE_NODE));
+            entry->setType(request->arg(JSON_TYPE_NODE).c_str());
           }
           if(request->hasArg(JSON_IDLE_ON_STARTUP_NODE)) {
             entry->setIdleOnStartup(request->arg(JSON_IDLE_ON_STARTUP_NODE).equalsIgnoreCase(JSON_VALUE_TRUE));

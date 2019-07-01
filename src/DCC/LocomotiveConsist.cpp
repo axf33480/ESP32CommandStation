@@ -102,14 +102,14 @@ void LocomotiveConsist::showStatus() {
   LOG(INFO, "[Consist %d] speed: %d, direction: %s, decoderAssisted: %s",
     getLocoAddress(), getSpeed(), isDirectionForward() ? JSON_VALUE_FORWARD : JSON_VALUE_REVERSE,
     _decoderAssisstedConsist ? JSON_VALUE_TRUE : JSON_VALUE_FALSE);
-  String statusCmd = "<U " + String(getLocoAddress() * _decoderAssisstedConsist ? -1 : 1);
+  std::string statusCmd = StringPrintf("<U %d", getLocoAddress() * _decoderAssisstedConsist ? -1 : 1);
   for (const auto& loco : _locos) {
     LOG(INFO, "LOCO: %d, ORIENTATION: %s", loco->getLocoAddress(),
       loco->isOrientationForward() ? JSON_VALUE_FORWARD : JSON_VALUE_REVERSE);
-    statusCmd += " " + String(loco->getLocoAddress() * loco->isOrientationForward() ? 1 : -1);
+    statusCmd += StringPrintf(" %d", loco->getLocoAddress() * loco->isOrientationForward() ? 1 : -1);
   }
   statusCmd += ">";
-  wifiInterface.send(statusCmd);
+  wifiInterface.broadcast(statusCmd);
 }
 
 void LocomotiveConsist::toJson(JsonObject &jsonObject, bool includeSpeedDir, bool includeFunctions) {
@@ -228,22 +228,22 @@ void LocomotiveConsist::releaseLocomotives() {
   _locos.clear();
 }
 
-void ConsistCommandAdapter::process(const std::vector<String> arguments) {
+void ConsistCommandAdapter::process(const std::vector<std::string> arguments) {
   if (arguments.empty()) {
     LocomotiveManager::showConsistStatus();
   } else if (arguments.size() == 1 &&
-    LocomotiveManager::removeLocomotiveConsist(arguments[1].toInt())) {
-    wifiInterface.send(COMMAND_SUCCESSFUL_RESPONSE);
+    LocomotiveManager::removeLocomotiveConsist(std::stoi(arguments[1]))) {
+    wifiInterface.broadcast(COMMAND_SUCCESSFUL_RESPONSE);
   } else if (arguments.size() == 2) {
-    int8_t consistAddress = arguments[0].toInt();
-    uint16_t locomotiveAddress = arguments[1].toInt();
+    int8_t consistAddress = std::stoi(arguments[0]);
+    uint16_t locomotiveAddress = std::stoi(arguments[1]);
     if (consistAddress == 0) {
       // query which consist loco is in
       auto consist = LocomotiveManager::getConsistForLoco(locomotiveAddress);
       if (consist != nullptr) {
-        wifiInterface.print(F("<V %d %d>"),
+        wifiInterface.broadcast(StringPrintf("<V %d %d>",
           consist->getLocoAddress() * consist->isDecoderAssistedConsist() ? -1 : 1,
-          locomotiveAddress);
+          locomotiveAddress));
         return;
       }
     } else {
@@ -251,15 +251,15 @@ void ConsistCommandAdapter::process(const std::vector<String> arguments) {
       auto consist = LocomotiveManager::getConsistByID(consistAddress);
       if (consist->isAddressInConsist(locomotiveAddress)) {
         consist->removeLocomotive(locomotiveAddress);
-        wifiInterface.send(COMMAND_SUCCESSFUL_RESPONSE);
+        wifiInterface.broadcast(COMMAND_SUCCESSFUL_RESPONSE);
         return;
       }
     }
     // if we get here either the query or remove failed
-    wifiInterface.send(COMMAND_FAILED_RESPONSE);
+    wifiInterface.broadcast(COMMAND_FAILED_RESPONSE);
   } else if (arguments.size() >= 3) {
     // create or update consist
-    uint16_t consistAddress = arguments[0].toInt();
+    uint16_t consistAddress = std::stoi(arguments[0]);
     auto consist = LocomotiveManager::getConsistByID(consistAddress);
     if (consist != nullptr) {
       // existing consist, need to update
@@ -267,27 +267,27 @@ void ConsistCommandAdapter::process(const std::vector<String> arguments) {
     } else {
       // verify if all provided locos are not already in a consist
       for(int index = 1; index < arguments.size(); index++) {
-        int32_t locomotiveAddress = arguments[index].toInt();
+        int32_t locomotiveAddress = std::stoi(arguments[index]);
         if(LocomotiveManager::isAddressInConsist(abs(locomotiveAddress))) {
           LOG_ERROR("[Consist] Locomotive %d is already in a consist.", abs(locomotiveAddress));
-          wifiInterface.send(COMMAND_FAILED_RESPONSE);
+          wifiInterface.broadcast(COMMAND_FAILED_RESPONSE);
           return;
         }
       }
       consist = LocomotiveManager::createLocomotiveConsist(consistAddress);
       if(consist == nullptr) {
         LOG_ERROR("[Consist] Unable to create new Consist");
-        wifiInterface.send(COMMAND_FAILED_RESPONSE);
+        wifiInterface.broadcast(COMMAND_FAILED_RESPONSE);
         return;
       }
     }
     // add locomotives to consist
     for(int index = 1; index < arguments.size(); index++) {
-      int32_t locomotiveAddress = arguments[index].toInt();
+      int32_t locomotiveAddress = std::stoi(arguments[index]);
       consist->addLocomotive(abs(locomotiveAddress), locomotiveAddress > 0,
         index - 1);
     }
   } else {
-    wifiInterface.send(COMMAND_FAILED_RESPONSE);
+    wifiInterface.broadcast(COMMAND_FAILED_RESPONSE);
   }
 }

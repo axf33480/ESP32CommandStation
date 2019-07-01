@@ -47,11 +47,7 @@ protected:
     if(_lastState != state) {
       _lastState = state;
       LOG(INFO, "Sensor: %d :: %s", _sensorID, _lastState ? "ACTIVE" : "INACTIVE");
-      if(state) {
-        wifiInterface.print(F("<Q %d>"), _sensorID);
-      } else {
-        wifiInterface.print(F("<q %d>"), _sensorID);
-      }
+      wifiInterface.broadcast(StringPrintf("<%c %d>", state ? "Q" : "q", _sensorID));
     }
   }
   void setID(uint16_t id) {
@@ -82,8 +78,8 @@ private:
 
 class SensorCommandAdapter : public DCCPPProtocolCommand {
 public:
-  void process(const std::vector<String>);
-  String getID() {
+  void process(const std::vector<std::string>);
+  std::string getID() {
     return "S";
   }
 };

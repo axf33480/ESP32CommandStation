@@ -307,76 +307,76 @@ void Turnout::toJson(JsonObject &json, bool readableStrings) {
 void Turnout::set(bool thrown, bool sendDCCPacket) {
   _thrown = thrown;
   if(sendDCCPacket) {
-    std::vector<String> args;
-    args.push_back(String(_boardAddress));
-    args.push_back(String(_index));
-    args.push_back(String(_thrown));
+    std::vector<std::string> args;
+    args.push_back(StringPrintf("%d", _boardAddress));
+    args.push_back(StringPrintf("%d", _index));
+    args.push_back(StringPrintf("%d", _thrown));
     DCCPPProtocolHandler::getCommandHandler("a")->process(args);
   }
-  wifiInterface.print(F("<H %d %d>"), _turnoutID, _thrown);
+  wifiInterface.broadcast(StringPrintf("<H %d %d>", _turnoutID, _thrown));
   LOG(VERBOSE, "[Turnout %d] Set to %s", _turnoutID,
     _thrown ? JSON_VALUE_THROWN : JSON_VALUE_CLOSED);
 }
 
 void Turnout::showStatus() {
-  wifiInterface.print(F("<H %d %d %d %d>"), _turnoutID, _address, _index, _thrown);
+  wifiInterface.broadcast(StringPrintf("<H %d %d %d %d>", _turnoutID, _address, _index, _thrown));
 }
 
-void TurnoutCommandAdapter::process(const std::vector<String> arguments) {
+void TurnoutCommandAdapter::process(const std::vector<std::string> arguments) {
   if(arguments.empty()) {
     // list all turnouts
     TurnoutManager::showStatus();
   } else {
-    uint16_t turnoutID = arguments[0].toInt();
+    uint16_t turnoutID = std::stoi(arguments[0]);
     if (arguments.size() == 1 && TurnoutManager::removeByID(turnoutID)) {
       // delete turnout
-      wifiInterface.send(COMMAND_SUCCESSFUL_RESPONSE);
-    } else if (arguments.size() == 2 && TurnoutManager::setByID(turnoutID, arguments[1].toInt() == 1)) {
+      wifiInterface.broadcast(COMMAND_SUCCESSFUL_RESPONSE);
+    } else if (arguments.size() == 2 && TurnoutManager::setByID(turnoutID, arguments[1][0] == '1')) {
       // throw turnout
     } else if (arguments.size() == 3) {
       // create/update turnout
-      TurnoutManager::createOrUpdate(turnoutID, arguments[1].toInt(), arguments[2].toInt());
-      wifiInterface.send(COMMAND_SUCCESSFUL_RESPONSE);
+      TurnoutManager::createOrUpdate(turnoutID, std::stoi(arguments[1]), std::stoi(arguments[2]));
+      wifiInterface.broadcast(COMMAND_SUCCESSFUL_RESPONSE);
     } else {
-      wifiInterface.send(COMMAND_FAILED_RESPONSE);
+      wifiInterface.broadcast(COMMAND_FAILED_RESPONSE);
     }
   }
 }
 
-void TurnoutExCommandAdapter::process(const std::vector<String> arguments) {
+void TurnoutExCommandAdapter::process(const std::vector<std::string> arguments) {
   bool sendSuccess = false;
   if(!arguments.empty()) {
-    if(arguments[0].toInt() >= 0) {
-      if(arguments.size() == 1 && TurnoutManager::toggleByID(arguments[0].toInt())) {
+    if(std::stoi(arguments[0]) >= 0) {
+      if(arguments.size() == 1 && TurnoutManager::toggleByID(std::stoi(arguments[0]))) {
         // no response required for throw as it will automatically be sent by the turnout
         return;
       } else if(arguments.size() == 3 &&
-                TurnoutManager::createOrUpdate(arguments[0].toInt(), arguments[1].toInt(), -1, (TurnoutType)arguments[2].toInt())) {
+                TurnoutManager::createOrUpdate(std::stoi(arguments[0]), std::stoi(arguments[1]), -1, (TurnoutType)std::stoi(arguments[2]))) {
         sendSuccess = true;
       }
     } else {
-      auto turnout = TurnoutManager::getTurnoutByAddress(arguments[1].toInt());
+      auto turnout = TurnoutManager::getTurnoutByAddress(std::stoi(arguments[1]));
       if(turnout) {
-        turnout->setType((TurnoutType)arguments[2].toInt());
+        turnout->setType((TurnoutType)std::stoi(arguments[2]));
         sendSuccess = true;
-      } else if(TurnoutManager::createOrUpdate(TurnoutManager::getTurnoutCount() + 1, arguments[1].toInt(), -1, (TurnoutType)arguments[2].toInt())) {
+      } else if(TurnoutManager::createOrUpdate(TurnoutManager::getTurnoutCount() + 1, std::stoi(arguments[1]), -1, (TurnoutType)std::stoi(arguments[2]))) {
         sendSuccess = true;
       }
     }
   }
   if(sendSuccess) {
-    wifiInterface.send(COMMAND_SUCCESSFUL_RESPONSE);
+    wifiInterface.broadcast(COMMAND_SUCCESSFUL_RESPONSE);
   } else {
-    wifiInterface.send(COMMAND_FAILED_RESPONSE);
+    wifiInterface.broadcast(COMMAND_FAILED_RESPONSE);
   }
 }
 
-void AccessoryCommand::process(const std::vector<String> arguments) {
+void AccessoryCommand::process(const std::vector<std::string> arguments) {
   if(dccSignal[DCC_SIGNAL_OPERATIONS]->isEnabled()) {
     std::vector<uint8_t> packetBuffer;
-    uint16_t boardAddress = arguments[0].toInt();
-    uint8_t boardIndex = arguments[1].toInt();
-    bool activate = arguments[2].toInt() == 1;
+    uint16_t boardAddress = std::stoi(arguments[0]);
+    uint8_t boardIndex = std::stoi(arguments[1]);
+    bool activate = arguments[2][0] == '1';
     LOG(VERBOSE, "[Turnout] DCC Accessory Packet %d:%d state: %d", boardAddress, boardIndex, activate);
     // first byte is of the form 10AAAAAA, where AAAAAA represent 6 least
     // signifcant bits of accessory address

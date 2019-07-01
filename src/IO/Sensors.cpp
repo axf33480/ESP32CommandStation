@@ -244,26 +244,26 @@ void Sensor::check() {
 }
 
 void Sensor::show() {
-  wifiInterface.print(F("<Q %d %d %d>"), _sensorID, _pin, _pullUp);
+  wifiInterface.broadcast(StringPrintf("<Q %d %d %d>", _sensorID, _pin, _pullUp));
 }
 
-void SensorCommandAdapter::process(const std::vector<String> arguments) {
+void SensorCommandAdapter::process(const std::vector<std::string> arguments) {
   if(arguments.empty()) {
     // list all sensors
     for (const auto& sensor : sensors) {
       sensor->show();
     }
   } else {
-    uint16_t sensorID = arguments[0].toInt();
+    uint16_t sensorID = std::stoi(arguments[0]);
     if (arguments.size() == 1 && SensorManager::remove(sensorID)) {
       // delete turnout
-      wifiInterface.send(COMMAND_SUCCESSFUL_RESPONSE);
+      wifiInterface.broadcast(COMMAND_SUCCESSFUL_RESPONSE);
     } else if (arguments.size() == 3) {
       // create sensor
-      SensorManager::createOrUpdate(sensorID, arguments[1].toInt(), arguments[2].toInt() == 1);
-      wifiInterface.send(COMMAND_SUCCESSFUL_RESPONSE);
+      SensorManager::createOrUpdate(sensorID, std::stoi(arguments[1]), arguments[2][0] == '1');
+      wifiInterface.broadcast(COMMAND_SUCCESSFUL_RESPONSE);
     } else {
-      wifiInterface.send(COMMAND_FAILED_RESPONSE);
+      wifiInterface.broadcast(COMMAND_FAILED_RESPONSE);
     }
   }
 }

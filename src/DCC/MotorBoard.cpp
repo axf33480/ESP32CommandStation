@@ -31,7 +31,7 @@ LinkedList<GenericMotorBoard *> motorBoards([](GenericMotorBoard *board) {delete
 
 class NonMonitoredMotorBoard : public GenericMotorBoard {
 public:
-  NonMonitoredMotorBoard(uint8_t enablePin, String name) : GenericMotorBoard(ADC1_CHANNEL_0, enablePin, 0, 1, name, false) {}
+  NonMonitoredMotorBoard(uint8_t enablePin, std::string name) : GenericMotorBoard(ADC1_CHANNEL_0, enablePin, 0, 1, name, false) {}
   virtual void check() {}
   virtual uint16_t captureSample(uint8_t sampleCount, bool logResults=false) {
     return 0;
@@ -39,7 +39,7 @@ public:
 };
 
 GenericMotorBoard::GenericMotorBoard(adc1_channel_t senseChannel, uint8_t enablePin,
-  uint16_t triggerMilliAmps, uint32_t maxMilliAmps, String name, bool programmingTrack) :
+  uint16_t triggerMilliAmps, uint32_t maxMilliAmps, std::string name, bool programmingTrack) :
   _name(name), _senseChannel(senseChannel), _enablePin(enablePin),
   _maxMilliAmps(maxMilliAmps), _triggerValue(4096 * triggerMilliAmps / maxMilliAmps),
   _progTrack(programmingTrack), _current(0), _state(false), _triggered(false),
@@ -60,7 +60,7 @@ void GenericMotorBoard::powerOn(bool announce) {
 #if LOCONET_ENABLED
       locoNet.reportPower(true);
 #endif
-      wifiInterface.print(F("<p1 %s>"), _name.c_str());
+      wifiInterface.broadcast(StringPrintf("<p1 %s>", _name.c_str()));
     }
     // enable the DCC signal
     if(_progTrack && !dccSignal[DCC_SIGNAL_PROGRAMMING]->isEnabled()) {
@@ -84,13 +84,13 @@ void GenericMotorBoard::powerOff(bool announce, bool overCurrent) {
 #if LOCONET_ENABLED
         locoNet.send(OPC_IDLE, 0, 0);
 #endif
-        wifiInterface.print(F("<p2 %s>"), _name.c_str());
+        wifiInterface.broadcast(StringPrintf("<p2 %s>", _name.c_str()));
         statusLED->setStatusLED(StatusLED::LED::OPS_TRACK, StatusLED::COLOR::RED);
       } else {
 #if LOCONET_ENABLED
         locoNet.reportPower(false);
 #endif
-        wifiInterface.print(F("<p0 %s>"), _name.c_str());
+        wifiInterface.broadcast(StringPrintf("<p02 %s>", _name.c_str()));
         statusLED->setStatusLED(StatusLED::LED::OPS_TRACK, StatusLED::COLOR::GREEN);
       }
     }
@@ -111,10 +111,9 @@ void GenericMotorBoard::powerOff(bool announce, bool overCurrent) {
 void GenericMotorBoard::showStatus() {
   if(!_progTrack) {
     if(_state) {
-      wifiInterface.print(F("<p1 %s>"), _name.c_str());
-      wifiInterface.print(F("<a %s %d>"), _name.c_str(), getLastRead());
+      wifiInterface.broadcast(StringPrintf("<p1 %s><a %s %d>", _name.c_str(), _name.c_str(), getLastRead()));
     } else {
-      wifiInterface.print(F("<p0 %s>"), _name.c_str());
+      wifiInterface.broadcast(StringPrintf("<p0 %s>", _name.c_str()));
     }
   }
 }
@@ -159,7 +158,7 @@ uint16_t GenericMotorBoard::captureSample(uint8_t sampleCount, bool logResults) 
   return avgReading;
 }
 
-void MotorBoardManager::registerBoard(adc1_channel_t sensePin, uint8_t enablePin, MOTOR_BOARD_TYPE type, String name, bool programmingTrack) {
+void MotorBoardManager::registerBoard(adc1_channel_t sensePin, uint8_t enablePin, MOTOR_BOARD_TYPE type, std::string name, bool programmingTrack) {
   infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "%s Init", name.c_str());
   uint32_t maxAmps = 0;
   uint32_t triggerAmps = 0;
@@ -194,12 +193,12 @@ void MotorBoardManager::registerBoard(adc1_channel_t sensePin, uint8_t enablePin
   motorBoards.add(new GenericMotorBoard(sensePin, enablePin, triggerAmps, maxAmps, name, programmingTrack));
 }
 
-void MotorBoardManager::registerNonMonitoredBoard(uint8_t enablePin, String name) {
+void MotorBoardManager::registerNonMonitoredBoard(uint8_t enablePin, std::string name) {
   infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "%s Init", name.c_str());
   motorBoards.add(new NonMonitoredMotorBoard(enablePin, name));
 }
 
-GenericMotorBoard *MotorBoardManager::getBoardByName(String name) {
+GenericMotorBoard *MotorBoardManager::getBoardByName(std::string name) {
   for (const auto& board : motorBoards) {
     if(board->getName() == name) {
       return board;
@@ -252,9 +251,9 @@ void MotorBoardManager::powerOffAll() {
 #endif
 }
 
-bool MotorBoardManager::powerOn(const String name) {
+bool MotorBoardManager::powerOn(const std::string name) {
   for (const auto& board : motorBoards) {
-    if(name.equalsIgnoreCase(board->getName())) {
+    if(!name.compare(board->getName())) {
       board->powerOn(false);
       board->showStatus();
       return true;
@@ -263,9 +262,9 @@ bool MotorBoardManager::powerOn(const String name) {
   return false;
 }
 
-bool MotorBoardManager::powerOff(const String name) {
+bool MotorBoardManager::powerOff(const std::string name) {
   for (const auto& board : motorBoards) {
-    if(name.equalsIgnoreCase(board->getName())) {
+    if(!name.compare(board->getName())) {
       board->powerOff(false);
       board->showStatus();
       return true;
@@ -274,9 +273,9 @@ bool MotorBoardManager::powerOff(const String name) {
   return false;
 }
 
-int MotorBoardManager::getLastRead(const String name) {
+int MotorBoardManager::getLastRead(const std::string name) {
   for (const auto& board : motorBoards) {
-    if(name.equalsIgnoreCase(board->getName())) {
+    if(!name.compare(board->getName())) {
       return board->getLastRead();
     }
   }
@@ -289,8 +288,8 @@ void MotorBoardManager::showStatus() {
   }
 }
 
-std::vector<String> MotorBoardManager::getBoardNames() {
-  std::vector<String> boardNames;
+std::vector<std::string> MotorBoardManager::getBoardNames() {
+  std::vector<std::string> boardNames;
   for (const auto& board : motorBoards) {
     boardNames.push_back(board->getName());
   }
@@ -338,21 +337,21 @@ uint8_t MotorBoardManager::getCountOfOPSBoards() {
   return count;
 }
 
-void CurrentDrawCommand::process(const std::vector<String> arguments) {
+void CurrentDrawCommand::process(const std::vector<std::string> arguments) {
   if(arguments.size() == 0) {
     MotorBoardManager::showStatus();
   } else {
-    wifiInterface.print(F("<a %d %s>"), MotorBoardManager::getLastRead(arguments[0]), arguments[0].c_str());
+    wifiInterface.broadcast(StringPrintf("<a %d %s>", MotorBoardManager::getLastRead(arguments[0]), arguments[0].c_str()));
   }
 }
 
-void PowerOnCommand::process(const std::vector<String> arguments) {
+void PowerOnCommand::process(const std::vector<std::string> arguments) {
   if(arguments.size() == 0) {
     MotorBoardManager::powerOnAll();
   }
 }
 
-void PowerOffCommand::process(const std::vector<String> arguments) {
+void PowerOffCommand::process(const std::vector<std::string> arguments) {
   if(arguments.size() == 0) {
     MotorBoardManager::powerOffAll();
   }

@@ -91,7 +91,7 @@ void SignalGenerator::loadPacket(std::vector<uint8_t> data, int numberOfRepeats,
   pushReadyPacket(packet);
 }
 
-SignalGenerator::SignalGenerator(String name, uint16_t maxPackets, uint8_t signalID, uint8_t signalPin) : _name(name), _signalID(signalID), _sendQueueCapacity(maxPackets) {
+SignalGenerator::SignalGenerator(std::string name, uint16_t maxPackets, uint8_t signalID, uint8_t signalPin) : _name(name), _signalID(signalID), _sendQueueCapacity(maxPackets) {
   HASSERT(signalID < MAX_DCC_SIGNAL_GENERATORS);
   // set threshold to 3/4 capacity
   _sendQueueThreshold = (uint16_t)((_sendQueueCapacity * 3) / 4);

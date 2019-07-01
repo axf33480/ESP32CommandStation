@@ -29,7 +29,7 @@ LinkedList<DCCPPProtocolCommand *> registeredCommands([](DCCPPProtocolCommand *c
 // will need to be reconfigured after sending this command.
 class ConfigErase : public DCCPPProtocolCommand {
 public:
-  void process(const std::vector<String> arguments) {
+  void process(const std::vector<std::string> arguments) {
     configStore->clear();
     TurnoutManager::clear();
     SensorManager::clear();
@@ -38,9 +38,9 @@ public:
 #endif
     OutputManager::clear();
     LocomotiveManager::clear();
-    wifiInterface.send(COMMAND_SUCCESSFUL_RESPONSE);
+    wifiInterface.broadcast(COMMAND_SUCCESSFUL_RESPONSE);
   }
-  String getID() {
+  std::string getID() {
     return "e";
   }
 };
@@ -50,23 +50,23 @@ public:
 // subsequent startups.
 class ConfigStore : public DCCPPProtocolCommand {
 public:
-  void process(const std::vector<String> arguments) {
+  void process(const std::vector<std::string> arguments) {
 #if S88_ENABLED
-    wifiInterface.print(F("<e %d %d %d %d %d>"),
+    wifiInterface.broadcast(StringPrintf("<e %d %d %d %d %d>"),
       TurnoutManager::store(),
       SensorManager::store(),
       OutputManager::store(),
       S88BusManager::store(),
-      LocomotiveManager::store());
+      LocomotiveManager::store()));
 #else
-    wifiInterface.print(F("<e %d %d %d 0 %d>"),
+    wifiInterface.broadcast(StringPrintf("<e %d %d %d 0 %d>",
       TurnoutManager::store(),
       SensorManager::store(),
       OutputManager::store(),
-      LocomotiveManager::store());
+      LocomotiveManager::store()));
 #endif
   }
-  String getID() {
+  std::string getID() {
     return "E";
   }
 };
@@ -76,21 +76,21 @@ public:
 // the actual CV value or -1 when there is a failure reading or verifying the CV.
 class ReadCVCommand : public DCCPPProtocolCommand {
 public:
-  void process(const std::vector<String> arguments) {
-    int cvNumber = arguments[0].toInt();
+  void process(const std::vector<std::string> arguments) {
+    int cvNumber = std::stoi(arguments[0]);
     int16_t cvValue = -1;
     if(enterProgrammingMode()) {
       cvValue = readCV(cvNumber);
       leaveProgrammingMode();
     }
-    wifiInterface.print(F("<r%d|%d|%d %d>"),
-      arguments[1].toInt(),
-      arguments[2].toInt(),
+    wifiInterface.broadcast(StringPrintf("<r%s|%s|%d %d>",
+      arguments[1].c_str(),
+      arguments[2].c_str(),
       cvNumber,
-      cvValue);
+      cvValue));
   }
 
-  String getID() {
+  std::string getID() {
     return "R";
   }
 };
@@ -101,9 +101,9 @@ public:
 // verifying the CV value.
 class WriteCVByteProgCommand : public DCCPPProtocolCommand {
 public:
-  void process(const std::vector<String> arguments) {
-    int cvNumber = arguments[0].toInt();
-    int16_t cvValue = arguments[1].toInt();
+  void process(const std::vector<std::string> arguments) {
+    int cvNumber = std::stoi(arguments[0]);
+    int16_t cvValue = std::stoi(arguments[1]);
     if(enterProgrammingMode()) {
       if(!writeProgCVByte(cvNumber, cvValue)) {
         cvValue = -1;
@@ -112,14 +112,14 @@ public:
     } else {
       cvValue = -1;
     }
-    wifiInterface.print(F("<r%d|%d|%d %d>"),
-      arguments[2].toInt(),
-      arguments[3].toInt(),
+    wifiInterface.broadcast(StringPrintf("<r%s|%s|%d %d>",
+      arguments[2].c_str(),
+      arguments[3].c_str(),
       cvNumber,
-      cvValue);
+      cvValue));
   }
 
-  String getID() {
+  std::string getID() {
     return "W";
   }
 };
@@ -130,10 +130,10 @@ public:
 // there is a failure writing or verifying the CV value.
 class WriteCVBitProgCommand : public DCCPPProtocolCommand {
 public:
-  void process(const std::vector<String> arguments) {
-    int cvNumber = arguments[0].toInt();
-    uint8_t bit = arguments[1].toInt();
-    int8_t bitValue = arguments[1].toInt();
+  void process(const std::vector<std::string> arguments) {
+    int cvNumber = std::stoi(arguments[0]);
+    uint8_t bit = std::stoi(arguments[1]);
+    int8_t bitValue = std::stoi(arguments[1]);
     if(enterProgrammingMode()) {
       if(!writeProgCVBit(cvNumber, bit, bitValue == 1)) {
         bitValue = -1;
@@ -142,15 +142,15 @@ public:
     } else {
       bitValue = -1;
     }
-    wifiInterface.print(F("<r%d|%d|%d %d %d>"),
-      arguments[2].toInt(),
-      arguments[3].toInt(),
+    wifiInterface.broadcast(StringPrintf("<r%s|%s|%d %d %d>",
+      arguments[2].c_str(),
+      arguments[3].c_str(),
       cvNumber,
       bit,
-      bitValue);
+      bitValue));
   }
 
-  String getID() {
+  std::string getID() {
     return "B";
   }
 };
@@ -159,13 +159,13 @@ public:
 // on the MAIN OPERATIONS track for a given LOCO. No verification is attempted.
 class WriteCVByteOpsCommand : public DCCPPProtocolCommand {
 public:
-  void process(const std::vector<String> arguments) {
-    writeOpsCVByte(arguments[0].toInt(),
-      arguments[1].toInt(),
-      arguments[2].toInt());
+  void process(const std::vector<std::string> arguments) {
+    writeOpsCVByte(std::stoi(arguments[0]),
+      std::stoi(arguments[1]),
+      std::stoi(arguments[2]));
   }
 
-  String getID() {
+  std::string getID() {
     return "w";
   }
 };
@@ -175,14 +175,14 @@ public:
 // is attempted.
 class WriteCVBitOpsCommand : public DCCPPProtocolCommand {
 public:
-  void process(const std::vector<String> arguments) {
-    writeOpsCVBit(arguments[0].toInt(),
-      arguments[1].toInt(),
-      arguments[2].toInt(),
-      arguments[3].toInt() == 1);
+  void process(const std::vector<std::string> arguments) {
+    writeOpsCVBit(std::stoi(arguments[0]),
+      std::stoi(arguments[1]),
+      std::stoi(arguments[2]),
+      arguments[3][0] == '1');
   }
 
-  String getID() {
+  std::string getID() {
     return "b";
   }
 };
@@ -192,9 +192,9 @@ public:
 // command.
 class StatusCommand : public DCCPPProtocolCommand {
 public:
-  void process(const std::vector<String> arguments) {
-    wifiInterface.print(F("<iDCC++ ESP32 Command Station: V-%s / %s %s>"),
-      VERSION, __DATE__, __TIME__);
+  void process(const std::vector<std::string> arguments) {
+    wifiInterface.broadcast(StringPrintf("<iDCC++ ESP32 Command Station: V-%s / %s %s>",
+      VERSION, __DATE__, __TIME__));
     MotorBoardManager::showStatus();
     LocomotiveManager::showStatus();
     TurnoutManager::showStatus();
@@ -202,7 +202,7 @@ public:
     wifiInterface.showInitInfo();
   }
 
-  String getID() {
+  std::string getID() {
     return "s";
   }
 };
@@ -210,11 +210,11 @@ public:
 // <F> command handler, this command sends the current free heap space as response.
 class FreeHeapCommand : public DCCPPProtocolCommand {
 public:
-  void process(const std::vector<String> arguments) {
-    wifiInterface.print(F("<f %d>"), ESP.getFreeHeap());
+  void process(const std::vector<std::string> arguments) {
+    wifiInterface.broadcast(StringPrintf("<f %d>", ESP.getFreeHeap()));
   }
 
-  String getID() {
+  std::string getID() {
     return "F";
   }
 };
@@ -222,11 +222,11 @@ public:
 // <estop> command handler, this command sends the current free heap space as response.
 class EStopCommand : public DCCPPProtocolCommand {
 public:
-  void process(const std::vector<String> arguments) {
+  void process(const std::vector<std::string> arguments) {
     LocomotiveManager::emergencyStop();
   }
 
-  String getID() {
+  std::string getID() {
     return "estop";
   }
 };
@@ -262,24 +262,14 @@ void DCCPPProtocolHandler::init() {
   registerCommand(new EStopCommand());
 }
 
-void DCCPPProtocolHandler::process(const String &commandString) {
-  std::vector<String> parts;
-  if(commandString.indexOf(' ') > 0) {
-    int index = 0;
-    while(index < commandString.length()) {
-      int previousIndex = index;
-      index = commandString.indexOf(' ', previousIndex);
-      if(index < 0) {
-        index = commandString.length();
-      }
-      parts.push_back(commandString.substring(previousIndex, index));
-      // move past the space
-      index++;
-    }
-  } else {
-    parts.push_back(commandString);
+void DCCPPProtocolHandler::process(const std::string &commandString) {
+  std::vector<std::string> parts;
+  std::stringstream buf(commandString);
+  std::string part;
+  while(getline(buf, part, ' ')) {
+    parts.push_back(part);
   }
-  String commandID = parts.front();
+  std::string commandID = parts.front();
   parts.erase(parts.begin());
   LOG(VERBOSE, "Command: %s, argument count: %d", commandID.c_str(), parts.size());
   bool processed = false;
@@ -291,13 +281,13 @@ void DCCPPProtocolHandler::process(const String &commandString) {
   }
   if(!processed) {
     LOG_ERROR("No command handler for [%s]", commandID.c_str());
-    wifiInterface.send(COMMAND_FAILED_RESPONSE);
+    wifiInterface.broadcast(COMMAND_FAILED_RESPONSE);
   }
 }
 
 void DCCPPProtocolHandler::registerCommand(DCCPPProtocolCommand *cmd) {
   for (const auto& command : registeredCommands) {
-    if(command->getID() == cmd->getID()) {
+    if(!command->getID().compare(cmd->getID())) {
       LOG_ERROR("Ignoring attempt to register second command with ID: %s",
         cmd->getID().c_str());
       return;
@@ -307,7 +297,7 @@ void DCCPPProtocolHandler::registerCommand(DCCPPProtocolCommand *cmd) {
   registeredCommands.add(cmd);
 }
 
-DCCPPProtocolCommand *DCCPPProtocolHandler::getCommandHandler(const String &id) {
+DCCPPProtocolCommand *DCCPPProtocolHandler::getCommandHandler(const std::string &id) {
   for (const auto& command : registeredCommands) {
     if(command->getID() == id) {
       return command;
@@ -338,7 +328,7 @@ void DCCPPProtocolConsumer::processData() {
       s++;
       // discard the >
       *e = 0;
-      String str(reinterpret_cast<char*>(&*s));
+      std::string str(reinterpret_cast<char*>(&*s));
       DCCPPProtocolHandler::process(std::move(str));
       consumed = e;
     }

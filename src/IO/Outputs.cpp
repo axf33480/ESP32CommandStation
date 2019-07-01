@@ -241,7 +241,7 @@ void Output::set(bool active, bool announce) {
   digitalWrite(_pin, _active);
   LOG(INFO, "[Output] Output(%d) set to %s", _id, _active ? JSON_VALUE_ON : JSON_VALUE_OFF);
   if(announce) {
-    wifiInterface.print(F("<Y %d %d>"), _id, !_active);
+    wifiInterface.broadcast(StringPrintf("<Y %d %d>", _id, !_active));
   }
 }
 
@@ -279,40 +279,40 @@ void Output::toJson(JsonObject &json, bool readableStrings) {
 }
 
 void Output::showStatus() {
-  wifiInterface.print(F("<Y %d %d %d %d>"), _id, _pin, _flags, !_active);
+  wifiInterface.broadcast(StringPrintf("<Y %d %d %d %d>", _id, _pin, _flags, !_active));
 }
 
-void OutputCommandAdapter::process(const std::vector<String> arguments) {
+void OutputCommandAdapter::process(const std::vector<std::string> arguments) {
   if(arguments.empty()) {
     // list all outputs
     OutputManager::showStatus();
   } else {
-    uint16_t outputID = arguments[0].toInt();
+    uint16_t outputID = std::stoi(arguments[0]);
     if (arguments.size() == 1 && OutputManager::remove(outputID)) {
       // delete output
-      wifiInterface.send(COMMAND_SUCCESSFUL_RESPONSE);
-    } else if (arguments.size() == 2 && OutputManager::set(outputID, arguments[1].toInt() == 1)) {
+      wifiInterface.broadcast(COMMAND_SUCCESSFUL_RESPONSE);
+    } else if (arguments.size() == 2 && OutputManager::set(outputID, arguments[1][0] == 1)) {
       // set output state
     } else if (arguments.size() == 3) {
       // create output
-      OutputManager::createOrUpdate(outputID, arguments[1].toInt(), arguments[2].toInt());
-      wifiInterface.send(COMMAND_SUCCESSFUL_RESPONSE);
+      OutputManager::createOrUpdate(outputID, std::stoi(arguments[1]), std::stoi(arguments[2]));
+      wifiInterface.broadcast(COMMAND_SUCCESSFUL_RESPONSE);
     } else {
-      wifiInterface.send(COMMAND_FAILED_RESPONSE);
+      wifiInterface.broadcast(COMMAND_FAILED_RESPONSE);
     }
   }
 }
 
-void OutputExCommandAdapter::process(const std::vector<String> arguments) {
+void OutputExCommandAdapter::process(const std::vector<std::string> arguments) {
   if(arguments.empty()) {
-    wifiInterface.send(COMMAND_FAILED_RESPONSE);
+    wifiInterface.broadcast(COMMAND_FAILED_RESPONSE);
   } else {
-    uint16_t outputID = arguments[0].toInt();
+    uint16_t outputID = std::stoi(arguments[0]);
     auto output = OutputManager::getOutput(outputID);
     if(output) {
       output->set(!output->isActive());
     } else {
-      wifiInterface.send(COMMAND_FAILED_RESPONSE);
+      wifiInterface.broadcast(COMMAND_FAILED_RESPONSE);
     }
   }
 }

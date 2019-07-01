@@ -58,8 +58,8 @@ public:
 
 class RemoteSensorsCommandAdapter : public DCCPPProtocolCommand {
 public:
-  void process(const std::vector<String>);
-  String getID() {
+  void process(const std::vector<std::string>);
+  std::string getID() {
     return "RS";
   }
 };

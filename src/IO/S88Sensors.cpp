@@ -276,8 +276,8 @@ void S88SensorBus::removeSensors(int16_t sensorCount) {
   }
 }
 
-String S88SensorBus::getStateString() {
-  String state = "";
+std::string S88SensorBus::getStateString() {
+  std::string state = "";
   for (const auto& sensor : _sensors) {
     if(sensor->isActive()) {
       state += "1";
@@ -294,7 +294,7 @@ void S88SensorBus::readNext() {
 }
 
 void S88SensorBus::show() {
-  wifiInterface.print(F("<S88 %d %d %d>"), _id, _dataPin, _sensors.size());
+  wifiInterface.broadcast(StringPrintf("<S88 %d %d %d>", _id, _dataPin, _sensors.size()));
   LOG(VERBOSE, "[S88 Bus-%d] Data:%d, Base:%d, Count:%d:", _id, _dataPin, _sensorIDBase, _sensors.size());
   for (const auto& sensor : _sensors) {
     LOG(VERBOSE, "[S88] Input: %d :: %s", sensor->getIndex(), sensor->isActive() ? "ACTIVE" : "INACTIVE");
@@ -302,21 +302,21 @@ void S88SensorBus::show() {
   }
 }
 
-void S88BusCommandAdapter::process(const std::vector<String> arguments) {
+void S88BusCommandAdapter::process(const std::vector<std::string> arguments) {
   if(arguments.empty()) {
     // list all sensor groups
     for (const auto& sensorBus : s88SensorBus) {
       sensorBus->show();
     }
   } else {
-    if (arguments.size() == 1 && S88BusManager::removeBus(arguments[0].toInt())) {
+    if (arguments.size() == 1 && S88BusManager::removeBus(std::stoi(arguments[0]))) {
       // delete sensor bus
-      wifiInterface.send(COMMAND_SUCCESSFUL_RESPONSE);
-    } else if (arguments.size() == 3 && S88BusManager::createOrUpdateBus(arguments[0].toInt(), arguments[1].toInt(), arguments[2].toInt())) {
+      wifiInterface.broadcast(COMMAND_SUCCESSFUL_RESPONSE);
+    } else if (arguments.size() == 3 && S88BusManager::createOrUpdateBus(std::stoi(arguments[0]), std::stoi(arguments[1]), std::stoi(arguments[2]))) {
       // create sensor bus
-      wifiInterface.send(COMMAND_SUCCESSFUL_RESPONSE);
+      wifiInterface.broadcast(COMMAND_SUCCESSFUL_RESPONSE);
     } else {
-      wifiInterface.send(COMMAND_FAILED_RESPONSE);
+      wifiInterface.broadcast(COMMAND_FAILED_RESPONSE);
     }
   }
 }

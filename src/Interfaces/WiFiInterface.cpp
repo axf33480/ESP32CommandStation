@@ -26,12 +26,10 @@ void *jmriClientHandler(void *arg);
 
 MDNS mDNS;
 ESP32CSWebServer esp32csWebServer(&mDNS);
+Atomic jmriClientsAtomic;
 std::vector<int> jmriClients;
 std::unique_ptr<SocketListener> JMRIListener;
 WiFiInterface wifiInterface;
-extern Esp32WiFiManager wifi_mgr;
-class WebSocketClient;
-extern LinkedList<WebSocketClient *> webSocketClients;
 
 constexpr int JMRI_CLIENT_PRIORITY = 1;
 constexpr size_t JMRI_CLIENT_STACK_SIZE = 4096;
@@ -62,13 +60,16 @@ void WiFiInterface::init() {
       );
       LOG(INFO, "[WiFi] Starting JMRI listener");
       JMRIListener.reset(new SocketListener(JMRI_LISTENER_PORT, [](int fd) {
-        jmriClients.push_back(fd);
+        {
+          AtomicHolder h(&jmriClientsAtomic);
+          jmriClients.push_back(fd);
+        }
         os_thread_create(nullptr, StringPrintf("jmri-%d", fd).c_str(),
                         JMRI_CLIENT_PRIORITY, JMRI_CLIENT_STACK_SIZE,
                         jmriClientHandler, (void *)fd);
         infoScreen->replaceLine(INFO_SCREEN_CLIENTS_LINE,
                                 "TCP Conn: %02d",
-                                webSocketClients.length() + jmriClients.size());
+                                webSocketClients.size() + jmriClients.size());
       }));
       mDNS.publish("jmri", "_esp32cs._tcp", JMRI_LISTENER_PORT);
       esp32csWebServer.begin();
@@ -94,24 +95,18 @@ void WiFiInterface::init() {
 }
 
 void WiFiInterface::showInitInfo() {
-  print(F("<N1: " IPSTR " >"), IP2STR(&_ip_info.ip));
+  broadcast(StringPrintf("<N1: " IPSTR " >", IP2STR(&_ip_info.ip)));
 }
 
-void WiFiInterface::send(const String &buf) {
-  for (const int client : jmriClients) {
-    ::write(client, buf.c_str(), buf.length());
+void WiFiInterface::broadcast(const std::string &buf) {
+  {
+    AtomicHolder h(&jmriClientsAtomic);
+    for (const int client : jmriClients) {
+      ::write(client, buf.c_str(), buf.length());
+    }
   }
   esp32csWebServer.broadcastToWS(buf);
   hc12->send(buf.c_str());
-}
-
-void WiFiInterface::print(const __FlashStringHelper *fmt, ...) {
-  char buf[256] = {0};
-  va_list args;
-  va_start(args, fmt);
-  vsnprintf_P(buf, sizeof(buf), (const char *)fmt, args);
-  va_end(args);
-  send(buf);
 }
 
 void *jmriClientHandler(void *arg) {
@@ -140,13 +135,13 @@ void *jmriClientHandler(void *arg) {
     }
   }
   // remove client FD
-  std::vector<int>::iterator it = std::find(jmriClients.begin(), jmriClients.end(), fd);
-  if (it != jmriClients.end()) {
-    jmriClients.erase(it);
+  {
+    AtomicHolder h(&jmriClientsAtomic);
+    jmriClients.erase(std::remove(jmriClients.begin(), jmriClients.end(), fd));
   }
   infoScreen->replaceLine(INFO_SCREEN_CLIENTS_LINE,
                           "TCP Conn: %02d",
-                          webSocketClients.length() + jmriClients.size());
+                          webSocketClients.size() + jmriClients.size());
 
   ::close(fd);
   return nullptr;

@@ -43,23 +43,23 @@ public:
     return _active;
   }
   void showStatus();
-  const String getFlagsAsString() {
-    String flagsString = "";
+  const std::string getFlagsAsString() {
+    std::string flags = "";
     if(bitRead(_flags, OUTPUT_IFLAG_INVERT)) {
-      flagsString += "activeLow";
+      flags += "activeLow";
     } else {
-      flagsString += "activeHigh";
+      flags += "activeHigh";
     }
     if(bitRead(_flags, OUTPUT_IFLAG_RESTORE_STATE)) {
       if(bitRead(_flags, OUTPUT_IFLAG_FORCE_STATE)) {
-        flagsString += ",force(on)";
+        flags += ",force(on)";
       } else {
-        flagsString += ",force(off)";
+        flags += ",force(off)";
       }
     } else {
-      flagsString += ",restoreState";
+      flags += ",restoreState";
     }
-    return flagsString;
+    return flags;
   }
 private:
   uint16_t _id;
@@ -84,16 +84,16 @@ class OutputManager {
 
 class OutputCommandAdapter : public DCCPPProtocolCommand {
 public:
-  void process(const std::vector<String> arguments);
-  String getID() {
+  void process(const std::vector<std::string> arguments);
+  std::string getID() {
     return "Z";
   }
 };
 
 class OutputExCommandAdapter : public DCCPPProtocolCommand {
 public:
-  void process(const std::vector<String> arguments);
-  String getID() {
+  void process(const std::vector<std::string> arguments);
+  std::string getID() {
     return "Zex";
   }
 };

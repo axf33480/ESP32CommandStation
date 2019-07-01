@@ -22,7 +22,7 @@ COPYRIGHT (c) 2019 Mike Dunston
 
 class SignalGenerator_RMT : public SignalGenerator {
 public:
-  SignalGenerator_RMT(String, uint16_t, uint8_t, uint8_t,
+  SignalGenerator_RMT(std::string, uint16_t, uint8_t, uint8_t,
                       int8_t=NOT_A_PIN, int8_t=NOT_A_PIN,
                       int8_t=NOT_A_PIN, int8_t=NOT_A_PIN,
                       int8_t=NOT_A_PIN, int8_t=NOT_A_PIN);

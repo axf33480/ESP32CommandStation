@@ -74,7 +74,7 @@ LinkedList<RemoteSensor *> remoteSensors([](RemoteSensor *sensor) {
 
 void RemoteSensorManager::init() {
 #if SCAN_REMOTE_SENSORS_ON_STARTUP
-  InfoScreen::replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, F("WiFiScan started"));
+  infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, F("WiFiScan started"));
   int8_t networksFound;
 
   LOG(VERBOSE, "[RemoteSensors] Scanning for RemoteSensors");
@@ -89,7 +89,7 @@ void RemoteSensorManager::init() {
     if(WiFi.SSID(i).startsWith(REMOTE_SENSORS_PREFIX)) {
       const uint16_t sensorID = String(WiFi.SSID(i)).substring(REMOTE_SENSOR_PREFIX_LEN).toInt();
       LOG(VERBOSE, "[RemoteSensors] Found %s, assigning as sensor %d", WiFi.SSID(i).c_str(), sensorID);
-      InfoScreen::replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, F("RS %d: %s"), sensorID, WiFi.SSID(i).c_str());
+      infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, F("RS %d: %s"), sensorID, WiFi.SSID(i).c_str());
       createOrUpdate(sensorID);
     }
   }
@@ -136,7 +136,7 @@ void RemoteSensorManager::getState(JsonArray &array) {
 
 void RemoteSensorManager::show() {
   if(remoteSensors.isEmpty()) {
-    wifiInterface.send(COMMAND_FAILED_RESPONSE);
+    wifiInterface.broadcast(COMMAND_FAILED_RESPONSE);
   } else {
     for (const auto& sensor : remoteSensors) {
       sensor->showSensor();
@@ -159,7 +159,7 @@ void RemoteSensor::check() {
 }
 
 void RemoteSensor::showSensor() {
-  wifiInterface.print(F("<RS %d %d>"), getRawID(), _value);
+  wifiInterface.broadcast(StringPrintf("<RS %d %d>", getRawID(), _value));
 }
 
 void RemoteSensor::toJson(JsonObject &json, bool includeState) {
@@ -172,21 +172,21 @@ void RemoteSensor::toJson(JsonObject &json, bool includeState) {
   json[JSON_PULLUP_NODE] = isPullUp();
 }
 
-void RemoteSensorsCommandAdapter::process(const std::vector<String> arguments) {
+void RemoteSensorsCommandAdapter::process(const std::vector<std::string> arguments) {
   if(arguments.empty()) {
     // list all sensors
     RemoteSensorManager::show();
   } else {
-    uint16_t sensorID = arguments[0].toInt();
+    uint16_t sensorID = std::stoi(arguments[0]);
     if (arguments.size() == 1 && RemoteSensorManager::remove(sensorID)) {
       // delete remote sensor
-      wifiInterface.send(COMMAND_SUCCESSFUL_RESPONSE);
+      wifiInterface.broadcast(COMMAND_SUCCESSFUL_RESPONSE);
     } else if (arguments.size() == 2) {
       // create/update remote sensor
-      RemoteSensorManager::createOrUpdate(sensorID, arguments[1].toInt());
-      wifiInterface.send(COMMAND_SUCCESSFUL_RESPONSE);
+      RemoteSensorManager::createOrUpdate(sensorID, std::stoi(arguments[1]));
+      wifiInterface.broadcast(COMMAND_SUCCESSFUL_RESPONSE);
     } else {
-      wifiInterface.send(COMMAND_FAILED_RESPONSE);
+      wifiInterface.broadcast(COMMAND_FAILED_RESPONSE);
     }
   }
 }

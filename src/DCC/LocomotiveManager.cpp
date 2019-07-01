@@ -66,9 +66,9 @@ LinkedList<LocomotiveConsist *> LocomotiveManager::_consists([](LocomotiveConsis
   delete consist;
 });
 
-void LocomotiveManager::processThrottle(const std::vector<String> arguments) {
-  int registerNumber = arguments[0].toInt();
-  uint16_t locoAddress = arguments[1].toInt();
+void LocomotiveManager::processThrottle(const std::vector<std::string> arguments) {
+  int registerNumber = std::stoi(arguments[0]);
+  uint16_t locoAddress = std::stoi(arguments[1]);
   if(isConsistAddress(locoAddress) || isAddressInConsist(locoAddress)) {
     processConsistThrottle(arguments);
     return;
@@ -79,16 +79,16 @@ void LocomotiveManager::processThrottle(const std::vector<String> arguments) {
     _locos.add(instance);
   }
   instance->setLocoAddress(locoAddress);
-  instance->setSpeed(arguments[2].toInt());
-  instance->setDirection(arguments[3].toInt() == 1);
+  instance->setSpeed(std::stoi(arguments[2]));
+  instance->setDirection(arguments[3][0] == '1');
   instance->sendLocoUpdate(true);
   instance->showStatus();
 }
 
-void LocomotiveManager::processThrottleEx(const std::vector<String> arguments) {
-  uint16_t locoAddress = arguments[0].toInt();
-  int8_t speed = arguments[1].toInt();
-  int8_t dir = arguments[2].toInt();
+void LocomotiveManager::processThrottleEx(const std::vector<std::string> arguments) {
+  uint16_t locoAddress = std::stoi(arguments[0]);
+  int8_t speed = std::stoi(arguments[1]);
+  int8_t dir = std::stoi(arguments[2]);
   auto instance = getLocomotive(locoAddress);
   if(speed >= 0) {
     instance->setSpeed(speed);
@@ -102,16 +102,16 @@ void LocomotiveManager::processThrottleEx(const std::vector<String> arguments) {
 
 // This method decodes the incoming function packet(s) to update the stored
 // functinon states. Loco update will be sent afterwards.
-void LocomotiveManager::processFunction(const std::vector<String> arguments) {
-  int locoAddress = arguments[0].toInt();
-  int functionByte = arguments[1].toInt();
+void LocomotiveManager::processFunction(const std::vector<std::string> arguments) {
+  int locoAddress = std::stoi(arguments[0]);
+  int functionByte = std::stoi(arguments[1]);
   if(isConsistAddress(locoAddress)) {
     return;
   }
   auto loco = getLocomotive(locoAddress);
   // check this is a request for functions F13-F28
   if(arguments.size() > 2) {
-    int secondaryFunctionByte = arguments[2].toInt();
+    int secondaryFunctionByte = std::stoi(arguments[2]);
     if((functionByte & 0xDE) == 0xDE) {
       loco->setFunctions(13, 20, secondaryFunctionByte);
     } else {
@@ -132,10 +132,10 @@ void LocomotiveManager::processFunction(const std::vector<String> arguments) {
   }
 }
 
-void LocomotiveManager::processFunctionEx(const std::vector<String> arguments) {
-  int locoAddress = arguments[0].toInt();
-  int function = arguments[1].toInt();
-  int state = arguments[2].toInt();
+void LocomotiveManager::processFunctionEx(const std::vector<std::string> arguments) {
+  int locoAddress = std::stoi(arguments[0]);
+  int function = std::stoi(arguments[1]);
+  int state = std::stoi(arguments[2]);
   if(isConsistAddress(locoAddress)) {
     return;
   }
@@ -143,10 +143,10 @@ void LocomotiveManager::processFunctionEx(const std::vector<String> arguments) {
   loco->setFunction(function, state);
 }
 
-void LocomotiveManager::processConsistThrottle(const std::vector<String> arguments) {
-  uint16_t locoAddress = arguments[1].toInt();
-  int8_t speed = arguments[2].toInt();
-  bool forward = arguments[3].toInt() == 1;
+void LocomotiveManager::processConsistThrottle(const std::vector<std::string> arguments) {
+  uint16_t locoAddress = std::stoi(arguments[1]);
+  int8_t speed = std::stoi(arguments[2]);
+  bool forward = arguments[3][0] == '1';
   for (const auto& consist : _consists) {
     if (consist->getLocoAddress() == locoAddress || consist->isAddressInConsist(locoAddress)) {
       consist->updateThrottle(locoAddress, speed, forward);
@@ -501,17 +501,17 @@ void LocomotiveManager::removeRosterEntry(uint16_t address) {
 RosterEntry::RosterEntry(const char *filename) {
   DynamicJsonBuffer buf;
   JsonObject &entry = configStore->load(filename, buf);
-  _description = entry[JSON_DESCRIPTION_NODE].as<String>();
+  _description = entry[JSON_DESCRIPTION_NODE].as<std::string>();
   _address = entry[JSON_ADDRESS_NODE];
-  _type = entry[JSON_TYPE_NODE].as<String>();
+  _type = entry[JSON_TYPE_NODE].as<std::string>();
   _idleOnStartup = entry[JSON_IDLE_ON_STARTUP_NODE] == JSON_VALUE_TRUE;
   _defaultOnThrottles = entry[JSON_DEFAULT_ON_THROTTLE_NODE] == JSON_VALUE_TRUE;
 }
 
 RosterEntry::RosterEntry(const JsonObject &json) {
-  _description = json[JSON_DESCRIPTION_NODE].as<String>();
+  _description = json[JSON_DESCRIPTION_NODE].as<std::string>();
   _address = json[JSON_ADDRESS_NODE];
-  _type = json[JSON_TYPE_NODE].as<String>();
+  _type = json[JSON_TYPE_NODE].as<std::string>();
   _idleOnStartup = json[JSON_IDLE_ON_STARTUP_NODE] == JSON_VALUE_TRUE;
   _defaultOnThrottles = json[JSON_DEFAULT_ON_THROTTLE_NODE] == JSON_VALUE_TRUE;
 }

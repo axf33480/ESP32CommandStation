@@ -45,7 +45,7 @@ public:
   void toJson(JsonObject &, bool=false);
   void addSensors(int16_t);
   void removeSensors(int16_t);
-  String getStateString();
+  std::string getStateString();
   const uint8_t getID() {
     return _id;
   }
@@ -91,8 +91,8 @@ private:
 
 class S88BusCommandAdapter : public DCCPPProtocolCommand {
 public:
-  void process(const std::vector<String>);
-  String getID() {
+  void process(const std::vector<std::string>);
+  std::string getID() {
     return "S88";
   }
 };

@@ -23,8 +23,7 @@ public:
   void init();
   void showConfiguration();
   void showInitInfo();
-  void send(const String &);
-  void print(const __FlashStringHelper *fmt, ...);
+  void broadcast(const std::string &);
   void setIP(tcpip_adapter_ip_info_t ip) {
     _ip_info.ip = ip.ip;
   }
@@ -34,13 +33,11 @@ private:
 
 extern WiFiInterface wifiInterface;
 
-
-
 class ESP32CSWebServer {
 public:
   ESP32CSWebServer(MDNS *mdns);
   void begin();
-  void broadcastToWS(const String &buf);
+  void broadcastToWS(const std::string &buf);
 private:
   MDNS *mdns_;
   std::string softAPAddress_;
@@ -61,3 +58,25 @@ private:
   void streamResource(AsyncWebServerRequest *);
   void notFoundHandler(AsyncWebServerRequest *);
 };
+
+class WebSocketClient : public DCCPPProtocolConsumer {
+public:
+  WebSocketClient(int clientID, uint32_t remoteIP) : _id(clientID), _remoteIP(remoteIP) {
+    LOG(INFO, "[WS %s] Connected", getName().c_str());
+  }
+  virtual ~WebSocketClient() {
+    LOG(INFO, "[WS %s] Disconnected", getName().c_str());
+  }
+  int getID() {
+    return _id;
+  }
+  std::string getName() {
+    return StringPrintf("%s/%d", ipv4_to_string(_remoteIP).c_str(), _id);
+  }
+private:
+  uint32_t _id;
+  uint32_t _remoteIP;
+};
+
+extern std::vector<WebSocketClient *> webSocketClients;
+extern std::vector<int> jmriClients;

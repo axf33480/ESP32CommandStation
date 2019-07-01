@@ -128,10 +128,10 @@ public:
   }
 
 protected:
-  SignalGenerator(String, uint16_t, uint8_t, uint8_t);
+  SignalGenerator(std::string, uint16_t, uint8_t, uint8_t);
   virtual void enable() = 0;
   virtual void disable() = 0;
-  const String _name;
+  const std::string _name;
   const uint8_t _signalID;
 private:
   inline void drainQueue() {

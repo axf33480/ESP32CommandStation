@@ -52,7 +52,7 @@ enum NEXTION_DEVICE_TYPE {
 
 class BaseNextionPage : public NextionPage {
 public:
-  BaseNextionPage(Nextion &, uint8_t, const String &);
+  BaseNextionPage(Nextion &, uint8_t, const std::string &);
   void display();
   void refresh();
   virtual void refreshPage() = 0;
@@ -100,8 +100,8 @@ public:
       NextionText(nextion, TITLE_PAGE, 8, "Status5")
      } {}
   void refreshPage() override {}
-  void setStatusText(int line, String text) {
-    _statusText[line].setText(text);
+  void setStatusText(int line, std::string text) {
+    _statusText[line].setText(text.c_str());
   }
   void clearStatusText() {
     for(auto line : _statusText) {
@@ -128,7 +128,7 @@ public:
   void removeNumber(const NextionButton *);
   void changeTurnoutType(const NextionButton *);
   uint32_t getNewAddress() {
-    return _newAddressString.toInt();
+    return std::stoi(_newAddressString);
   }
   uint32_t getCurrentAddress() {
     return _address;
@@ -157,7 +157,7 @@ private:
   NextionText _newAddress;
   uint32_t _address{0};
   uint8_t _turnoutType{TurnoutType::LEFT};
-  String _newAddressString{""};
+  std::string _newAddressString{"0"};
 };
 
 class NextionThrottlePage : public BaseNextionPage {
@@ -266,8 +266,7 @@ protected:
     _ssidText.setText(SSID_NAME);
     tcpip_adapter_ip_info_t ip;
     tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_STA, &ip);
-
-    _ipAddrText.setText(IPAddress(ip.ip.addr).toString().c_str());
+    _ipAddrText.setText(ipv4_to_string(ntohl(ip.ip.addr)).c_str());
   }
 
 private:
