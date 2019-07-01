@@ -45,28 +45,30 @@ void WiFiInterface::init() {
   auto nextionTitlePage = static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE]);
   nextionTitlePage->setStatusText(0, "Initializing WiFi");
 #endif
-  infoScreen.replaceLine(INFO_SCREEN_IP_ADDR_LINE, "IP:Pending");
-  infoScreen.replaceLine(INFO_SCREEN_CLIENTS_LINE, "TCP Conn: 00");
+  infoScreen->replaceLine(INFO_SCREEN_IP_ADDR_LINE, "IP:Pending");
+  infoScreen->replaceLine(INFO_SCREEN_CLIENTS_LINE, "TCP Conn: 00");
 
-  wifi_mgr.add_event_callback([](system_event_t *event) {
+  wifiManager->add_event_callback([](system_event_t *event) {
     if(event->event_id == SYSTEM_EVENT_STA_GOT_IP) {
-      statusLED.setStatusLED(StatusLED::LED::WIFI, StatusLED::COLOR::GREEN);
+      statusLED->setStatusLED(StatusLED::LED::WIFI, StatusLED::COLOR::GREEN);
       tcpip_adapter_ip_info_t ip_info;
       tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_STA, &ip_info);
       wifiInterface.setIP(ip_info);
-#if INFO_SCREEN_LCD && INFO_SCREEN_LCD_COLUMNS < 20
-      infoScreen.replaceLine(INFO_SCREEN_IP_ADDR_LINE, IPSTR, IP2STR(&ip_info.ip));
-#else
-      infoScreen.replaceLine(INFO_SCREEN_IP_ADDR_LINE, "IP: " IPSTR, IP2STR(&ip_info.ip));
+      infoScreen->replaceLine(INFO_SCREEN_IP_ADDR_LINE,
+#if (INFO_SCREEN_LCD && INFO_SCREEN_LCD_COLUMNS >= 20) || INFO_SCREEN_OLED
+                              "IP: "
 #endif
+                              IPSTR, IP2STR(&ip_info.ip)
+      );
+      LOG(INFO, "[WiFi] Starting JMRI listener");
       JMRIListener.reset(new SocketListener(JMRI_LISTENER_PORT, [](int fd) {
         jmriClients.push_back(fd);
         os_thread_create(nullptr, StringPrintf("jmri-%d", fd).c_str(),
                         JMRI_CLIENT_PRIORITY, JMRI_CLIENT_STACK_SIZE,
                         jmriClientHandler, (void *)fd);
-        infoScreen.replaceLine(INFO_SCREEN_CLIENTS_LINE,
-                               "TCP Conn: %02d",
-                               webSocketClients.length() + jmriClients.size());
+        infoScreen->replaceLine(INFO_SCREEN_CLIENTS_LINE,
+                                "TCP Conn: %02d",
+                                webSocketClients.length() + jmriClients.size());
       }));
       mDNS.publish("jmri", "_esp32cs._tcp", JMRI_LISTENER_PORT);
       esp32csWebServer.begin();
@@ -76,13 +78,14 @@ void WiFiInterface::init() {
       nextionPages[THROTTLE_PAGE]->display();
 #endif
     } else if (event->event_id == SYSTEM_EVENT_STA_LOST_IP) {
-      statusLED.setStatusLED(StatusLED::LED::WIFI, StatusLED::COLOR::RED);
+      statusLED->setStatusLED(StatusLED::LED::WIFI, StatusLED::COLOR::RED);
+      LOG(INFO, "[WiFi] Shutting down JMRI listener");
       JMRIListener.reset(nullptr);
-      infoScreen.replaceLine(INFO_SCREEN_IP_ADDR_LINE, "Disconnected");
+      infoScreen->replaceLine(INFO_SCREEN_IP_ADDR_LINE, "Disconnected");
     } else if (event->event_id == SYSTEM_EVENT_STA_DISCONNECTED) {
-      statusLED.setStatusLED(StatusLED::LED::WIFI, StatusLED::COLOR::GREEN_BLINK);
+      statusLED->setStatusLED(StatusLED::LED::WIFI, StatusLED::COLOR::GREEN_BLINK);
     } else if (event->event_id == SYSTEM_EVENT_STA_START) {
-      statusLED.setStatusLED(StatusLED::LED::WIFI, StatusLED::COLOR::GREEN_BLINK);
+      statusLED->setStatusLED(StatusLED::LED::WIFI, StatusLED::COLOR::GREEN_BLINK);
 #if NEXTION_ENABLED
       nextionTitlePage->setStatusText(0, "Connecting to WiFi");
 #endif
@@ -99,7 +102,7 @@ void WiFiInterface::send(const String &buf) {
     ::write(client, buf.c_str(), buf.length());
   }
   esp32csWebServer.broadcastToWS(buf);
-  hc12.send(buf.c_str());
+  hc12->send(buf.c_str());
 }
 
 void WiFiInterface::print(const __FlashStringHelper *fmt, ...) {
@@ -141,9 +144,9 @@ void *jmriClientHandler(void *arg) {
   if (it != jmriClients.end()) {
     jmriClients.erase(it);
   }
-  infoScreen.replaceLine(INFO_SCREEN_CLIENTS_LINE,
-                         "TCP Conn: %02d",
-                         webSocketClients.length() + jmriClients.size());
+  infoScreen->replaceLine(INFO_SCREEN_CLIENTS_LINE,
+                          "TCP Conn: %02d",
+                          webSocketClients.length() + jmriClients.size());
 
   ::close(fd);
   return nullptr;

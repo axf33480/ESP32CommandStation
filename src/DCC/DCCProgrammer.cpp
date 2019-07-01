@@ -49,7 +49,7 @@ bool enterProgrammingMode() {
   // check that the current is under 100mA limit, this will take ~50ms
   if(motorBoard->captureSample(50) > milliAmpStartupLimit) {
     LOG_ERROR("[PROG] current draw is over 100mA, aborting");
-    statusLED.setStatusLED(StatusLED::LED::PROG_TRACK, StatusLED::COLOR::RED);
+    statusLED->setStatusLED(StatusLED::LED::PROG_TRACK, StatusLED::COLOR::RED);
     leaveProgrammingMode();
     return false;
   }

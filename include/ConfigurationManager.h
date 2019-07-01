@@ -18,6 +18,7 @@ COPYRIGHT (c) 2018-2019 Mike Dunston
 #pragma once
 
 #include <ArduinoJson.h>
+#include <openlcb/Defs.hxx>
 
 // Class definition for the Configuration Management system in ESP32 Command Station
 class ConfigurationManager {
@@ -33,6 +34,9 @@ public:
   JsonObject &load(const char *, DynamicJsonBuffer &);
   void store(const char *, const JsonObject &);
   JsonObject &createRootNode(bool=true);
+  openlcb::NodeID getNodeId();
+  bool needLCCCan(gpio_num_t *rxPin, gpio_num_t *txPin);
+  void configureWiFi(openlcb::SimpleCanStack *stack, const WiFiConfiguration &cfg);
 };
 
 extern ConfigurationManager *configStore;

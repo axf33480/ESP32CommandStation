@@ -88,7 +88,7 @@ void TurnoutManager::init() {
     JsonObject &root = configStore->load(TURNOUTS_JSON_FILE);
     JsonVariant count = root[JSON_COUNT_NODE];
     uint16_t turnoutCount = count.success() ? count.as<int>() : 0;
-    infoScreen.replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Found %02d Turnouts", turnoutCount);
+    infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Found %02d Turnouts", turnoutCount);
     if(turnoutCount > 0) {
       for(auto turnout : root.get<JsonArray>(JSON_TURNOUTS_NODE)) {
         turnouts.add(new Turnout(turnout.as<JsonObject &>()));

@@ -256,7 +256,7 @@ void LocomotiveManager::init() {
     JsonVariant count = root[JSON_COUNT_NODE];
     uint16_t locoCount = count.success() ? count.as<int>() : 0;
     LOG(INFO, "[Roster] Loading %d Locomotive Roster entries", locoCount);
-    infoScreen.replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Found %02d Locos", locoCount);
+    infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Found %02d Locos", locoCount);
     if (locoCount > 0) {
       JsonArray &rosterEntries = root.get<JsonArray>(JSON_LOCOS_NODE);
       for (auto entry : rosterEntries) {
@@ -275,7 +275,7 @@ void LocomotiveManager::init() {
     JsonVariant count = root[JSON_COUNT_NODE];
     uint16_t locoCount = count.success() ? count.as<int>() : 0;
     LOG(INFO, "[Roster] Loading %d older version Locomotive Roster entries", locoCount);
-    infoScreen.replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Load %02d Locos", locoCount);
+    infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Load %02d Locos", locoCount);
     if (locoCount > 0) {
       JsonArray &rosterEntries = root.get<JsonArray>(JSON_LOCOS_NODE);
       for (auto entry : rosterEntries) {
@@ -292,7 +292,7 @@ void LocomotiveManager::init() {
     JsonVariant count = consistRoot[JSON_COUNT_NODE];
     uint16_t consistCount = count.success() ? count.as<int>() : 0;
     LOG(INFO, "[Consist] Loading %d Locomotive Consists", consistCount);
-    infoScreen.replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Load %02d Consists", consistCount);
+    infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Load %02d Consists", consistCount);
     if (consistCount > 0) {
       JsonArray &consists = consistRoot.get<JsonArray>(JSON_CONSISTS_NODE);
       for(auto entry : consists) {
@@ -311,7 +311,7 @@ void LocomotiveManager::init() {
     JsonVariant count = consistRoot[JSON_COUNT_NODE];
     uint16_t consistCount = count.success() ? count.as<int>() : 0;
     LOG(INFO, "[Consist] Loading %d older version Locomotive Consists", consistCount);
-    infoScreen.replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Load %02d Consists", consistCount);
+    infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Load %02d Consists", consistCount);
     if (consistCount > 0) {
       JsonArray &consists = consistRoot.get<JsonArray>(JSON_CONSISTS_NODE);
       for (auto entry : consists) {

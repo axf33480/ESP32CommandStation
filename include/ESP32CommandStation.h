@@ -34,21 +34,45 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #include <ArduinoJson.h>
 #include <StringArray.h>
 
+#include <OpenMRNLite.h>
+
 #include <dcc/Loco.hxx>
 #include <dcc/Packet.hxx>
+#include <dcc/PacketFlowInterface.hxx>
+#include <dcc/RailcomHub.hxx>
+#include <dcc/RailcomPortDebug.hxx>
 #include <dcc/SimpleUpdateLoop.hxx>
+
+#include <openlcb/CallbackEventHandler.hxx>
+#include <openlcb/ConfiguredTcpConnection.hxx>
+#include <openlcb/DccAccyConsumer.hxx>
+#include <openlcb/DccAccyProducer.hxx>
+#include <openlcb/TcpDefs.hxx>
+
+#include <os/MDNS.hxx>
 
 #include <utils/format_utils.hxx>
 #include <utils/logging.h>
 #include <utils/macros.h>
 #include <utils/StringPrintf.hxx>
 
-#include <OpenMRNLite.h>
-
-#include <os/MDNS.hxx>
 #include <ESPAsyncWebServer.h>
 
 #include "Config.h"
+
+// Simplified callback handler to automatically register the callbacks
+class EventCallbackHandler : public openlcb::CallbackEventHandler {
+public:
+  EventCallbackHandler(uint64_t eventID,
+                       uint32_t callbackType,
+                       openlcb::Node *node,
+                       openlcb::CallbackEventHandler::EventReportHandlerFn report_handler,
+                       openlcb::CallbackEventHandler::EventStateHandlerFn state_handler) :
+    openlcb::CallbackEventHandler(node, report_handler, state_handler)
+  {
+    add_entry(eventID, callbackType);
+  }
+};
 
 /////////////////////////////////////////////////////////////////////////////////////
 //
@@ -183,13 +207,12 @@ constexpr uint16_t S88_MAX_SENSORS_PER_BUS = 512;
 #include "dcc/MotorBoard.h"
 #include "dcc/Turnouts.h"
 
-#include "interfaces/LCCInterface.h"
-
 #include "interfaces/DCCppProtocol.h"
 #include "interfaces/NextionInterface.h"
 #include "interfaces/WiFiInterface.h"
 
 #include "stateflows/InfoScreen.h"
+#include "stateflows/InfoScreenCollector.h"
 #include "stateflows/StatusLED.h"
 #include "stateflows/HC12Radio.h"
 
@@ -199,6 +222,13 @@ constexpr uint16_t S88_MAX_SENSORS_PER_BUS = 512;
 #include "io/RemoteSensors.h"
 
 extern std::vector<uint8_t> restrictedPins;
+extern std::unique_ptr<Esp32WiFiManager> wifiManager;
+extern std::unique_ptr<dcc::RailcomHubFlow> railComHub;
+extern std::unique_ptr<dcc::RailcomPrintfFlow> railComDataDumper;
+extern std::unique_ptr<InfoScreen> infoScreen;
+extern std::unique_ptr<InfoScreenStatCollector> infoScreenCollector;
+extern std::unique_ptr<StatusLED> statusLED;
+extern std::unique_ptr<HC12Radio> hc12;
 
 #if LOCONET_ENABLED
 #include <LocoNetESP32UART.h>

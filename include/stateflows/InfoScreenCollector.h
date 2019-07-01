@@ -17,15 +17,9 @@ COPYRIGHT (c) 2019 Mike Dunston
 
 #pragma once
 
-#include <dcc/RailcomHub.hxx>
 #include <executor/StateFlow.hxx>
-
-class LCCInterface {
-public:
-  LCCInterface();
-  void init();
-  void update();
-};
+#include <openlcb/IfCan.hxx>
+#include <openlcb/SimpleStack.hxx>
 
 class InfoScreenStatCollector : public StateFlowBase {
 public:
@@ -70,7 +64,3 @@ private:
     uint32_t executorCount_{0};
     uint32_t lastExecutorCount_{0};
 };
-
-extern LCCInterface lccInterface;
-extern InfoScreenStatCollector infoScreenCollector;
-extern dcc::RailcomHubFlow railComHub;

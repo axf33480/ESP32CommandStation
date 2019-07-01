@@ -19,12 +19,15 @@ COPYRIGHT (c) 2019 Mike Dunston
 
 StateFlowBase::Action StatusLED::init() {
   LOG(INFO, "[StatusLED] Initializing LEDs");
+#if defined(STATUS_LED_DATA_PIN) && defined(STATUS_LED_BRIGHTNESS)
   bus_.reset(new NeoPixelBrightnessBus<NEO_COLOR_MODE, NEO_METHOD>(LED::MAX_LED, STATUS_LED_DATA_PIN));
   bus_->Begin();
   bus_->SetBrightness(STATUS_LED_BRIGHTNESS);
   bus_->ClearTo(RGB_OFF_);
   bus_->Show();
   return sleep_and_call(&timer_, updateInterval_, STATE(update));
+#endif
+  return exit();
 }
 
 StateFlowBase::Action StatusLED::update() {

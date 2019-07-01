@@ -72,9 +72,9 @@ void handleWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client,
   if (type == WS_EVT_CONNECT) {
     webSocketClients.add(new WebSocketClient(client->id(), client->remoteIP()));
     client->printf("<iDCC++ ESP32 Command Station: V-%s / %s %s>", VERSION, __DATE__, __TIME__);
-    infoScreen.replaceLine(INFO_SCREEN_CLIENTS_LINE, 
-                           "TCP Conn: %02d",
-                           webSocketClients.length() + jmriClients.size());
+    infoScreen->replaceLine(INFO_SCREEN_CLIENTS_LINE, 
+                            "TCP Conn: %02d",
+                            webSocketClients.length() + jmriClients.size());
   } else if (type == WS_EVT_DISCONNECT) {
     WebSocketClient *toRemove = nullptr;
     for (const auto& clientNode : webSocketClients) {
@@ -85,9 +85,9 @@ void handleWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client,
     if(toRemove != nullptr) {
       webSocketClients.remove(toRemove);
     }
-    infoScreen.replaceLine(INFO_SCREEN_CLIENTS_LINE,
-                           "TCP Conn: %02d",
-                           webSocketClients.length() + jmriClients.size());
+    infoScreen->replaceLine(INFO_SCREEN_CLIENTS_LINE,
+                            "TCP Conn: %02d",
+                            webSocketClients.length() + jmriClients.size());
   } else if (type == WS_EVT_DATA) {
     for (const auto& clientNode : webSocketClients) {
       if(clientNode->getID() == client->id()) {
@@ -665,16 +665,16 @@ void handleOTAUpload(AsyncWebServerRequest *request, const String& filename, siz
 #endif
     otaInProgress = true;
     // set the status LEDs to alternating green blink while OTA in progress
-    statusLED.setStatusLED(StatusLED::LED::EXT_1, StatusLED::COLOR::GREEN_BLINK, true);
-    statusLED.setStatusLED(StatusLED::LED::EXT_2, StatusLED::COLOR::GREEN_BLINK);
+    statusLED->setStatusLED(StatusLED::LED::EXT_1, StatusLED::COLOR::GREEN_BLINK, true);
+    statusLED->setStatusLED(StatusLED::LED::EXT_2, StatusLED::COLOR::GREEN_BLINK);
     LOG(INFO, "[WebSrv] OTA Update starting...");
-    infoScreen.replaceLine(INFO_SCREEN_STATION_INFO_LINE, "Update starting");
+    infoScreen->replaceLine(INFO_SCREEN_STATION_INFO_LINE, "Update starting");
     MotorBoardManager::powerOffAll();
     if (!Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH)) {
 #if NEXTION_ENABLED
       static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(1, OTA_ERROR_STRINGS[Update.getError()]);
 #endif
-      infoScreen.replaceLine(INFO_SCREEN_STATION_INFO_LINE, OTA_ERROR_STRINGS[Update.getError()]);
+      infoScreen->replaceLine(INFO_SCREEN_STATION_INFO_LINE, OTA_ERROR_STRINGS[Update.getError()]);
       request->send(STATUS_BAD_REQUEST, "text/plain", OTA_ERROR_STRINGS[Update.getError()]);
       Update.printError(Serial);
     }
@@ -683,11 +683,11 @@ void handleOTAUpload(AsyncWebServerRequest *request, const String& filename, siz
 #if NEXTION_ENABLED
     static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(1, OTA_ERROR_STRINGS[Update.getError()]);
 #endif
-    infoScreen.replaceLine(INFO_SCREEN_STATION_INFO_LINE, OTA_ERROR_STRINGS[Update.getError()]);
+    infoScreen->replaceLine(INFO_SCREEN_STATION_INFO_LINE, OTA_ERROR_STRINGS[Update.getError()]);
     request->send(STATUS_BAD_REQUEST, "text/plain", OTA_ERROR_STRINGS[Update.getError()]);
     Update.printError(Serial);
   } else {
-    infoScreen.replaceLine(INFO_SCREEN_STATION_INFO_LINE, "Updating: %d", Update.progress());
+    infoScreen->replaceLine(INFO_SCREEN_STATION_INFO_LINE, "Updating: %d", Update.progress());
 #if NEXTION_ENABLED
     static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(1, String("Progress: ") + String(Update.progress()));
 #endif
@@ -698,22 +698,22 @@ void handleOTAUpload(AsyncWebServerRequest *request, const String& filename, siz
       static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(1, "Update Complete");
       static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(2, "Rebooting");
 #endif
-      infoScreen.replaceLine(INFO_SCREEN_STATION_INFO_LINE, "Update Complete");
+      infoScreen->replaceLine(INFO_SCREEN_STATION_INFO_LINE, "Update Complete");
       otaComplete = true;
       LOG(INFO, "[WebSrv] OTA Update Complete!");
       // update successful, set to green and they will go dark after reboot
-      statusLED.setStatusLED(StatusLED::LED::EXT_1, StatusLED::COLOR::GREEN);
-      statusLED.setStatusLED(StatusLED::LED::EXT_2, StatusLED::COLOR::GREEN);
+      statusLED->setStatusLED(StatusLED::LED::EXT_1, StatusLED::COLOR::GREEN);
+      statusLED->setStatusLED(StatusLED::LED::EXT_2, StatusLED::COLOR::GREEN);
     } else {
 #if NEXTION_ENABLED
       static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(1, OTA_ERROR_STRINGS[Update.getError()]);
 #endif
-      infoScreen.replaceLine(INFO_SCREEN_STATION_INFO_LINE, OTA_ERROR_STRINGS[Update.getError()]);
+      infoScreen->replaceLine(INFO_SCREEN_STATION_INFO_LINE, OTA_ERROR_STRINGS[Update.getError()]);
       request->send(STATUS_BAD_REQUEST, "text/plain", OTA_ERROR_STRINGS[Update.getError()]);
       Update.printError(Serial);
       // setup blink pattern for failure
-      statusLED.setStatusLED(StatusLED::LED::EXT_1, StatusLED::COLOR::RED_BLINK, true);
-      statusLED.setStatusLED(StatusLED::LED::EXT_2, StatusLED::COLOR::RED_BLINK);
+      statusLED->setStatusLED(StatusLED::LED::EXT_1, StatusLED::COLOR::RED_BLINK, true);
+      statusLED->setStatusLED(StatusLED::LED::EXT_2, StatusLED::COLOR::RED_BLINK);
     }
   }
 }

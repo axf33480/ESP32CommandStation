@@ -205,3 +205,48 @@ JsonObject &ConfigurationManager::createRootNode(bool clearBuffer) {
   }
   return jsonConfigBuffer.createObject();
 }
+
+openlcb::NodeID ConfigurationManager::getNodeId() {
+  return UINT64_C(LCC_NODE_ID);
+}
+
+bool ConfigurationManager::needLCCCan(gpio_num_t *rxPin, gpio_num_t *txPin) {
+#if LCC_CAN_RX_PIN != NOT_A_PIN && LCC_CAN_TX_PIN != NOT_A_PIN
+  *rxPin = (gpio_num_t)LCC_CAN_RX_PIN;
+  *txPin = (gpio_num_t)LCC_CAN_TX_PIN;
+  return true;
+#else
+  return false;
+#endif
+}
+
+void ConfigurationManager::configureWiFi(openlcb::SimpleCanStack *stack, const WiFiConfiguration &cfg) {
+  wifi_mode_t wifiMode = WIFI_MODE_STA;
+#if WIFI_ENABLE_SOFT_AP
+  wifiMode =  WIFI_MODE_APSTA;
+#endif
+
+
+#if !defined(WIFI_STATIC_IP_ADDRESS) || !defined(WIFI_STATIC_IP_GATEWAY) || !defined(WIFI_STATIC_IP_SUBNET)
+  tcpip_adapter_ip_info_t *stationStaticIP = nullptr;
+  ip_addr_t stationDNSServer = ip_addr_any;
+#else
+  tcpip_adapter_ip_info_t _staticIP = {
+      htonl(WIFI_STATIC_IP_ADDRESS),
+      htonl(WIFI_STATIC_IP_SUBNET),
+      htonl(WIFI_STATIC_IP_GATEWAY)
+  };
+  tcpip_adapter_ip_info_t *stationStaticIP = &_staticIP;
+#ifdef WIFI_STATIC_IP_DNS
+  ip_addr_t stationDNSServer = IPADDR4_INIT(htonl(WIFI_STATIC_IP_DNS));
+#else
+  ip_addr_t stationDNSServer = ip_addr_any;
+#endif
+#endif
+  wifiManager.reset(new Esp32WiFiManager(SSID_NAME, SSID_PASSWORD,
+                                         stack, cfg,
+                                         HOSTNAME_PREFIX, wifiMode,
+                                         stationStaticIP, stationDNSServer,
+                                         WIFI_SOFT_AP_CHANNEL, WIFI_SOFT_AP_MAX_CLIENTS,
+                                         WIFI_AUTH_OPEN));
+}

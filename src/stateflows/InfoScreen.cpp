@@ -211,20 +211,20 @@ StateFlowBase::Action InfoScreen::update() {
       ++_lccStatusIndex %= 5;
       if(_lccStatusIndex == 0) {
         replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "LCC Nodes: %d",
-          infoScreenCollector.getRemoteNodeCount());
+          infoScreenCollector->getRemoteNodeCount());
       } else if (_lccStatusIndex == 1) {
         replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "LCC Lcl: %d",
-          infoScreenCollector.getLocalNodeCount());
+          infoScreenCollector->getLocalNodeCount());
       } else if (_lccStatusIndex == 2) {
         replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "LCC dg_svc: %d",
-          infoScreenCollector.getDatagramCount());
+          infoScreenCollector->getDatagramCount());
       } else if (_lccStatusIndex == 3) {
         replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "LCC Ex: %d",
-          infoScreenCollector.getExecutorCount());
+          infoScreenCollector->getExecutorCount());
       } else if (_lccStatusIndex == 4) {
         replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "LCC Pool: %d/%d",
-          infoScreenCollector.getPoolFreeCount(),
-          infoScreenCollector.getPoolSize());
+          infoScreenCollector->getPoolFreeCount(),
+          infoScreenCollector->getPoolSize());
       }
 #if LOCONET_ENABLED
     } else if (_rotatingStatusIndex == _firstLocoNetIndex) {
