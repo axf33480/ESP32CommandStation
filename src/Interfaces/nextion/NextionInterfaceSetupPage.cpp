@@ -18,8 +18,6 @@ COPYRIGHT (c) 2018-2019 Mike Dunston
 
 #include "ESP32CommandStation.h"
 
-#if NEXTION_ENABLED
-
 //
 /************************************************************************************************************/
 // Setup Page
@@ -57,5 +55,3 @@ NextionSetupPage::NextionSetupPage(Nextion &nextion) :
     }
   });
 }
-
-#endif

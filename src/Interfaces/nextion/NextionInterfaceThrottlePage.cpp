@@ -17,8 +17,6 @@ COPYRIGHT (c) 2018-2019 NormHal, Mike Dunston
 
 #include "ESP32CommandStation.h"
 
-#if NEXTION_ENABLED
-
 const uint8_t dec=4;            //Dec
 const uint8_t throttlenum=5;    //ThrottleNum
 const uint8_t inc=6;            //Inc
@@ -396,5 +394,3 @@ void NextionThrottlePage::refreshFunctionButtons() {
     _functionButtons[FUNC_LIGHT_INDEX].setPictureID(F0_PIC_OFF);
   }
 }
-
-#endif

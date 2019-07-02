@@ -41,7 +41,17 @@ S88 Sensors are reported in the same manner as generic Sensors:
   <q ID>     - for deactivation of S88 Sensor ID.
 
 **********************************************************************/
-#if S88_ENABLED
+
+// Set some defaults for compilation purposes.
+#ifndef S88_CLOCK_PIN
+#define S88_CLOCK_PIN 17
+#endif
+#ifndef S88_RESET_PIN
+#define S88_RESET_PIN 16
+#endif
+#ifndef S88_LOAD_PIN
+#define S88_LOAD_PIN 27
+#endif
 
 /////////////////////////////////////////////////////////////////////////////////////
 // S88 Timing values (in microseconds)
@@ -73,6 +83,7 @@ LinkedList<S88SensorBus *> s88SensorBus([](S88SensorBus *sensorBus) {
 });
 
 void S88BusManager::init() {
+#if S88_ENABLED
   LOG(INFO, "[S88] Configuration (clock: %d, reset: %d, load: %d)", S88_CLOCK_PIN, S88_RESET_PIN, S88_LOAD_PIN);
   pinMode(S88_CLOCK_PIN, OUTPUT);
   pinMode(S88_RESET_PIN, OUTPUT);
@@ -82,7 +93,7 @@ void S88BusManager::init() {
   JsonObject &root = configStore->load(S88_SENSORS_JSON_FILE);
   JsonVariant count = root[JSON_COUNT_NODE];
   uint16_t s88BusCount = count.success() ? count.as<int>() : 0;
-  InfoScreen::replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, F("Found %02d S88 Bus"), s88BusCount);
+  infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Found %02d S88 Bus", s88BusCount);
   if(s88BusCount > 0) {
     for(auto bus : root.get<JsonArray>(JSON_SENSORS_NODE)) {
       s88SensorBus.add(new S88SensorBus(bus.as<JsonObject &>()));
@@ -91,6 +102,7 @@ void S88BusManager::init() {
   LOG(INFO, "[S88] Loaded %d Sensor Buses", s88SensorBus.length());
   _s88SensorLock = xSemaphoreCreateMutex();
   xTaskCreate(s88SensorTask, "S88SensorManager", S88_SENSOR_TASK_STACK_SIZE, NULL, S88_SENSOR_TASK_PRIORITY, &_taskHandle);
+#endif
 }
 
 void S88BusManager::clear() {
@@ -106,7 +118,7 @@ uint8_t S88BusManager::store() {
     sensorBusIndex++;
   }
   root[JSON_COUNT_NODE] = sensorBusIndex;
-  configStore.store(S88_SENSORS_JSON_FILE, root);
+  configStore->store(S88_SENSORS_JSON_FILE, root);
   return sensorBusIndex;
 }
 
@@ -217,7 +229,7 @@ S88SensorBus::S88SensorBus(JsonObject &json) {
   _dataPin = json[JSON_PIN_NODE];
   _lastSensorID = _sensorIDBase = json[JSON_S88_SENSOR_BASE_NODE];
   uint16_t sensorCount = json[JSON_COUNT_NODE];
-  InfoScreen::replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, F("S88(%d) %02d sensors"), _id, sensorCount);
+  infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "S88(%d) %02d sensors", _id, sensorCount);
   if(sensorCount > 0) {
     addSensors(sensorCount);
   }
@@ -324,4 +336,3 @@ void S88BusCommandAdapter::process(const std::vector<std::string> arguments) {
 S88Sensor::S88Sensor(uint16_t id, uint16_t index) : Sensor(id, NON_STORED_SENSOR_PIN, false, false), _index(index) {
   LOG(VERBOSE, "[S88] Sensor(%d) created with index %d", id, _index);
 }
-#endif

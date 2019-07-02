@@ -19,7 +19,6 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 #include <ESPAsyncDNSServer.h>
 #include <AsyncJson.h>
-#include <Update.h>
 
 // generated web content
 #include "generated/index_html.h"
@@ -632,63 +631,53 @@ void ESP32CSWebServer::handleLocomotive(AsyncWebServerRequest *request) {
   request->send(jsonResponse);
 }
 
-static constexpr char const * OTA_ERROR_STRINGS[] = {
-  "No Error", // UPDATE_ERROR_OK
-  "Flash Write Failed", // UPDATE_ERROR_WRITE
-  "Flash Erase Failed", // UPDATE_ERROR_ERASE
-  "Flash Read Failed", // UPDATE_ERROR_READ
-  "Not Enough Space", // UPDATE_ERROR_SPACE
-  "Bad Size Given", // UPDATE_ERROR_SIZE
-  "Stream Read Timeout", // UPDATE_ERROR_STREAM
-  "MD5 Check Failed", // UPDATE_ERROR_MD5
-  "Wrong Magic Byte", // UPDATE_ERROR_MAGIC_BYTE
-  "Could Not Activate The Firmware", // UPDATE_ERROR_ACTIVATE
-  "Partition Could Not be Found", // UPDATE_ERROR_NO_PARTITION
-  "Bad Argument", // UPDATE_ERROR_BAD_ARGUMENT
-  "Aborted", // UPDATE_ERROR_ABORT
-};
-
 void ESP32CSWebServer::handleOTA(AsyncWebServerRequest *request) {
-  request->send(STATUS_OK, "text/plain", OTA_ERROR_STRINGS[Update.getError()]);
+  request->send(STATUS_OK, "text/plain", "OTA Upload Complete");
 }
 
+uint32_t otaProgress = 0;
+
 void handleOTAUpload(AsyncWebServerRequest *request, const String& filename, size_t index, uint8_t *data, size_t len, bool final) {
+  esp_err_t res = ESP_OK;
   if (!index) {
+    otaProgress = 0;
 #if NEXTION_ENABLED
     nextionPages[TITLE_PAGE]->show();
     static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(0, "OTA Upload Started...");
 #endif
-    otaInProgress = true;
+    res = esp_ota_begin(esp_ota_get_next_update_partition(NULL),
+                        OTA_SIZE_UNKNOWN,
+                        &otaInProgress);
+    if(res != ESP_OK) {
+      LOG_ERROR("[WebSrv] OTA Update failure: %s (%d)", esp_err_to_name(res), res);
+      request->send(STATUS_BAD_REQUEST, "text/plain", esp_err_to_name(res));
+      return;
+    } 
     // set the status LEDs to alternating green blink while OTA in progress
     statusLED->setStatusLED(StatusLED::LED::EXT_1, StatusLED::COLOR::GREEN_BLINK, true);
     statusLED->setStatusLED(StatusLED::LED::EXT_2, StatusLED::COLOR::GREEN_BLINK);
     LOG(INFO, "[WebSrv] OTA Update starting...");
     infoScreen->replaceLine(INFO_SCREEN_STATION_INFO_LINE, "Update starting");
     MotorBoardManager::powerOffAll();
-    if (!Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH)) {
-#if NEXTION_ENABLED
-      static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(1, OTA_ERROR_STRINGS[Update.getError()]);
-#endif
-      infoScreen->replaceLine(INFO_SCREEN_STATION_INFO_LINE, OTA_ERROR_STRINGS[Update.getError()]);
-      request->send(STATUS_BAD_REQUEST, "text/plain", OTA_ERROR_STRINGS[Update.getError()]);
-      Update.printError(Serial);
-    }
   }
-  if (Update.write(data, len) != len) {
+  res = esp_ota_write(otaInProgress, data, len);
+  if (res != ESP_OK) {
 #if NEXTION_ENABLED
     static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(1, OTA_ERROR_STRINGS[Update.getError()]);
 #endif
-    infoScreen->replaceLine(INFO_SCREEN_STATION_INFO_LINE, OTA_ERROR_STRINGS[Update.getError()]);
-    request->send(STATUS_BAD_REQUEST, "text/plain", OTA_ERROR_STRINGS[Update.getError()]);
-    Update.printError(Serial);
+    infoScreen->replaceLine(INFO_SCREEN_STATION_INFO_LINE, esp_err_to_name(res));
+    LOG_ERROR("[WebSrv] OTA Update failure: %s (%d)", esp_err_to_name(res), res);
+    request->send(STATUS_BAD_REQUEST, "text/plain", esp_err_to_name(res));
   } else {
-    infoScreen->replaceLine(INFO_SCREEN_STATION_INFO_LINE, "Updating: %d", Update.progress());
+    otaProgress += len;
+    infoScreen->replaceLine(INFO_SCREEN_STATION_INFO_LINE, "Updating: %d", otaProgress);
 #if NEXTION_ENABLED
-    static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(1, String("Progress: ") + String(Update.progress()));
+    static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(1, StringPrintf("Progress: %d", otaProgress).c_str());
 #endif
   }
   if (final) {
-    if (Update.end(true)) {
+    res = esp_ota_end(otaInProgress);
+    if (res == ESP_OK) {
 #if NEXTION_ENABLED
       static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(1, "Update Complete");
       static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(2, "Rebooting");
@@ -701,11 +690,10 @@ void handleOTAUpload(AsyncWebServerRequest *request, const String& filename, siz
       statusLED->setStatusLED(StatusLED::LED::EXT_2, StatusLED::COLOR::GREEN);
     } else {
 #if NEXTION_ENABLED
-      static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(1, OTA_ERROR_STRINGS[Update.getError()]);
+      static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(1, esp_err_to_name(res));
 #endif
-      infoScreen->replaceLine(INFO_SCREEN_STATION_INFO_LINE, OTA_ERROR_STRINGS[Update.getError()]);
-      request->send(STATUS_BAD_REQUEST, "text/plain", OTA_ERROR_STRINGS[Update.getError()]);
-      Update.printError(Serial);
+      LOG_ERROR("[WebSrv] OTA Update failure: %s (%d)", esp_err_to_name(res), res);
+      request->send(STATUS_BAD_REQUEST, "text/plain", esp_err_to_name(res));
       // setup blink pattern for failure
       statusLED->setStatusLED(StatusLED::LED::EXT_1, StatusLED::COLOR::RED_BLINK, true);
       statusLED->setStatusLED(StatusLED::LED::EXT_2, StatusLED::COLOR::RED_BLINK);

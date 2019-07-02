@@ -17,15 +17,13 @@ COPYRIGHT (c) 2018-2019 NormHal, Mike Dunston
 
 #include "ESP32CommandStation.h"
 
-#if NEXTION_ENABLED
-
 constexpr uint8_t ON_PIC_OFF=54;
 constexpr uint8_t ON_PIC_ON=55;
 constexpr uint8_t OFF_PIC_OFF=56;
 constexpr uint8_t OFF_PIC_ON=57;
 
-BaseNextionPage::BaseNextionPage(Nextion &nextion, const uint8_t pageID, const String &pageName) :
-  NextionPage(nextion, pageID, 0, pageName),
+BaseNextionPage::BaseNextionPage(Nextion &nextion, const uint8_t pageID, const std::string &pageName) :
+  NextionPage(nextion, pageID, 0, pageName.c_str()),
   _onButton(nextion, pageID, 1, "On"),
   _stopButton(nextion, pageID, 2, "Stop"),
   _offButton(nextion, pageID, 3, "Off") {
@@ -97,5 +95,3 @@ void BaseNextionPage::refreshPowerButtons() {
     _offButton.setPictureID(OFF_PIC_ON);
   }
 }
-
-#endif

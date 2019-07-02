@@ -17,8 +17,6 @@ COPYRIGHT (c) 2018-2019 NormHal, Mike Dunston
 
 #include "ESP32CommandStation.h"
 
-#if NEXTION_ENABLED
-
 constexpr uint8_t oldaddr=7; //OldAddr
 constexpr uint8_t newaddr=8; //NewAddr
 constexpr uint8_t num1=9;    //b1 PIC 72/82
@@ -102,13 +100,13 @@ void NextionAddressPage::addNumber(const NextionButton *button) {
   static const uint8_t buttonMap[10] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 0};
   for(int index = 0; index < 10; index++) {
     if(button == &_buttons[index]) {
-      _newAddressString += String(buttonMap[index]);
-      _newAddress.setTextAsNumber(_newAddressString.toInt());
+      _newAddressString.append(integer_to_string(buttonMap[index]));
+      _newAddress.setText(_newAddressString.c_str());
       // if it is a turnout, calculate and display the board address and index
       if(_addressPic.getPictureID() == TURNOUT_PIC) {
         uint16_t boardAddress = 0;
         uint8_t boardIndex = 0;
-        calculateTurnoutBoardAddressAndIndex(&boardAddress, &boardIndex, _newAddressString.toInt());
+        calculateTurnoutBoardAddressAndIndex(&boardAddress, &boardIndex, std::stoi(_newAddressString));
         _boardAddress.setTextAsNumber(boardAddress);
         _indexAddress.setTextAsNumber(boardIndex);
       }
@@ -126,18 +124,18 @@ void NextionAddressPage::changeTurnoutType(const NextionButton *button) {
 void NextionAddressPage::removeNumber(const NextionButton *button) {
   if(_newAddressString.length() > 0) {
     // remove last character
-    _newAddressString.remove(_newAddressString.length() - 1);
+    _newAddressString.resize(_newAddressString.size() - 1);
   }
   if(_newAddressString.length() == 0) {
     // if our string is empty, default to zero
-    _newAddressString.concat("0");
+    _newAddressString.append("0");
   }
-  _newAddress.setTextAsNumber(_newAddressString.toInt());
+  _newAddress.setText(_newAddressString.c_str());
 
   if(_addressPic.getPictureID() == TURNOUT_PIC) {
     uint16_t boardAddress = 0;
     uint8_t boardIndex = 0;
-    calculateTurnoutBoardAddressAndIndex(&boardAddress, &boardIndex, _newAddressString.toInt());
+    calculateTurnoutBoardAddressAndIndex(&boardAddress, &boardIndex, std::stoi(_newAddressString));
     _boardAddress.setTextAsNumber(boardAddress);
     _indexAddress.setTextAsNumber(boardIndex);
   }
@@ -150,7 +148,7 @@ void NextionAddressPage::displayPage() {
     _currentAddress.setTextAsNumber(_address);
     _currentAddress.show();
     if(getReturnPage() == TURNOUT_PAGE) {
-      _newAddressString = String(_address);
+      _newAddressString = integer_to_string(_address);
       _newAddress.setTextAsNumber(_address);
     }
   }
@@ -186,5 +184,3 @@ void NextionAddressPage::refreshTurnoutTypeButton() {
   }
   _turnoutTypeButton.show();
 }
-
-#endif

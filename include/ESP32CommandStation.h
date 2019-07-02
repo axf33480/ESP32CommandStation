@@ -58,6 +58,8 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 #include <ESPAsyncWebServer.h>
 
+#include <esp_ota_ops.h>
+
 #include "Config.h"
 
 // Simplified callback handler to automatically register the callbacks
@@ -235,8 +237,10 @@ extern std::unique_ptr<HC12Radio> hc12;
 extern LocoNetESP32Uart locoNet;
 #endif
 
+void initializeLocoNet();
+
 extern bool otaComplete;
-extern bool otaInProgress;
+extern esp_ota_handle_t otaInProgress;
 
 #define MUTEX_LOCK(mutex)    do {} while (xSemaphoreTake(mutex, portMAX_DELAY) != pdPASS)
 #define MUTEX_UNLOCK(mutex)  xSemaphoreGive(mutex)

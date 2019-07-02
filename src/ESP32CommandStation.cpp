@@ -50,10 +50,6 @@ std::vector<uint8_t> restrictedPins
 std::vector<uint8_t> restrictedPins;
 #endif
 
-#if LOCONET_ENABLED
-LocoNetESP32Uart locoNet(LOCONET_RX_PIN, LOCONET_TX_PIN, LOCONET_UART, LOCONET_INVERTED_LOGIC, LOCONET_ENABLE_RX_PIN_PULLUP);
-#endif
-
 std::unique_ptr<OpenMRN> openmrn;
 // note the dummy string below is required due to a bug in the GCC compiler
 // for the ESP32
@@ -162,7 +158,7 @@ public:
 DccPacketQueueInjector dccPacketInjector;
 
 bool otaComplete = false;
-bool otaInProgress = false;
+esp_ota_handle_t otaInProgress = 0;
 
 #if LCC_CPULOAD_REPORTING
 #include <freertos_drivers/arduino/CpuLoad.hxx>
@@ -213,9 +209,6 @@ void setup() {
   // set up ADC1 here since we use it for all motor boards
   adc1_config_width(ADC_WIDTH_BIT_12);
 
-#if NEXTION_ENABLED
-  nextionInterfaceInit();
-#endif
   configStore = new ConfigurationManager();
 
   // pre-create LCC configuration directory
@@ -302,6 +295,8 @@ void setup() {
     openmrn->add_can_port(new Esp32HardwareCan("esp32can", canRXPin, canTXPin, false));
   }
 
+  nextionInterfaceInit();
+
   // Start the OpenMRN stack
   openmrn->begin();
   openmrn->start_executor_thread();
@@ -332,157 +327,17 @@ void setup() {
 
   OutputManager::init();
   SensorManager::init();
-#if S88_ENABLED
   S88BusManager::init();
-#endif
   RemoteSensorManager::init();
-#if LOCONET_ENABLED
-  infoScreen.replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "LocoNet Init");
-  locoNet.begin();
-  locoNet.onPacket(OPC_GPON, [](lnMsg *msg) {
-    MotorBoardManager::powerOnAll();
-  });
-  locoNet.onPacket(OPC_GPOFF, [](lnMsg *msg) {
-    MotorBoardManager::powerOffAll();
-  });
-  locoNet.onPacket(OPC_IDLE, [](lnMsg *msg) {
-    LocomotiveManager::emergencyStop();
-  });
-  locoNet.onPacket(OPC_LOCO_ADR, [](lnMsg *msg) {
-    lnMsg response = {0};
-    auto loco = LocomotiveManager::getLocomotive(msg->la.adr_lo + (msg->la.adr_hi << 7));
-    response.sd.command = OPC_SL_RD_DATA;
-    response.sd.mesg_size = 0x0E;
-    response.sd.slot = loco->getRegister();
-    response.sd.stat = LOCO_IDLE | DEC_MODE_128;
-    response.sd.adr = msg->la.adr_lo;
-    response.sd.adr2 = msg->la.adr_hi;
-    response.sd.dirf = DIRF_F0;
-    response.sd.trk = GTRK_MLOK1;
-    if(MotorBoardManager::isTrackPowerOn()) {
-      response.sd.trk |= GTRK_POWER;
-    }
-    if(progTrackBusy) {
-      response.sd.trk |= GTRK_PROG_BUSY;
-    }
-    locoNet.send(&response);
-  });
-  locoNet.onPacket(OPC_LOCO_SPD, [](lnMsg *msg) {
-    auto loco = LocomotiveManager::getLocomotiveByRegister(msg->lsp.slot);
-    if(loco) {
-      loco->setSpeed(msg->lsp.spd);
-    } else {
-      locoNet.send(OPC_LONG_ACK, OPC_LOCO_SPD, 0);
-    }
-  });
-  locoNet.onPacket(OPC_LOCO_DIRF, [](lnMsg *msg) {
-    auto loco = LocomotiveManager::getLocomotiveByRegister(msg->ldf.slot);
-    if(loco) {
-      loco->setDirection(msg->ldf.dirf & DIRF_DIR);
-      loco->setFunction(0, msg->ldf.dirf & DIRF_F0);
-      loco->setFunction(1, msg->ldf.dirf & DIRF_F1);
-      loco->setFunction(2, msg->ldf.dirf & DIRF_F2);
-      loco->setFunction(3, msg->ldf.dirf & DIRF_F3);
-      loco->setFunction(4, msg->ldf.dirf & DIRF_F4);
-    } else {
-      locoNet.send(OPC_LONG_ACK, OPC_LOCO_DIRF, 0);
-    }
-  });
-  locoNet.onPacket(OPC_LOCO_SND, [](lnMsg *msg) {
-    auto loco = LocomotiveManager::getLocomotiveByRegister(msg->ls.slot);
-    if(loco) {
-      loco->setFunction(5, msg->ls.snd & SND_F5);
-      loco->setFunction(6, msg->ls.snd & SND_F6);
-      loco->setFunction(7, msg->ls.snd & SND_F7);
-      loco->setFunction(8, msg->ls.snd & SND_F8);
-    } else {
-      locoNet.send(OPC_LONG_ACK, OPC_LOCO_SND, 0);
-    }
-  });
-  locoNet.onPacket(OPC_WR_SL_DATA, [](lnMsg *msg) {
-    if(msg->pt.slot == PRG_SLOT) {
-      if(msg->pt.command == 0x00) {
-        // Cancel / abort request, currently ignored
-      } else if (progTrackBusy) {
-        locoNet.send(OPC_LONG_ACK, OPC_MASK, 0);
-      } else {
-        uint16_t cv = PROG_CV_NUM(msg->pt);
-        uint8_t value = PROG_DATA(msg->pt);
-        if((msg->pt.command & DIR_BYTE_ON_SRVC_TRK) == 0 &&
-          (msg->pt.command & PCMD_RW) == 1) { // CV Write on PROG
-          if(enterProgrammingMode()) {
-            locoNet.send(OPC_LONG_ACK, OPC_MASK, 1);
-            msg->pt.command = OPC_SL_RD_DATA;
-            if(!writeProgCVByte(cv, value)) {
-              msg->pt.pstat = PSTAT_WRITE_FAIL;
-            } else {
-              msg->pt.data7 = value;
-              if(value & 0x80) {
-                msg->pt.cvh |= CVH_D7;
-              }
-            }
-            leaveProgrammingMode();
-            locoNet.send(msg);
-          } else {
-            locoNet.send(OPC_LONG_ACK, OPC_MASK, 0);
-          }
-        } else if((msg->pt.command & DIR_BYTE_ON_SRVC_TRK) == 0 &&
-          (msg->pt.command & PCMD_RW) == 0) { // CV Read on PROG
-          if(enterProgrammingMode()) {
-            locoNet.send(OPC_LONG_ACK, OPC_MASK, 1);
-            msg->pt.command = OPC_SL_RD_DATA;
-            int16_t value = readCV(cv);
-            if(value == -1) {
-              msg->pt.pstat = PSTAT_READ_FAIL;
-            } else {
-              msg->pt.data7 = value & 0x7F;
-              if(value & 0x80) {
-                msg->pt.cvh |= CVH_D7;
-              }
-            }
-            leaveProgrammingMode();
-            locoNet.send(msg);
-          } else {
-            locoNet.send(OPC_LONG_ACK, OPC_MASK, 0);
-          }
-        } else if ((msg->pt.command & OPS_BYTE_NO_FEEDBACK) == 0) {
-          // CV Write on OPS, no feedback
-          locoNet.send(OPC_LONG_ACK, OPC_MASK, 0x40);
-          uint16_t locoAddr = ((msg->pt.hopsa & 0x7F) << 7) + (msg->pt.lopsa & 0x7F);
-          writeOpsCVByte(locoAddr, cv, value);
-        } else if ((msg->pt.command & OPS_BYTE_FEEDBACK) == 0) {
-          // CV Write on OPS
-          locoNet.send(OPC_LONG_ACK, OPC_MASK, 1);
-          uint16_t locoAddr = ((msg->pt.hopsa & 0x7F) << 7) + (msg->pt.lopsa & 0x7F);
-          writeOpsCVByte(locoAddr, cv, value);
-          msg->pt.command = OPC_SL_RD_DATA;
-          if(value & 0x80) {
-            msg->pt.cvh |= CVH_D7;
-          }
-          msg->pt.data7 = value & 0x7F;
-          locoNet.send(msg);
-        } else {
-          // not implemented
-          locoNet.send(OPC_LONG_ACK, OPC_MASK, OPC_MASK);
-        }
-      }
-    }
-  });
-  locoNet.onPacket(OPC_INPUT_REP, [](lnMsg *msg) {
-    LOG(INFO, "LocoNet INPUT_REPORT %02x : %02x", msg->ir.in1, msg->ir.in2);
-  });
-  locoNet.onPacket(OPC_SW_REQ, [](lnMsg *msg) {
-    LOG(INFO, "LocoNet SW_REQ %02x : %02x", msg->srq.sw1, msg->srq.sw2);
-  });
-  locoNet.onPacket(OPC_SW_REP, [](lnMsg *msg) {
-    LOG(INFO, "LocoNet SW_REP %02x : %02x", msg->srp.sn1, msg->srp.sn2);
-  });
-#endif
 
 #if ENERGIZE_OPS_TRACK_ON_STARTUP
   MotorBoardManager::powerOnAll();
 #else
   MotorBoardManager::powerOffAll();
+#endif
+
+#if LOCONET_ENABLED
+  initializeLocoNet();
 #endif
 
   LOG(INFO, "[WatchDog] Reconfiguring Timer (15sec)");
@@ -533,9 +388,9 @@ void dumpTaskList()
   for (int task = 0; task < retrievedTaskCount; task++)
   {
 #if configTASKLIST_INCLUDE_COREID
-    printf("%15s%10d%10s%10d%10d%10ull%10.2f%10d%10d\n"
+    printf("%15s%10d%10s%10d%10d%10" PRIu64 "%10.2f%10d%10d\n"
 #else
-    printf("%15s%10d%10s%10d%10d%10ull%10.2f%10d\n"
+    printf("%15s%10d%10s%10d%10d%10" PRIu64 "%10.2f%10d\n"
 #endif // configTASKLIST_INCLUDE_COREID
            , taskList[task].pcTaskName
            , taskList[task].xTaskNumber

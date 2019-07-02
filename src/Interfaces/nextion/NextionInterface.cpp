@@ -30,8 +30,6 @@ COPYRIGHT (c) 2018-2019 NormHal, Mike Dunston
 #define NEXTION_TX_PIN 27
 #endif
 
-#if NEXTION_ENABLED
-
 #if NEXTION_UART_NUM == 2
 Nextion nextion(Serial2);
 #elif NEXTION_UART_NUM == 1
@@ -132,6 +130,7 @@ void nextionTask(void *param) {
 }
 
 void nextionInterfaceInit() {
+#if NEXTION_ENABLED
   InfoScreen::replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, F("Init Nextion"));
 #if NEXTION_UART_NUM == 2
   Serial2.begin(NEXTION_UART_BAUD, SERIAL_8N1, NEXTION_UART_RX_PIN, NEXTION_UART_TX_PIN);
@@ -144,6 +143,6 @@ void nextionInterfaceInit() {
 
   xTaskCreatePinnedToCore(nextionTask, "Nextion", NEXTION_INTERFACE_TASK_STACK_SIZE,
     NULL, NEXTION_INTERFACE_TASK_PRIORITY, &_nextionTaskHandle, 1);
+#endif
 }
 
-#endif

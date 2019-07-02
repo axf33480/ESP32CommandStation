@@ -17,8 +17,6 @@ COPYRIGHT (c) 2018-2019 NormHal, Mike Dunston
 
 #include "ESP32CommandStation.h"
 
-#if NEXTION_ENABLED
-
 constexpr uint8_t LH=106;
 constexpr uint8_t RH=108;
 
@@ -530,4 +528,3 @@ uint8_t NextionTurnoutPage::getTurnoutsPerPageCount() {
   }
   return maxTurnoutsPerPage;
 }
-#endif
