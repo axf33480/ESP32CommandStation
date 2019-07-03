@@ -24,10 +24,10 @@ const int8_t NON_STORED_SENSOR_PIN=-1;
 class Sensor {
 public:
   Sensor(uint16_t, int8_t, bool=false, bool=true);
-  Sensor(JsonObject &);
+  Sensor(JsonObject);
   virtual ~Sensor() {}
   void update(uint8_t, bool=false);
-  virtual void toJson(JsonObject &, bool=false);
+  virtual void toJson(JsonObject, bool=false);
   const uint16_t getID() {
     return _sensorID;
   }
@@ -66,7 +66,7 @@ public:
   static void clear();
   static uint16_t store();
   static void sensorTask(void *param);
-  static void getState(JsonArray &);
+  static void getState(JsonArray);
   static Sensor *getSensor(uint16_t);
   static bool createOrUpdate(const uint16_t, const uint8_t, const bool);
   static bool remove(const uint16_t);

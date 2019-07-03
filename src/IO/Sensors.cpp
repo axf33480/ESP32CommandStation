@@ -87,13 +87,12 @@ void SensorManager::init() {
   _lock = xSemaphoreCreateMutex();
   LOG(INFO, "[Sensors] Initializing sensors");
   if(configStore->exists(SENSORS_JSON_FILE)) {
-    JsonObject &root = configStore->load(SENSORS_JSON_FILE);
-    JsonVariant count = root[JSON_COUNT_NODE];
-    uint16_t sensorCount = count.success() ? count.as<int>() : 0;
-    infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Found %02d Sensors", sensorCount);
-    if(sensorCount > 0) {
-      for(auto sensor : root.get<JsonArray>(JSON_SENSORS_NODE)) {
-        sensors.add(new Sensor(sensor.as<JsonObject &>()));
+    JsonObject root = configStore->load(SENSORS_JSON_FILE);
+    if(root.containsKey(JSON_COUNT_NODE) && root[JSON_COUNT_NODE].as<int>() > 0) {
+      uint16_t sensorCount = root[JSON_COUNT_NODE].as<int>();
+      infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Found %02d Sensors", sensorCount);
+      for(JsonVariant sensor : root[JSON_SENSORS_NODE].as<JsonArray>()) {
+        sensors.add(new Sensor(sensor.as<JsonObject>()));
       }
     }
   }
@@ -106,8 +105,8 @@ void SensorManager::clear() {
 }
 
 uint16_t SensorManager::store() {
-  JsonObject &root = configStore->createRootNode();
-  JsonArray &array = root.createNestedArray(JSON_SENSORS_NODE);
+  JsonObject root = configStore->createRootNode();
+  JsonArray array = root.createNestedArray(JSON_SENSORS_NODE);
   uint16_t sensorStoredCount = 0;
   for (const auto& sensor : sensors) {
     if(sensor->getPin() != NON_STORED_SENSOR_PIN) {
@@ -133,9 +132,9 @@ void SensorManager::sensorTask(void *param) {
   }
 }
 
-void SensorManager::getState(JsonArray & array) {
+void SensorManager::getState(JsonArray array) {
   for (const auto& sensor : sensors) {
-    JsonObject &sensorJson = array.createNestedObject();
+    JsonObject sensorJson = array.createNestedObject();
     sensor->toJson(sensorJson, true);
   }
 }
@@ -207,7 +206,7 @@ Sensor::Sensor(uint16_t sensorID, int8_t pin, bool pullUp, bool announce) : _sen
   }
 }
 
-Sensor::Sensor(JsonObject &json) : _lastState(false) {
+Sensor::Sensor(JsonObject json) : _lastState(false) {
   _sensorID = json[JSON_ID_NODE];
   _pin = json[JSON_PIN_NODE];
   _pullUp = json[JSON_PULLUP_NODE];
@@ -219,7 +218,7 @@ Sensor::Sensor(JsonObject &json) : _lastState(false) {
   }
 }
 
-void Sensor::toJson(JsonObject &json, bool includeState) {
+void Sensor::toJson(JsonObject json, bool includeState) {
   json[JSON_ID_NODE] = _sensorID;
   json[JSON_PIN_NODE] = _pin;
   json[JSON_PULLUP_NODE] = _pullUp;

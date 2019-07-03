@@ -87,7 +87,7 @@ public:
   static bool powerOff(const std::string);
   static int getLastRead(const std::string);
   static void showStatus();
-  static void getState(JsonArray &);
+  static void getState(JsonArray);
   static bool isTrackPowerOn();
   static uint8_t getCountOfOPSBoards();
 };

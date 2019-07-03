@@ -31,8 +31,8 @@ Locomotive::Locomotive(uint8_t registerNumber) : _registerNumber(registerNumber)
 }
 
 Locomotive::Locomotive(const char *filename) {
-  DynamicJsonBuffer buf;
-  JsonObject &entry = configStore->load(filename, buf);
+  DynamicJsonDocument jsonBuffer{1024};
+  JsonObject entry = configStore->load(filename, jsonBuffer);
   _locoAddress = entry[JSON_ADDRESS_NODE];
   _speed = entry[JSON_SPEED_NODE];
   _direction = entry[JSON_DIRECTION_NODE] == JSON_VALUE_FORWARD;
@@ -41,7 +41,7 @@ Locomotive::Locomotive(const char *filename) {
   createFunctionPackets();
 }
 
-Locomotive::Locomotive(JsonObject &json) {
+Locomotive::Locomotive(JsonObject json) {
   _locoAddress = json[JSON_ADDRESS_NODE];
   _speed = json[JSON_SPEED_NODE];
   _direction = json[JSON_DIRECTION_NODE] == JSON_VALUE_FORWARD;
@@ -92,7 +92,7 @@ void Locomotive::showStatus() {
   wifiInterface.broadcast(StringPrintf("<T %d %d %d>", _registerNumber, _speed, _direction));
 }
 
-void Locomotive::toJson(JsonObject &jsonObject, bool includeSpeedDir, bool includeFunctions) {
+void Locomotive::toJson(JsonObject jsonObject, bool includeSpeedDir, bool includeFunctions) {
   jsonObject[JSON_ADDRESS_NODE] = _locoAddress;
   if(includeSpeedDir) {
     jsonObject[JSON_SPEED_NODE] = _speed;
@@ -100,9 +100,9 @@ void Locomotive::toJson(JsonObject &jsonObject, bool includeSpeedDir, bool inclu
   }
   jsonObject[JSON_ORIENTATION_NODE] = _orientation ? JSON_VALUE_FORWARD : JSON_VALUE_REVERSE;
   if(includeFunctions) {
-    JsonArray &functions = jsonObject.createNestedArray(JSON_FUNCTIONS_NODE);
+    JsonArray functions = jsonObject.createNestedArray(JSON_FUNCTIONS_NODE);
     for(uint8_t funcID = 0; funcID < MAX_LOCOMOTIVE_FUNCTIONS; funcID++) {
-      JsonObject &node = functions.createNestedObject();
+      JsonObject node = functions.createNestedObject();
       node[JSON_ID_NODE] = funcID;
       node[JSON_STATE_NODE] = _functionState[funcID];
     }

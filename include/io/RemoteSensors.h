@@ -40,7 +40,7 @@ public:
   }
   virtual void check();
   void showSensor();
-  virtual void toJson(JsonObject &, bool=false);
+  virtual void toJson(JsonObject, bool=false);
 private:
   uint16_t _rawID;
   uint16_t _value;
@@ -53,7 +53,7 @@ public:
   static void show();
   static void createOrUpdate(const uint16_t, const uint16_t=0);
   static bool remove(const uint16_t);
-  static void getState(JsonArray &);
+  static void getState(JsonArray);
 };
 
 class RemoteSensorsCommandAdapter : public DCCPPProtocolCommand {

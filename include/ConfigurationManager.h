@@ -30,13 +30,23 @@ public:
 
   bool exists(const char *);
   void remove(const char *);
-  JsonObject &load(const char *);
-  JsonObject &load(const char *, DynamicJsonBuffer &);
+  JsonObject load(const char *);
+  JsonObject load(const char *, DynamicJsonDocument &);
   void store(const char *, const JsonObject &);
-  JsonObject &createRootNode(bool=true);
+  JsonObject createRootNode(bool=true);
   openlcb::NodeID getNodeId();
-  bool needLCCCan(gpio_num_t *rxPin, gpio_num_t *txPin);
-  void configureWiFi(openlcb::SimpleCanStack *stack, const WiFiConfiguration &cfg);
+  bool needLCCCan(gpio_num_t *, gpio_num_t *);
+  void configureWiFi(openlcb::SimpleCanStack *, const WiFiConfiguration &);
+  std::string getCSConfig();
+private:
+  DynamicJsonDocument jsonBuffer{20480};
+  std::string getFilePath(const char *, bool=false);
+  std::string csConfig_{""};
+  std::string wifiSSID_{SSID_NAME};
+  std::string wifiPassword_{SSID_PASSWORD};
+  wifi_mode_t wifiMode_{WIFI_MODE_STA};
+  std::unique_ptr<tcpip_adapter_ip_info_t> stationStaticIP_{nullptr};
+  ip_addr_t stationDNSServer_{ip_addr_any};
 };
 
 extern ConfigurationManager *configStore;

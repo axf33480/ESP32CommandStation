@@ -32,11 +32,11 @@ void calculateTurnoutBoardAddressAndIndex(uint16_t *boardAddress, uint8_t *board
 class Turnout {
 public:
   Turnout(uint16_t, uint16_t, int8_t, bool=false, TurnoutType=TurnoutType::LEFT);
-  Turnout(JsonObject &);
+  Turnout(JsonObject);
   virtual ~Turnout() {}
   void update(uint16_t, int8_t, TurnoutType);
   void set(bool=false, bool=true);
-  void toJson(JsonObject &, bool=false);
+  void toJson(JsonObject, bool=false);
   const uint16_t getID() {
     return _turnoutID;
   }
@@ -79,7 +79,7 @@ public:
   static bool setByID(uint16_t, bool=false);
   static bool toggleByID(uint16_t);
   static bool toggleByAddress(uint16_t);
-  static void getState(JsonArray &, bool=true);
+  static void getState(JsonArray, bool=true);
   static void showStatus();
   static Turnout *createOrUpdate(const uint16_t, const uint16_t, const int8_t, const TurnoutType=TurnoutType::LEFT);
   static bool removeByID(const uint16_t);

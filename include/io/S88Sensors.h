@@ -42,7 +42,7 @@ public:
   S88SensorBus(const uint8_t, const uint8_t, const uint16_t);
   S88SensorBus(JsonObject &);
   void update(const uint8_t, const uint16_t);
-  void toJson(JsonObject &, bool=false);
+  void toJson(JsonObject, bool=false);
   void addSensors(int16_t);
   void removeSensors(int16_t);
   std::string getStateString();
@@ -83,7 +83,7 @@ public:
   static void s88SensorTask(void *param);
   static bool createOrUpdateBus(const uint8_t, const uint8_t, const uint16_t);
   static bool removeBus(const uint8_t);
-  static void getState(JsonArray &);
+  static void getState(JsonArray);
 private:
   static TaskHandle_t _taskHandle;
   static xSemaphoreHandle _s88SensorLock;

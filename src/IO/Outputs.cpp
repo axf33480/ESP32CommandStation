@@ -100,13 +100,12 @@ static constexpr const char * OUTPUTS_JSON_FILE = "outputs.json";
 void OutputManager::init() {
   LOG(INFO, "[Output] Initializing outputs");
   if(configStore->exists(OUTPUTS_JSON_FILE)) {
-    JsonObject &root = configStore->load(OUTPUTS_JSON_FILE);
-    JsonVariant count = root[JSON_COUNT_NODE];
-    uint16_t outputCount = count.success() ? count.as<int>() : 0;
-    infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Found %02d Outputs", outputCount);
-    if(outputCount > 0) {
-      for(auto output : root.get<JsonArray>(JSON_OUTPUTS_NODE)) {
-        outputs.add(new Output(output.as<JsonObject &>()));
+    JsonObject root = configStore->load(OUTPUTS_JSON_FILE);
+    if(root.containsKey(OUTPUTS_JSON_FILE) && root[OUTPUTS_JSON_FILE].as<int>() > 0) {
+      uint16_t outputCount = root[OUTPUTS_JSON_FILE].as<int>();
+      infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Found %02d Outputs", outputCount);
+      for(JsonVariant output : root[JSON_OUTPUTS_NODE].as<JsonArray>()) {
+        outputs.add(new Output(output.as<JsonObject>()));
       }
     }
   }
@@ -118,8 +117,8 @@ void OutputManager::clear() {
 }
 
 uint16_t OutputManager::store() {
-  JsonObject &root = configStore->createRootNode();
-  JsonArray &array = root.createNestedArray(JSON_OUTPUTS_NODE);
+  JsonObject root = configStore->createRootNode();
+  JsonArray array = root.createNestedArray(JSON_OUTPUTS_NODE);
   uint16_t outputStoredCount = 0;
   for (const auto& output : outputs) {
     output->toJson(array.createNestedObject());
@@ -159,9 +158,9 @@ bool OutputManager::toggle(uint16_t id) {
   return false;
 }
 
-void OutputManager::getState(JsonArray & array) {
+void OutputManager::getState(JsonArray array) {
   for (const auto& output : outputs) {
-    JsonObject &outputJson = array.createNestedObject();
+    JsonObject outputJson = array.createNestedObject();
     output->toJson(outputJson, true);
   }
 }
@@ -215,7 +214,7 @@ Output::Output(uint16_t id, uint8_t pin, uint8_t flags) : _id(id), _pin(pin), _f
   pinMode(_pin, OUTPUT);
 }
 
-Output::Output(JsonObject &json) {
+Output::Output(JsonObject json) {
   _id = json[JSON_ID_NODE];
   _pin = json[JSON_PIN_NODE];
   _flags = json[JSON_FLAGS_NODE];
@@ -226,7 +225,7 @@ Output::Output(JsonObject &json) {
       set(false, false);
     }
   } else {
-    if(json.get<bool>(JSON_STATE_NODE)) {
+    if(json[JSON_STATE_NODE].as<bool>()) {
       set(true, false);
     } else {
       set(false, false);
@@ -261,7 +260,7 @@ void Output::update(uint8_t pin, uint8_t flags) {
   pinMode(_pin, OUTPUT);
 }
 
-void Output::toJson(JsonObject &json, bool readableStrings) {
+void Output::toJson(JsonObject json, bool readableStrings) {
   json[JSON_ID_NODE] = _id;
   json[JSON_PIN_NODE] = _pin;
   if(readableStrings) {

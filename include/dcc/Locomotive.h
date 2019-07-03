@@ -25,7 +25,7 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 class Locomotive/* : public dcc::Dcc128Train*/ {
 public:
   Locomotive(uint8_t);
-  Locomotive(JsonObject &);
+  Locomotive(JsonObject);
   Locomotive(const char *);
   virtual ~Locomotive() {}
   int8_t getRegister() {
@@ -67,7 +67,7 @@ public:
   }
   void sendLocoUpdate(bool=false);
   void showStatus();
-  void toJson(JsonObject &, bool=true, bool=true);
+  void toJson(JsonObject, bool=true, bool=true);
 
 #define _LOCO_FUNCTION_UPDATE_IMPL(funcID, pkt, offs, base, limit, sendPacket) \
   if(funcID >= base && funcID <= limit) { \
@@ -141,11 +141,11 @@ public:
     Locomotive(-1), _decoderAssisstedConsist(decoderAssistedConsist) {
     setLocoAddress(address);
   }
-  LocomotiveConsist(JsonObject &);
+  LocomotiveConsist(JsonObject);
   LocomotiveConsist(const char *);
   virtual ~LocomotiveConsist();
   void showStatus();
-  void toJson(JsonObject &, bool=true, bool=true);
+  void toJson(JsonObject, bool=true, bool=true);
   bool isAddressInConsist(uint16_t);
   void updateThrottle(uint16_t, int8_t, bool);
   void addLocomotive(uint16_t, bool, uint8_t);
@@ -172,9 +172,9 @@ class RosterEntry {
 public:
   RosterEntry(uint16_t address) : _description(""), _address(address), _type(""),
     _idleOnStartup(false), _defaultOnThrottles(false) {}
-  RosterEntry(const JsonObject &);
+  RosterEntry(JsonObject);
   RosterEntry(const char *);
-  void toJson(JsonObject &);
+  void toJson(JsonObject);
   void setDescription(std::string description) {
     _description = description;
   }
@@ -238,9 +238,9 @@ public:
   static void clear();
   static uint16_t store();
   static std::vector<RosterEntry *> getDefaultLocos(const int8_t=-1);
-  static void getDefaultLocos(JsonArray &);
-  static void getActiveLocos(JsonArray &);
-  static void getRosterEntries(JsonArray &);
+  static void getDefaultLocos(JsonArray);
+  static void getActiveLocos(JsonArray);
+  static void getRosterEntries(JsonArray);
   static bool isConsistAddress(uint16_t);
   static bool isAddressInConsist(uint16_t);
   static LocomotiveConsist *getConsistByID(uint8_t);

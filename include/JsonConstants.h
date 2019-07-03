@@ -77,6 +77,21 @@ constexpr const char * JSON_CREATE_NODE = "create";
 constexpr const char * JSON_OVERALL_STATE_NODE = "overallState";
 constexpr const char * JSON_LAST_UPDATE_NODE = "lastUpdate";
 
+constexpr const char * JSON_WIFI_NODE = "wifi";
+constexpr const char * JSON_WIFI_MODE_NODE = "mode";
+constexpr const char * JSON_WIFI_STATION_NODE = "station";
+constexpr const char * JSON_WIFI_STATION_IP_NODE = "ip";
+constexpr const char * JSON_WIFI_STATION_GATEWAY_NODE = "gateway";
+constexpr const char * JSON_WIFI_STATION_NETMASK_NODE = "netmask";
+constexpr const char * JSON_WIFI_DNS_NODE = "dns";
+
+constexpr const char * JSON_VALUE_STATION_IP_MODE_STATIC = "static";
+constexpr const char * JSON_VALUE_STATION_IP_MODE_DHCP = "dhcp";
+
+constexpr const char * JSON_VALUE_WIFI_MODE_SOFTAP_ONLY = "softap";
+constexpr const char * JSON_VALUE_WIFI_MODE_SOFTAP_STATION = "softap-station";
+constexpr const char * JSON_VALUE_WIFI_MODE_STATION_ONLY = "station";
+
 constexpr const char * JSON_VALUE_FORWARD = "FWD";
 constexpr const char * JSON_VALUE_REVERSE = "REV";
 constexpr const char * JSON_VALUE_TRUE = "true";
@@ -91,3 +106,6 @@ constexpr const char * JSON_VALUE_LONG_ADDRESS = "Long Address";
 constexpr const char * JSON_VALUE_SHORT_ADDRESS = "Short Address";
 constexpr const char * JSON_VALUE_MOBILE_DECODER = "Mobile Decoder";
 constexpr const char * JSON_VALUE_STATIONARY_DECODER = "Stationary Decoder";
+
+
+constexpr const char * ESP32_CS_CONFIG_JSON = "esp32cs-config.json";

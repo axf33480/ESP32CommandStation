@@ -136,7 +136,7 @@ void ESP32CSWebServer::begin() {
 #endif
   webServer.on("/remoteSensors", HTTP_GET | HTTP_POST | HTTP_DELETE,
                std::bind(&ESP32CSWebServer::handleRemoteSensors, this, std::placeholders::_1));
-  webServer.on("/config", HTTP_POST | HTTP_DELETE,
+  webServer.on("/config", HTTP_GET | HTTP_POST | HTTP_DELETE,
                std::bind(&ESP32CSWebServer::handleConfig, this, std::placeholders::_1));
   webServer.on("/locomotive", HTTP_GET | HTTP_POST | HTTP_PUT | HTTP_DELETE,
                std::bind(&ESP32CSWebServer::handleLocomotive, this, std::placeholders::_1));
@@ -168,7 +168,7 @@ void ESP32CSWebServer::handleProgrammer(AsyncWebServerRequest *request) {
     if (request->arg(JSON_PROG_ON_MAIN).equalsIgnoreCase(JSON_VALUE_TRUE)) {
       jsonResponse->setCode(STATUS_NOT_ALLOWED);
     } else if(request->hasArg(JSON_IDENTIFY_NODE)) {
-      JsonObject &node = jsonResponse->getRoot();
+      JsonObject node = jsonResponse->getRoot();
       if(enterProgrammingMode()) {
         int16_t decoderConfig = readCV(CV_NAMES::DECODER_CONFIG);
         uint16_t decoderAddress = 0;
@@ -250,7 +250,7 @@ void ESP32CSWebServer::handleProgrammer(AsyncWebServerRequest *request) {
       uint16_t cvNumber = request->arg(JSON_CV_NODE).toInt();
       if(enterProgrammingMode()) {
         int16_t cvValue = readCV(cvNumber);
-        JsonObject &node = jsonResponse->getRoot();
+        JsonObject node = jsonResponse->getRoot();
         node[JSON_CV_NODE] = cvNumber;
         node[JSON_VALUE_NODE] = cvValue;
         if(cvValue < 0) {
@@ -305,9 +305,9 @@ void ESP32CSWebServer::handlePower(AsyncWebServerRequest *request) {
   auto jsonResponse = new AsyncJsonResponse(true);
   if(request->method() == HTTP_GET) {
     if(request->params()) {
-      ((JsonArray &)jsonResponse->getRoot()).createNestedObject()[JSON_STATE_NODE] = MotorBoardManager::isTrackPowerOn() ? JSON_VALUE_TRUE : JSON_VALUE_FALSE;
+      jsonResponse->getRoot().createNestedObject()[JSON_STATE_NODE] = MotorBoardManager::isTrackPowerOn() ? JSON_VALUE_TRUE : JSON_VALUE_FALSE;
     } else {
-      JsonArray &array = jsonResponse->getRoot();
+      JsonArray array = jsonResponse->getRoot();
       MotorBoardManager::getState(array);
     }
   } else if (request->method() == HTTP_PUT) {
@@ -334,7 +334,7 @@ void ESP32CSWebServer::handlePower(AsyncWebServerRequest *request) {
 void ESP32CSWebServer::handleOutputs(AsyncWebServerRequest *request) {
   auto jsonResponse = new AsyncJsonResponse(request->method() == HTTP_GET && !request->params());
   if (request->method() == HTTP_GET && !request->hasArg(JSON_ID_NODE)) {
-    JsonArray &array = jsonResponse->getRoot();
+    JsonArray array = jsonResponse->getRoot();
     OutputManager::getState(array);
   } else if (request->method() == HTTP_GET) {
     auto output = OutputManager::getOutput(request->arg(JSON_ID_NODE).toInt());
@@ -401,7 +401,7 @@ void ESP32CSWebServer::handleTurnouts(AsyncWebServerRequest *request) {
     if(request->hasArg(JSON_TURNOUTS_READABLE_STRINGS_NODE)) {
       readableStrings = request->arg(JSON_TURNOUTS_READABLE_STRINGS_NODE).toInt();
     }
-    JsonArray &array = jsonResponse->getRoot();
+    JsonArray array = jsonResponse->getRoot();
     TurnoutManager::getState(array, readableStrings);
   } else if (request->method() == HTTP_GET) {
     if(request->hasArg(JSON_ID_NODE)) {
@@ -460,7 +460,7 @@ void ESP32CSWebServer::handleTurnouts(AsyncWebServerRequest *request) {
 void ESP32CSWebServer::handleSensors(AsyncWebServerRequest *request) {
   auto jsonResponse = new AsyncJsonResponse(request->method() == HTTP_GET && !request->params());
   if (request->method() == HTTP_GET && !request->hasArg(JSON_ID_NODE)) {
-    JsonArray &array = jsonResponse->getRoot();
+    JsonArray array = jsonResponse->getRoot();
     SensorManager::getState(array);
   } else if (request->method() == HTTP_GET) {
     auto sensor = SensorManager::getSensor(request->arg(JSON_ID_NODE).toInt());
@@ -490,12 +490,14 @@ void ESP32CSWebServer::handleSensors(AsyncWebServerRequest *request) {
 }
 
 void ESP32CSWebServer::handleConfig(AsyncWebServerRequest *request) {
-  std::vector<std::string> arguments;
-  if(request->method() == HTTP_POST) {
-    DCCPPProtocolHandler::getCommandHandler("E")->process(arguments);
-  } else {
-    DCCPPProtocolHandler::getCommandHandler("e")->process(arguments);
+  if (request->method() == HTTP_POST) {
+    DCCPPProtocolHandler::getCommandHandler("E")->process(std::vector<std::string>());
+  } else if (request->method() == HTTP_DELETE) {
+    DCCPPProtocolHandler::getCommandHandler("e")->process(std::vector<std::string>());
+  } else if (request->method() != HTTP_GET) {
+    request->send(STATUS_BAD_REQUEST);
   }
+  request->send(STATUS_OK, "application/json", configStore->getCSConfig().c_str());
 }
 
 #if S88_ENABLED
@@ -523,7 +525,7 @@ void ESP32CSWebServer::handleS88Sensors(AsyncWebServerRequest *request) {
 void ESP32CSWebServer::handleRemoteSensors(AsyncWebServerRequest *request) {
   auto jsonResponse = new AsyncJsonResponse(true);
   if(request->method() == HTTP_GET) {
-    JsonArray &array = jsonResponse->getRoot();
+    JsonArray array = jsonResponse->getRoot();
     RemoteSensorManager::getState(array);
   } else if(request->method() == HTTP_POST) {
     RemoteSensorManager::createOrUpdate(request->arg(JSON_ID_NODE).toInt(),
@@ -703,7 +705,7 @@ void handleOTAUpload(AsyncWebServerRequest *request, const String& filename, siz
 
 void ESP32CSWebServer::handleFeatures(AsyncWebServerRequest *request) {
   auto jsonResponse = new AsyncJsonResponse();
-  JsonObject &root = jsonResponse->getRoot();
+  JsonObject root = jsonResponse->getRoot();
 #if S88_ENABLED
   root[JSON_S88_NODE] = JSON_VALUE_TRUE;
   root[JSON_S88_SENSOR_BASE_NODE] = S88_FIRST_SENSOR;

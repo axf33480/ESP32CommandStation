@@ -110,8 +110,8 @@ void S88BusManager::clear() {
 }
 
 uint8_t S88BusManager::store() {
-  JsonObject &root = configStore->createRootNode();
-  JsonArray &array = root.createNestedArray(JSON_SENSORS_NODE);
+  JsonObject root = configStore->createRootNode();
+  JsonArray array = root.createNestedArray(JSON_SENSORS_NODE);
   uint8_t sensorBusIndex = 0;
   for (const auto& bus : s88SensorBus) {
     bus->toJson(array.createNestedObject());
@@ -207,10 +207,9 @@ bool S88BusManager::removeBus(const uint8_t id) {
   return false;
 }
 
-void S88BusManager::getState(JsonArray &array) {
+void S88BusManager::getState(JsonArray array) {
   for (const auto& sensorBus : s88SensorBus) {
-    JsonObject &sensorJson = array.createNestedObject();
-    sensorBus->toJson(sensorJson, true);
+    sensorBus->toJson(array.createNestedObject(), true);
   }
 }
 
@@ -252,7 +251,7 @@ void S88SensorBus::update(const uint8_t dataPin, const uint16_t sensorCount) {
   show();
 }
 
-void S88SensorBus::toJson(JsonObject &json, bool includeState) {
+void S88SensorBus::toJson(JsonObject json, bool includeState) {
   json[JSON_ID_NODE] = _id;
   json[JSON_PIN_NODE] = _dataPin;
   json[JSON_S88_SENSOR_BASE_NODE] = _sensorIDBase;

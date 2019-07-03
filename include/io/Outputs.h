@@ -26,10 +26,10 @@ const uint8_t OUTPUT_IFLAG_FORCE_STATE = 2;
 class Output {
 public:
   Output(uint16_t, uint8_t, uint8_t);
-  Output(JsonObject &);
+  Output(JsonObject);
   void set(bool=false, bool=true);
   void update(uint8_t, uint8_t);
-  void toJson(JsonObject &, bool=false);
+  void toJson(JsonObject, bool=false);
   const uint16_t getID() {
     return _id;
   }
@@ -76,7 +76,7 @@ class OutputManager {
     static bool set(uint16_t, bool=false);
     static Output *getOutput(uint16_t);
     static bool toggle(uint16_t);
-    static void getState(JsonArray &);
+    static void getState(JsonArray);
     static void showStatus();
     static bool createOrUpdate(const uint16_t, const uint8_t, const uint8_t);
     static bool remove(const uint16_t);

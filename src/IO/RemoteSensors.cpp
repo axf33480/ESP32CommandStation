@@ -127,9 +127,9 @@ bool RemoteSensorManager::remove(const uint16_t id) {
   return false;
 }
 
-void RemoteSensorManager::getState(JsonArray &array) {
+void RemoteSensorManager::getState(JsonArray array) {
   for (const auto& sensor : remoteSensors) {
-    JsonObject &json = array.createNestedObject();
+    JsonObject json = array.createNestedObject();
     sensor->toJson(json);
   }
 }
@@ -162,7 +162,7 @@ void RemoteSensor::showSensor() {
   wifiInterface.broadcast(StringPrintf("<RS %d %d>", getRawID(), _value));
 }
 
-void RemoteSensor::toJson(JsonObject &json, bool includeState) {
+void RemoteSensor::toJson(JsonObject json, bool includeState) {
   json[JSON_ID_NODE] = getRawID();
   json[JSON_VALUE_NODE] = getSensorValue();
   json[JSON_STATE_NODE] = isActive();

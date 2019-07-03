@@ -300,9 +300,9 @@ uint8_t MotorBoardManager::getMotorBoardCount() {
   return motorBoards.length();
 }
 
-void MotorBoardManager::getState(JsonArray &array) {
+void MotorBoardManager::getState(JsonArray array) {
   for (const auto& motorBoard : motorBoards) {
-    JsonObject &board = array.createNestedObject();
+    JsonObject board = array.createNestedObject();
     board[JSON_NAME_NODE] = motorBoard->getName();
     if(motorBoard->isOn()) {
       board[JSON_STATE_NODE] = JSON_VALUE_NORMAL;

@@ -4,11 +4,11 @@
  <meta charset="utf-8">
  <meta name="viewport" content="width=device-width, initial-scale=1">
  <title>ESP32 Command Station</title>
- <script src="/jquery.min.js"></script>
- <link rel="stylesheet" href="/jquery.mobile-1.5.0-rc1.min.css">
- <script src="/jquery.mobile-1.5.0-rc1.min.js"></script>
- <script src="/jquery.simple.websocket.min.js"></script>
- <script src="/jqClock-lite.min.js"></script>
+ <script src="jquery.min.js"></script>
+ <link rel="stylesheet" href="jquery.mobile-1.5.0-rc1.min.css">
+ <script src="jquery.mobile-1.5.0-rc1.min.js"></script>
+ <script src="jquery.simple.websocket.min.js"></script>
+ <script src="jqClock-lite.min.js"></script>
  <style>
   .s88SensorOn {height:25px; width:40px; background-color:#00FF00; color:#FFFFFF;}
   .s88SensorOff {height:25px; width:40px; background-color:#FF0000; color:#FFFFFF;}
@@ -101,12 +101,12 @@
     </div>
    </div>
    <div id="baseStationPage">
-    <div data-role="accordion" id="bs-accordion" data-height-style="content" data-icons="" data-collapsible="true">
+    <div data-role="accordion" id="cs-accordion" data-height-style="content" data-icons="" data-collapsible="true">
      <h3>Status</h3>
-     <div id="bs-status">
+     <div id="cs-status">
       <div class="ui-grid-solo">
        <div class="ui-block-a">
-        <table id="bs-table-power" data-role="table" class="ui-responsive">
+        <table id="cs-table-power" data-role="table" class="ui-responsive">
          <caption>Power Districts</caption>
          <thead>
           <tr>
@@ -120,15 +120,15 @@
          </tbody>
          <tfoot>
           <tr>
-           <td><label for="bs-power-all">All Districts:</label></td>
-           <td><input type="checkbox" id="bs-power-all" data-role="flipswitch" data-off-text="Off" data-on-text="On"></td>
+           <td><label for="cs-power-all">All Districts:</label></td>
+           <td><input type="checkbox" id="cs-power-all" data-role="flipswitch" data-off-text="Off" data-on-text="On"></td>
           </tr>
          </tfoot>
         </table>
        </div>
       </div>
       <div class="ui-grid-solo">
-       <table data-role="table" id="bs-table-locomotives" class="ui-responsive">
+       <table data-role="table" id="cs-table-locomotives" class="ui-responsive">
         <caption>Active Locomotives</caption>
         <thead>
          <tr>
@@ -142,15 +142,11 @@
         </tbody>
        </table>
       </div>
-      <div class="ui-grid-solo">
-       <input type="button" id="bs-persist-config" value="Save Config" class='ui-button-inline'/>
-       <input type="button" id="bs-clear-config" value="Clear Config" class='ui-button-inline'/>
-      </div>
      </div>
      <h3>Turnouts</h3>
-     <div id="bs-turnouts">
+     <div id="cs-turnouts">
       <div class="ui-grid-solo">
-       <table id="bs-table-turnouts" data-role="table" class="ui-body-d ui-shadow table-stripe ui-responsive">
+       <table id="cs-table-turnouts" data-role="table" class="ui-body-d ui-shadow table-stripe ui-responsive">
         <thead>
          <tr>
           <th>ID</th>
@@ -165,14 +161,14 @@
        </table>
       </div>
       <div class="ui-grid-solo">
-       <a href='#' id='bs-turnout-create' data-role='button' data-show-label='false' data-icon='ui-icon-plus' title='create' class='ui-button-inline'></a>
-       <a href='#' id='bs-turnout-refresh' data-role='button' data-show-label='false' data-icon='ui-icon-refresh' title='refresh' class='ui-button-inline'></a>
+       <a href='#' id='cs-turnout-create' data-role='button' data-show-label='false' data-icon='ui-icon-plus' title='create' class='ui-button-inline'></a>
+       <a href='#' id='cs-turnout-refresh' data-role='button' data-show-label='false' data-icon='ui-icon-refresh' title='refresh' class='ui-button-inline'></a>
       </div>
      </div>
      <h3>Sensors</h3>
-     <div id="bs-sensors">
+     <div id="cs-sensors">
       <div class="ui-grid-solo">
-       <table id="bs-table-sensors" data-role="table" class="ui-body-d ui-shadow table-stripe ui-responsive">
+       <table id="cs-table-sensors" data-role="table" class="ui-body-d ui-shadow table-stripe ui-responsive">
         <thead>
          <tr>
           <th>ID</th>
@@ -187,14 +183,14 @@
        </table>
       </div>
       <div class="ui-grid-solo">
-       <a href='#' id='bs-sensor-create' data-role='button' data-show-label='false' data-icon='ui-icon-plus' title='create' class='ui-button-inline'></a>
-       <a href='#' id='bs-sensor-refresh' data-role='button' data-show-label='false' data-icon='ui-icon-refresh' title='refresh' class='ui-button-inline'></a>
+       <a href='#' id='cs-sensor-create' data-role='button' data-show-label='false' data-icon='ui-icon-plus' title='create' class='ui-button-inline'></a>
+       <a href='#' id='cs-sensor-refresh' data-role='button' data-show-label='false' data-icon='ui-icon-refresh' title='refresh' class='ui-button-inline'></a>
       </div>
      </div>
-     <h3 id="bs-sensors-s88-h3">Sensors (S88)</h3>
-     <div id="bs-sensors-s88">
+     <h3 id="cs-sensors-s88-h3">Sensors (S88)</h3>
+     <div id="cs-sensors-s88">
       <div class="ui-grid-solo">
-       <table id="bs-table-sensors-s88" data-role="table" class="ui-body-d ui-shadow table-stripe ui-responsive">
+       <table id="cs-table-sensors-s88" data-role="table" class="ui-body-d ui-shadow table-stripe ui-responsive">
         <thead>
          <tr>
           <th>ID</th>
@@ -210,14 +206,14 @@
        </table>
       </div>
       <div class="ui-grid-solo">
-       <a href='#' id='bs-sensor-s88-create' data-role='button' data-show-label='false' data-icon='ui-icon-plus' title='create' class='ui-button-inline'></a>
-       <a href='#' id='bs-sensor-s88-refresh' data-role='button' data-show-label='false' data-icon='ui-icon-refresh' title='refresh' class='ui-button-inline'></a>
+       <a href='#' id='cs-sensor-s88-create' data-role='button' data-show-label='false' data-icon='ui-icon-plus' title='create' class='ui-button-inline'></a>
+       <a href='#' id='cs-sensor-s88-refresh' data-role='button' data-show-label='false' data-icon='ui-icon-refresh' title='refresh' class='ui-button-inline'></a>
       </div>
      </div>
      <h3>Outputs</h3>
-     <div id="bs-outputs">
+     <div id="cs-outputs">
       <div class="ui-grid-solo">
-       <table id="bs-table-outputs" data-role="table" class="ui-body-d ui-shadow table-stripe ui-responsive">
+       <table id="cs-table-outputs" data-role="table" class="ui-body-d ui-shadow table-stripe ui-responsive">
         <thead>
          <tr>
           <th>ID</th>
@@ -232,14 +228,14 @@
        </table>
       </div>
       <div class="ui-grid-solo">
-       <a href='#' id='bs-output-create' data-role='button' data-show-label='false' data-icon='ui-icon-plus' title='create' class='ui-button-inline'></a>
-       <a href='#' id='bs-output-refresh' data-role='button' data-show-label='false' data-icon='ui-icon-refresh' title='refresh' class='ui-button-inline'></a>
+       <a href='#' id='cs-output-create' data-role='button' data-show-label='false' data-icon='ui-icon-plus' title='create' class='ui-button-inline'></a>
+       <a href='#' id='cs-output-refresh' data-role='button' data-show-label='false' data-icon='ui-icon-refresh' title='refresh' class='ui-button-inline'></a>
       </div>
      </div>
      <h3>Locomotive Roster</h3>
-     <div id="bs-loco-roster">
+     <div id="cs-loco-roster">
       <div class="ui-grid-solo">
-       <table id="bs-table-loco-roster" data-role="table" class="ui-body-d ui-shadow table-stripe ui-responsive">
+       <table id="cs-table-loco-roster" data-role="table" class="ui-body-d ui-shadow table-stripe ui-responsive">
         <thead>
          <tr>
           <th>Address</th>
@@ -253,58 +249,89 @@
        </table>
       </div>
       <div class="ui-grid-solo">
-       <a href='#' id='bs-loco-create' data-role='button' data-show-label='false' data-icon='ui-icon-plus' title='create' class='ui-button-inline'></a>
-       <a href='#' id='bs-loco-refresh' data-role='button' data-show-label='false' data-icon='ui-icon-refresh' title='refresh' class='ui-button-inline'></a>
+       <a href='#' id='cs-loco-create' data-role='button' data-show-label='false' data-icon='ui-icon-plus' title='create' class='ui-button-inline'></a>
+       <a href='#' id='cs-loco-refresh' data-role='button' data-show-label='false' data-icon='ui-icon-refresh' title='refresh' class='ui-button-inline'></a>
       </div>
      </div>
      <h3>Programmer</h3>
-     <div id="bs-prog">
+     <div id="cs-prog">
       <div class="ui-grid-a">
-       <div class="ui-block-a"><label for="bs-prog-action">Action:</label></div>
-       <div class="ui-block-b"><select id="bs-prog-action"><option value="write">Write</option><option value="read">Read</option><option value="identify">Identify Address</option></select></div>
+       <div class="ui-block-a"><label for="cs-prog-action">Action:</label></div>
+       <div class="ui-block-b"><select id="cs-prog-action"><option value="write">Write</option><option value="read">Read</option><option value="identify">Identify Address</option></select></div>
       </div>
-      <div class="ui-grid-a" id="bs-prog-div-target">
-       <div class="ui-block-a"><label for="bs-prog-target">Programming Mode:</label></div>
-       <div class="ui-block-b"><input type="checkbox" id="bs-prog-target" data-role="flipswitch" data-off-text="PROG" data-on-text="OPS"></div>
+      <div class="ui-grid-a" id="cs-prog-div-target">
+       <div class="ui-block-a"><label for="cs-prog-target">Programming Mode:</label></div>
+       <div class="ui-block-b"><input type="checkbox" id="cs-prog-target" data-role="flipswitch" data-off-text="PROG" data-on-text="OPS"></div>
       </div>
-      <div class="ui-grid-a" id="bs-prog-div-addr">
-       <div class="ui-block-a"><label for="bs-prog-addr">DCC Address:</label></div>
-       <div class="ui-block-b"><input type="number" pattern="[0-9]*" id="bs-prog-addr" value="1" min="1" max="16384"></div>
+      <div class="ui-grid-a" id="cs-prog-div-addr">
+       <div class="ui-block-a"><label for="cs-prog-addr">DCC Address:</label></div>
+       <div class="ui-block-b"><input type="number" pattern="[0-9]*" id="cs-prog-addr" value="1" min="1" max="16384"></div>
       </div>
-      <div class="ui-grid-a" id="bs-prog-div-cv">
-       <div class="ui-block-a"><label for="bs-prog-cv">CV:</label></div>
-       <div class="ui-block-b"><input type="number" pattern="[0-9]*" id="bs-prog-cv" value="1" min="1" max="1024"></div>
+      <div class="ui-grid-a" id="cs-prog-div-cv">
+       <div class="ui-block-a"><label for="cs-prog-cv">CV:</label></div>
+       <div class="ui-block-b"><input type="number" pattern="[0-9]*" id="cs-prog-cv" value="1" min="1" max="1024"></div>
       </div>
-      <div class="ui-grid-a" id="bs-prog-div-mode">
-       <div class="ui-block-a"><label for="bs-prog-mode">Mode:</label></div>
-       <div class="ui-block-b"><input type="checkbox" id="bs-prog-mode" data-role="flipswitch" data-off-text="Byte" data-on-text="Bit"></div>
+      <div class="ui-grid-a" id="cs-prog-div-mode">
+       <div class="ui-block-a"><label for="cs-prog-mode">Mode:</label></div>
+       <div class="ui-block-b"><input type="checkbox" id="cs-prog-mode" data-role="flipswitch" data-off-text="Byte" data-on-text="Bit"></div>
       </div>
-      <div class="ui-grid-a" id="bs-prog-div-value">
-       <div class="ui-block-a"><label for="bs-prog-cv-value">Value:</label></div>
-       <div class="ui-block-b"><input type="number" pattern="[0-9]*" id="bs-prog-cv-value" value="1" min="1" max="255"></div>
+      <div class="ui-grid-a" id="cs-prog-div-value">
+       <div class="ui-block-a"><label for="cs-prog-cv-value">Value:</label></div>
+       <div class="ui-block-b"><input type="number" pattern="[0-9]*" id="cs-prog-cv-value" value="1" min="1" max="255"></div>
       </div>
-      <div class="ui-grid-b" id="bs-prog-div-bit">
-       <div class="ui-block-a"><label for="bs-prog-cv-bit">Bit:</label></div>
-       <div class="ui-block-b"><input type="number" pattern="[0-7]*" id="bs-prog-cv-bit" value="0" min="0" max="7"></div>
-       <div class="ui-block-c" id="bs-prog-div-bit-value"><input type="checkbox" id="bs-prog-cv-bit-value" data-role="flipswitch" data-off-text="Off" data-on-text="On"></div>
+      <div class="ui-grid-b" id="cs-prog-div-bit">
+       <div class="ui-block-a"><label for="cs-prog-cv-bit">Bit:</label></div>
+       <div class="ui-block-b"><input type="number" pattern="[0-7]*" id="cs-prog-cv-bit" value="0" min="0" max="7"></div>
+       <div class="ui-block-c" id="cs-prog-div-bit-value"><input type="checkbox" id="cs-prog-cv-bit-value" data-role="flipswitch" data-off-text="Off" data-on-text="On"></div>
       </div>
-      <div class="ui-grid-a" id="bs-prog-div-create-roster">
-       <div class="ui-block-a"><label for="bs-prog-create-roster">Create Roster entry:</label></div>
-       <div class="ui-block-b"><input type="checkbox" id="bs-prog-create-roster" data-role="flipswitch" data-off-text="No" data-on-text="Yes"></div>
-      </div>
-      <div class="ui-grid-solo">
-       <div class="ui-block-a"><button id="bs-prog-execute" class="ui-corner-all">Execute</button></div>
+      <div class="ui-grid-a" id="cs-prog-div-create-roster">
+       <div class="ui-block-a"><label for="cs-prog-create-roster">Create Roster entry:</label></div>
+       <div class="ui-block-b"><input type="checkbox" id="cs-prog-create-roster" data-role="flipswitch" data-off-text="No" data-on-text="Yes"></div>
       </div>
       <div class="ui-grid-solo">
-       <div class="ui-block-a"><textarea id="bs-prog-result"></textarea></div>
+       <div class="ui-block-a"><button id="cs-prog-execute" class="ui-corner-all">Execute</button></div>
+      </div>
+      <div class="ui-grid-solo">
+       <div class="ui-block-a"><textarea id="cs-prog-result"></textarea></div>
       </div>
      </div>
      <h3>Web Update (OTA)</h3>
      <div id="cs-ota">
       <form id="cs-ota-form" data-ajax="false">
-       OTA Binary (firmware.bin):<input type="file" name="cs-ota-firmware" value="">
+       OTA Binary (firmware.bin):<input type="file" name="cs-ota-firmware" value="" />
        <input type="button" id="cs-ota-upload" value="Upload"/>
       </form>
+     </div>
+     <h3>Configuration</h3>
+     <div id="cs-config">
+      <div class="ui-grid-solo">
+       <div class="ui-field-contain">
+        <label for="cs-config-wifi-mode">WiFi Mode:</label>
+        <select id="cs-config-wifi-mode">
+         <option value="station">Station Only</option>
+         <option value="station-softap">Station and SoftAP</option>
+         <option value="softap">SoftAP Only</option>
+        </select>
+       </div>
+       <div class="ui-field-contain">
+        <label for="cs-config-sta-ip-mode">IP Assignment:</label>
+        <input type="checkbox" id="cs-config-sta-ip-mode" data-role="flipswitch" data-off-text="DHCP" data-on-text="Static">
+       </div>
+       <div class="ui-field-contain" id="cs-config-static-div">
+        <label for="cs-config-sta-ip">IP:</label>
+        <input type="text" id="cs-config-sta-ip">
+        <label for="cs-config-sta-gateway">Gateway IP:</label>
+        <input type="text" id="cs-config-sta-gateway">
+        <label for="cs-config-sta-netmask">Subnet Mask:</label>
+        <input type="text" id="cs-config-sta-netmask" value="255.255.255.0">
+        <label for="cs-config-dns">DNS:</label>
+        <input id="cs-config-dns" type="text" value="8.8.8.8">
+       </div>
+      </div>
+      <div class="ui-grid-solo">
+       <input type="button" id="cs-persist-config" value="Save Config" class='ui-button-inline'/>
+       <input type="button" id="cs-clear-config" value="Clear Config" class='ui-button-inline'/>
+      </div>
      </div>
     </div>
    </div>
@@ -339,155 +366,155 @@
     </div>
    </div>
   </div>
-  <div data-role="popup" data-close-btn="none" data-dismissible="false" id="bs-turnout-editor" class="ui-corner-all">
+  <div data-role="popup" data-close-btn="none" data-dismissible="false" id="cs-turnout-editor" class="ui-corner-all">
    <div data-role="header">Turnout Editor</div>
    <div data-role="main" class="ui-content">
     <div class="ui-field-contain">
-     <label for="bs-turnout-id">Turnout ID:</label>
-     <input type="number" pattern="[0-9]*" id="bs-turnout-id" value="1" min="1" max="32767">
+     <label for="cs-turnout-id">Turnout ID:</label>
+     <input type="number" pattern="[0-9]*" id="cs-turnout-id" value="1" min="1" max="32767">
     </div>
     <div class="ui-field-contain">
-     <label for="bs-turnout-address-mode">Address Mode:</label>
-     <select id="bs-turnout-address-mode"><option value="dcc">DCC Address Only</option><option value="address-index">Board Address and Index</option></select>
+     <label for="cs-turnout-address-mode">Address Mode:</label>
+     <select id="cs-turnout-address-mode"><option value="dcc">DCC Address Only</option><option value="address-index">Board Address and Index</option></select>
     </div>
     <div class="ui-field-contain">
-     <label for="bs-turnout-address">Address:</label>
-     <input type="number" pattern="[0-9]*" id="bs-turnout-address" value="1" min="1" max="2044">
+     <label for="cs-turnout-address">Address:</label>
+     <input type="number" pattern="[0-9]*" id="cs-turnout-address" value="1" min="1" max="2044">
     </div>
-    <div class="ui-field-contain" id="bs-turnout-editor-index">
-     <label for="bs-turnout-index">Index:</label>
-     <select id="bs-turnout-index"><option>0</option><option>1</option><option>2</option><option>3</option></select>
+    <div class="ui-field-contain" id="cs-turnout-editor-index">
+     <label for="cs-turnout-index">Index:</label>
+     <select id="cs-turnout-index"><option>0</option><option>1</option><option>2</option><option>3</option></select>
     </div>
     <div class="ui-field-contain">
-     <label for="bs-turnout-type">Type:</label>
-     <select id="bs-turnout-type"><option value="0">Left</option><option value="1">Right</option><option value="2">Wye</option><option value="3">Multi (threeway/etc)</option></select>
+     <label for="cs-turnout-type">Type:</label>
+     <select id="cs-turnout-type"><option value="0">Left</option><option value="1">Right</option><option value="2">Wye</option><option value="3">Multi (threeway/etc)</option></select>
     </div>
    </div>
    <div role="footer">
     <div data-role="navbar">
      <ul>
       <li><a href="#baseStationPage" data-rel="back" data-icon="ui-icon-back" class="ui-btn ui-shadow ui-corner-all ui-btn-icon-notext">Cancel</a></li>
-      <li><a href="#baseStationPage" id="bs-turnout-dialog-save" data-icon="ui-icon-check" class="ui-btn ui-shadow ui-corner-all ui-btn-icon-notext">Confirm</a></li>
+      <li><a href="#baseStationPage" id="cs-turnout-dialog-save" data-icon="ui-icon-check" class="ui-btn ui-shadow ui-corner-all ui-btn-icon-notext">Confirm</a></li>
      </ul>
     </div>
    </div>
   </div>
-  <div data-role="popup" data-close-btn="none" data-dismissible="false" id="bs-sensor-editor" class="ui-corner-all">
+  <div data-role="popup" data-close-btn="none" data-dismissible="false" id="cs-sensor-editor" class="ui-corner-all">
    <div data-role="header">Sensor Editor</div>
    <div data-role="main" class="ui-content">
     <div class="ui-field-contain">
-     <label for="bs-sensor-id">Sensor ID:</label>
-     <input type="number" pattern="[0-9]*" id="bs-sensor-id" value="1" min="1" max="32767">
+     <label for="cs-sensor-id">Sensor ID:</label>
+     <input type="number" pattern="[0-9]*" id="cs-sensor-id" value="1" min="1" max="32767">
     </div>
     <div class="ui-field-contain">
-     <label for="bs-sensor-pin">Pin:</label>
-     <input type="number" pattern="[0-9]*" id="bs-sensor-pin" value="1" min="1" max="40">
+     <label for="cs-sensor-pin">Pin:</label>
+     <input type="number" pattern="[0-9]*" id="cs-sensor-pin" value="1" min="1" max="40">
     </div>
     <div class="ui-field-contain">
-     <label for="bs-sensor-pullup">Pull Up:</label>
-     <input type="checkbox" id="bs-sensor-pullup" data-role="flipswitch" data-off-text="Off" data-on-text="On" />
+     <label for="cs-sensor-pullup">Pull Up:</label>
+     <input type="checkbox" id="cs-sensor-pullup" data-role="flipswitch" data-off-text="Off" data-on-text="On" />
     </div>
    </div>
    <div role="footer">
     <div data-role="navbar">
      <ul>
       <li><a href="#baseStationPage" data-rel="back" data-icon="ui-icon-back" class="ui-btn ui-shadow ui-corner-all ui-btn-icon-notext">Cancel</a></li>
-      <li><a href="#baseStationPage" id="bs-sensor-dialog-save" data-icon="ui-icon-check" class="ui-btn ui-shadow ui-corner-all ui-btn-icon-notext">Confirm</a></li>
+      <li><a href="#baseStationPage" id="cs-sensor-dialog-save" data-icon="ui-icon-check" class="ui-btn ui-shadow ui-corner-all ui-btn-icon-notext">Confirm</a></li>
      </ul>
     </div>
    </div>
   </div>
-  <div data-role="popup" data-close-btn="none" data-dismissible="false" id="bs-sensor-s88-editor" class="ui-corner-all">
+  <div data-role="popup" data-close-btn="none" data-dismissible="false" id="cs-sensor-s88-editor" class="ui-corner-all">
    <div data-role="header">S88 Sensor Bus Editor</div>
    <div data-role="main" class="ui-content">
     <div class="ui-field-contain">
-     <label for="bs-sensor-s88-id">Sensor Bus ID:</label>
-     <input type="number" pattern="[0-9]*" id="bs-sensor-s88-id" value="0" min="0" max="10">
+     <label for="cs-sensor-s88-id">Sensor Bus ID:</label>
+     <input type="number" pattern="[0-9]*" id="cs-sensor-s88-id" value="0" min="0" max="10">
     </div>
     <div class="ui-field-contain">
-     <label for="bs-sensor-s88-sensor-id">First sensor ID:</label>
-     <input type="number" id="bs-sensor-s88-sensor-id" value="512" readonly="true">
+     <label for="cs-sensor-s88-sensor-id">First sensor ID:</label>
+     <input type="number" id="cs-sensor-s88-sensor-id" value="512" readonly="true">
     </div>
     <div class="ui-field-contain">
-     <label for="bs-sensor-s88-pin">Data Pin:</label>
-     <input type="number" pattern="[0-9]*" id="bs-sensor-s88-pin" value="0" min="0" max="40">
+     <label for="cs-sensor-s88-pin">Data Pin:</label>
+     <input type="number" pattern="[0-9]*" id="cs-sensor-s88-pin" value="0" min="0" max="40">
     </div>
     <div class="ui-field-contain">
-     <label for="bs-sensor-s88-count">Sensor Count:</label>
-     <input type="number" pattern="[0-9]*" id="bs-sensor-s88-count" value="0" min="0" max="511">
+     <label for="cs-sensor-s88-count">Sensor Count:</label>
+     <input type="number" pattern="[0-9]*" id="cs-sensor-s88-count" value="0" min="0" max="511">
     </div>
    </div>
    <div role="footer">
     <div data-role="navbar">
      <ul>
       <li><a href="#baseStationPage" data-rel="back" data-icon="ui-icon-back" class="ui-btn ui-shadow ui-corner-all ui-btn-icon-notext">Cancel</a></li>
-      <li><a href="#baseStationPage" id="bs-sensor-s88-dialog-save" data-icon="ui-icon-check" class="ui-btn ui-shadow ui-corner-all ui-btn-icon-notext">Confirm</a></li>
+      <li><a href="#baseStationPage" id="cs-sensor-s88-dialog-save" data-icon="ui-icon-check" class="ui-btn ui-shadow ui-corner-all ui-btn-icon-notext">Confirm</a></li>
      </ul>
     </div>
    </div>
   </div>
-  <div data-role="popup" data-close-btn="none" data-dismissible="false" id="bs-output-editor" class="ui-corner-all">
+  <div data-role="popup" data-close-btn="none" data-dismissible="false" id="cs-output-editor" class="ui-corner-all">
    <div data-role="header">Output Editor</div>
    <div data-role="main" class="ui-content">
     <div class="ui-field-contain">
-     <label for="bs-output-id">ID:</label>
-     <input type="number" pattern="[0-9]*" id="bs-output-id" value="1" min="1" max="32767">
+     <label for="cs-output-id">ID:</label>
+     <input type="number" pattern="[0-9]*" id="cs-output-id" value="1" min="1" max="32767">
     </div>
     <div class="ui-field-contain">
-     <label for="bs-output-pin">Pin:</label>
-     <input type="number" pattern="[0-9]*" id="bs-output-pin" value="1" min="1" max="40">
+     <label for="cs-output-pin">Pin:</label>
+     <input type="number" pattern="[0-9]*" id="cs-output-pin" value="1" min="1" max="40">
     </div>
     <div class="ui-field-contain">
-     <label for="bs-output-logic">Logic:</label>
-     <input type="checkbox" id="bs-output-logic" data-role="flipswitch" data-off-text="Normal" data-on-text="Inverted" />
+     <label for="cs-output-logic">Logic:</label>
+     <input type="checkbox" id="cs-output-logic" data-role="flipswitch" data-off-text="Normal" data-on-text="Inverted" />
     </div>
     <div class="ui-field-contain">
-     <label for="bs-output-startup-state">Startup State:</label>
-     <input type="checkbox" id="bs-output-startup-state" data-role="flipswitch" data-off-text="Last State" data-on-text="Forced" />
+     <label for="cs-output-startup-state">Startup State:</label>
+     <input type="checkbox" id="cs-output-startup-state" data-role="flipswitch" data-off-text="Last State" data-on-text="Forced" />
     </div>
-    <div class="ui-field-contain" id="bs-output-default-state-div">
-     <label for="bs-output-default-state">Default State:</label>
-     <input type="checkbox" id="bs-output-default-state" data-role="flipswitch" data-off-text="Off" data-on-text="On" />
+    <div class="ui-field-contain" id="cs-output-default-state-div">
+     <label for="cs-output-default-state">Default State:</label>
+     <input type="checkbox" id="cs-output-default-state" data-role="flipswitch" data-off-text="Off" data-on-text="On" />
     </div>
    </div>
    <div role="footer">
     <div data-role="navbar">
      <ul>
       <li><a href="#baseStationPage" data-rel="back" data-icon="ui-icon-back" class="ui-btn ui-shadow ui-corner-all ui-btn-icon-notext">Cancel</a></li>
-      <li><a href="#baseStationPage" id="bs-output-dialog-save" data-icon="ui-icon-check" class="ui-btn ui-shadow ui-corner-all ui-btn-icon-notext">Confirm</a></li>
+      <li><a href="#baseStationPage" id="cs-output-dialog-save" data-icon="ui-icon-check" class="ui-btn ui-shadow ui-corner-all ui-btn-icon-notext">Confirm</a></li>
      </ul>
     </div>
    </div>
   </div>
-  <div data-role="popup" data-close-btn="none" data-dismissible="false" id="bs-loco-editor" class="ui-corner-all">
+  <div data-role="popup" data-close-btn="none" data-dismissible="false" id="cs-loco-editor" class="ui-corner-all">
    <div data-role="header">Locomotive Editor</div>
    <div data-role="main" class="ui-content">
     <div class="ui-field-contain">
-     <label for="bs-loco-addr">Address:</label>
-     <input type="number" pattern="[0-9]*" id="bs-loco-addr" value="1" min="1" max="16384" />
+     <label for="cs-loco-addr">Address:</label>
+     <input type="number" pattern="[0-9]*" id="cs-loco-addr" value="1" min="1" max="16384" />
     </div>
     <div class="ui-field-contain">
-     <label for="bs-loco-type">Type:</label>
-     <input type="text" pattern="[0-9]*" id="bs-loco-type" value="" />
+     <label for="cs-loco-type">Type:</label>
+     <input type="text" pattern="[0-9]*" id="cs-loco-type" value="" />
     </div>
     <div class="ui-field-contain">
-     <label for="bs-loco-desc">Description:</label>
-     <textarea id="bs-loco-desc" rows="5" cols="40"></textarea>
+     <label for="cs-loco-desc">Description:</label>
+     <textarea id="cs-loco-desc" rows="5" cols="40"></textarea>
     </div>
     <div class="ui-field-contain">
-     <label for="bs-loco-idle">Automatically add this locomotive to the "Active Locomotives" list on Command Station startup?</label>
-     <input type="checkbox" id="bs-loco-idle" data-role="flipswitch" data-off-text="No" data-on-text="Yes" />
+     <label for="cs-loco-idle">Automatically add this locomotive to the "Active Locomotives" list on Command Station startup?</label>
+     <input type="checkbox" id="cs-loco-idle" data-role="flipswitch" data-off-text="No" data-on-text="Yes" />
     </div>
     <div class="ui-field-contain">
-     <label for="bs-loco-default">Include this locomotive in the Throttle locomotive list?</label>
-     <input type="checkbox" id="bs-loco-default" data-role="flipswitch" data-off-text="No" data-on-text="Yes" />
+     <label for="cs-loco-default">Include this locomotive in the Throttle locomotive list?</label>
+     <input type="checkbox" id="cs-loco-default" data-role="flipswitch" data-off-text="No" data-on-text="Yes" />
     </div>
    </div>
    <div role="footer">
     <div data-role="navbar">
      <ul>
       <li><a href="#baseStationPage" data-rel="back" data-icon="ui-icon-back" class="ui-btn ui-shadow ui-corner-all ui-btn-icon-notext">Cancel</a></li>
-      <li><a href="#baseStationPage" id="bs-loco-save" data-icon="ui-icon-check" class="ui-btn ui-shadow ui-corner-all ui-btn-icon-notext">Confirm</a></li>
+      <li><a href="#baseStationPage" id="cs-loco-save" data-icon="ui-icon-check" class="ui-btn ui-shadow ui-corner-all ui-btn-icon-notext">Confirm</a></li>
      </ul>
     </div>
    </div>
@@ -707,20 +734,24 @@ function enableLocomotiveInputs() {
  $('#throttle-speed').slider('enable');
  $('#throttle-release-loco').button('enable');
 }
-function refreshCommandStationSection() {
- const sections = ["Status", "Turnouts", "Sensors", "Sensors (S88)", "Outputs", "Locomotive Roster", "Programmer"];
- var currentSection = $("#bs-accordion").accordion("option", "active");
- BSTabRefresh(sections[currentSection]);
-}
+const CSSections = ["Status", "Turnouts", "Sensors", "Sensors (S88)", "Outputs", "Locomotive Roster", "Programmer", "OTA", "Configuration"];
+const CSAutoRefSections = ["Status", "Turnouts", "Sensors", "Sensors (S88)", "Outputs"];
 function setupBaseStation() {
- $("#bs-accordion").on("accordionactivate", function(event, ui) {
-  refreshCommandStationSection();
+ $("#cs-accordion").on("accordionactivate", function(event, ui) {
+  var section = $("#cs-accordion").accordion("option", "active");
+  BSTabRefresh(CSSections[section]);
  });
  $("#tabs").on("tabsactivate", function(event, ui) {
   if(ui.newTab.text() == "Command Station") {
-   refreshCommandStationSection();
+   var section = $("#cs-accordion").accordion("option", "active");
+   BSTabRefresh(CSSections[section]);
    console.log('enabling auto-refresh of CS tabs every 30s');
-   bsTabRefreshInterval = setInterval(refreshCommandStationSection, 30000);
+   bsTabRefreshInterval = setInterval(function() {
+    var section = $("#cs-accordion").accordion("option", "active");
+    if(CSAutoRefSections[section] !== undefined) {
+     BSTabRefresh(CSSections[section]);
+    }
+   }, 30000);
   } else {
    if(bsTabRefreshInterval !== null) {
     console.log('disabling auto-refresh of CS tabs');
@@ -736,6 +767,7 @@ function setupBaseStation() {
  setupBSOutput();
  setupBSRoster();
  setupProgrammer();
+ setupConfig();
 
  $('#cs-ota-upload').on('vclick', function(event, ui) {
   if($('#cs-ota-firmware').val() != '') {
@@ -786,13 +818,7 @@ function setupBaseStation() {
  });
 }
 function setupBSStatus() {
- $("#bs-persist-config").on("vclick", function() {
-  sendCommand('<E>');
- });
- $("#bs-clear-config").on("vclick", function() {
-  sendCommand('<e>');
- });
- $('#bs-power-all').on('change', function() {
+ $('#cs-power-all').on('change', function() {
   if(firePowerEvents) {
    $.ajax({url: String.format('/power?overallState={0}', this.checked),
     method: 'PUT',
@@ -804,213 +830,213 @@ function setupBSStatus() {
  })
 }
 function setupBSTurnout() {
- $('#bs-turnout-address-mode').on('change', function(event, ui) {
-  if($('#bs-turnout-address-mode').val() === 'dcc') {
-   $('#bs-turnout-editor-index').hide();
+ $('#cs-turnout-address-mode').on('change', function(event, ui) {
+  if($('#cs-turnout-address-mode').val() === 'dcc') {
+   $('#cs-turnout-editor-index').hide();
   } else {
-   $('#bs-turnout-editor-index').show();
+   $('#cs-turnout-editor-index').show();
   }
  });
  // default to dcc addressing only.
- $('#bs-turnout-address-mode').change();
- $('#bs-turnout-dialog-save').on('vclick', function(event, ui) {
-  if($('#bs-turnout-address-mode').val() === 'dcc') {
-   console.log('Creating/Updating turnout', $('#bs-turnout-id').val(), 'using address', $('#bs-turnout-address').val(), 'and type', $('#bs-turnout-type').val());
+ $('#cs-turnout-address-mode').change();
+ $('#cs-turnout-dialog-save').on('vclick', function(event, ui) {
+  if($('#cs-turnout-address-mode').val() === 'dcc') {
+   console.log('Creating/Updating turnout', $('#cs-turnout-id').val(), 'using address', $('#cs-turnout-address').val(), 'and type', $('#cs-turnout-type').val());
    $.post('/turnouts', {
-    'id': $('#bs-turnout-id').val(),
-    'address' : $('#bs-turnout-address').val(),
+    'id': $('#cs-turnout-id').val(),
+    'address' : $('#cs-turnout-address').val(),
     'subAddress' : -1,
-    'type' : $('#bs-turnout-type').val()
+    'type' : $('#cs-turnout-type').val()
    });
   } else {
-   console.log('Creating/Updating turnout', $('#bs-turnout-id').val(), 'using address', $('#bs-turnout-address').val(), 'and index', $('#bs-turnout-index').val(), 'with type', $('#bs-turnout-type').val());
+   console.log('Creating/Updating turnout', $('#cs-turnout-id').val(), 'using address', $('#cs-turnout-address').val(), 'and index', $('#cs-turnout-index').val(), 'with type', $('#cs-turnout-type').val());
    $.post('/turnouts', {
-    'id': $('#bs-turnout-id').val(),
-    'address' : $('#bs-turnout-address').val(),
-    'subAddress' : $('#bs-turnout-index').val(),
-    'type' : $('#bs-turnout-type').val()
+    'id': $('#cs-turnout-id').val(),
+    'address' : $('#cs-turnout-address').val(),
+    'subAddress' : $('#cs-turnout-index').val(),
+    'type' : $('#cs-turnout-type').val()
    });
   }
   BSTabRefresh('Turnouts');
  });
- $('#bs-turnout-create').on('vclick', function(event, ui) {
-  $('#bs-turnout-id').val($('#bs-table-turnouts tbody tr').length + 1);
-  $('#bs-turnout-address').val(1);
-  $('#bs-turnout-index').val(-1);
-  $('#bs-turnout-type').val(0);
-  $('#bs-turnout-address-mode').val('dcc').change();
-  $('#bs-turnout-editor').popup('open', {positionTo:'window'});
+ $('#cs-turnout-create').on('vclick', function(event, ui) {
+  $('#cs-turnout-id').val($('#cs-table-turnouts tbody tr').length + 1);
+  $('#cs-turnout-address').val(1);
+  $('#cs-turnout-index').val(-1);
+  $('#cs-turnout-type').val(0);
+  $('#cs-turnout-address-mode').val('dcc').change();
+  $('#cs-turnout-editor').popup('open', {positionTo:'window'});
  });
- $('#bs-turnout-refresh').on('vclick', function(event, ui) {
+ $('#cs-turnout-refresh').on('vclick', function(event, ui) {
   BSTabRefresh('Turnouts');
  });
 }
 function setupBSSensor() {
- $('#bs-sensor-dialog-save').on('vclick', function(event, ui) {
+ $('#cs-sensor-dialog-save').on('vclick', function(event, ui) {
   $.post('/sensors', {
-   'id': $('#bs-sensor-id').val(),
-   'pin' : $('#bs-sensor-pin').val(),
-   'pullUp' : $('#bs-sensor-pullup').prop('checked')
+   'id': $('#cs-sensor-id').val(),
+   'pin' : $('#cs-sensor-pin').val(),
+   'pullUp' : $('#cs-sensor-pullup').prop('checked')
   });
   BSTabRefresh('Sensors');
  });
- $('#bs-sensor-create').on('vclick', function(event, ui) {
-  $('#bs-sensor-id').val($('#bs-table-sensors tbody tr').length + 1);
-  $('#bs-sensor-pin').val(1);
-  $('#bs-sensor-pullUp').prop('checked', false);
-  $('#bs-sensor-editor').popup('open', {positionTo:'window'});
+ $('#cs-sensor-create').on('vclick', function(event, ui) {
+  $('#cs-sensor-id').val($('#cs-table-sensors tbody tr').length + 1);
+  $('#cs-sensor-pin').val(1);
+  $('#cs-sensor-pullUp').prop('checked', false);
+  $('#cs-sensor-editor').popup('open', {positionTo:'window'});
  });
- $('#bs-sensor-refresh').on('vclick', function(event, ui) {
+ $('#cs-sensor-refresh').on('vclick', function(event, ui) {
   BSTabRefresh('Sensors');
  });
 }
 function setupBSS88Sensors() {
- $('#bs-sensor-s88-dialog-save').on('vclick', function() {
+ $('#cs-sensor-s88-dialog-save').on('vclick', function() {
   $.post('/s88sensors', {
-   'id': $('#bs-sensor-s88-id').val(),
-   'pin' : $('#bs-sensor-s88-pin').val(),
-   'count' : $('#bs-sensor-s88-count').val()
+   'id': $('#cs-sensor-s88-id').val(),
+   'pin' : $('#cs-sensor-s88-pin').val(),
+   'count' : $('#cs-sensor-s88-count').val()
   });
   BSTabRefresh('Sensors (S88)');
  });
- $('#bs-sensor-s88-create').on('vclick', function() {
-  $('#bs-sensor-s88-id').val($('#bs-table-sensors-s88 tbody tr').length);
-  $('#bs-sensor-s88-sensor-id').val(s88SensorIDBase + ($('#bs-sensor-s88-id').val() * 512));
-  $('#bs-sensor-s88-pin').val(1);
-  $('#bs-sensor-s88-count').val(0);
-  $('#bs-sensor-s88-editor').popup('open', {positionTo:'window'});
+ $('#cs-sensor-s88-create').on('vclick', function() {
+  $('#cs-sensor-s88-id').val($('#cs-table-sensors-s88 tbody tr').length);
+  $('#cs-sensor-s88-sensor-id').val(s88SensorIDBase + ($('#cs-sensor-s88-id').val() * 512));
+  $('#cs-sensor-s88-pin').val(1);
+  $('#cs-sensor-s88-count').val(0);
+  $('#cs-sensor-s88-editor').popup('open', {positionTo:'window'});
  });
- $('#bs-sensor-s88-id').on('change', function() {
-  $('#bs-sensor-s88-sensor-id').val(s88SensorIDBase + ($('#bs-sensor-s88-id').val() * 512));
+ $('#cs-sensor-s88-id').on('change', function() {
+  $('#cs-sensor-s88-sensor-id').val(s88SensorIDBase + ($('#cs-sensor-s88-id').val() * 512));
  });
- $('#bs-sensor-s88-refresh').on('vclick', function() {
+ $('#cs-sensor-s88-refresh').on('vclick', function() {
   BSTabRefresh('Sensors (S88)');
  });
 }
 function setupBSOutput() {
- $('#bs-output-dialog-save').on('vclick', function() {
-  console.log('Creating output', $('#bs-output-id').val(), 'with pin',
-   $('#bs-output-pin').val(), 'logicInverted:', $('#bs-output-logic').prop('checked'),
-   'forceState:', $('#bs-output-startup-state').prop('checked'),
-   'defaultState:',$('#bs-output-default-state').prop('checked'));
+ $('#cs-output-dialog-save').on('vclick', function() {
+  console.log('Creating output', $('#cs-output-id').val(), 'with pin',
+   $('#cs-output-pin').val(), 'logicInverted:', $('#cs-output-logic').prop('checked'),
+   'forceState:', $('#cs-output-startup-state').prop('checked'),
+   'defaultState:',$('#cs-output-default-state').prop('checked'));
   $.post('/outputs', {
-   'id': $('#bs-output-id').val(),
-   'pin' : $('#bs-output-pin').val(),
-   'inverted' : $('#bs-output-logic').prop('checked'),
-   'forceState' : $('#bs-output-startup-state').prop('checked'),
-   'defaultState' : $('#bs-output-default-state').prop('checked')
+   'id': $('#cs-output-id').val(),
+   'pin' : $('#cs-output-pin').val(),
+   'inverted' : $('#cs-output-logic').prop('checked'),
+   'forceState' : $('#cs-output-startup-state').prop('checked'),
+   'defaultState' : $('#cs-output-default-state').prop('checked')
   });
   BSTabRefresh('Outputs');
  });
- $('#bs-output-create').on('vclick', function() {
-  $('#bs-output-id').val($('#bs-table-outputs tbody tr').length + 1);
-  $('#bs-output-pin').val(1);
-  $('#bs-output-logic').val(0);
-  $('#bs-output-startup-state').val(0);
-  $('#bs-output-default-state').val(0);
-  $('#bs-output-editor').popup('open', {positionTo:'window'});
+ $('#cs-output-create').on('vclick', function() {
+  $('#cs-output-id').val($('#cs-table-outputs tbody tr').length + 1);
+  $('#cs-output-pin').val(1);
+  $('#cs-output-logic').val(0);
+  $('#cs-output-startup-state').val(0);
+  $('#cs-output-default-state').val(0);
+  $('#cs-output-editor').popup('open', {positionTo:'window'});
  });
- $('#bs-output-refresh').on('vclick', function() {
+ $('#cs-output-refresh').on('vclick', function() {
   BSTabRefresh('Outputs');
  });
- $('#bs-output-startup-state').on('change', function() {
+ $('#cs-output-startup-state').on('change', function() {
   if(this.checked) {
-   $('#bs-output-default-state-div').show();
+   $('#cs-output-default-state-div').show();
   } else {
-   $('#bs-output-default-state-div').hide();
+   $('#cs-output-default-state-div').hide();
   }
  });
- $('#bs-output-default-state-div').hide();
+ $('#cs-output-default-state-div').hide();
 }
 function setupBSRoster() {
- $('#bs-loco-save').on('vclick', function() {
-  console.log('Creating roster entry:', $('#bs-loco-addr').val(),
-   'type:', $('#bs-loco-type').val(), 'desc:', $('#bs-loco-desc').val(),
-   'idle:', $('#bs-loco-idle').prop('checked'),
-   'default:',$('#bs-loco-default').prop('checked'));
+ $('#cs-loco-save').on('vclick', function() {
+  console.log('Creating roster entry:', $('#cs-loco-addr').val(),
+   'type:', $('#cs-loco-type').val(), 'desc:', $('#cs-loco-desc').val(),
+   'idle:', $('#cs-loco-idle').prop('checked'),
+   'default:',$('#cs-loco-default').prop('checked'));
   $.post('/locomotive/roster', {
-   'address': $('#bs-loco-addr').val(),
-   'type' : $('#bs-loco-type').val(),
-   'description' : $('#bs-loco-desc').val(),
-   'idleOnStartup' : $('#bs-loco-idle').prop('checked'),
-   'defaultOnThrottles' : $('#bs-loco-default').prop('checked')
+   'address': $('#cs-loco-addr').val(),
+   'type' : $('#cs-loco-type').val(),
+   'description' : $('#cs-loco-desc').val(),
+   'idleOnStartup' : $('#cs-loco-idle').prop('checked'),
+   'defaultOnThrottles' : $('#cs-loco-default').prop('checked')
   });
   BSTabRefresh('Locomotive Roster');
  });
- $('#bs-loco-create').on('vclick', function() {
-  $('#bs-loco-addr').val(1);
-  $('#bs-loco-type').val("");
-  $('#bs-loco-desc').val("");
-  $('#bs-loco-idle').prop('checked', false);
-  $('#bs-loco-default').prop('checked', true);
-  $('#bs-loco-editor').popup('open', {positionTo:'window'});
+ $('#cs-loco-create').on('vclick', function() {
+  $('#cs-loco-addr').val(1);
+  $('#cs-loco-type').val("");
+  $('#cs-loco-desc').val("");
+  $('#cs-loco-idle').prop('checked', false);
+  $('#cs-loco-default').prop('checked', true);
+  $('#cs-loco-editor').popup('open', {positionTo:'window'});
  });
- $('#bs-loco-refresh').on('vclick', function() {
+ $('#cs-loco-refresh').on('vclick', function() {
   BSTabRefresh('Locomotive Roster');
  });
 }
 function setupProgrammer() {
- $('#bs-prog-target').on('change', function() {
+ $('#cs-prog-target').on('change', function() {
   if(this.checked) {
-   $('#bs-prog-div-addr').show();
+   $('#cs-prog-div-addr').show();
   } else {
-   $('#bs-prog-div-addr').hide();
+   $('#cs-prog-div-addr').hide();
   }
  });
- $('#bs-prog-mode').on('change', function() {
+ $('#cs-prog-mode').on('change', function() {
   if(this.checked) {
-   $('#bs-prog-div-value').hide();
-   if($('#bs-prog-action').val() === 'write') {
-    $('#bs-prog-div-bit-value').show();
+   $('#cs-prog-div-value').hide();
+   if($('#cs-prog-action').val() === 'write') {
+    $('#cs-prog-div-bit-value').show();
    } else {
-    $('#bs-prog-div-bit-value').hide();
+    $('#cs-prog-div-bit-value').hide();
    }
-   $('#bs-prog-div-bit').show();
+   $('#cs-prog-div-bit').show();
   } else {
-   if($('#bs-prog-action').val() === 'write') {
-    $('#bs-prog-div-value').show();
+   if($('#cs-prog-action').val() === 'write') {
+    $('#cs-prog-div-value').show();
    }
-   $('#bs-prog-div-bit').hide();
+   $('#cs-prog-div-bit').hide();
   }
  });
- $('#bs-prog-action').on('change', function() {
+ $('#cs-prog-action').on('change', function() {
   if($(this).val() === 'read') {
-   $('#bs-prog-target').val(0);
-   $('#bs-prog-target').flipswitch('disable');
-   $('#bs-prog-div-addr').hide();
-   $('#bs-prog-div-value').hide();
+   $('#cs-prog-target').val(0);
+   $('#cs-prog-target').flipswitch('disable');
+   $('#cs-prog-div-addr').hide();
+   $('#cs-prog-div-value').hide();
   } else if($(this).val() === 'write') {
-   $('#bs-prog-target').flipswitch('enable');
-   $('#bs-prog-div-value').show();
+   $('#cs-prog-target').flipswitch('enable');
+   $('#cs-prog-div-value').show();
   }
   if($(this).val() === 'identify') {
-   $('#bs-prog-div-create-roster').show();
-   $('#bs-prog-div-target').hide();
-   $('#bs-prog-div-addr').hide();
-   $('#bs-prog-div-cv').hide();
-   $('#bs-prog-div-mode').hide();
-   $('#bs-prog-div-value').hide();
+   $('#cs-prog-div-create-roster').show();
+   $('#cs-prog-div-target').hide();
+   $('#cs-prog-div-addr').hide();
+   $('#cs-prog-div-cv').hide();
+   $('#cs-prog-div-mode').hide();
+   $('#cs-prog-div-value').hide();
   } else {
-   $('#bs-prog-div-target').show();
-   $('#bs-prog-div-cv').show();
-   $('#bs-prog-div-mode').show();
-   $('#bs-prog-div-create-roster').hide();
+   $('#cs-prog-div-target').show();
+   $('#cs-prog-div-cv').show();
+   $('#cs-prog-div-mode').show();
+   $('#cs-prog-div-create-roster').hide();
   }
  })
- $('#bs-prog-execute').on('vclick', function() {
-  $('#bs-prog-result').val('pending...');
-  if($('#bs-prog-action').val() === 'read') {
+ $('#cs-prog-execute').on('vclick', function() {
+  $('#cs-prog-result').val('pending...');
+  if($('#cs-prog-action').val() === 'read') {
    $.ajax({url: '/programmer',
     timeout: 15000,
     type: 'GET',
     dataType: 'json',
     data: {
      'pom' : 'false',
-     'cv': $('#bs-prog-cv').val()
+     'cv': $('#cs-prog-cv').val()
     },
     beforeSend: function() {
      $.mobile.loading('show', {
-      text: String.format('Retrieving CV {0}...', $('#bs-prog-cv').val()),
+      text: String.format('Retrieving CV {0}...', $('#cs-prog-cv').val()),
       textVisible: true,
       textonly: false});
     },
@@ -1018,31 +1044,31 @@ function setupProgrammer() {
      setTimeout(function () {
       $.mobile.loading('hide');
       }, 1);
-     $('#bs-prog-result').val(String.format('CV {0} has value {1}', data['cv'], data['value']));
+     $('#cs-prog-result').val(String.format('CV {0} has value {1}', data['cv'], data['value']));
     },
     error: function() {
      setTimeout(function () {
       $.mobile.loading('hide');
       }, 1);
-     $('#bs-prog-result').val(String.format('CV {0} read was not successful', $('#bs-prog-cv').val()));
+     $('#cs-prog-result').val(String.format('CV {0} read was not successful', $('#cs-prog-cv').val()));
     }
    });
-  } else if($('#bs-prog-action').val() === 'write') {
-   if($('#bs-prog-mode').prop('checked')) {
+  } else if($('#cs-prog-action').val() === 'write') {
+   if($('#cs-prog-mode').prop('checked')) {
     $.ajax({url: '/programmer',
      timeout: 15000,
      type: 'POST',
      dataType: 'json',
      data: {
-      'cv': $('#bs-prog-cv').val(),
-      'pom': $('#bs-prog-target').prop('checked'),
-      'address': $('#bs-prog-addr').val(),
-      'bit' : $('#bs-prog-cv-bit').val(),
-      'value' : $('#bs-prog-cv-bit-value').prop('checked')
+      'cv': $('#cs-prog-cv').val(),
+      'pom': $('#cs-prog-target').prop('checked'),
+      'address': $('#cs-prog-addr').val(),
+      'bit' : $('#cs-prog-cv-bit').val(),
+      'value' : $('#cs-prog-cv-bit-value').prop('checked')
      },
      beforeSend: function() {
       $.mobile.loading('show', {
-       text: String.format('Writing CV {0}...', $('#bs-prog-cv').val()),
+       text: String.format('Writing CV {0}...', $('#cs-prog-cv').val()),
        textVisible: true,
        textonly: false});
      },
@@ -1050,13 +1076,13 @@ function setupProgrammer() {
       setTimeout(function () {
        $.mobile.loading('hide');
        }, 1);
-      $('#bs-prog-result').val(String.format('CV {0} bit {1} written successfully', $('#bs-prog-cv').val(), $('#bs-prog-cv-bit').val()));
+      $('#cs-prog-result').val(String.format('CV {0} bit {1} written successfully', $('#cs-prog-cv').val(), $('#cs-prog-cv-bit').val()));
      },
      error: function() {
       setTimeout(function () {
        $.mobile.loading('hide');
        }, 1);
-      $('#bs-prog-result').val(String.format('CV {0} bit {1} was not written successfully', $('#bs-prog-cv').val(), $('#bs-prog-cv-bit').val()));
+      $('#cs-prog-result').val(String.format('CV {0} bit {1} was not written successfully', $('#cs-prog-cv').val(), $('#cs-prog-cv-bit').val()));
      }
     });
    } else {
@@ -1065,14 +1091,14 @@ function setupProgrammer() {
      type: 'POST',
      dataType: 'json',
      data: {
-      'cv': $('#bs-prog-cv').val(),
-      'pom': $('#bs-prog-target').prop('checked'),
-      'address': $('#bs-prog-addr').val(),
-      'value' : $('#bs-prog-cv-value').val()
+      'cv': $('#cs-prog-cv').val(),
+      'pom': $('#cs-prog-target').prop('checked'),
+      'address': $('#cs-prog-addr').val(),
+      'value' : $('#cs-prog-cv-value').val()
      },
      beforeSend: function() {
       $.mobile.loading('show', {
-       text: String.format('Writing CV {0}...', $('#bs-prog-cv').val()),
+       text: String.format('Writing CV {0}...', $('#cs-prog-cv').val()),
        textVisible: true,
        textonly: false});
      },
@@ -1080,13 +1106,13 @@ function setupProgrammer() {
       setTimeout(function () {
        $.mobile.loading('hide');
        }, 1);
-      $('#bs-prog-result').val(String.format('CV {0} written successfully', $('#bs-prog-cv').val()));
+      $('#cs-prog-result').val(String.format('CV {0} written successfully', $('#cs-prog-cv').val()));
      },
      error: function() {
       setTimeout(function () {
        $.mobile.loading('hide');
        }, 1);
-      $('#bs-prog-result').val(String.format('CV {0} was not written successfully', $('#bs-prog-cv').val()));
+      $('#cs-prog-result').val(String.format('CV {0} was not written successfully', $('#cs-prog-cv').val()));
      }
     });
    }
@@ -1098,7 +1124,7 @@ function setupProgrammer() {
     data: {
      'pom' : 'false',
      'identify' : 'true',
-     'create' : $('#bs-prog-create-roster').prop('checked')
+     'create' : $('#cs-prog-create-roster').prop('checked')
     },
     beforeSend: function() {
       $.mobile.loading('show', {
@@ -1111,10 +1137,10 @@ function setupProgrammer() {
       $.mobile.loading('hide');
       }, 1);
      if(data.hasOwnProperty('loco')) {
-      $('#bs-prog-result').val(String.format('Identified the decoder as having address {0} ({1}), speed table {2}.\nRoster entry has been created for the {3}',
+      $('#cs-prog-result').val(String.format('Identified the decoder as having address {0} ({1}), speed table {2}.\nRoster entry has been created for the {3}',
        data['address'], data['addressMode'], data['speedTable'], data['loco']['type']));
      } else {
-      $('#bs-prog-result').val(String.format('Identified the decoder as having address {0} ({1}), speed table {2}',
+      $('#cs-prog-result').val(String.format('Identified the decoder as having address {0} ({1}), speed table {2}',
        data['address'], data['addressMode'], data['speedTable']));
      }
     },
@@ -1122,29 +1148,73 @@ function setupProgrammer() {
      setTimeout(function () {
       $.mobile.loading('hide');
       }, 1);
-     $('#bs-prog-result').val('Unable to identify the decoder');
+     $('#cs-prog-result').val('Unable to identify the decoder');
     }
    });
   }
  });
- $('#bs-prog-div-addr').hide();
- $('#bs-prog-div-bit').hide();
- $('#bs-prog-div-create-roster').hide();
+ $('#cs-prog-div-addr').hide();
+ $('#cs-prog-div-bit').hide();
+ $('#cs-prog-div-create-roster').hide();
+}
+function setupConfig() {
+ $("#cs-persist-config").on("vclick", function() {
+  $.ajax({
+   url: '/config',
+   beforeSend: function() {
+    $.mobile.loading('show', {
+     text: 'Saving Configuration...',
+     textVisible: true,
+     textonly: false});
+   },
+   complete: function() {
+    setTimeout(function () {
+     $.mobile.loading('hide');
+    }, 1);
+   },
+   success : function (data, status, xhr) {
+    $("#cs-config-wifi-mode").val(data.wifi.mode).change();
+    $("#cs-config-sta-ip-mode").prop("checked", data.wifi.station.mode === 'static').flipswitch("refresh");
+    if(data.wifi.station.mode === 'static') {
+      $("#cs-config-static-div").show();
+      $("#cs-config-sta-ip").val(data.wifi.station.ip);
+      $("#cs-config-sta-gateway").val(data.wifi.station.gateway);
+      $("#cs-config-sta-netmask").val(data.wifi.station.netmask);
+      $("#cs-config-sta-dns").val(data.wifi.dns);
+    }
+   },
+   error : function(xhr, status, error) {
+    alert("The command station reported a failure saving configuration data");
+    console.log("The command station reported a failure saving configuration data:", error);
+   }
+  });
+ });
+ $("#cs-clear-config").on("vclick", function() {
+  $.ajax({url: '/config', method: 'DELETE'});
+ });
+ $('#cs-config-sta-ip-mode').on('change', function() {
+  if(this.checked) {
+   $("#cs-config-static-div").show();
+  } else {
+   $("#cs-config-static-div").hide();
+  }
+ });
+ $("#cs-config-static-div").hide();
 }
 function BSTabRefresh(section) {
  console.log("refreshing: " + section);
  if(section === 'Status') {
-  refreshTable({table: '#bs-table-power', url: '/power',
+  refreshTable({table: '#cs-table-power', url: '/power',
    fields: ['name', 'state', 'usage', function(record) {
     if(record.state === 'Off') {
-     return createButton({type:'power', id:String.format("bs-power-{0}-true", record.name), title:'Enable'});
+     return createButton({type:'power', id:String.format("cs-power-{0}-true", record.name), title:'Enable'});
     } else {
-     return createButton({type:'power', id:String.format("bs-power-{0}-false", record.name), title:'Disable'});
+     return createButton({type:'power', id:String.format("cs-power-{0}-false", record.name), title:'Disable'});
     }
    }],
    refreshCallback:function() {
-    $('#bs-table-power tr td [id^=bs-power-]').button();
-    $('#bs-table-power tr td [id^=bs-power-]').on('vclick', function(event, ui) {
+    $('#cs-table-power tr td [id^=cs-power-]').button();
+    $('#cs-table-power tr td [id^=cs-power-]').on('vclick', function(event, ui) {
      var idParts = $(this).attr('id').split('-');
      $.ajax({url: String.format('/power?name={0}&state={1}', idParts[2], idParts[3]),
       method: 'PUT',
@@ -1156,14 +1226,14 @@ function BSTabRefresh(section) {
      success:function(data, status, jqxhr) {
       firePowerEvents = false;
       $.each(data, function(index, value) {
-       $('#bs-power-all').prop("checked", value.state === 'true').flipswitch("refresh");
+       $('#cs-power-all').prop("checked", value.state === 'true').flipswitch("refresh");
       });
       firePowerEvents = true;
      }
     });
    }
   });
-  refreshTable({table: '#bs-table-locomotives', url: '/locomotive',
+  refreshTable({table: '#cs-table-locomotives', url: '/locomotive',
    fields: ['address', 'speed', 'dir', function(record) {
     var buttons = '';
     buttons += createButton({type:'delete', id:String.format("loco-{0}-delete", record.address)});
@@ -1171,8 +1241,8 @@ function BSTabRefresh(section) {
     return buttons;
    }],
    refreshCallback: function() {
-    $('#bs-table-locomotives tr td [id^=loco-]').button();
-    $('#bs-table-locomotives tr td [id^=loco-]').on('vclick', function(event, ui) {
+    $('#cs-table-locomotives tr td [id^=loco-]').button();
+    $('#cs-table-locomotives tr td [id^=loco-]').on('vclick', function(event, ui) {
      var idParts = $(this).attr('id').split('-');
      if(idParts[2] === 'delete') {
       $.ajax({url: String.format('/locomotive?address={0}', idParts[1]),
@@ -1188,7 +1258,7 @@ function BSTabRefresh(section) {
    }
   });
  } else if(section === 'Turnouts') {
-  refreshTable({table: '#bs-table-turnouts', url: '/turnouts',
+  refreshTable({table: '#cs-table-turnouts', url: '/turnouts',
    fields: ['id',
     function(record) { // convert address
      if(record.subAddress == -1) {
@@ -1212,8 +1282,8 @@ function BSTabRefresh(section) {
     return buttons;
    }],
    refreshCallback: function() {
-    $('#bs-table-turnouts tr td [id^=turnout-]').button();
-    $('#bs-table-turnouts tr td [id^=turnout-]').on('vclick', function(event, ui) {
+    $('#cs-table-turnouts tr td [id^=turnout-]').button();
+    $('#cs-table-turnouts tr td [id^=turnout-]').on('vclick', function(event, ui) {
      var idParts = $(this).attr('id').split('-');
      if(idParts[2] === 'delete') {
       $.ajax({url: String.format('/turnouts?id={0}', idParts[1]),
@@ -1225,17 +1295,17 @@ function BSTabRefresh(section) {
       $.ajax({url: String.format('/turnouts?id={0}', idParts[1]),
        success:function(data, status, jqxhr) {
         console.log('Edit turnout', data);
-        $('#bs-turnout-id').val(data.id);
-        $('#bs-turnout-address').val(data.address);
-        $('#bs-turnout-index').val(data.subAddress);
-        $('#bs-turnout-type').val(data.type).change();
+        $('#cs-turnout-id').val(data.id);
+        $('#cs-turnout-address').val(data.address);
+        $('#cs-turnout-index').val(data.subAddress);
+        $('#cs-turnout-type').val(data.type).change();
         if(data.subAddress != -1) {
-         $('#bs-turnout-address-mode').val('address-index').change();
+         $('#cs-turnout-address-mode').val('address-index').change();
         } else {
          // default to dcc addressing only.
-         $('#bs-turnout-address-mode').val('dcc').change();
+         $('#cs-turnout-address-mode').val('dcc').change();
         }
-        $('#bs-turnout-editor').popup('open', {positionTo:'window'});
+        $('#cs-turnout-editor').popup('open', {positionTo:'window'});
        }
       });
      } else {
@@ -1246,7 +1316,7 @@ function BSTabRefresh(section) {
    }
   });
  } else if(section === 'Sensors') {
-  refreshTable({table: '#bs-table-sensors', url: '/sensors',
+  refreshTable({table: '#cs-table-sensors', url: '/sensors',
    fields: ['id', 'pin', 'pullUp', 'state', function(record) {
     var buttons = '';
     if(record.pin > 0) {
@@ -1256,8 +1326,8 @@ function BSTabRefresh(section) {
     return buttons;
    }],
    refreshCallback: function() {
-    $('#bs-table-sensors tr td [id^=sensor-]').button();
-    $('#bs-table-sensors tr td [id^=sensor-]').on('vclick', function(event, ui) {
+    $('#cs-table-sensors tr td [id^=sensor-]').button();
+    $('#cs-table-sensors tr td [id^=sensor-]').on('vclick', function(event, ui) {
      var idParts = $(this).attr('id').split('-');
      if(idParts[2] === 'delete') {
       $.ajax({url: String.format('/sensors?id={0}', idParts[1]),
@@ -1269,10 +1339,10 @@ function BSTabRefresh(section) {
       $.ajax({url: String.format('/sensors?id={0}', idParts[1]),
        success:function(data, status, jqxhr) {
         console.log('Edit sensor', data);
-        $('#bs-sensor-id').val(data.id);
-        $('#bs-sensor-pin').val(data.pin);
-        $('#bs-sensor-pullUp').prop('checked', data.pullUp === 'true');
-        $('#bs-sensor-editor').popup('open', {positionTo:'window'});
+        $('#cs-sensor-id').val(data.id);
+        $('#cs-sensor-pin').val(data.pin);
+        $('#cs-sensor-pullUp').prop('checked', data.pullUp === 'true');
+        $('#cs-sensor-editor').popup('open', {positionTo:'window'});
        }
       });
      }
@@ -1280,7 +1350,7 @@ function BSTabRefresh(section) {
    }
   });
  } else if(section === 'Sensors (S88)') {
-  refreshTable({table: '#bs-table-sensors-s88', url: '/s88sensors',
+  refreshTable({table: '#cs-table-sensors-s88', url: '/s88sensors',
    fields: ['id', 'pin', 'sensorIDBase', 'count', function(record) {
     var state = '';
     var dataSplit = record.state.split("");
@@ -1304,8 +1374,8 @@ function BSTabRefresh(section) {
     return buttons;
    }],
    refreshCallback: function() {
-    $('#bs-table-sensors-s88 tr td [id^=s88sensor-]').button();
-    $('#bs-table-sensors-s88 tr td [id^=s88sensor-]').on('vclick', function(event, ui) {
+    $('#cs-table-sensors-s88 tr td [id^=s88sensor-]').button();
+    $('#cs-table-sensors-s88 tr td [id^=s88sensor-]').on('vclick', function(event, ui) {
      var idParts = $(this).attr('id').split('-');
      if(idParts[2] === 'delete') {
       $.ajax({url: String.format('/s88sensors?id={0}', idParts[1]),
@@ -1317,11 +1387,11 @@ function BSTabRefresh(section) {
       $.ajax({url: String.format('/s88sensors?id={0}', idParts[1]),
        success:function(data, status, jqxhr) {
         console.log('Edit s88 sensor', data);
-        $('#bs-sensor-s88-id').val(data.id);
-        $('#bs-sensor-s88-sensor-id').val(s88SensorIDBase + (data.id * 512));
-        $('#bs-sensor-s88-pin').val(data.dataPin);
-        $('#bs-sensor-s88-count').val(data.count);
-        $('#bs-sensor-s88-editor').popup('open', {positionTo:'window'});
+        $('#cs-sensor-s88-id').val(data.id);
+        $('#cs-sensor-s88-sensor-id').val(s88SensorIDBase + (data.id * 512));
+        $('#cs-sensor-s88-pin').val(data.dataPin);
+        $('#cs-sensor-s88-count').val(data.count);
+        $('#cs-sensor-s88-editor').popup('open', {positionTo:'window'});
        }
       });
      }
@@ -1329,7 +1399,7 @@ function BSTabRefresh(section) {
    }
   });
  } else if(section === 'Outputs') {
-  refreshTable({table: '#bs-table-outputs', url: '/outputs',
+  refreshTable({table: '#cs-table-outputs', url: '/outputs',
    fields: ['id', 'pin', 'flags', 'state', function(record) {
     var buttons = '';
     buttons += createButton({type:'delete', id:String.format("output-{0}-delete", record.id)});
@@ -1342,8 +1412,8 @@ function BSTabRefresh(section) {
     return buttons;
    }],
    refreshCallback: function() {
-    $('#bs-table-outputs tr td [id^=output-]').button();
-    $('#bs-table-outputs tr td [id^=output-]').on('vclick', function(event, ui) {
+    $('#cs-table-outputs tr td [id^=output-]').button();
+    $('#cs-table-outputs tr td [id^=output-]').on('vclick', function(event, ui) {
      var idParts = $(this).attr('id').split('-');
      if(idParts[2] === 'delete') {
       $.ajax({url: String.format('/outputs?id={0}', idParts[1]),
@@ -1355,12 +1425,12 @@ function BSTabRefresh(section) {
       $.ajax({url: String.format('/outputs?id={0}', idParts[1]),
        success:function(data, status, jqxhr) {
         console.log('Edit output', data);
-        $('#bs-output-id').val(data.id);
-        $('#bs-output-pin').val(data.pin);
-        $('#bs-output-logic').prop('checked', data.flags.includes('activeLow'));
-        $('#bs-output-startup-state').prop('checked', data.flags.includes('force'));
-        $('#bs-output-default-state').prop('checked', data.flags.includes('force(on)'));
-        $('#bs-output-editor').popup('open', {positionTo:'window'});
+        $('#cs-output-id').val(data.id);
+        $('#cs-output-pin').val(data.pin);
+        $('#cs-output-logic').prop('checked', data.flags.includes('activeLow'));
+        $('#cs-output-startup-state').prop('checked', data.flags.includes('force'));
+        $('#cs-output-default-state').prop('checked', data.flags.includes('force(on)'));
+        $('#cs-output-editor').popup('open', {positionTo:'window'});
        }
       });
      } else {
@@ -1371,7 +1441,7 @@ function BSTabRefresh(section) {
    }
   });
  } else if(section === 'Locomotive Roster') {
-  refreshTable({table: '#bs-table-loco-roster', url: '/locomotive/roster',
+  refreshTable({table: '#cs-table-loco-roster', url: '/locomotive/roster',
    fields: ['address', 'type', 'description', function(record) {
     var buttons = '';
     buttons += createButton({type:'delete', id:String.format("roster-{0}-delete", record.address)});
@@ -1389,8 +1459,8 @@ function BSTabRefresh(section) {
     return buttons;
    }],
    refreshCallback: function() {
-    $('#bs-table-loco-roster tr td [id^=roster-]').button();
-    $('#bs-table-loco-roster tr td [id^=roster-]').on('vclick', function(event, ui) {
+    $('#cs-table-loco-roster tr td [id^=roster-]').button();
+    $('#cs-table-loco-roster tr td [id^=roster-]').on('vclick', function(event, ui) {
      var idParts = $(this).attr('id').split('-');
      if(idParts[2] === 'delete') {
       $.ajax({url: String.format('/locomotive/roster?address={0}', idParts[1]),
@@ -1402,12 +1472,12 @@ function BSTabRefresh(section) {
       $.ajax({url: String.format('/locomotive/roster?address={0}', idParts[1]),
        success:function(data, status, jqxhr) {
         console.log('Edit roster entry', data);
-        $('#bs-loco-addr').val(data.address);
-        $('#bs-loco-type').val(data.type);
-        $('#bs-loco-desc').val(data.description);
-        $('#bs-loco-idle').prop('checked', data.idleOnStartup === 'true');
-        $('#bs-loco-default').prop('checked', data.defaultOnThrottles === 'true');
-        $('#bs-loco-editor').popup('open', {positionTo:'window'});
+        $('#cs-loco-addr').val(data.address);
+        $('#cs-loco-type').val(data.type);
+        $('#cs-loco-desc').val(data.description);
+        $('#cs-loco-idle').prop('checked', data.idleOnStartup === 'true');
+        $('#cs-loco-default').prop('checked', data.defaultOnThrottles === 'true');
+        $('#cs-loco-editor').popup('open', {positionTo:'window'});
        }
       });
      } else if(idParts[2] === 'idle') {
@@ -1424,6 +1494,36 @@ function BSTabRefresh(section) {
        }});
      }
     });
+   }
+  });
+ } else if(section === 'Configuration') {
+  $.get({
+   url: '/config',
+   beforeSend: function() {
+    $.mobile.loading('show', {
+     text: 'Loading Configuration...',
+     textVisible: true,
+     textonly: false});
+   },
+   complete: function() {
+    setTimeout(function () {
+     $.mobile.loading('hide');
+    }, 1);
+   },
+   success : function (data, status, xhr) {
+    $("#cs-config-wifi-mode").val(data.wifi.mode).change();
+    $("#cs-config-sta-ip-mode").prop("checked", data.wifi.station.mode === 'static').flipswitch("refresh");
+    if(data.wifi.station.mode === 'static') {
+      $("#cs-config-static-div").show();
+      $("#cs-config-sta-ip").val(data.wifi.station.ip);
+      $("#cs-config-sta-gateway").val(data.wifi.station.gateway);
+      $("#cs-config-sta-netmask").val(data.wifi.station.netmask);
+      $("#cs-config-sta-dns").val(data.wifi.dns);
+    }
+   },
+   error : function(xhr, status, error) {
+    alert("The command station reported a failure retrieving configuration data");
+    console.log("The command station reported a failure retrieving configuration data:", error);
    }
   });
  }
@@ -1455,8 +1555,8 @@ function changeLocomotive(newAddress) {
 }
 function disableS88Tab() {
  console.log("Disabling S88 section");
- $('#bs-sensors-s88-h3').hide();
- $('#bs-sensors-s88').hide();
+ $('#cs-sensors-s88-h3').hide();
+ $('#cs-sensors-s88').hide();
 }
 function refreshTable({table, url, fields, filter=function() {return true;}, failureHandler=function() {}, refreshCallback=function() {}} = {}) {
  console.log('refreshing table:', table, 'using url:', url, 'and fields:', fields)

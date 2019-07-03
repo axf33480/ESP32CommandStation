@@ -77,19 +77,18 @@ locomotives in consist will be updated concurrently via multiple packet queuing.
 **********************************************************************/
 
 LocomotiveConsist::LocomotiveConsist(const char *filename) : Locomotive(filename) {
-  DynamicJsonBuffer buf;
-  JsonObject &entry = configStore->load(filename, buf);
+  DynamicJsonDocument jsonBuffer{1024};
+  JsonObject entry = configStore->load(filename, jsonBuffer);
   _decoderAssisstedConsist = entry[JSON_DECODER_ASSISTED_NODE] == JSON_VALUE_TRUE;
-  for(auto loco : entry.get<JsonArray>(JSON_LOCOS_NODE)) {
-    JsonObject &locoEntry = loco.as<JsonObject &>();
-    _locos.push_back(new Locomotive(locoEntry.get<char *>(JSON_FILE_NODE)));
+  for(auto loco : entry[JSON_LOCOS_NODE].as<JsonArray>()) {
+    _locos.push_back(new Locomotive(loco[JSON_FILE_NODE].as<char *>()));
   }
 }
 
-LocomotiveConsist::LocomotiveConsist(JsonObject &json) : Locomotive(json) {
+LocomotiveConsist::LocomotiveConsist(JsonObject json) : Locomotive(json) {
   _decoderAssisstedConsist = json[JSON_DECODER_ASSISTED_NODE] == JSON_VALUE_TRUE;
-  for(auto loco : json.get<JsonArray>(JSON_LOCOS_NODE)) {
-    _locos.push_back(new Locomotive(loco.as<JsonObject &>()));
+  for(auto loco : json[JSON_LOCOS_NODE].as<JsonArray>()) {
+    _locos.push_back(new Locomotive(loco.as<JsonObject>()));
   }
 }
 
@@ -112,7 +111,7 @@ void LocomotiveConsist::showStatus() {
   wifiInterface.broadcast(statusCmd);
 }
 
-void LocomotiveConsist::toJson(JsonObject &jsonObject, bool includeSpeedDir, bool includeFunctions) {
+void LocomotiveConsist::toJson(JsonObject jsonObject, bool includeSpeedDir, bool includeFunctions) {
   Locomotive::toJson(jsonObject, includeSpeedDir, includeFunctions);
   jsonObject[JSON_CONSIST_NODE] = JSON_VALUE_TRUE;
   if(_decoderAssisstedConsist) {
@@ -120,7 +119,7 @@ void LocomotiveConsist::toJson(JsonObject &jsonObject, bool includeSpeedDir, boo
   } else {
     jsonObject[JSON_DECODER_ASSISTED_NODE] = JSON_VALUE_FALSE;
   }
-  JsonArray &locoArray = jsonObject.createNestedArray(JSON_LOCOS_NODE);
+  JsonArray locoArray = jsonObject.createNestedArray(JSON_LOCOS_NODE);
   for (const auto& loco : _locos) {
     loco->toJson(locoArray.createNestedObject(), includeSpeedDir, includeFunctions);
   }

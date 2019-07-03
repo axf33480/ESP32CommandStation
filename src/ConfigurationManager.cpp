@@ -27,9 +27,9 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #include <sdmmc_cmd.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-ConfigurationManager *configStore;
+#include <fstream>
 
-StaticJsonBuffer<20480> jsonConfigBuffer;
+ConfigurationManager *configStore;
 
 //#define CONFIG_USE_SD true
 
@@ -54,20 +54,21 @@ static const char* const ESP32CS_CONFIG_DIR = FILESYSTEM_PREFIX "/ESP32CS";
 static const char* const OLD_CONFIG_DIR = FILESYSTEM_PREFIX "/DCCppESP32";
 
 void recursiveWalkTree(const std::string &path, bool remove=false) {
-  LOG(INFO, "[Config] Reading directory: %s", path.c_str());
+  LOG(VERBOSE, "[Config] Reading directory: %s", path.c_str());
   DIR *dir = opendir(path.c_str());
   if(dir) {
     dirent *ent = NULL;
     while((ent = readdir(dir)) != NULL) {
+      esp_task_wdt_reset();
       std::string fullPath = path + "/" + ent->d_name;
       if(ent->d_type == DT_REG) {
         if(remove) {
-          LOG(INFO, "[Config] Removing: %s", fullPath.c_str());
+          LOG(VERBOSE, "[Config] Removing: %s", fullPath.c_str());
           unlink(fullPath.c_str());
         } else {
           struct stat statbuf = {0};
           stat(fullPath.c_str(), &statbuf);
-          LOG(INFO, "[Config] %s (%d bytes)", fullPath.c_str(), (int)statbuf.st_size);
+          LOG(VERBOSE, "[Config] %s (%d bytes)", fullPath.c_str(), (int)statbuf.st_size);
         }
       } else if(ent->d_type == DT_DIR) {
         recursiveWalkTree(fullPath, remove);
@@ -75,7 +76,7 @@ void recursiveWalkTree(const std::string &path, bool remove=false) {
     }
     closedir(dir);
     if(remove) {
-      LOG(INFO, "[Config] Removing directory: %s", path.c_str());
+      LOG(VERBOSE, "[Config] Removing directory: %s", path.c_str());
       rmdir(path.c_str());
     }
   } else {
@@ -130,6 +131,69 @@ ConfigurationManager::ConfigurationManager() {
   mkdir(ESP32CS_CONFIG_DIR, ACCESSPERMS);
   std::string configRoot = FILESYSTEM_PREFIX;
   recursiveWalkTree(configRoot);
+
+  std::string configFilePath = getFilePath(ESP32_CS_CONFIG_JSON);
+  if(exists(ESP32_CS_CONFIG_JSON)) {
+    LOG(INFO, "[Config] Found existing CS config file.");
+    std::ifstream configFile(configFilePath);
+    deserializeJson(jsonBuffer, configFile);
+    serializeJson(jsonBuffer, csConfig_);
+    JsonObject config = jsonBuffer.to<JsonObject>();
+    if(config.containsKey(JSON_WIFI_NODE)) {
+      JsonObject wifiConfig = config.getMember(JSON_WIFI_NODE);
+      std::string wifiMode = wifiConfig[JSON_WIFI_MODE_NODE];
+      if(!wifiMode.compare(JSON_VALUE_WIFI_MODE_SOFTAP_ONLY)) {
+        wifiMode_ =  WIFI_MODE_AP;
+      } else if(!wifiMode.compare(JSON_VALUE_WIFI_MODE_SOFTAP_STATION)) {
+        wifiMode_ =  WIFI_MODE_APSTA;
+      } else if(!wifiMode.compare(JSON_VALUE_WIFI_MODE_STATION_ONLY)) {
+        wifiMode_ =  WIFI_MODE_STA;
+      }
+      if(wifiConfig.containsKey(JSON_WIFI_STATION_NODE)) {
+        JsonObject stationConfig = wifiConfig.getMember(JSON_WIFI_STATION_NODE);
+        std::string stationMode = stationConfig[JSON_WIFI_MODE_NODE];
+        if(!stationMode.compare(JSON_VALUE_STATION_IP_MODE_STATIC)) {
+          stationStaticIP_.reset(new tcpip_adapter_ip_info_t());
+          stationStaticIP_->ip.addr = ipaddr_addr(stationConfig[JSON_WIFI_STATION_IP_NODE]);
+          stationStaticIP_->gw.addr = ipaddr_addr(stationConfig[JSON_WIFI_STATION_GATEWAY_NODE]);
+          stationStaticIP_->netmask.addr = ipaddr_addr(stationConfig[JSON_WIFI_STATION_NETMASK_NODE]);
+        }
+      }
+      if(wifiConfig.containsKey(JSON_WIFI_DNS_NODE)) {
+        stationDNSServer_.u_addr.ip4.addr = ipaddr_addr(wifiConfig[JSON_WIFI_DNS_NODE]);
+      }
+    }
+  } else {
+    LOG(INFO, "[Config] CS Config not found, seeding defaults");
+    JsonObject config = jsonBuffer.to<JsonObject>();
+    JsonObject wifiConfig = config.createNestedObject(JSON_WIFI_NODE);
+    JsonObject stationConfig = wifiConfig.createNestedObject(JSON_WIFI_STATION_NODE);
+#if WIFI_ENABLE_SOFT_AP
+    wifiMode_ = WIFI_MODE_APSTA;
+    wifiConfig[JSON_WIFI_MODE_NODE] = JSON_VALUE_WIFI_MODE_STATION_ONLY;
+#else
+    wifiConfig[JSON_WIFI_MODE_NODE] = JSON_VALUE_WIFI_MODE_STATION_ONLY;
+#endif
+#ifdef WIFI_STATIC_IP_DNS
+    stationDNSServer_.u_addr.ip4.addr = ipaddr_addr(WIFI_STATIC_IP_DNS);
+    wifiConfig[JSON_WIFI_DNS_NODE] = WIFI_STATIC_IP_DNS;
+#endif
+#if defined(WIFI_STATIC_IP_ADDRESS) && defined(WIFI_STATIC_IP_GATEWAY) && defined(WIFI_STATIC_IP_SUBNET)
+    stationConfig[JSON_WIFI_MODE_NODE] = JSON_VALUE_STATION_IP_MODE_STATIC;
+    stationConfig[JSON_WIFI_STATION_IP_NODE] = WIFI_STATIC_IP_ADDRESS;
+    stationConfig[JSON_WIFI_STATION_GATEWAY_NODE] = WIFI_STATIC_IP_GATEWAY;
+    stationConfig[JSON_WIFI_STATION_NETMASK_NODE] = WIFI_STATIC_IP_SUBNET;
+    stationStaticIP_.reset(new tcpip_adapter_ip_info_t());
+    stationStaticIP_->ip.addr = ipaddr_addr(WIFI_STATIC_IP_ADDRESS);
+    stationStaticIP_->gw.addr = ipaddr_addr(WIFI_STATIC_IP_GATEWAY);
+    stationStaticIP_->netmask.addr = ipaddr_addr(WIFI_STATIC_IP_SUBNET);
+#else
+    stationConfig[JSON_WIFI_STATION_NODE] = JSON_VALUE_STATION_IP_MODE_DHCP;
+#endif
+    std::ofstream configFile(configFilePath, std::ios::out | std::ios::trunc);
+    serializeJson(jsonBuffer, configFile);
+    serializeJson(jsonBuffer, csConfig_);
+  }
 }
 
 ConfigurationManager::~ConfigurationManager() {
@@ -153,61 +217,54 @@ void ConfigurationManager::clear() {
 }
 
 bool ConfigurationManager::exists(const char *name) {
-  std::string oldConfigFilePath = StringPrintf("%s/%s", OLD_CONFIG_DIR, name);
-  std::string configFilePath = StringPrintf("%s/%s", ESP32CS_CONFIG_DIR, name);
-  if(access(oldConfigFilePath.c_str(), F_OK) != -1 && !access(configFilePath.c_str(), F_OK)) {
-    LOG(INFO,
-        "[Config] Migrating configuration file %s to %s.",
+  std::string oldConfigFilePath = getFilePath(name, true);
+  std::string configFilePath = getFilePath(name);
+  if(std::ifstream(oldConfigFilePath).good() && !std::ifstream(configFilePath).good()) {
+    LOG(INFO, "[Config] Migrating configuration file %s to %s.",
         oldConfigFilePath.c_str(), configFilePath.c_str());
     rename(oldConfigFilePath.c_str(), configFilePath.c_str());
   }
   LOG(VERBOSE, "[Config] Checking for %s", configFilePath.c_str());
-  struct stat statbuf = {0};
-  if(stat(configFilePath.c_str(), &statbuf)) {
-    return false;
-  }
-  return S_ISREG(statbuf.st_mode);
+  return std::ifstream(configFilePath).good();
 }
 
 void ConfigurationManager::remove(const char *name) {
-  std::string configFilePath = StringPrintf("%s/%s", ESP32CS_CONFIG_DIR, name);
+  std::string configFilePath = getFilePath(name);
   LOG(VERBOSE, "[Config] Removing %s", configFilePath.c_str());
   unlink(configFilePath.c_str());
 }
 
-JsonObject &ConfigurationManager::load(const char *name) {
-  std::string configFilePath = StringPrintf("%s/%s", ESP32CS_CONFIG_DIR, name);
+JsonObject ConfigurationManager::load(const char *name) {
+  std::string configFilePath = getFilePath(name);
   LOG(VERBOSE, "[Config] Loading %s", configFilePath.c_str());
-  jsonConfigBuffer.clear();
-  if(exists(name)) {
-    std::string configFileContent = read_file_to_string(configFilePath.c_str());
-    JsonObject &root = jsonConfigBuffer.parseObject(configFileContent);
-    return root;
+  jsonBuffer.clear();
+  std::ifstream configFile(configFilePath);
+  if(configFile.good()) {
+    deserializeJson(jsonBuffer, configFile);
   }
-  return jsonConfigBuffer.createObject();
+  return jsonBuffer.as<JsonObject>();
 }
 
-JsonObject &ConfigurationManager::load(const char *name, DynamicJsonBuffer &buffer) {
-  std::string configFilePath = StringPrintf("%s/%s", ESP32CS_CONFIG_DIR, name);
+JsonObject ConfigurationManager::load(const char *name, DynamicJsonDocument &buffer) {
+  std::string configFilePath = getFilePath(name);
   LOG(VERBOSE, "[Config] Loading %s", configFilePath.c_str());
-  std::string configFileContent = read_file_to_string(configFilePath.c_str());
-  JsonObject &root = buffer.parseObject(configFileContent);
-  return root;
+  std::ifstream configFile(configFilePath);
+  deserializeJson(buffer, configFile);
+  return buffer.as<JsonObject>();
 }
 
 void ConfigurationManager::store(const char *name, const JsonObject &json) {
-  std::string configFilePath = StringPrintf("%s/%s", ESP32CS_CONFIG_DIR, name);
+  std::string configFilePath = getFilePath(name);
   LOG(VERBOSE, "[Config] Storing %s", configFilePath.c_str());
-  std::string configFileContent = "";
-  json.printTo(configFileContent);
-  write_string_to_file(configFilePath, configFileContent);
+  std::ofstream configFile(configFilePath, std::ios::out | std::ios::trunc);
+  serializeJson(jsonBuffer, configFile);
 }
 
-JsonObject &ConfigurationManager::createRootNode(bool clearBuffer) {
+JsonObject ConfigurationManager::createRootNode(bool clearBuffer) {
   if(clearBuffer) {
-    jsonConfigBuffer.clear();
+    jsonBuffer.clear();
   }
-  return jsonConfigBuffer.createObject();
+  return jsonBuffer.as<JsonObject>();
 }
 
 openlcb::NodeID ConfigurationManager::getNodeId() {
@@ -225,64 +282,40 @@ bool ConfigurationManager::needLCCCan(gpio_num_t *rxPin, gpio_num_t *txPin) {
 }
 
 void ConfigurationManager::configureWiFi(openlcb::SimpleCanStack *stack, const WiFiConfiguration &cfg) {
-  wifi_mode_t wifiMode = WIFI_MODE_STA;
-  tcpip_adapter_ip_info_t *stationStaticIP = nullptr;
-  ip_addr_t stationDNSServer = ip_addr_any;
-
-  JsonObject &config = load("wifi.json");
-  if(!config.containsKey("mode") || !exists("wifi.json")) {
-#if WIFI_ENABLE_SOFT_AP
-    config["mode"] = "softap-station";
-#else
-    config["mode"] = "station";
-#endif
-    JsonObject &stationConfig = config.createNestedObject("station");
-    stationConfig["mode"] = "dhcp";
-    stationConfig["ssid"] = SSID_NAME;
-    stationConfig["password"] = SSID_PASSWORD;
-#if defined(WIFI_STATIC_IP_ADDRESS) && defined(WIFI_STATIC_IP_GATEWAY) && defined(WIFI_STATIC_IP_SUBNET)
-    stationConfig["mode"] = "static";
-    stationConfig["ip"] = WIFI_STATIC_IP_ADDRESS;
-    stationConfig["gateway"] = WIFI_STATIC_IP_GATEWAY;
-    stationConfig["netmask"] = WIFI_STATIC_IP_SUBNET;
-#endif
-#ifdef WIFI_STATIC_IP_DNS
-    config["dns"] = WIFI_STATIC_IP_DNS;
-#endif
-    store("wifi.json", config);
-  }
-  if(config["mode"] == "softap") {
+  if(wifiMode_ == WIFI_MODE_AP) {
     LOG(INFO, "[Config] WiFi Mode: SoftAP");
-    wifiMode =  WIFI_MODE_AP;
-  } else if(config["mode"] == "softap-station") {
-    LOG(INFO, "[Config] WiFi Mode: Station");
-    wifiMode =  WIFI_MODE_APSTA;
-  } else if(config["mode"] == "station") {
+  } else if(wifiMode_ == WIFI_MODE_APSTA) {
     LOG(INFO, "[Config] WiFi Mode: Station + SoftAP");
-    wifiMode =  WIFI_MODE_STA;
+  } else if(wifiMode_ == WIFI_MODE_STA) {
+    LOG(INFO, "[Config] WiFi Mode: Station");
   }
-  JsonObject &stationConfig = config.get<JsonObject &>("station");
-  if(stationConfig["mode"] == "static") {
-    LOG(INFO, "[Config] WiFi Station IP-MODE: STATIC IP: %s, GW: %s, SN: %s",
-        stationConfig.get<char *>("ip"),
-        stationConfig.get<char *>("gateway"),
-        stationConfig.get<char *>("netmask"));
-    stationStaticIP = new tcpip_adapter_ip_info_t();
-    stationStaticIP->ip.addr = ipaddr_addr(stationConfig["ip"]);
-    stationStaticIP->gw.addr = ipaddr_addr(stationConfig["gateway"]);
-    stationStaticIP->netmask.addr = ipaddr_addr(stationConfig["netmask"]);
+  if(stationStaticIP_.get()) {
+    LOG(INFO, "[Config] WiFi Station IP-MODE: STATIC IP: " IPSTR ", GW: " IPSTR ", SN: " IPSTR,
+        IP2STR(&stationStaticIP_->ip), IP2STR(&stationStaticIP_->gw), IP2STR(&stationStaticIP_->netmask));
   } else {
     LOG(INFO, "[Config] WiFi Station IP-MODE: DHCP");
   }
-  if(config.containsKey("dns")) {
-    LOG(INFO, "[Config] WiFi Station DNS: %s", config.get<char *>("dns"));
-    stationDNSServer.u_addr.ip4.addr = ipaddr_addr(config["dns"]);
+
+  if(stationDNSServer_.u_addr.ip4.addr != ip_addr_any.u_addr.ip4.addr) {
+    LOG(INFO, "[Config] WiFi Station DNS: " IPSTR, IP2STR(&stationDNSServer_.u_addr.ip4));
   }
-  wifiManager.reset(new Esp32WiFiManager(stationConfig["ssid"],
-                                         stationConfig["password"],
+
+  wifiManager.reset(new Esp32WiFiManager(wifiSSID_.c_str(),
+                                         wifiPassword_.c_str(),
                                          stack, cfg,
-                                         HOSTNAME_PREFIX, wifiMode,
-                                         stationStaticIP, stationDNSServer,
+                                         HOSTNAME_PREFIX, wifiMode_,
+                                         stationStaticIP_.get(), stationDNSServer_,
                                          WIFI_SOFT_AP_CHANNEL, WIFI_SOFT_AP_MAX_CLIENTS,
                                          WIFI_AUTH_OPEN));
+}
+
+std::string ConfigurationManager::getFilePath(const char *name, bool oldPath) {
+  if(oldPath) {
+    return StringPrintf("%s/%s", OLD_CONFIG_DIR, name);
+  }
+  return StringPrintf("%s/%s", ESP32CS_CONFIG_DIR, name);
+}
+
+std::string ConfigurationManager::getCSConfig() {
+  return csConfig_;
 }
