@@ -101,7 +101,7 @@ class AsyncJsonResponse: public AsyncAbstractResponse {
         _root = _jsonBuffer.createObject();
     }
 #else
-    AsyncJsonResponse(size_t maxJsonBufferSize = DYNAMIC_JSON_DOCUMENT_SIZE, bool isArray=false) : _jsonBuffer(maxJsonBufferSize), _isValid{false} {
+    AsyncJsonResponse(bool isArray=false, size_t maxJsonBufferSize = DYNAMIC_JSON_DOCUMENT_SIZE) : _jsonBuffer(maxJsonBufferSize), _isValid{false} {
       _code = 200;
       _contentType = JSON_MIMETYPE;
       if(isArray)
@@ -112,7 +112,11 @@ class AsyncJsonResponse: public AsyncAbstractResponse {
 #endif
 
     ~AsyncJsonResponse() {}
+#ifdef ARDUINOJSON_5_COMPATIBILITY
     JsonVariant & getRoot() { return _root; }
+#else
+    JsonVariant getRoot() { return _root; }
+#endif
     bool _sourceValid() const { return _isValid; }
     size_t setLength() {
 
