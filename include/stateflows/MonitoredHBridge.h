@@ -85,6 +85,7 @@ public:
     , overCurrentLimit_(((((limitMilliAmps << 3) + limitMilliAmps) / 10) << 12) / maxMilliAmps_) // ~90% max value
     , shutdownLimit_(4090)
     , cfg_(cfg)
+    , targetLED_(isProgTrack_ ? StatusLED::LED::PROG_TRACK : StatusLED::LED::OPS_TRACK)
     , shortBit_(stack->node(), 0, 0, &state_, STATE_OVERCURRENT)
     , shutdownBit_(stack->node(), 0, 0, &state_, STATE_SHUTDOWN)
     , thermalBit_(stack->node(), 0, 0, &state_, STATE_THERMAL_SHUTDOWN)
@@ -208,17 +209,13 @@ public:
     state_ = STATE_ON;
     reset_flow(STATE(sleep_and_check_state));
     LOG(INFO, "[%s] Enabling h-bridge", name_.c_str());
-    if (isProgTrack_)
-    {
-      statusLED->setStatusLED(StatusLED::LED::PROG_TRACK, StatusLED::COLOR::GREEN);
-    }
-    else
-    {
-      statusLED->setStatusLED(StatusLED::LED::OPS_TRACK, StatusLED::COLOR::GREEN);
+    statusLED->setStatusLED(targetLED_, StatusLED::COLOR::GREEN);
 #if LOCONET_ENABLED
+    if (!isProgTrack_)
+    {
       locoNet.reportPower(true);
-#endif
     }
+#endif
   }
 
   UpdateAction apply_configuration(int fd, bool initial_load, BarrierNotifiable *done) override
@@ -272,6 +269,7 @@ private:
   uint32_t overCurrentLimit_;
   uint32_t shutdownLimit_;
   const TrackOutputConfig cfg_;
+  const StatusLED::LED targetLED_;
   const uint64_t checkInterval_{MSEC_TO_NSEC(25)};
   const uint8_t overCurrentRetryCount_{3};
   const uint64_t overCurrentRetryInterval_{MSEC_TO_NSEC(250)};
@@ -337,14 +335,7 @@ private:
     if (state_ == STATE_OFF)
     {
       ESP_ERROR_CHECK(gpio_set_level(enablePin_, 0));
-      if (isProgTrack_)
-      {
-        statusLED->setStatusLED(StatusLED::LED::PROG_TRACK, StatusLED::COLOR::OFF);
-      }
-      else
-      {
-        statusLED->setStatusLED(StatusLED::LED::OPS_TRACK, StatusLED::COLOR::OFF);
-      }
+      statusLED->setStatusLED(targetLED_, StatusLED::COLOR::OFF);
       return exit();
     }
 
@@ -373,16 +364,16 @@ private:
       {
         state_ = STATE_THERMAL_SHUTDOWN;
       }
-      else
+      else if(initialState != STATE_ON)
       {
         state_ = STATE_ON;
         overCurrentCheckCount_ = 0;
-        gpio_set_level(enablePin_, 1);
       }
     }
 
     if (initialState != state_)
     {
+      ESP_ERROR_CHECK(gpio_set_level(enablePin_, state_ == STATE_ON));
       if (state_ == STATE_OVERCURRENT)
       {
         shortProducer_.SendEventReport(&helper_, n_.reset(this));
@@ -395,24 +386,16 @@ private:
       {
         thermalProducer_.SendEventReport(&helper_, n_.reset(this));
       }
-      if (isProgTrack_)
-      {
-        statusLED->setStatusLED(StatusLED::LED::PROG_TRACK,
-                                state_ == STATE_ON ?
-                                  StatusLED::COLOR::GREEN :
-                                  StatusLED::COLOR::RED);
-      }
-      else
-      {
-        statusLED->setStatusLED(StatusLED::LED::OPS_TRACK,
-                                state_ == STATE_ON ?
-                                  StatusLED::COLOR::GREEN :
-                                  StatusLED::COLOR::RED);
+      statusLED->setStatusLED(targetLED_,
+                              state_ == STATE_ON ?
+                                StatusLED::COLOR::GREEN :
+                                StatusLED::COLOR::RED);
 #if LOCONET_ENABLED
+      if (!isProgTrack_)
+      {
         locoNet.reportPower(state_ == STATE_ON);
-#endif
       }
-
+#endif
     }
 
     return call_immediately(STATE(sleep_and_check_state));
