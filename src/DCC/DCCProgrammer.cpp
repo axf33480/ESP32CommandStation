@@ -28,8 +28,7 @@ static constexpr uint8_t PROG_TRACK_CV_ATTEMPTS = 3;
 bool progTrackBusy = false;
 
 bool enterProgrammingMode() {
-  const auto motorBoard = MotorBoardManager::getBoardByName(MOTORBOARD_NAME_PROG);
-  const uint16_t milliAmpStartupLimit = (4096 * 100 / motorBoard->getMaxMilliAmps());
+  const uint16_t milliAmpStartupLimit = (4096 * 100 / PROG_HBRIDGE_MAX_MILIAMPS);
 
   // check if the programming track is already in use
   if(progTrackBusy) {
@@ -40,14 +39,14 @@ bool enterProgrammingMode() {
   progTrackBusy = true;
 
   // energize the programming track
-  motorBoard->powerOn(false);
+  enable_named_hbridge(PROG_HBRIDGE_NAME);
   dccSignal[DCC_SIGNAL_PROGRAMMING]->waitForQueueEmpty();
   // give decoder time to start up and stabilize to under 100mA draw
   LOG(VERBOSE, "[PROG] waiting for power draw to stabilize");
   vTaskDelay(pdMS_TO_TICKS(100));
 
   // check that the current is under 100mA limit, this will take ~50ms
-  if(motorBoard->captureSample(50) > milliAmpStartupLimit) {
+  if(get_hbridge_sample(PROG_HBRIDGE_NAME) > milliAmpStartupLimit) {
     LOG_ERROR("[PROG] current draw is over 100mA, aborting");
     statusLED->setStatusLED(StatusLED::LED::PROG_TRACK, StatusLED::COLOR::RED);
     leaveProgrammingMode();
@@ -66,15 +65,14 @@ void leaveProgrammingMode() {
   }
 
   // deenergize the programming track
-  MotorBoardManager::getBoardByName(MOTORBOARD_NAME_PROG)->powerOff(false);
+  disable_named_hbridge(PROG_HBRIDGE_NAME);
 
   // reset flag to indicate the programming track is free
   progTrackBusy = false;
 }
 
 int16_t readCV(const uint16_t cv) {
-  const auto motorBoard = MotorBoardManager::getBoardByName(MOTORBOARD_NAME_PROG);
-  const uint16_t milliAmpAck = (4096 * 60 / motorBoard->getMaxMilliAmps());
+  const uint16_t milliAmpAck = (4096 * 60 / PROG_HBRIDGE_MAX_MILIAMPS);
   uint8_t readCVBitPacket[4] = { (uint8_t)(0x78 + (highByte(cv - 1) & 0x03)), lowByte(cv - 1), 0x00, 0x00};
   uint8_t verifyCVPacket[4] = { (uint8_t)(0x74 + (highByte(cv - 1) & 0x03)), lowByte(cv - 1), 0x00, 0x00};
   int16_t cvValue = -1;
@@ -97,7 +95,7 @@ int16_t readCV(const uint16_t cv) {
       signalGenerator->loadBytePacket(resetPacket, 2, 3);
       signalGenerator->loadBytePacket(readCVBitPacket, 3, 5);
       signalGenerator->waitForQueueEmpty();
-      if(motorBoard->captureSample(CVSampleCount) > milliAmpAck) {
+      if(get_hbridge_sample(PROG_HBRIDGE_NAME) > milliAmpAck) {
         LOG(VERBOSE, "[PROG] CV %d, bit [%d/7] ON", cv, bit);
         bitWrite(cvValue, bit, 1);
       } else {
@@ -111,7 +109,7 @@ int16_t readCV(const uint16_t cv) {
     signalGenerator->loadBytePacket(resetPacket, 2, 3);
     signalGenerator->loadBytePacket(verifyCVPacket, 3, 5);
     signalGenerator->waitForQueueEmpty();
-    if(motorBoard->captureSample(CVSampleCount) > milliAmpAck) {
+    if(get_hbridge_sample(PROG_HBRIDGE_NAME) > milliAmpAck) {
       LOG(INFO, "[PROG] CV %d, verified as %d", cv, cvValue);
     } else {
       LOG(WARNING, "[PROG] CV %d, could not be verified", cv);
@@ -123,8 +121,7 @@ int16_t readCV(const uint16_t cv) {
 }
 
 bool writeProgCVByte(const uint16_t cv, const uint8_t cvValue) {
-  const auto motorBoard = MotorBoardManager::getBoardByName(MOTORBOARD_NAME_PROG);
-  const uint16_t milliAmpAck = (4096 * 60 / motorBoard->getMaxMilliAmps());
+  const uint16_t milliAmpAck = (4096 * 60 / PROG_HBRIDGE_MAX_MILIAMPS);
   uint8_t writeCVBytePacket[4] = { (uint8_t)(0x7C + (highByte(cv - 1) & 0x03)), lowByte(cv - 1), cvValue, 0x00};
   uint8_t verifyCVBytePacket[4] = { (uint8_t)(0x74 + (highByte(cv - 1) & 0x03)), lowByte(cv - 1), cvValue, 0x00};
   bool writeVerified = false;
@@ -142,11 +139,11 @@ bool writeProgCVByte(const uint16_t cv, const uint8_t cvValue) {
     signalGenerator->waitForQueueEmpty();
 
     // verify that the decoder received the write byte packet and sent an ACK
-    if(motorBoard->captureSample(CVSampleCount) > milliAmpAck) {
+    if(get_hbridge_sample(PROG_HBRIDGE_NAME) > milliAmpAck) {
       signalGenerator->loadBytePacket(verifyCVBytePacket, 3, 5);
       signalGenerator->waitForQueueEmpty();
       // check that decoder sends an ACK for the verify operation
-      if(motorBoard->captureSample(CVSampleCount) > milliAmpAck) {
+      if(get_hbridge_sample(PROG_HBRIDGE_NAME)> milliAmpAck) {
         writeVerified = true;
         LOG(INFO, "[PROG] CV %d write value %d verified.", cv, cvValue);
       }
@@ -158,8 +155,7 @@ bool writeProgCVByte(const uint16_t cv, const uint8_t cvValue) {
 }
 
 bool writeProgCVBit(const uint16_t cv, const uint8_t bit, const bool value) {
-  const auto motorBoard = MotorBoardManager::getBoardByName(MOTORBOARD_NAME_PROG);
-  const uint16_t milliAmpAck = (4096 * 60 / motorBoard->getMaxMilliAmps());
+  const uint16_t milliAmpAck = (4096 * 60 / PROG_HBRIDGE_MAX_MILIAMPS);
   uint8_t writeCVBitPacket[4] = { (uint8_t)(0x78 + (highByte(cv - 1) & 0x03)), lowByte(cv - 1), (uint8_t)(0xF0 + bit + value * 8), 0x00};
   uint8_t verifyCVBitPacket[4] = { (uint8_t)(0x74 + (highByte(cv - 1) & 0x03)), lowByte(cv - 1), (uint8_t)(0xB0 + bit + value * 8), 0x00};
   bool writeVerified = false;
@@ -176,12 +172,12 @@ bool writeProgCVBit(const uint16_t cv, const uint8_t bit, const bool value) {
     signalGenerator->waitForQueueEmpty();
 
     // verify that the decoder received the write byte packet and sent an ACK
-    if(motorBoard->captureSample(CVSampleCount) > milliAmpAck) {
+    if(get_hbridge_sample(PROG_HBRIDGE_NAME) > milliAmpAck) {
       signalGenerator->loadBytePacket(resetPacket, 2, 3);
       signalGenerator->loadBytePacket(verifyCVBitPacket, 3, 5);
       signalGenerator->waitForQueueEmpty();
       // check that decoder sends an ACK for the verify operation
-      if(motorBoard->captureSample(CVSampleCount) > milliAmpAck) {
+      if(get_hbridge_sample(PROG_HBRIDGE_NAME) > milliAmpAck) {
         writeVerified = true;
         LOG(INFO, "[PROG %d/%d] CV %d write bit %d verified.", attempt, PROG_TRACK_CV_ATTEMPTS, cv, bit);
       }

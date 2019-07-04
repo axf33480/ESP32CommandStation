@@ -65,9 +65,9 @@ void BaseNextionPage::refresh() {
 
 void BaseNextionPage::setTrackPower(bool on) {
   if(on) {
-    MotorBoardManager::powerOnAll();
+    enable_all_hbridges();
   } else {
-    MotorBoardManager::powerOffAll();
+    disable_all_hbridges();
   }
   refreshPowerButtons();
 }
@@ -87,7 +87,7 @@ void BaseNextionPage::displayPreviousPage(bool invokeCallback) {
 }
 
 void BaseNextionPage::refreshPowerButtons() {
-  if(MotorBoardManager::isTrackPowerOn()) {
+  if(is_track_power_on()) {
     _onButton.setPictureID(ON_PIC_ON);
     _offButton.setPictureID(OFF_PIC_OFF);
   } else {

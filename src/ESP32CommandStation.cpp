@@ -19,19 +19,7 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 #include "cdi/CSConfigDescriptor.h"
 
-using dcc::PacketFlowInterface;
-using dcc::RailcomHubFlow;
-using dcc::RailcomPrintfFlow;
-using dcc::SimpleUpdateLoop;
 using openlcb::ConfigDef;
-using openlcb::DccAccyConsumer;
-using openlcb::Defs;
-using openlcb::EventRegistry;
-using openlcb::EventRegistryEntry;
-using openlcb::EventReport;
-using openlcb::Node;
-using openlcb::NodeID;
-using openlcb::WriteHelper;
 
 const char * buildTime = __DATE__ " " __TIME__;
 
@@ -61,16 +49,15 @@ string dummystring("abcdef");
 // layout. The argument of offset zero is ignored and will be removed later.
 static constexpr ConfigDef cfg(0);
 
-std::unique_ptr<Esp32WiFiManager> wifiManager;
-std::unique_ptr<RailcomHubFlow> railComHub;
-std::unique_ptr<RailcomPrintfFlow> railComDataDumper;
-std::unique_ptr<InfoScreen> infoScreen;
-std::unique_ptr<InfoScreenStatCollector> infoScreenCollector;
-std::unique_ptr<StatusLED> statusLED;
-std::unique_ptr<HC12Radio> hc12;
-std::unique_ptr<SimpleUpdateLoop> dccUpdateLoop;
-
-std::vector<EventCallbackHandler *> eventCallbacks;
+unique_ptr<Esp32WiFiManager> wifiManager;
+unique_ptr<RailcomHubFlow> railComHub;
+unique_ptr<RailcomPrintfFlow> railComDataDumper;
+unique_ptr<InfoScreen> infoScreen;
+unique_ptr<InfoScreenStatCollector> infoScreenCollector;
+unique_ptr<StatusLED> statusLED;
+unique_ptr<HC12Radio> hc12;
+unique_ptr<SimpleUpdateLoop> dccUpdateLoop;
+vector<EventCallbackHandler *> eventCallbacks;
 
 #if LCC_USE_SPIFFS
 #define CDI_CONFIG_PREFIX "/spiffs"
@@ -250,8 +237,7 @@ void setup() {
                                                        EventReport *report,
                                                        BarrierNotifiable *done)
     {
-        // shutdown all track power outputs
-        MotorBoardManager::powerOffAll();
+      disable_all_hbridges();
     },
     nullptr)
   );
@@ -264,8 +250,8 @@ void setup() {
                                                        EventReport *report,
                                                        BarrierNotifiable *done)
     {
-        // Note this will not power on the PROG track as that is only managed via the programming interface
-        MotorBoardManager::powerOnAll();
+      // PROG output will not be enabled
+      enable_all_hbridges();
     },
     nullptr)
   );
@@ -278,7 +264,7 @@ void setup() {
                                                        EventReport *report,
                                                        BarrierNotifiable *done)
     {
-        LocomotiveManager::emergencyStop();
+      LocomotiveManager::emergencyStop();
     },
     nullptr)
   );
@@ -310,17 +296,29 @@ void setup() {
   timerAlarmEnable(cpuTickTimer);
 #endif
 
-  MotorBoardManager::registerBoard(MOTORBOARD_CURRENT_SENSE_OPS,
-                                   MOTORBOARD_ENABLE_PIN_OPS,
-                                   MOTORBOARD_TYPE_OPS,
-                                   MOTORBOARD_NAME_OPS);
-  MotorBoardManager::registerBoard(MOTORBOARD_CURRENT_SENSE_PROG,
-                                   MOTORBOARD_ENABLE_PIN_PROG,
-                                   MOTORBOARD_TYPE_PROG,
-                                   MOTORBOARD_NAME_PROG,
-                                   true);
-  dccSignal[DCC_SIGNAL_OPERATIONS] = new SignalGenerator_RMT("OPS", 512, DCC_SIGNAL_OPERATIONS, DCC_SIGNAL_PIN_OPERATIONS, MOTORBOARD_ENABLE_PIN_OPS);
-  dccSignal[DCC_SIGNAL_PROGRAMMING] = new SignalGenerator_RMT("PROG", 10, DCC_SIGNAL_PROGRAMMING, DCC_SIGNAL_PIN_PROGRAMMING, MOTORBOARD_ENABLE_PIN_PROG);
+  register_monitored_hbridge(openmrn->stack()
+                          , (adc1_channel_t)OPS_HBRIDGE_CURRENT_SENSE_ADC
+                          , (gpio_num_t)OPS_HBRIDGE_ENABLE_PIN
+                          , (gpio_num_t)OPS_HBRIDGE_THERMAL_PIN
+                          , OPS_HBRIDGE_LIMIT_MILIAMPS
+                          , OPS_HBRIDGE_MAX_MILIAMPS
+                          , OPS_HBRIDGE_NAME
+                          , OPS_HBRIDGE_TYPE_NAME
+                          , cfg.seg().hbridge().entry(0));
+
+  register_monitored_hbridge(openmrn->stack()
+                          , (adc1_channel_t)PROG_HBRIDGE_CURRENT_SENSE_ADC
+                          , (gpio_num_t)PROG_HBRIDGE_ENABLE_PIN
+                          , (gpio_num_t)-1
+                          , PROG_HBRIDGE_LIMIT_MILIAMPS
+                          , PROG_HBRIDGE_MAX_MILIAMPS
+                          , PROG_HBRIDGE_NAME
+                          , PROG_HBRIDGE_TYPE_NAME
+                          , cfg.seg().hbridge().entry(1)
+                          , true);
+
+  dccSignal[DCC_SIGNAL_OPERATIONS] = new SignalGenerator_RMT("OPS", 512, DCC_SIGNAL_OPERATIONS, DCC_SIGNAL_PIN_OPERATIONS, OPS_HBRIDGE_ENABLE_PIN);
+  dccSignal[DCC_SIGNAL_PROGRAMMING] = new SignalGenerator_RMT("PROG", 10, DCC_SIGNAL_PROGRAMMING, DCC_SIGNAL_PIN_PROGRAMMING, PROG_HBRIDGE_ENABLE_PIN);
 
   LocomotiveManager::init();
   TurnoutManager::init();
@@ -329,12 +327,6 @@ void setup() {
   SensorManager::init();
   S88BusManager::init();
   RemoteSensorManager::init();
-
-#if ENERGIZE_OPS_TRACK_ON_STARTUP
-  MotorBoardManager::powerOnAll();
-#else
-  MotorBoardManager::powerOffAll();
-#endif
 
 #if LOCONET_ENABLED
   initializeLocoNet();
@@ -363,7 +355,6 @@ void loop() {
     esp_task_wdt_init(1, true);
     while(true);
   }
-  MotorBoardManager::check();
 }
 
 void dumpTaskList()

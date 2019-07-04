@@ -21,8 +21,8 @@
 #ifndef STRINGARRAY_H_
 #define STRINGARRAY_H_
 
-#include "stddef.h"
-#include "WString.h"
+#include <stddef.h>
+#include <WString.h>
 
 template <typename T>
 class LinkedListNode {

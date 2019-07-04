@@ -98,4 +98,4 @@ private:
   STATE_FLOW_STATE(update);
 };
 
-extern std::unique_ptr<StatusLED> statusLED;
+extern unique_ptr<StatusLED> statusLED;

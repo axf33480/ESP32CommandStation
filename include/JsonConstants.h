@@ -100,6 +100,7 @@ constexpr const char * JSON_VALUE_NORMAL = "Normal";
 constexpr const char * JSON_VALUE_OFF = "Off";
 constexpr const char * JSON_VALUE_ON = "On";
 constexpr const char * JSON_VALUE_FAULT = "Fault";
+constexpr const char * JSON_VALUE_ERROR = "Error";
 constexpr const char * JSON_VALUE_THROWN = "Thrown";
 constexpr const char * JSON_VALUE_CLOSED = "Closed";
 constexpr const char * JSON_VALUE_LONG_ADDRESS = "Long Address";

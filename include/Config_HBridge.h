@@ -34,29 +34,31 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 // are not suitable for usage, regardless of if the ESP32 board exposes these pins.
 //
 // SUPPORTED MOTORBOARD TYPES:
-// ARDUINO_SHIELD : Arduino Motor shield Rev3 based on the L298 chip. Max Output 2A per channel https://store.arduino.cc/usa/arduino-motor-shield-rev3
+// L298           : Arduino Motor shield Rev3 based on the L298 chip. Max Output 2A per channel https://store.arduino.cc/usa/arduino-motor-shield-rev3
 // LMD18200       : Texas Instruments LMD18200 55V 3A h-bridge. http://www.ti.com/lit/ds/symlink/lmd18200.pdf
 // POLOLU         : Pololu MC33926 Motor Driver (shield or carrier). Max Output 2.5A per channel https://www.pololu.com/product/1213 / https://www.pololu.com/product/2503
 // BTS7960B_5A    : Infineon Technologies BTS 7960 Motor Driver Module. Max Output 5A (43A actual max) https://www.infineon.com/dgdl/bts7960b-pb-final.pdf
 // BTS7960B_10A   : Infineon Technologies BTS 7960 Motor Driver Module. Max Output 10A (43A actual max) https://www.infineon.com/dgdl/bts7960b-pb-final.pdf
 
 // MAIN TRACK MOTORBOARD NAME
-#define MOTORBOARD_NAME_OPS "OPS"
+#define OPS_HBRIDGE_NAME "OPS"
 // MAIN TRACK NOTORBOARD ENABLED PIN
-#define MOTORBOARD_ENABLE_PIN_OPS 25
+#define OPS_HBRIDGE_ENABLE_PIN 25
+// MAIN TRACK H-Bridge Thermal Warning Pin
+#define OPS_HBRIDGE_THERMAL_PIN -1
 // MAIN TRACK MOTORBOARD CURRENT SENSE ADC PIN
-#define MOTORBOARD_CURRENT_SENSE_OPS ADC1_CHANNEL_0
+#define OPS_HBRIDGE_CURRENT_SENSE_ADC ADC1_CHANNEL_0
 // MAIN TRACK MOTORBOARD MOTOR_BOARD_TYPE
-#define MOTORBOARD_TYPE_OPS ARDUINO_SHIELD
+#define OPS_HBRIDGE_TYPE L298
 
 // PROG TRACK MOTORBOARD NAME
-#define MOTORBOARD_NAME_PROG "PROG"
+#define PROG_HBRIDGE_NAME "PROG"
 // PROG TRACK NOTORBOARD ENABLED PIN
-#define MOTORBOARD_ENABLE_PIN_PROG 23
+#define PROG_HBRIDGE_ENABLE_PIN 23
 // PROG TRACK MOTORBOARD CURRENT SENSE ADC PIN
-#define MOTORBOARD_CURRENT_SENSE_PROG ADC1_CHANNEL_3
+#define PROG_HBRIDGE_CURRENT_SENSE_ADC ADC1_CHANNEL_3
 // PROG TRACK MOTORBOARD MOTOR_BOARD_TYPE
-#define MOTORBOARD_TYPE_PROG ARDUINO_SHIELD
+#define PROG_HBRIDGE_TYPE L298
 
 /////////////////////////////////////////////////////////////////////////////////////
 //

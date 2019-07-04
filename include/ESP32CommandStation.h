@@ -27,6 +27,7 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #include <functional>
 #include <string>
 #include <sstream>
+#include <vector>
 
 #include <driver/uart.h>
 
@@ -62,15 +63,37 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 #include "Config.h"
 
+using dcc::PacketFlowInterface;
+using dcc::RailcomHubFlow;
+using dcc::RailcomPrintfFlow;
+using dcc::SimpleUpdateLoop;
+using openlcb::BitEventProducer;
+using openlcb::CallbackEventHandler;
+using openlcb::DccAccyConsumer;
+using openlcb::Defs;
+using openlcb::EventId;
+using openlcb::EventRegistry;
+using openlcb::EventRegistryEntry;
+using openlcb::EventReport;
+using openlcb::MemoryBit;
+using openlcb::Node;
+using openlcb::NodeID;
+using openlcb::SimpleCanStack;
+using openlcb::WriteHelper;
+
+using std::unique_ptr;
+using std::vector;
+using std::string;
+
 // Simplified callback handler to automatically register the callbacks
-class EventCallbackHandler : public openlcb::CallbackEventHandler {
+class EventCallbackHandler : public CallbackEventHandler {
 public:
-  EventCallbackHandler(uint64_t eventID,
+  EventCallbackHandler(EventId eventID,
                        uint32_t callbackType,
-                       openlcb::Node *node,
-                       openlcb::CallbackEventHandler::EventReportHandlerFn report_handler,
-                       openlcb::CallbackEventHandler::EventStateHandlerFn state_handler) :
-    openlcb::CallbackEventHandler(node, report_handler, state_handler)
+                       Node *node,
+                       CallbackEventHandler::EventReportHandlerFn report_handler,
+                       CallbackEventHandler::EventStateHandlerFn state_handler) :
+    CallbackEventHandler(node, report_handler, state_handler)
   {
     add_entry(eventID, callbackType);
   }
@@ -198,7 +221,6 @@ constexpr uint16_t S88_MAX_SENSORS_PER_BUS = 512;
 #define S88_FIRST_SENSOR S88_MAX_SENSORS_PER_BUS
 #endif
 
-
 #include "JsonConstants.h"
 #include "ConfigurationManager.h"
 
@@ -206,7 +228,6 @@ constexpr uint16_t S88_MAX_SENSORS_PER_BUS = 512;
 #include "dcc/DCCSignalGenerator_RMT.h"
 #include "dcc/DCCProgrammer.h"
 #include "dcc/Locomotive.h"
-#include "dcc/MotorBoard.h"
 #include "dcc/Turnouts.h"
 
 #include "interfaces/DCCppProtocol.h"
@@ -215,6 +236,7 @@ constexpr uint16_t S88_MAX_SENSORS_PER_BUS = 512;
 
 #include "stateflows/InfoScreen.h"
 #include "stateflows/InfoScreenCollector.h"
+#include "stateflows/MonitoredHBridge.h"
 #include "stateflows/StatusLED.h"
 #include "stateflows/HC12Radio.h"
 
@@ -223,14 +245,29 @@ constexpr uint16_t S88_MAX_SENSORS_PER_BUS = 512;
 #include "io/S88Sensors.h"
 #include "io/RemoteSensors.h"
 
-extern std::vector<uint8_t> restrictedPins;
-extern std::unique_ptr<Esp32WiFiManager> wifiManager;
-extern std::unique_ptr<dcc::RailcomHubFlow> railComHub;
-extern std::unique_ptr<dcc::RailcomPrintfFlow> railComDataDumper;
-extern std::unique_ptr<InfoScreen> infoScreen;
-extern std::unique_ptr<InfoScreenStatCollector> infoScreenCollector;
-extern std::unique_ptr<StatusLED> statusLED;
-extern std::unique_ptr<HC12Radio> hc12;
+extern vector<uint8_t> restrictedPins;
+extern unique_ptr<Esp32WiFiManager> wifiManager;
+extern unique_ptr<dcc::RailcomHubFlow> railComHub;
+extern unique_ptr<dcc::RailcomPrintfFlow> railComDataDumper;
+extern unique_ptr<InfoScreen> infoScreen;
+extern unique_ptr<InfoScreenStatCollector> infoScreenCollector;
+extern unique_ptr<StatusLED> statusLED;
+extern unique_ptr<HC12Radio> hc12;
+
+void register_monitored_hbridge(SimpleCanStack *, const adc1_channel_t, const gpio_num_t, const gpio_num_t,
+                                const uint32_t, const uint32_t, const string &, const string &,
+                                const TrackOutputConfig &, const bool=false);
+
+void get_hbridge_status_json(JsonArray);
+bool is_track_power_on();
+void enable_all_hbridges();
+void enable_named_hbridge(string);
+void disable_all_hbridges();
+void disable_named_hbridge(string);
+uint32_t get_hbridge_sample(string);
+void broadcast_all_hbridge_statuses();
+void broadcast_named_hbridge_status(string);
+string get_hbridge_info_screen_data();
 
 #if LOCONET_ENABLED
 #include <LocoNetESP32UART.h>
@@ -255,28 +292,75 @@ extern esp_ota_handle_t otaInProgress;
 /////////////////////////////////////////////////////////////////////////////////////
 // Ensure the required h-bridge parameters are specified and not overlapping.
 /////////////////////////////////////////////////////////////////////////////////////
-#if !defined(MOTORBOARD_NAME_OPS) || !defined(MOTORBOARD_ENABLE_PIN_OPS) || \
-  !defined(MOTORBOARD_CURRENT_SENSE_OPS) || !defined(MOTORBOARD_TYPE_OPS) || \
-  !defined(MOTORBOARD_NAME_PROG) || !defined(MOTORBOARD_ENABLE_PIN_PROG) || \
-  !defined(MOTORBOARD_CURRENT_SENSE_PROG) || !defined(MOTORBOARD_TYPE_PROG) || \
-  !defined(DCC_SIGNAL_PIN_OPERATIONS) || !defined(DCC_SIGNAL_PIN_PROGRAMMING)
+#if !defined(OPS_HBRIDGE_NAME) || \
+    !defined(OPS_HBRIDGE_ENABLE_PIN) || \
+    !defined(OPS_HBRIDGE_THERMAL_PIN) || \
+    !defined(OPS_HBRIDGE_CURRENT_SENSE_ADC) || \
+    !defined(OPS_HBRIDGE_TYPE) || \
+    !defined(PROG_HBRIDGE_NAME) || \
+    !defined(PROG_HBRIDGE_ENABLE_PIN) || \
+    !defined(PROG_HBRIDGE_CURRENT_SENSE_ADC) || \
+    !defined(PROG_HBRIDGE_TYPE) || \
+    !defined(DCC_SIGNAL_PIN_OPERATIONS) || \
+    !defined(DCC_SIGNAL_PIN_PROGRAMMING)
 #error "Invalid Configuration detected, Config_MotorBoard.h is a mandatory module."
 #endif
 
-#if MOTORBOARD_ENABLE_PIN_OPS == MOTORBOARD_ENABLE_PIN_PROG
-#error "Invalid Configuration detected, MOTORBOARD_ENABLE_PIN_OPS and MOTORBOARD_ENABLE_PIN_PROG must be unique."
+#if OPS_HBRIDGE_TYPE == L298
+#define OPS_HBRIDGE_MAX_MILIAMPS 2000
+#define OPS_HBRIDGE_LIMIT_MILIAMPS 2000
+#define OPS_HBRIDGE_TYPE_NAME "L298"
+#elif OPS_HBRIDGE_TYPE == LMD18200
+#define OPS_HBRIDGE_MAX_MILIAMPS 3000
+#define OPS_HBRIDGE_LIMIT_MILIAMPS 3000
+#define OPS_HBRIDGE_TYPE_NAME "LMD18200"
+#elif OPS_HBRIDGE_TYPE == POLOLU
+#define OPS_HBRIDGE_MAX_MILIAMPS 2500
+#define OPS_HBRIDGE_LIMIT_MILIAMPS 2500
+#define OPS_HBRIDGE_TYPE_NAME "POLOLU"
+#elif OPS_HBRIDGE_TYPE == BTS7960B_5A
+#define OPS_HBRIDGE_MAX_MILIAMPS 43000
+#define OPS_HBRIDGE_LIMIT_MILIAMPS 5000
+#define OPS_HBRIDGE_TYPE_NAME "BTS7960B"
+#elif OPS_HBRIDGE_TYPE == BTS7960B_10A
+#define OPS_HBRIDGE_MAX_MILIAMPS 43000
+#define OPS_HBRIDGE_LIMIT_MILIAMPS 10000
+#define OPS_HBRIDGE_TYPE_NAME "BTS7960B"
+#endif
+
+#if PROG_HBRIDGE_TYPE == L298
+#define PROG_HBRIDGE_MAX_MILIAMPS 2000
+#define PROG_HBRIDGE_TYPE_NAME "L298"
+#elif PROG_HBRIDGE_TYPE == LMD18200
+#define PROG_HBRIDGE_MAX_MILIAMPS 3000
+#define PROG_HBRIDGE_TYPE_NAME "LMD18200"
+#elif PROG_HBRIDGE_TYPE == POLOLU
+#define PROG_HBRIDGE_MAX_MILIAMPS 2500
+#define PROG_HBRIDGE_TYPE_NAME "POLOLU"
+#elif PROG_HBRIDGE_TYPE == BTS7960B_5A
+#define PROG_HBRIDGE_MAX_MILIAMPS 43000
+#define PROG_HBRIDGE_TYPE_NAME "BTS7960B"
+#elif PROG_HBRIDGE_TYPE == BTS7960B_10A
+#define PROG_HBRIDGE_MAX_MILIAMPS 43000
+#define PROG_HBRIDGE_TYPE_NAME "BTS7960B"
+#endif
+// programming track is current limited internally by the hbridge monitor code
+#define PROG_HBRIDGE_LIMIT_MILIAMPS PROG_HBRIDGE_MAX_MILIAMPS
+
+#if OPS_HBRIDGE_ENABLE_PIN == PROG_HBRIDGE_ENABLE_PIN
+#error "Invalid Configuration detected, OPS_HBRIDGE_ENABLE_PIN and PROG_HBRIDGE_ENABLE_PIN must be unique."
 #endif
 
 #if DCC_SIGNAL_PIN_OPERATIONS == DCC_SIGNAL_PIN_PROGRAMMING
 #error "Invalid Configuration detected, DCC_SIGNAL_PIN_OPERATIONS and DCC_SIGNAL_PIN_PROGRAMMING must be unique."
 #endif
 
-#if STATUS_LED_ENABLED && STATUS_LED_DATA_PIN == MOTORBOARD_ENABLE_PIN_OPS
-#error "Invalid Configuration detected, STATUS_LED_DATA_PIN and MOTORBOARD_ENABLE_PIN_OPS must be unique."
+#if STATUS_LED_ENABLED && STATUS_LED_DATA_PIN == OPS_HBRIDGE_ENABLE_PIN
+#error "Invalid Configuration detected, STATUS_LED_DATA_PIN and OPS_HBRIDGE_ENABLE_PIN must be unique."
 #endif
 
-#if STATUS_LED_ENABLED && STATUS_LED_DATA_PIN == MOTORBOARD_ENABLE_PIN_PROG
-#error "Invalid Configuration detected, STATUS_LED_DATA_PIN and MOTORBOARD_ENABLE_PIN_PROG must be unique."
+#if STATUS_LED_ENABLED && STATUS_LED_DATA_PIN == PROG_HBRIDGE_ENABLE_PIN
+#error "Invalid Configuration detected, STATUS_LED_DATA_PIN and PROG_HBRIDGE_ENABLE_PIN must be unique."
 #endif
 
 #if STATUS_LED_ENABLED && STATUS_LED_DATA_PIN == DCC_SIGNAL_PIN_OPERATIONS

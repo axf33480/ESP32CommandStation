@@ -1,3 +1,5 @@
+#if 0
+
 /**********************************************************************
 ESP32 COMMAND STATION
 
@@ -356,3 +358,5 @@ void PowerOffCommand::process(const std::vector<std::string> arguments) {
     MotorBoardManager::powerOffAll();
   }
 }
+
+#endif

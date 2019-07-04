@@ -22,11 +22,23 @@
 #include "WebHandlerImpl.h"
 
 bool ON_STA_FILTER(AsyncWebServerRequest *request) {
+#ifdef ESP32
+  tcpip_adapter_ip_info_t ip_info;
+  tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_STA, &ip_info);
+  return ip_info.ip.addr == request->client()->getLocalAddress();
+#else
   return WiFi.localIP() == request->client()->localIP();
+#endif
 }
 
 bool ON_AP_FILTER(AsyncWebServerRequest *request) {
+#ifdef ESP32
+  tcpip_adapter_ip_info_t ip_info;
+  tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_AP, &ip_info);
+  return ip_info.ip.addr == request->client()->getLocalAddress();
+#else
   return WiFi.localIP() != request->client()->localIP();
+#endif
 }
 
 

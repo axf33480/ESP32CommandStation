@@ -23,9 +23,9 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 /////////////////////////////////////////////////////////////////////////////////////
 //
-// The Config_MotorBoard.h file will likely require modifications
+// The Config_HBridge.h file will likely require modifications
 // to define pins and motor board type(s)
-#include "Config_MotorBoard.h"
+#include "Config_HBridge.h"
 
 /////////////////////////////////////////////////////////////////////////////////////
 //

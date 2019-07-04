@@ -20,13 +20,7 @@
 #ifndef ASYNCEVENTSOURCE_H_
 #define ASYNCEVENTSOURCE_H_
 
-#include <Arduino.h>
-#ifdef ESP32
-#include <AsyncTCP.h>
-#else
-#include <ESPAsyncTCP.h>
-#endif
-#include <ESPAsyncWebServer.h>
+#include "ESPAsyncWebServer.h"
 
 class AsyncEventSource;
 class AsyncEventSourceResponse;

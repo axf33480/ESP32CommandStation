@@ -17,7 +17,7 @@
   License along with this library; if not, write to the Free Software
   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
-#include "Arduino.h"
+
 #include "AsyncEventSource.h"
 
 static String generateEventMessage(const char *message, const char *event, uint32_t id, uint32_t reconnect){

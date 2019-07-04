@@ -160,9 +160,6 @@ void ESP32CSWebServer::broadcastToWS(const std::string &buf) {
 
 void ESP32CSWebServer::handleProgrammer(AsyncWebServerRequest *request) {
   auto jsonResponse = new AsyncJsonResponse();
-  if(!MotorBoardManager::getBoardByName(MOTORBOARD_NAME_PROG)->isOn()) {
-    MotorBoardManager::powerOn(MOTORBOARD_NAME_PROG);
-  }
   // new programmer request
   if (request->method() == HTTP_GET) {
     if (request->arg(JSON_PROG_ON_MAIN).equalsIgnoreCase(JSON_VALUE_TRUE)) {
@@ -301,29 +298,54 @@ void ESP32CSWebServer::handleProgrammer(AsyncWebServerRequest *request) {
   LOG(VERBOSE, "sent");
  }
 
-void ESP32CSWebServer::handlePower(AsyncWebServerRequest *request) {
+void ESP32CSWebServer::handlePower(AsyncWebServerRequest *request)
+{
   auto jsonResponse = new AsyncJsonResponse(true);
-  if(request->method() == HTTP_GET) {
-    if(request->params()) {
-      jsonResponse->getRoot().createNestedObject()[JSON_STATE_NODE] = MotorBoardManager::isTrackPowerOn() ? JSON_VALUE_TRUE : JSON_VALUE_FALSE;
-    } else {
-      JsonArray array = jsonResponse->getRoot();
-      MotorBoardManager::getState(array);
+  if(request->method() == HTTP_GET)
+  {
+    if(request->params())
+    {
+      if (is_track_power_on())
+      {
+        jsonResponse->getRoot().createNestedObject()[JSON_STATE_NODE] = JSON_VALUE_TRUE;
+      }
+      else
+      {
+        jsonResponse->getRoot().createNestedObject()[JSON_STATE_NODE] = JSON_VALUE_FALSE;
+      }
     }
-  } else if (request->method() == HTTP_PUT) {
-    if(request->hasArg(JSON_OVERALL_STATE_NODE)) {
-      if(request->arg(JSON_OVERALL_STATE_NODE).equalsIgnoreCase(JSON_VALUE_TRUE)) {
-        MotorBoardManager::powerOnAll();
-      } else {
-        MotorBoardManager::powerOffAll();
+    else
+    {
+      get_hbridge_status_json(jsonResponse->getRoot());
+    }
+  }
+  else if (request->method() == HTTP_PUT)
+  {
+    if(request->hasArg(JSON_OVERALL_STATE_NODE))
+    {
+      if(request->arg(JSON_OVERALL_STATE_NODE).equalsIgnoreCase(JSON_VALUE_TRUE))
+      {
+        enable_all_hbridges();
       }
-    } else if(request->hasArg(JSON_NAME_NODE)) {
-      if(request->arg(JSON_STATE_NODE).equalsIgnoreCase(JSON_VALUE_TRUE)) {
-        MotorBoardManager::powerOn(request->arg(JSON_NAME_NODE).c_str());
-      } else {
-        MotorBoardManager::powerOff(request->arg(JSON_NAME_NODE).c_str());
+      else
+      {
+        disable_all_hbridges();
       }
-    } else {
+    }
+    else if(request->hasArg(JSON_NAME_NODE))
+    {
+      string bridge = request->arg(JSON_NAME_NODE).c_str();
+      if (request->arg(JSON_STATE_NODE).equalsIgnoreCase(JSON_VALUE_TRUE))
+      {
+        enable_named_hbridge(bridge);
+      }
+      else
+      {
+        disable_named_hbridge(bridge);
+      }
+    }
+    else
+    {
       jsonResponse->setCode(STATUS_BAD_REQUEST);
     }
   }
@@ -639,9 +661,11 @@ void ESP32CSWebServer::handleOTA(AsyncWebServerRequest *request) {
 
 uint32_t otaProgress = 0;
 
-void handleOTAUpload(AsyncWebServerRequest *request, const String& filename, size_t index, uint8_t *data, size_t len, bool final) {
+void handleOTAUpload(AsyncWebServerRequest *request, const String& filename, size_t index, uint8_t *data, size_t len, bool final)
+{
   esp_err_t res = ESP_OK;
-  if (!index) {
+  if (!index)
+  {
     otaProgress = 0;
 #if NEXTION_ENABLED
     nextionPages[TITLE_PAGE]->show();
@@ -650,7 +674,8 @@ void handleOTAUpload(AsyncWebServerRequest *request, const String& filename, siz
     res = esp_ota_begin(esp_ota_get_next_update_partition(NULL),
                         OTA_SIZE_UNKNOWN,
                         &otaInProgress);
-    if(res != ESP_OK) {
+    if (res != ESP_OK)
+    {
       LOG_ERROR("[WebSrv] OTA Update failure: %s (%d)", esp_err_to_name(res), res);
       request->send(STATUS_BAD_REQUEST, "text/plain", esp_err_to_name(res));
       return;
@@ -660,26 +685,31 @@ void handleOTAUpload(AsyncWebServerRequest *request, const String& filename, siz
     statusLED->setStatusLED(StatusLED::LED::EXT_2, StatusLED::COLOR::GREEN_BLINK);
     LOG(INFO, "[WebSrv] OTA Update starting...");
     infoScreen->replaceLine(INFO_SCREEN_STATION_INFO_LINE, "Update starting");
-    MotorBoardManager::powerOffAll();
+    disable_all_hbridges();
   }
   res = esp_ota_write(otaInProgress, data, len);
-  if (res != ESP_OK) {
+  if (res != ESP_OK)
+  {
 #if NEXTION_ENABLED
     static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(1, OTA_ERROR_STRINGS[Update.getError()]);
 #endif
     infoScreen->replaceLine(INFO_SCREEN_STATION_INFO_LINE, esp_err_to_name(res));
     LOG_ERROR("[WebSrv] OTA Update failure: %s (%d)", esp_err_to_name(res), res);
     request->send(STATUS_BAD_REQUEST, "text/plain", esp_err_to_name(res));
-  } else {
+  }
+  else
+  {
     otaProgress += len;
     infoScreen->replaceLine(INFO_SCREEN_STATION_INFO_LINE, "Updating: %d", otaProgress);
 #if NEXTION_ENABLED
     static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(1, StringPrintf("Progress: %d", otaProgress).c_str());
 #endif
   }
-  if (final) {
+  if (final)
+  {
     res = esp_ota_end(otaInProgress);
-    if (res == ESP_OK) {
+    if (res == ESP_OK)
+    {
 #if NEXTION_ENABLED
       static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(1, "Update Complete");
       static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(2, "Rebooting");
@@ -690,7 +720,9 @@ void handleOTAUpload(AsyncWebServerRequest *request, const String& filename, siz
       // update successful, set to green and they will go dark after reboot
       statusLED->setStatusLED(StatusLED::LED::EXT_1, StatusLED::COLOR::GREEN);
       statusLED->setStatusLED(StatusLED::LED::EXT_2, StatusLED::COLOR::GREEN);
-    } else {
+    }
+    else
+    {
 #if NEXTION_ENABLED
       static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(1, esp_err_to_name(res));
 #endif
@@ -719,7 +751,7 @@ void ESP32CSWebServer::handleFeatures(AsyncWebServerRequest *request) {
 
 #define STREAM_RESOURCE_NO_REDIRECT(request, uri, mimeType, totalSize, resource) \
   if (request->url() == uri) { \
-    LOG(INFO, "[WebSrv %s] Sending %s from MEMORY (%d, %s)", request->client()->remoteIP().toString().c_str(), uri, totalSize, mimeType); \
+    LOG(INFO, "[WebSrv %s] Sending %s from MEMORY (%d, %s)", ipv4_to_string(request->client()->getRemoteAddress()).c_str(), uri, totalSize, mimeType); \
     response = request->beginResponse_P(STATUS_OK, mimeType, resource, totalSize); \
     if(String(mimeType).startsWith("text/")) { \
       response->addHeader("Content-Encoding", "gzip"); \
@@ -729,19 +761,19 @@ void ESP32CSWebServer::handleFeatures(AsyncWebServerRequest *request) {
 #if WIFI_ENABLE_SOFT_AP
 #define STREAM_RESOURCE(request, uri, fallback, mimeType, totalSize, resource) \
   if (request->url() == uri && softAPAddress_.compare(request->host().c_str()) == 0) { \
-    LOG(INFO, "[WebSrv %s] Sending %s from MEMORY (%d, %s)", request->client()->remoteIP().toString().c_str(), uri, totalSize, mimeType); \
+    LOG(INFO, "[WebSrv %s] Sending %s from MEMORY (%d, %s)", ipv4_to_string(request->client()->getRemoteAddress()).c_str(), uri, totalSize, mimeType); \
     response = request->beginResponse_P(STATUS_OK, mimeType, resource, totalSize); \
     if(String(mimeType).startsWith("text/")) { \
       response->addHeader("Content-Encoding", "gzip"); \
     } \
   } else if (request->url() == uri) { \
-    LOG(INFO, "[WebSrv %s] Requested %s => CDN %s", request->client()->remoteIP().toString().c_str(), uri, fallback); \
+    LOG(INFO, "[WebSrv %s] Requested %s => CDN %s", ipv4_to_string(request->client()->getRemoteAddress()).c_str(), uri, fallback); \
     request->redirect(fallback); \
   }
 #else
 #define STREAM_RESOURCE(request, uri, fallback, mimeType, totalSize, resource) \
   if (request->url() == uri) { \
-    LOG(INFO, "[WebSrv %s] Requested %s => CDN %s", request->client()->remoteIP().toString().c_str(), uri, fallback); \
+    LOG(INFO, "[WebSrv %s] Requested %s => CDN %s", ipv4_to_string(request->client()->getRemoteAddress()).c_str(), uri, fallback); \
     request->redirect(fallback); \
   }
 #endif
@@ -815,7 +847,7 @@ void ESP32CSWebServer::notFoundHandler(AsyncWebServerRequest *request) {
 #endif
   LOG(INFO,
       "[WebSrv %s] 404: %s%s",
-      request->client()->remoteIP().toString().c_str(),
+      ipv4_to_string(request->client()->getRemoteAddress()).c_str(),
       request->host().c_str(),
       request->url().c_str());
   request->send(STATUS_NOT_FOUND, "", "");

@@ -166,15 +166,16 @@ StateFlowBase::Action InfoScreen::initLCD() {
 #endif
 }
 
-StateFlowBase::Action InfoScreen::update() {
+StateFlowBase::Action InfoScreen::update()
+{
   static uint8_t _rotatingStatusIndex = 0;
   static uint8_t _rotatingStatusLineCount = 4;
-  static uint8_t _motorboardIndex = 0;
   static uint8_t _lccStatusIndex = 0;
   static uint8_t _lastRotation = 0;
 #if LOCONET_ENABLED
   static uint8_t _firstLocoNetIndex = 0;
-  if(!_firstLocoNetIndex) {
+  if(!_firstLocoNetIndex)
+  {
     _firstLocoNetIndex = _rotatingStatusLineCount;
     _rotatingStatusLineCount += 2;
   }
@@ -185,52 +186,67 @@ StateFlowBase::Action InfoScreen::update() {
     ++_rotatingStatusIndex %= _rotatingStatusLineCount;
   }
   // update the status line details every other iteration
-  if(_lastRotation % 2) {
-    if(_rotatingStatusIndex == 0) {
-      replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Free Heap:%d",
-        ESP.getFreeHeap());
-    } else if (_rotatingStatusIndex == 1) {
-      replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Active Locos:%3d",
-        LocomotiveManager::getActiveLocoCount());
-    } else if (_rotatingStatusIndex == 2) {
-      ++_motorboardIndex %= MotorBoardManager::getMotorBoardCount();
-      auto board = MotorBoardManager::getBoardByName(MotorBoardManager::getBoardNames()[_motorboardIndex]);
-      if(board && (board->isOn() || board->isOverCurrent())) {
-        if(board->isOverCurrent()) {
-          replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "%s:F (%2.2f A)",
-            board->getName().c_str(), board->getCurrentDraw() / 1000.0f);
-        } else if(board->isOn()) {
-          replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "%s:On (%2.2f A)",
-            board->getName().c_str(), board->getCurrentDraw() / 1000.0f);
-        }
-      } else if(board) {
-        replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "%s:Off",
-          board->getName().c_str());
-      }
-    } else if (_rotatingStatusIndex == 3) {
+  if(_lastRotation % 2)
+  {
+    if(_rotatingStatusIndex == 0)
+    {
+      replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE,
+                  "Free Heap:%d",
+                  ESP.getFreeHeap());
+    }
+    else if (_rotatingStatusIndex == 1)
+    {
+      replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE,
+                  "Active Locos:%3d",
+                  LocomotiveManager::getActiveLocoCount());
+    }
+    else if (_rotatingStatusIndex == 2)
+    {
+      replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, get_hbridge_info_screen_data());
+    }
+    else if (_rotatingStatusIndex == 3)
+    {
       ++_lccStatusIndex %= 5;
-      if(_lccStatusIndex == 0) {
-        replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "LCC Nodes: %d",
-          infoScreenCollector->getRemoteNodeCount());
-      } else if (_lccStatusIndex == 1) {
-        replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "LCC Lcl: %d",
-          infoScreenCollector->getLocalNodeCount());
-      } else if (_lccStatusIndex == 2) {
-        replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "LCC dg_svc: %d",
-          infoScreenCollector->getDatagramCount());
-      } else if (_lccStatusIndex == 3) {
-        replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "LCC Ex: %d",
-          infoScreenCollector->getExecutorCount());
-      } else if (_lccStatusIndex == 4) {
-        replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "LCC Pool: %d/%d",
-          infoScreenCollector->getPoolFreeCount(),
-          infoScreenCollector->getPoolSize());
+      if(_lccStatusIndex == 0)
+      {
+        replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE,
+                    "LCC Nodes: %d",
+                    infoScreenCollector->getRemoteNodeCount());
+      }
+      else if (_lccStatusIndex == 1)
+      {
+        replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE,
+                    "LCC Lcl: %d",
+                    infoScreenCollector->getLocalNodeCount());
+      }
+      else if (_lccStatusIndex == 2)
+      {
+        replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE,
+                    "LCC dg_svc: %d",
+                    infoScreenCollector->getDatagramCount());
+      }
+      else if (_lccStatusIndex == 3)
+      {
+        replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE,
+                    "LCC Ex: %d",
+                    infoScreenCollector->getExecutorCount());
+      }
+      else if (_lccStatusIndex == 4)
+      {
+        replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE,
+                    "LCC Pool: %d/%d",
+                    infoScreenCollector->getPoolFreeCount(),
+                    infoScreenCollector->getPoolSize());
       }
 #if LOCONET_ENABLED
-    } else if (_rotatingStatusIndex == _firstLocoNetIndex) {
+    }
+    else if (_rotatingStatusIndex == _firstLocoNetIndex)
+    {
       replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "LN-RX: %d/%d",
         locoNet.getRxStats()->rxPackets, locoNet.getRxStats()->rxErrors);
-    } else if (_rotatingStatusIndex == _firstLocoNetIndex + 1) {
+    }
+    else if (_rotatingStatusIndex == _firstLocoNetIndex + 1)
+    {
       replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "LN-TX: %d/%d/%d",
         locoNet.getTxStats()->txPackets, locoNet.getTxStats()->txErrors, locoNet.getTxStats()->collisions);
 #endif
@@ -238,15 +254,18 @@ StateFlowBase::Action InfoScreen::update() {
   }
 #if INFO_SCREEN_OLED
   oledDisplay.clear();
-  for(int line = 0; line < INFO_SCREEN_OLED_LINES; line++) {
+  for(int line = 0; line < INFO_SCREEN_OLED_LINES; line++)
+  {
     oledDisplay.drawString(0, line * Monospaced_plain_10[1], screenLines_[line].c_str());
   }
   oledDisplay.display();
 #elif INFO_SCREEN_LCD
-  for(int line = 0; line < INFO_SCREEN_LCD_LINES; line++) {
+  for(int line = 0; line < INFO_SCREEN_LCD_LINES; line++)
+  {
     lcdDisplay.setCursor(0, line);
     // space pad to the width of the LCD
-    while(screenLines_[line].length() < INFO_SCREEN_LCD_COLUMNS) {
+    while(screenLines_[line].length() < INFO_SCREEN_LCD_COLUMNS)
+    {
       screenLines_[line] += ' ';
     }
     lcdDisplay.print(screenLines_[line].c_str());

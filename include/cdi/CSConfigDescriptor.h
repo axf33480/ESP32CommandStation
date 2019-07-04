@@ -36,6 +36,8 @@ namespace openlcb {
     /// node for a firmware update.
     static constexpr uint16_t CANONICAL_VERSION = 0x0140;
 
+    using TrackOutputs = RepeatedGroup<TrackOutputConfig, 2>;
+
     /// Defines the main segment in the configuration CDI. This is laid out at
     /// origin 128 to give space for the ACDI user data at the beginning.
     CDI_GROUP(CommandStationSegment, Segment(MemoryConfigDefs::SPACE_CONFIG),
@@ -46,6 +48,7 @@ namespace openlcb {
     /// CV Access via MemoryConfig protocol.
     //CDI_GROUP_ENTRY(cv, TractionShortCvSpace);
     CDI_GROUP_ENTRY(wifi, WiFiConfiguration, Name("WiFi Configuration"));
+    CDI_GROUP_ENTRY(hbridge, TrackOutputs, Name("H-Bridge Configuration"));
     CDI_GROUP_END();
 
     /// This segment is only needed temporarily until there is program code to set
