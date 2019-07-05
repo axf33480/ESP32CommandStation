@@ -33,11 +33,13 @@ StateFlowBase::Action HC12Radio::init() {
 
   // Setup UART 115200 8N1 TX: 1, RX: 3, 2k buffer
   uart_config_t uart = {
-    .baud_rate = 115200,
-    .data_bits = UART_DATA_8_BITS,
-    .parity    = UART_PARITY_DISABLE,
-    .stop_bits = UART_STOP_BITS_1,
-    .flow_ctrl = UART_HW_FLOWCTRL_DISABLE
+    .baud_rate           = 115200,
+    .data_bits           = UART_DATA_8_BITS,
+    .parity              = UART_PARITY_DISABLE,
+    .stop_bits           = UART_STOP_BITS_1,
+    .flow_ctrl           = UART_HW_FLOWCTRL_DISABLE,
+    .rx_flow_ctrl_thresh = 0,
+    .use_ref_tick        = false
   };
   esp_err_t res = uart_param_config(uart_, &uart);
   if (res != ESP_OK) {

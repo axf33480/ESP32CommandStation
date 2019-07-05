@@ -30,20 +30,20 @@ public:
   void set(bool=false, bool=true);
   void update(uint8_t, uint8_t);
   void toJson(JsonObject, bool=false);
-  const uint16_t getID() {
+  uint16_t getID() {
     return _id;
   }
-  const uint8_t getPin() {
+  uint8_t getPin() {
     return _pin;
   }
-  const uint8_t getFlags() {
+  uint8_t getFlags() {
     return _flags;
   }
-  const bool isActive() {
+  bool isActive() {
     return _active;
   }
   void showStatus();
-  const std::string getFlagsAsString() {
+  std::string getFlagsAsString() {
     std::string flags = "";
     if(bitRead(_flags, OUTPUT_IFLAG_INVERT)) {
       flags += "activeLow";

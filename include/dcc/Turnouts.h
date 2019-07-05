@@ -27,7 +27,7 @@ enum TurnoutType {
   MAX_TURNOUT_TYPES // NOTE: this must be the last entry in the enum.
 };
 
-void calculateTurnoutBoardAddressAndIndex(uint16_t *boardAddress, uint8_t *boardIndex, uint16_t address);
+void calculateTurnoutBoardAddressAndIndex(uint16_t *boardAddress, int8_t *boardIndex, uint16_t address);
 
 class Turnout {
 public:
@@ -37,26 +37,26 @@ public:
   void update(uint16_t, int8_t, TurnoutType);
   void set(bool=false, bool=true);
   void toJson(JsonObject, bool=false);
-  const uint16_t getID() {
+  uint16_t getID() {
     return _turnoutID;
   }
-  const uint16_t getAddress() {
+  uint16_t getAddress() {
     return _address;
   }
-  const uint16_t getBoardAddress() {
+  uint16_t getBoardAddress() {
     return _boardAddress;
   }
-  const uint8_t getIndex() {
+  uint8_t getIndex() {
     return _index;
   }
-  const bool isThrown() {
+  bool isThrown() {
     return _thrown;
   }
-  const void toggle() {
+  void toggle() {
     set(!_thrown);
   }
   void showStatus();
-  const TurnoutType getType() {
+  TurnoutType getType() {
     return _type;
   }
   void setType(const TurnoutType type) {
@@ -65,7 +65,7 @@ public:
 private:
   uint16_t _turnoutID;
   uint16_t _address;
-  uint8_t _index;
+  int8_t _index;
   uint16_t _boardAddress;
   bool _thrown;
   TurnoutType _type;

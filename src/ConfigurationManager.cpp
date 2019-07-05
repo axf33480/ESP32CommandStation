@@ -66,7 +66,7 @@ void recursiveWalkTree(const std::string &path, bool remove=false) {
           LOG(VERBOSE, "[Config] Removing: %s", fullPath.c_str());
           unlink(fullPath.c_str());
         } else {
-          struct stat statbuf = {0};
+          struct stat statbuf;
           stat(fullPath.c_str(), &statbuf);
           LOG(VERBOSE, "[Config] %s (%d bytes)", fullPath.c_str(), (int)statbuf.st_size);
         }

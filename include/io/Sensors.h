@@ -28,16 +28,16 @@ public:
   virtual ~Sensor() {}
   void update(uint8_t, bool=false);
   virtual void toJson(JsonObject, bool=false);
-  const uint16_t getID() {
+  uint16_t getID() {
     return _sensorID;
   }
-  const int8_t getPin() {
+  int8_t getPin() {
     return _pin;
   }
-  const bool isPullUp() {
+  bool isPullUp() {
     return _pullUp;
   }
-  const bool isActive() {
+  bool isActive() {
     return _lastState;
   }
   virtual void check();
@@ -70,7 +70,7 @@ public:
   static Sensor *getSensor(uint16_t);
   static bool createOrUpdate(const uint16_t, const uint8_t, const bool);
   static bool remove(const uint16_t);
-  static uint8_t getSensorPin(const uint16_t);
+  static int8_t getSensorPin(const uint16_t);
 private:
   static TaskHandle_t _taskHandle;
   static xSemaphoreHandle _lock;

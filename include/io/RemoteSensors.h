@@ -24,10 +24,10 @@ class RemoteSensor : public Sensor {
 public:
   RemoteSensor(uint16_t, uint16_t=0);
   virtual ~RemoteSensor() {}
-  const uint16_t getRawID() {
+  uint16_t getRawID() {
     return _rawID;
   }
-  const uint16_t getSensorValue() {
+  uint16_t getSensorValue() {
     return _value;
   }
   void setSensorValue(const uint16_t value) {
@@ -35,7 +35,7 @@ public:
     _lastUpdate = millis();
     set(_value != 0);
   }
-  const uint32_t getLastUpdate() {
+  uint32_t getLastUpdate() {
     return _lastUpdate;
   }
   virtual void check();

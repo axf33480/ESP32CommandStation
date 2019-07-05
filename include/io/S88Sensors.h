@@ -30,7 +30,7 @@ public:
   void updateID(uint16_t newID) {
     setID(newID);
   }
-  const uint16_t getIndex() {
+  uint16_t getIndex() {
     return _index;
   }
 private:
@@ -46,16 +46,16 @@ public:
   void addSensors(int16_t);
   void removeSensors(int16_t);
   std::string getStateString();
-  const uint8_t getID() {
+  uint8_t getID() {
     return _id;
   }
-  const uint8_t getDataPin() {
+  uint8_t getDataPin() {
     return _dataPin;
   }
-  const uint16_t getSensorIDBase() {
+  uint16_t getSensorIDBase() {
     return _sensorIDBase;
   }
-  const uint16_t getSensorCount() {
+  uint16_t getSensorCount() {
     return _sensors.size();
   }
   void prepForRead() {

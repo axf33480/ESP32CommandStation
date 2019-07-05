@@ -225,7 +225,7 @@ uint16_t TurnoutManager::getTurnoutCount() {
   return turnouts.length();
 }
 
-void calculateTurnoutBoardAddressAndIndex(uint16_t *boardAddress, uint8_t *boardIndex, uint16_t address) {
+void calculateTurnoutBoardAddressAndIndex(uint16_t *boardAddress, int8_t *boardIndex, uint16_t address) {
   *boardAddress = (address + 3) / 4;
   *boardIndex = (address - (*boardAddress * 4)) + 3;
 }

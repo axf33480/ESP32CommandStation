@@ -186,7 +186,7 @@ bool SensorManager::remove(const uint16_t id) {
   return false;
 }
 
-uint8_t SensorManager::getSensorPin(const uint16_t id) {
+int8_t SensorManager::getSensorPin(const uint16_t id) {
   for (const auto& sensor : sensors) {
     if(sensor->getID() == id) {
       return sensor->getPin();

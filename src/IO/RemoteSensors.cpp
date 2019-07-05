@@ -74,7 +74,7 @@ LinkedList<RemoteSensor *> remoteSensors([](RemoteSensor *sensor) {
 
 void RemoteSensorManager::init() {
 #if SCAN_REMOTE_SENSORS_ON_STARTUP
-  infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, F("WiFiScan started"));
+  infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "WiFiScan started");
   int8_t networksFound;
 
   LOG(VERBOSE, "[RemoteSensors] Scanning for RemoteSensors");
@@ -82,7 +82,7 @@ void RemoteSensorManager::init() {
   while((networksFound = WiFi.scanComplete()) < 0) {
     delay(100);
     LOG(INFO, ".");
-    InfoScreen::replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, F("WiFiScan pending"));
+    infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "WiFiScan pending");
   }
   const uint8_t REMOTE_SENSOR_PREFIX_LEN = String(REMOTE_SENSORS_PREFIX).length();
   for (int8_t i = 0; i < networksFound; i++) {
