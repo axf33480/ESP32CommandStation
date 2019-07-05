@@ -38,13 +38,8 @@ public:
     return _locoAddress;
   }
   void setSpeed(int8_t speed) {
-    if(speed < 0) {
-      speed = 0;
-    } else if(speed > 128) {
-      speed = 128;
-    }
-    LOG(INFO, "[Loco %d] speed: %d", _locoAddress, speed);
-    _speed = speed;
+    _speed = std::max((int8_t)0, std::min(speed, (int8_t)127));
+    LOG(INFO, "[Loco %d] speed: %d", _locoAddress, _speed);
   }
   int8_t getSpeed() {
     return _speed;
