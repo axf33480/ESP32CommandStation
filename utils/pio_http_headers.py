@@ -17,29 +17,30 @@
 
 Import("env")
 
-from resource_embedder import compress, embed;
+from resource_embedder import compress, embed
+from os.path import join
 
 def build_index_html_h(source, target, env):
-    compress('%s/data/index.html' % env.subst('$PROJECT_DIR'),
-             '%s/include/generated/index_html.h' % env.subst('$PROJECT_DIR'),
+    compress(join(env.subst('$PROJECT_DIR'), 'data', 'index.html'),
+             join(env.subst('$PROJECT_DIR'), 'include', 'generated', 'index_html.h'),
              'indexHtmlGz')
-    compress('%s/data/jquery.min.js' % env.subst('$PROJECT_DIR'),
-             '%s/include/generated/jquery_min_js.h' % env.subst('$PROJECT_DIR'),
+    compress(join(env.subst('$PROJECT_DIR'), 'data', 'jquery.min.js'),
+             join(env.subst('$PROJECT_DIR'), 'include', 'generated', 'jquery_min_js.h'),
              'jqueryJsGz')
-    compress('%s/data/jquery.mobile-1.5.0-rc1.min.js' % env.subst('$PROJECT_DIR'),
-             '%s/include/generated/jquery_mobile_js.h' % env.subst('$PROJECT_DIR'),
+    compress(join(env.subst('$PROJECT_DIR'), 'data', 'jquery.mobile-1.5.0-rc1.min.js'),
+             join(env.subst('$PROJECT_DIR'), 'include', 'generated', 'jquery_mobile_js.h'),
              'jqueryMobileJsGz')
-    compress('%s/data/jquery.mobile-1.5.0-rc1.min.css' % env.subst('$PROJECT_DIR'),
-             '%s/include/generated/jquery_mobile_css.h' % env.subst('$PROJECT_DIR'),
+    compress(join(env.subst('$PROJECT_DIR'), 'data', 'jquery.mobile-1.5.0-rc1.min.css'),
+             join(env.subst('$PROJECT_DIR'), 'include', 'generated', 'jquery_mobile_css.h'),
              'jqueryMobileCssGz')
-    compress('%s/data/jquery.simple.websocket.min.js' % env.subst('$PROJECT_DIR'),
-             '%s/include/generated/jquery_simple_websocket.h' % env.subst('$PROJECT_DIR'),
+    compress(join(env.subst('$PROJECT_DIR'), 'data', 'jquery.simple.websocket.min.js'),
+             join(env.subst('$PROJECT_DIR'), 'include', 'generated', 'jquery_simple_websocket.h'),
              'jquerySimpleWebSocketGz')
-    compress('%s/data/jqClock-lite.min.js' % env.subst('$PROJECT_DIR'),
-             '%s/include/generated/jq_clock.h' % env.subst('$PROJECT_DIR'),
+    compress(join(env.subst('$PROJECT_DIR'), 'data', 'jqClock-lite.min.js'),
+             join(env.subst('$PROJECT_DIR'), 'include', 'generated', 'jq_clock.h'),
              'jqClockGz')
-    embed('%s/data/ajax-loader.gif' % env.subst('$PROJECT_DIR'),
-          '%s/include/generated/ajax_loader.h' % env.subst('$PROJECT_DIR'),
+    embed(join(env.subst('$PROJECT_DIR'), 'data', 'ajax-loader.gif'),
+          join(env.subst('$PROJECT_DIR'), 'include', 'generated', 'ajax_loader.h'),
           'ajaxLoader')
 
 env.AddPreAction('$BUILD_DIR/src/Interfaces/WebServer.cpp.o', build_index_html_h)
