@@ -191,7 +191,7 @@ void setup() {
     .use_ref_tick        = false                     // unused
   };
   uart_param_config(UART_NUM_0, &uart0);
-  uart_driver_install(UART_NUM_0, 2048, 0, 0, NULL, 0);
+  uart_driver_install(UART_NUM_0, 1024, 1024, 0, NULL, 0);
 
   LOG(INFO, "\n\nESP32 Command Station v%s starting up", VERSION);
 
