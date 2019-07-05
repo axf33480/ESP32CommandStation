@@ -38,16 +38,18 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #define NEO_COLOR_MODE NeoBrgFeature
 #elif STATUS_LED_COLOR_ORDER == RBG
 #define NEO_COLOR_MODE NeoRbgFeature
+#else
+#error "StatusLED: unknown LED color order"
 #endif
 
 #if STATUS_LED_TYPE == WS281X_800
-#define NEO_METHOD Neo800KbpsMethod
+#define NEO_METHOD NeoEsp32Rmt7800KbpsMethod
 #elif STATUS_LED_TYPE == WS281X_400
-#define NEO_METHOD Neo400KbpsMethod
-#elif STATUS_LED_TYPE == SK6812
-#define NEO_METHOD NeoSk6812Method
-#elif STATUS_LED_TYPE == LC6812
-#define NEO_METHOD NeoLc8812Method
+#define NEO_METHOD NeoEsp32Rmt7400KbpsMethod
+#elif STATUS_LED_TYPE == SK6812 || STATUS_LED_TYPE == LC6812
+#define NEO_METHOD NeoEsp32Rmt7Sk6812Method
+#else
+#error "StatusLED: unknown LED type"
 #endif
 
 class StatusLED : public StateFlowBase {

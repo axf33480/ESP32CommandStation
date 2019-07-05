@@ -45,6 +45,22 @@ StateFlowBase::Action StatusLED::update() {
       }
       state_[led] = !state_[led];
     }
+    else if (colors_[led] == RED && bus_->GetPixelColor(led) != RGB_RED_)
+    {
+      bus_->SetPixelColor(led, RGB_RED_);
+    }
+    else if (colors_[led] == GREEN && bus_->GetPixelColor(led) != RGB_GREEN_)
+    {
+      bus_->SetPixelColor(led, RGB_GREEN_);
+    }
+    else if (colors_[led] == YELLOW && bus_->GetPixelColor(led) != RGB_YELLOW_)
+    {
+      bus_->SetPixelColor(led, RGB_YELLOW_);
+    }
+    else if (colors_[led] == OFF && bus_->GetPixelColor(led) != RGB_OFF_)
+    {
+      bus_->SetPixelColor(led, RGB_OFF_);
+    }
   }
   bus_->Show();
   return sleep_and_call(&timer_, updateInterval_, STATE(update));
