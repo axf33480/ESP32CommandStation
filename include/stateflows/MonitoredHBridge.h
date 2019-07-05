@@ -200,14 +200,15 @@ public:
   void disable()
   {
     state_ = STATE_OFF;
-    reset_flow(STATE(sleep_and_check_state));
+    yield_and_call(STATE(check));
     LOG(INFO, "[%s] Disabling h-bridge", name_.c_str());
+    statusLED->setStatusLED(targetLED_, StatusLED::COLOR::OFF);
   }
 
   void enable()
   {
     state_ = STATE_ON;
-    reset_flow(STATE(sleep_and_check_state));
+    yield_and_call(STATE(check));
     LOG(INFO, "[%s] Enabling h-bridge", name_.c_str());
     statusLED->setStatusLED(targetLED_, StatusLED::COLOR::GREEN);
 #if LOCONET_ENABLED
@@ -335,7 +336,6 @@ private:
     if (state_ == STATE_OFF)
     {
       ESP_ERROR_CHECK(gpio_set_level(enablePin_, 0));
-      statusLED->setStatusLED(targetLED_, StatusLED::COLOR::OFF);
       return exit();
     }
 
