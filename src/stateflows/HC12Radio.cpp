@@ -31,15 +31,15 @@ StateFlowBase::Action HC12Radio::init() {
   LOG(INFO, "[HC12] Initializing UART(%d) at %ul baud on RX %d, TX %d",
       HC12_UART_NUM, HC12_RADIO_BAUD, HC12_RX_PIN, HC12_TX_PIN);
 
-  // Setup UART 115200 8N1 TX: 1, RX: 3, 2k buffer
+  // Setup UART 115200 8N1, 2k buffer
   uart_config_t uart = {
     .baud_rate           = 115200,
-    .data_bits           = UART_DATA_8_BITS,
-    .parity              = UART_PARITY_DISABLE,
-    .stop_bits           = UART_STOP_BITS_1,
-    .flow_ctrl           = UART_HW_FLOWCTRL_DISABLE,
-    .rx_flow_ctrl_thresh = 0,
-    .use_ref_tick        = false
+    .data_bits           = UART_DATA_8_BITS,         // 8 bit bytes
+    .parity              = UART_PARITY_DISABLE,      // no partity
+    .stop_bits           = UART_STOP_BITS_1,         // one stop bit
+    .flow_ctrl           = UART_HW_FLOWCTRL_DISABLE, // no flow control
+    .rx_flow_ctrl_thresh = 0,                        // unused
+    .use_ref_tick        = false                     // unused
   };
   esp_err_t res = uart_param_config(uart_, &uart);
   if (res != ESP_OK) {

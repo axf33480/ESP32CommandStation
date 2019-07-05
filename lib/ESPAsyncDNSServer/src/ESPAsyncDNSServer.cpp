@@ -27,8 +27,8 @@ void AsyncDNSServer::stop() {
 void AsyncDNSServer::processRequest(AsyncUDPPacket &packet) {
   if (packet.length() >= sizeof(DNSHeader)) {
     auto buffer = packet.data();
-    DNSHeader dnsHeader = {0};
-    DNSQuestion dnsQuestion = {0};
+    DNSHeader dnsHeader{};
+    DNSQuestion dnsQuestion{};
     memcpy(&dnsHeader, buffer, DNS_HEADER_SIZE);
 
     if (ntohs(dnsHeader.QDCount) == 1 && dnsHeader.ANCount == 0 && dnsHeader.NSCount == 0 && dnsHeader.ARCount == 0) {
