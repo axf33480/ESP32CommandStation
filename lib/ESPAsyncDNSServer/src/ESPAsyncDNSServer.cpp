@@ -56,7 +56,7 @@ void AsyncDNSServer::processRequest(AsyncUDPPacket &packet) {
         (_domainName == "*" || domainNameWithoutWwwPrefix == _domainName)
        ) {
       AsyncUDPMessage msg(packet.length() + 12 + sizeof(_resolvedIP));
-      DNSHeader responseHeader = {0};
+      DNSHeader responseHeader{};
       memcpy(&responseHeader, &dnsHeader, sizeof(DNSHeader));
       // Change the type of message to a response and set the number of answers equal to 
       // the number of questions in the header
