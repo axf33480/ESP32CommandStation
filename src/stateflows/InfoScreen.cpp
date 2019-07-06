@@ -169,7 +169,7 @@ StateFlowBase::Action InfoScreen::initLCD() {
 StateFlowBase::Action InfoScreen::update()
 {
   static uint8_t _rotatingStatusIndex = 0;
-  static uint8_t _rotatingStatusLineCount = 4;
+  static uint8_t _rotatingStatusLineCount = 5;
   static uint8_t _lccStatusIndex = 0;
   static uint8_t _lastRotation = 0;
 #if LOCONET_ENABLED
@@ -190,65 +190,90 @@ StateFlowBase::Action InfoScreen::update()
   {
     if(_rotatingStatusIndex == 0)
     {
-      replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE,
-                  "Free Heap:%d",
-                  heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+      replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE
+                , "Free Heap:%d"
+                , heap_caps_get_free_size(MALLOC_CAP_INTERNAL)
+      );
     }
     else if (_rotatingStatusIndex == 1)
     {
-      replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE,
-                  "Active Locos:%3d",
-                  LocomotiveManager::getActiveLocoCount());
+      replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE
+                , "Uptime: %02d:%02d:%02d"
+                , (uint32_t)(USEC_TO_SEC(esp_timer_get_time()) / 3600)
+                , (uint32_t)(USEC_TO_SEC(esp_timer_get_time()) % 3600) / 60
+                , (uint32_t)(USEC_TO_SEC(esp_timer_get_time()) % 60)
+      );
     }
     else if (_rotatingStatusIndex == 2)
     {
-      replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, get_hbridge_info_screen_data());
+      replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE
+                , "Active Locos:%3d"
+                , LocomotiveManager::getActiveLocoCount()
+      );
     }
     else if (_rotatingStatusIndex == 3)
+    {
+      replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE
+                , get_hbridge_info_screen_data()
+      );
+    }
+    else if (_rotatingStatusIndex == 4)
     {
       ++_lccStatusIndex %= 5;
       if(_lccStatusIndex == 0)
       {
-        replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE,
-                    "LCC Nodes: %d",
-                    infoScreenCollector->getRemoteNodeCount());
+        replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE
+                  , "LCC Nodes: %d"
+                  , infoScreenCollector->getRemoteNodeCount()
+        );
       }
       else if (_lccStatusIndex == 1)
       {
-        replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE,
-                    "LCC Lcl: %d",
-                    infoScreenCollector->getLocalNodeCount());
+        replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE
+                  , "LCC Lcl: %d"
+                  , infoScreenCollector->getLocalNodeCount()
+        );
       }
       else if (_lccStatusIndex == 2)
       {
-        replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE,
-                    "LCC dg_svc: %d",
-                    infoScreenCollector->getDatagramCount());
+        replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE
+                  , "LCC dg_svc: %d"
+                  , infoScreenCollector->getDatagramCount()
+        );
       }
       else if (_lccStatusIndex == 3)
       {
-        replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE,
-                    "LCC Ex: %d",
-                    infoScreenCollector->getExecutorCount());
+        replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE
+                  , "LCC Ex: %d"
+                  , infoScreenCollector->getExecutorCount()
+        );
       }
       else if (_lccStatusIndex == 4)
       {
-        replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE,
-                    "LCC Pool: %d/%d",
-                    infoScreenCollector->getPoolFreeCount(),
-                    infoScreenCollector->getPoolSize());
+        replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE
+                  , "LCC Pool: %d/%d"
+                  , infoScreenCollector->getPoolFreeCount()
+                  , infoScreenCollector->getPoolSize()
+        );
       }
 #if LOCONET_ENABLED
     }
     else if (_rotatingStatusIndex == _firstLocoNetIndex)
     {
-      replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "LN-RX: %d/%d",
-        locoNet.getRxStats()->rxPackets, locoNet.getRxStats()->rxErrors);
+      replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE
+                , "LN-RX: %d/%d"
+                , locoNet.getRxStats()->rxPackets
+                , locoNet.getRxStats()->rxErrors
+      );
     }
     else if (_rotatingStatusIndex == _firstLocoNetIndex + 1)
     {
-      replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "LN-TX: %d/%d/%d",
-        locoNet.getTxStats()->txPackets, locoNet.getTxStats()->txErrors, locoNet.getTxStats()->collisions);
+      replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE
+                , "LN-TX: %d/%d/%d"
+                , locoNet.getTxStats()->txPackets
+                , locoNet.getTxStats()->txErrors
+                , locoNet.getTxStats()->collisions
+      );
 #endif
     }
   }
@@ -256,7 +281,10 @@ StateFlowBase::Action InfoScreen::update()
   oledDisplay.clear();
   for(int line = 0; line < INFO_SCREEN_OLED_LINES; line++)
   {
-    oledDisplay.drawString(0, line * Monospaced_plain_10[1], screenLines_[line].c_str());
+    oledDisplay.drawString(0
+                         , line * Monospaced_plain_10[1]
+                         , screenLines_[line].c_str()
+    );
   }
   oledDisplay.display();
 #elif INFO_SCREEN_LCD
