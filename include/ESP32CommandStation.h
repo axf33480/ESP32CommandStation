@@ -239,6 +239,7 @@ constexpr uint16_t S88_MAX_SENSORS_PER_BUS = 512;
 #include "stateflows/MonitoredHBridge.h"
 #include "stateflows/StatusLED.h"
 #include "stateflows/HC12Radio.h"
+#include "stateflows/OTAMonitor.h"
 
 #include "io/Outputs.h"
 #include "io/Sensors.h"
@@ -249,10 +250,10 @@ extern vector<uint8_t> restrictedPins;
 extern unique_ptr<Esp32WiFiManager> wifiManager;
 extern unique_ptr<dcc::RailcomHubFlow> railComHub;
 extern unique_ptr<dcc::RailcomPrintfFlow> railComDataDumper;
-extern unique_ptr<InfoScreen> infoScreen;
 extern unique_ptr<InfoScreenStatCollector> infoScreenCollector;
 extern unique_ptr<StatusLED> statusLED;
 extern unique_ptr<HC12Radio> hc12;
+extern unique_ptr<OTAMonitorFlow> otaMonitor;
 
 void register_monitored_hbridge(SimpleCanStack *, const adc1_channel_t, const gpio_num_t, const gpio_num_t,
                                 const uint32_t, const uint32_t, const string &, const string &,
@@ -275,9 +276,6 @@ extern LocoNetESP32Uart locoNet;
 #endif
 
 void initializeLocoNet();
-
-extern bool otaComplete;
-extern esp_ota_handle_t otaInProgress;
 
 #define MUTEX_LOCK(mutex)    do {} while (xSemaphoreTake(mutex, portMAX_DELAY) != pdPASS)
 #define MUTEX_UNLOCK(mutex)  xSemaphoreGive(mutex)

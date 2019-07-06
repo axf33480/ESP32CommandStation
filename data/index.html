@@ -1207,7 +1207,11 @@ function BSTabRefresh(section) {
   refreshTable({table: '#cs-table-power', url: '/power',
    fields: ['name', 'state', 'usage', function(record) {
     if(record.state === 'Off') {
-     return createButton({type:'power', id:String.format("cs-power-{0}-true", record.name), title:'Enable'});
+     if(record.prog === 'false') {
+      return createButton({type:'power', id:String.format("cs-power-{0}-true", record.name), title:'Enable'});
+     } else {
+      return '';
+     }
     } else {
      return createButton({type:'power', id:String.format("cs-power-{0}-false", record.name), title:'Disable'});
     }
@@ -1225,9 +1229,7 @@ function BSTabRefresh(section) {
     $.get({url: '/power?overall=true',
      success:function(data, status, jqxhr) {
       firePowerEvents = false;
-      $.each(data, function(index, value) {
-       $('#cs-power-all').prop("checked", value.state === 'true').flipswitch("refresh");
-      });
+      $('#cs-power-all').prop("checked", data.state === 'true').flipswitch("refresh");
       firePowerEvents = true;
      }
     });

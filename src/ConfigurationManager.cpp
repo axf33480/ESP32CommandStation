@@ -53,13 +53,15 @@ static const char* const ESP32CS_CONFIG_DIR = FILESYSTEM_PREFIX "/ESP32CS";
 // to support migration of data from previous releases.
 static const char* const OLD_CONFIG_DIR = FILESYSTEM_PREFIX "/DCCppESP32";
 
+// Global handle for WiFi Manager
+unique_ptr<Esp32WiFiManager> wifiManager;
+
 void recursiveWalkTree(const std::string &path, bool remove=false) {
   LOG(VERBOSE, "[Config] Reading directory: %s", path.c_str());
   DIR *dir = opendir(path.c_str());
   if(dir) {
     dirent *ent = NULL;
     while((ent = readdir(dir)) != NULL) {
-      esp_task_wdt_reset();
       std::string fullPath = path + "/" + ent->d_name;
       if(ent->d_type == DT_REG) {
         if(remove) {
@@ -132,13 +134,10 @@ ConfigurationManager::ConfigurationManager() {
   std::string configRoot = FILESYSTEM_PREFIX;
   recursiveWalkTree(configRoot);
 
-  std::string configFilePath = getFilePath(ESP32_CS_CONFIG_JSON);
   if(exists(ESP32_CS_CONFIG_JSON)) {
     LOG(INFO, "[Config] Found existing CS config file.");
-    std::ifstream configFile(configFilePath);
-    deserializeJson(jsonBuffer, configFile);
+    JsonObject config = load(ESP32_CS_CONFIG_JSON);
     serializeJson(jsonBuffer, csConfig_);
-    JsonObject config = jsonBuffer.to<JsonObject>();
     if(config.containsKey(JSON_WIFI_NODE)) {
       JsonObject wifiConfig = config.getMember(JSON_WIFI_NODE);
       std::string wifiMode = wifiConfig[JSON_WIFI_MODE_NODE];
@@ -165,7 +164,7 @@ ConfigurationManager::ConfigurationManager() {
     }
   } else {
     LOG(INFO, "[Config] CS Config not found, seeding defaults");
-    JsonObject config = jsonBuffer.to<JsonObject>();
+    JsonObject config = createRootNode();
     JsonObject wifiConfig = config.createNestedObject(JSON_WIFI_NODE);
     JsonObject stationConfig = wifiConfig.createNestedObject(JSON_WIFI_STATION_NODE);
 #if WIFI_ENABLE_SOFT_AP
@@ -190,9 +189,8 @@ ConfigurationManager::ConfigurationManager() {
 #else
     stationConfig[JSON_WIFI_STATION_NODE] = JSON_VALUE_STATION_IP_MODE_DHCP;
 #endif
-    std::ofstream configFile(configFilePath, std::ios::out | std::ios::trunc);
-    serializeJson(jsonBuffer, configFile);
     serializeJson(jsonBuffer, csConfig_);
+    store(ESP32_CS_CONFIG_JSON, config);
   }
 }
 
@@ -253,7 +251,7 @@ JsonObject ConfigurationManager::load(const char *name, DynamicJsonDocument &buf
   return buffer.as<JsonObject>();
 }
 
-void ConfigurationManager::store(const char *name, const JsonObject &json) {
+void ConfigurationManager::store(const char *name, const JsonObject json) {
   std::string configFilePath = getFilePath(name);
   LOG(VERBOSE, "[Config] Storing %s", configFilePath.c_str());
   std::ofstream configFile(configFilePath, std::ios::out | std::ios::trunc);

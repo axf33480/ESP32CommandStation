@@ -32,12 +32,16 @@ public:
   void remove(const char *);
   JsonObject load(const char *);
   JsonObject load(const char *, DynamicJsonDocument &);
-  void store(const char *, const JsonObject &);
+  void store(const char *, const JsonObject);
   JsonObject createRootNode(bool=true);
   openlcb::NodeID getNodeId();
   bool needLCCCan(gpio_num_t *, gpio_num_t *);
   void configureWiFi(openlcb::SimpleCanStack *, const WiFiConfiguration &);
   std::string getCSConfig();
+  bool isAPEnabled()
+  {
+    return wifiMode_ == WIFI_MODE_AP || wifiMode_ == WIFI_MODE_APSTA;
+  }
 private:
   DynamicJsonDocument jsonBuffer{20480};
   std::string getFilePath(const char *, bool=false);

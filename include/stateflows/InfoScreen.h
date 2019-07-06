@@ -62,3 +62,5 @@ private:
   bool redraw_{true};
   StateFlowTimer timer_{this};
 };
+
+extern unique_ptr<InfoScreen> infoScreen;

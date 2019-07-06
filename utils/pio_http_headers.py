@@ -20,7 +20,7 @@ Import("env")
 from resource_embedder import compress, embed
 from os.path import join
 
-def build_index_html_h(source, target, env):
+def generate_embedded_resources(source, target, env):
     compress(join(env.subst('$PROJECT_DIR'), 'data', 'index.html'),
              join(env.subst('$PROJECT_DIR'), 'include', 'generated', 'index_html.h'),
              'indexHtmlGz')
@@ -43,4 +43,4 @@ def build_index_html_h(source, target, env):
           join(env.subst('$PROJECT_DIR'), 'include', 'generated', 'ajax_loader.h'),
           'ajaxLoader')
 
-env.AddPreAction('$BUILD_DIR/src/Interfaces/WebServer.cpp.o', build_index_html_h)
+env.AddPreAction('$BUILD_DIR/src/Interfaces/WebServer.cpp.o', generate_embedded_resources)

@@ -91,62 +91,128 @@ void handleWsEvent(AsyncWebSocket * server,
   }
 }
 
-void handleOTAUpload(AsyncWebServerRequest *, const String&, size_t, uint8_t *, size_t, bool);
-
 ESP32CSWebServer::ESP32CSWebServer(MDNS *mdns) : mdns_(mdns) {
 }
 
-void ESP32CSWebServer::begin() {
-#if WIFI_ENABLE_SOFT_AP
-  tcpip_adapter_ip_info_t ip_info;
-  tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_AP, &ip_info);
-  // store the IP address for use in the 404 handler
-  softAPAddress_ = StringPrintf(IPSTR, IP2STR(&ip_info.ip));
+#define BUILTIN_URI(uri) \
+  webServer.on(uri \
+             , HTTP_GET \
+             , std::bind(&ESP32CSWebServer::streamResource, this, std::placeholders::_1));
 
-  // start the async dns on the softap address
-  asyncDNS.start(53, "*", ip_info.ip);
-#endif
-  webServer.on("/jquery.min.js", HTTP_GET,
-               std::bind(&ESP32CSWebServer::streamResource, this, std::placeholders::_1));
-  webServer.on("/jquery.mobile-1.5.0-rc1.min.js", HTTP_GET,
-               std::bind(&ESP32CSWebServer::streamResource, this, std::placeholders::_1));
-  webServer.on("/jquery.mobile-1.5.0-rc1.min.css", HTTP_GET,
-               std::bind(&ESP32CSWebServer::streamResource, this, std::placeholders::_1));
-  webServer.on("/jquery.simple.websocket.min.js", HTTP_GET,
-               std::bind(&ESP32CSWebServer::streamResource, this, std::placeholders::_1));
-  webServer.on("/jqClock-lite.min.js", HTTP_GET,
-               std::bind(&ESP32CSWebServer::streamResource, this, std::placeholders::_1));
-  webServer.on("/images/ajax-loader.gif", HTTP_GET,
-               std::bind(&ESP32CSWebServer::streamResource, this, std::placeholders::_1));
-  webServer.on("/features", HTTP_GET,
-               std::bind(&ESP32CSWebServer::handleFeatures, this, std::placeholders::_1));
-  webServer.on("/programmer", HTTP_GET | HTTP_POST,
-               std::bind(&ESP32CSWebServer::handleProgrammer, this, std::placeholders::_1));
-  webServer.on("/power", HTTP_GET | HTTP_PUT,
-               std::bind(&ESP32CSWebServer::handlePower, this, std::placeholders::_1));
-  webServer.on("/outputs", HTTP_GET | HTTP_POST | HTTP_PUT | HTTP_DELETE,
-               std::bind(&ESP32CSWebServer::handleOutputs, this, std::placeholders::_1));
-  webServer.on("/turnouts", HTTP_GET | HTTP_POST | HTTP_PUT | HTTP_DELETE,
-               std::bind(&ESP32CSWebServer::handleTurnouts, this, std::placeholders::_1));
-  webServer.on("/sensors", HTTP_GET | HTTP_POST | HTTP_DELETE,
-               std::bind(&ESP32CSWebServer::handleSensors, this, std::placeholders::_1));
+#define GET_URI(uri, method) \
+  webServer.on(uri \
+             , HTTP_GET \
+             , std::bind(&ESP32CSWebServer::method, this, std::placeholders::_1));
+
+#define GET_POST_URI(uri, method) \
+  webServer.on(uri \
+             , HTTP_GET | HTTP_POST \
+             , std::bind(&ESP32CSWebServer::method, this, std::placeholders::_1));
+
+#define GET_PUT_URI(uri, method) \
+  webServer.on(uri \
+             , HTTP_GET | HTTP_PUT \
+             , std::bind(&ESP32CSWebServer::method, this, std::placeholders::_1));
+
+#define GET_POST_DELETE_URI(uri, method) \
+  webServer.on(uri \
+             , HTTP_GET | HTTP_POST \
+             , std::bind(&ESP32CSWebServer::method, this, std::placeholders::_1));
+
+#define GET_POST_PUT_DELETE_URI(uri, method) \
+  webServer.on(uri \
+             , HTTP_GET | HTTP_POST | HTTP_PUT | HTTP_DELETE \
+             , std::bind(&ESP32CSWebServer::method, this, std::placeholders::_1));
+
+#define POST_UPLOAD_URI(uri, method, callback) \
+  webServer.on(uri \
+             , HTTP_POST \
+             , std::bind(&ESP32CSWebServer::method, this, std::placeholders::_1) \
+             , callback);
+
+esp_ota_handle_t otaHandle;
+void otaUploadCallback(AsyncWebServerRequest *request
+                     , const String& filename
+                     , size_t index
+                     , uint8_t *data
+                     , size_t len
+                     , bool final)
+{
+  esp_err_t res = ESP_OK;
+  if (!index)
+  {
+    res = esp_ota_begin(esp_ota_get_next_update_partition(NULL)
+                      , OTA_SIZE_UNKNOWN
+                      , &otaHandle);
+    if (res != ESP_OK)
+    {
+      goto ota_failure;
+    }
+    LOG(INFO, "[WebSrv] OTA Update starting...");
+    disable_all_hbridges();
+    otaMonitor->report_start();
+  }
+  res = esp_ota_write(otaHandle, data, len);
+  if (res != ESP_OK)
+  {
+    goto ota_failure;
+  }
+  otaMonitor->report_progress(len);
+  if (final)
+  {
+    res = esp_ota_end(otaHandle);
+    if (res != ESP_OK)
+    {
+      goto ota_failure;
+    }
+    LOG(INFO, "[WebSrv] OTA Update Complete!");
+    otaMonitor->report_success();
+  }
+  return;
+
+ota_failure:
+  LOG_ERROR("[WebSrv] OTA Update failure: %s (%d)", esp_err_to_name(res), res);
+  request->send(STATUS_BAD_REQUEST, "text/plain", esp_err_to_name(res));
+  otaMonitor->report_failure(res);
+}
+
+void ESP32CSWebServer::begin() {
+  if (configStore->isAPEnabled())
+  {
+    tcpip_adapter_ip_info_t ip_info;
+    tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_AP, &ip_info);
+    // store the IP address for use in the 404 handler
+    softAPAddress_ = StringPrintf(IPSTR, IP2STR(&ip_info.ip));
+    // start the async dns on the softap address
+    asyncDNS.start(53, "*", ip_info.ip);
+  }
+
+  BUILTIN_URI("/jquery.min.js")
+  BUILTIN_URI("/jquery.mobile-1.5.0-rc1.min.js")
+  BUILTIN_URI("/jquery.mobile-1.5.0-rc1.min.css")
+  BUILTIN_URI("/jquery.simple.websocket.min.js")
+  BUILTIN_URI("/jqClock-lite.min.js")
+  BUILTIN_URI("/images/ajax-loader.gif")
+  BUILTIN_URI("/index.html")
+
+  GET_URI("/features", handleFeatures)
+  GET_POST_URI("/programmer", handleProgrammer)
+  GET_PUT_URI("/power", handlePower)
+  GET_POST_PUT_DELETE_URI("/outputs", handleOutputs)
+  GET_POST_DELETE_URI("/sensors", handleSensors)
+  GET_POST_DELETE_URI("/remoteSensors", handleRemoteSensors)
+  GET_POST_DELETE_URI("/config", handleConfig)
+  GET_POST_PUT_DELETE_URI("/locomotive", handleLocomotive)
+  POST_UPLOAD_URI("/update", handleOTA, otaUploadCallback)
+
 #if S88_ENABLED
-  webServer.on("/s88sensors", HTTP_GET | HTTP_POST | HTTP_DELETE,
-               std::bind(&ESP32CSWebServer::handleS88Sensors, this, std::placeholders::_1));
+  GET_POST_DELETE_URI("/s88sensors", handleS88Sensors)
 #endif
-  webServer.on("/remoteSensors", HTTP_GET | HTTP_POST | HTTP_DELETE,
-               std::bind(&ESP32CSWebServer::handleRemoteSensors, this, std::placeholders::_1));
-  webServer.on("/config", HTTP_GET | HTTP_POST | HTTP_DELETE,
-               std::bind(&ESP32CSWebServer::handleConfig, this, std::placeholders::_1));
-  webServer.on("/locomotive", HTTP_GET | HTTP_POST | HTTP_PUT | HTTP_DELETE,
-               std::bind(&ESP32CSWebServer::handleLocomotive, this, std::placeholders::_1));
-  webServer.on("/update", HTTP_POST,
-               std::bind(&ESP32CSWebServer::handleOTA, this, std::placeholders::_1),
-               &handleOTAUpload);
-  webServer.on("/index.html", HTTP_GET,
-               std::bind(&ESP32CSWebServer::streamResource, this, std::placeholders::_1));
+
   webServer.rewrite("/", "/index.html");
-  webServer.onNotFound(std::bind(&ESP32CSWebServer::notFoundHandler, this, std::placeholders::_1));
+  webServer.onNotFound(std::bind(&ESP32CSWebServer::notFoundHandler
+                               , this
+                               , std::placeholders::_1));
 
   webSocket.onEvent(handleWsEvent);
   webServer.addHandler(&webSocket);
@@ -291,33 +357,35 @@ void ESP32CSWebServer::handleProgrammer(AsyncWebServerRequest *request) {
   } else {
     jsonResponse->setCode(STATUS_BAD_REQUEST);
   }
-  LOG(VERBOSE, "Setting response size");
   jsonResponse->setLength();
-  LOG(VERBOSE, "Sending response, %d bytes", jsonResponse->getSize());
   request->send(jsonResponse);
-  LOG(VERBOSE, "sent");
  }
 
 void ESP32CSWebServer::handlePower(AsyncWebServerRequest *request)
 {
-  auto jsonResponse = new AsyncJsonResponse(true);
   if(request->method() == HTTP_GET)
   {
+    AsyncJsonResponse *jsonResponse = nullptr;
     if(request->params())
     {
+      jsonResponse = new AsyncJsonResponse();
       if (is_track_power_on())
       {
-        jsonResponse->getRoot().createNestedObject()[JSON_STATE_NODE] = JSON_VALUE_TRUE;
+        jsonResponse->getRoot()[JSON_STATE_NODE] = JSON_VALUE_TRUE;
       }
       else
       {
-        jsonResponse->getRoot().createNestedObject()[JSON_STATE_NODE] = JSON_VALUE_FALSE;
+        jsonResponse->getRoot()[JSON_STATE_NODE] = JSON_VALUE_FALSE;
       }
     }
     else
     {
+      jsonResponse = new AsyncJsonResponse(true);
       get_hbridge_status_json(jsonResponse->getRoot());
     }
+    jsonResponse->setLength();
+    request->send(jsonResponse);
+    return;
   }
   else if (request->method() == HTTP_PUT)
   {
@@ -344,13 +412,10 @@ void ESP32CSWebServer::handlePower(AsyncWebServerRequest *request)
         disable_named_hbridge(bridge);
       }
     }
-    else
-    {
-      jsonResponse->setCode(STATUS_BAD_REQUEST);
-    }
+    request->send(STATUS_OK);
+    return;
   }
-  jsonResponse->setLength();
-  request->send(jsonResponse);
+  request->send(STATUS_BAD_REQUEST);
  }
 
 void ESP32CSWebServer::handleOutputs(AsyncWebServerRequest *request) {
@@ -657,82 +722,6 @@ void ESP32CSWebServer::handleLocomotive(AsyncWebServerRequest *request) {
 
 void ESP32CSWebServer::handleOTA(AsyncWebServerRequest *request) {
   request->send(STATUS_OK, "text/plain", "OTA Upload Complete");
-}
-
-uint32_t otaProgress = 0;
-
-void handleOTAUpload(AsyncWebServerRequest *request, const String& filename, size_t index, uint8_t *data, size_t len, bool final)
-{
-  esp_err_t res = ESP_OK;
-  if (!index)
-  {
-    otaProgress = 0;
-#if NEXTION_ENABLED
-    nextionPages[TITLE_PAGE]->show();
-    static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(0, "OTA Upload Started...");
-#endif
-    res = esp_ota_begin(esp_ota_get_next_update_partition(NULL),
-                        OTA_SIZE_UNKNOWN,
-                        &otaInProgress);
-    if (res != ESP_OK)
-    {
-      LOG_ERROR("[WebSrv] OTA Update failure: %s (%d)", esp_err_to_name(res), res);
-      request->send(STATUS_BAD_REQUEST, "text/plain", esp_err_to_name(res));
-      return;
-    } 
-    // set the status LEDs to alternating green blink while OTA in progress
-    statusLED->setStatusLED(StatusLED::LED::EXT_1, StatusLED::COLOR::GREEN_BLINK, true);
-    statusLED->setStatusLED(StatusLED::LED::EXT_2, StatusLED::COLOR::GREEN_BLINK);
-    LOG(INFO, "[WebSrv] OTA Update starting...");
-    infoScreen->replaceLine(INFO_SCREEN_STATION_INFO_LINE, "Update starting");
-    disable_all_hbridges();
-  }
-  res = esp_ota_write(otaInProgress, data, len);
-  if (res != ESP_OK)
-  {
-#if NEXTION_ENABLED
-    static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(1, OTA_ERROR_STRINGS[Update.getError()]);
-#endif
-    infoScreen->replaceLine(INFO_SCREEN_STATION_INFO_LINE, esp_err_to_name(res));
-    LOG_ERROR("[WebSrv] OTA Update failure: %s (%d)", esp_err_to_name(res), res);
-    request->send(STATUS_BAD_REQUEST, "text/plain", esp_err_to_name(res));
-  }
-  else
-  {
-    otaProgress += len;
-    infoScreen->replaceLine(INFO_SCREEN_STATION_INFO_LINE, "Updating: %d", otaProgress);
-#if NEXTION_ENABLED
-    static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(1, StringPrintf("Progress: %d", otaProgress).c_str());
-#endif
-  }
-  if (final)
-  {
-    res = esp_ota_end(otaInProgress);
-    if (res == ESP_OK)
-    {
-#if NEXTION_ENABLED
-      static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(1, "Update Complete");
-      static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(2, "Rebooting");
-#endif
-      infoScreen->replaceLine(INFO_SCREEN_STATION_INFO_LINE, "Update Complete");
-      otaComplete = true;
-      LOG(INFO, "[WebSrv] OTA Update Complete!");
-      // update successful, set to green and they will go dark after reboot
-      statusLED->setStatusLED(StatusLED::LED::EXT_1, StatusLED::COLOR::GREEN);
-      statusLED->setStatusLED(StatusLED::LED::EXT_2, StatusLED::COLOR::GREEN);
-    }
-    else
-    {
-#if NEXTION_ENABLED
-      static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(1, esp_err_to_name(res));
-#endif
-      LOG_ERROR("[WebSrv] OTA Update failure: %s (%d)", esp_err_to_name(res), res);
-      request->send(STATUS_BAD_REQUEST, "text/plain", esp_err_to_name(res));
-      // setup blink pattern for failure
-      statusLED->setStatusLED(StatusLED::LED::EXT_1, StatusLED::COLOR::RED_BLINK, true);
-      statusLED->setStatusLED(StatusLED::LED::EXT_2, StatusLED::COLOR::RED_BLINK);
-    }
-  }
 }
 
 void ESP32CSWebServer::handleFeatures(AsyncWebServerRequest *request) {

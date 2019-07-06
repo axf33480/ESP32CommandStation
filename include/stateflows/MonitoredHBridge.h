@@ -161,10 +161,16 @@ public:
 
   string getStateAsJson()
   {
-    return StringPrintf("{\"name\":\"%s\",\"state\":\"%s\",\"usage\":%.2f}"
+    return StringPrintf("{"
+                          "\"name\":\"%s\","
+                          "\"state\":\"%s\","
+                          "\"usage\":%.2f,"
+                          "\"prog\":\"%s\""
+                        "}"
                         , name_.c_str()
                         , getState().c_str()
                         , getUsage()
+                        , isProgrammingTrack() ? JSON_VALUE_TRUE : JSON_VALUE_FALSE
                        );
   }
 
@@ -199,9 +205,12 @@ public:
 
   void disable()
   {
-    state_ = STATE_OFF;
-    yield_and_call(STATE(check));
-    LOG(INFO, "[%s] Disabling h-bridge", name_.c_str());
+    if(state_ != STATE_OFF)
+    {
+      state_ = STATE_OFF;
+      yield_and_call(STATE(check));
+      LOG(INFO, "[%s] Disabling h-bridge", name_.c_str());
+    }
     statusLED->setStatusLED(targetLED_, StatusLED::COLOR::OFF);
   }
 

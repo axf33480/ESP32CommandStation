@@ -29,6 +29,7 @@ The primary focus of v1.4.0 will be improvements to the DCC signal code and addi
 - [ ] add dialog for failed CS requests.
 - [ ] Expose Loco Consist creation.
 - [ ] Rework web prog req to be async rather than blocking (can cause WDT failure with retries 5+)
+- [x] Hide power button for prog track when it is off
 
 ### LCC Integration
 

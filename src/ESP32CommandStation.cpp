@@ -16,6 +16,7 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 **********************************************************************/
 
 #include "ESP32CommandStation.h"
+#include "stateflows/FreeRTOSTaskMonitor.h"
 
 #include "cdi/CSConfigDescriptor.h"
 
@@ -49,7 +50,6 @@ string dummystring("abcdef");
 // layout. The argument of offset zero is ignored and will be removed later.
 static constexpr ConfigDef cfg(0);
 
-unique_ptr<Esp32WiFiManager> wifiManager;
 unique_ptr<RailcomHubFlow> railComHub;
 unique_ptr<RailcomPrintfFlow> railComDataDumper;
 unique_ptr<InfoScreen> infoScreen;
@@ -57,6 +57,8 @@ unique_ptr<InfoScreenStatCollector> infoScreenCollector;
 unique_ptr<StatusLED> statusLED;
 unique_ptr<HC12Radio> hc12;
 unique_ptr<SimpleUpdateLoop> dccUpdateLoop;
+unique_ptr<FreeRTOSTaskMonitor> taskMonitor;
+unique_ptr<OTAMonitorFlow> otaMonitor;
 vector<EventCallbackHandler *> eventCallbacks;
 
 #if LCC_USE_SPIFFS
@@ -179,7 +181,35 @@ void IRAM_ATTR cpuTickTimerCallback() {
 }
 #endif // LCC_CPULOAD_REPORTING
 
-void setup() {
+extern "C" {
+
+/// Reboots the ESP32 via the arduino-esp32 provided restart function.
+void reboot()
+{
+  // shutdown and cleanup the configuration manager
+  delete configStore;
+
+  LOG(INFO, "Restarting ESP32 Command Station");
+  // restart the node
+  esp_restart();
+}
+
+ssize_t os_get_free_heap()
+{
+  return heap_caps_get_free_size(MALLOC_CAP_8BIT);
+}
+
+}
+
+void openmrn_loop_task(void *unused)
+{
+  while(true) {
+    openmrn->loop();
+  }
+}
+
+extern "C" void app_main()
+{
   // Setup UART0 115200 8N1 TX: 1, RX: 3, 2k buffer
   uart_config_t uart0 = {
     .baud_rate           = 115200,
@@ -195,6 +225,11 @@ void setup() {
 
   LOG(INFO, "\n\nESP32 Command Station v%s starting up", VERSION);
 
+  LOG(INFO, "[Arduino] Initializing Arduino stack");
+  // start the arduino stack first
+  initArduino();
+
+  LOG(INFO, "[ADC] Configure 12-bit ADC resolution");
   // set up ADC1 here since we use it for all motor boards
   adc1_config_width(ADC_WIDTH_BIT_12);
 
@@ -211,14 +246,15 @@ void setup() {
 
   openmrn.reset(new OpenMRN(configStore->getNodeId()));
 
-  // init state flow handlers
+  // Initialize state flows
   infoScreen.reset(new InfoScreen(openmrn->stack()));
   infoScreenCollector.reset(new InfoScreenStatCollector(openmrn->stack()));
   statusLED.reset(new StatusLED(openmrn->stack()));
   hc12.reset(new HC12Radio(openmrn->stack()));
+  taskMonitor.reset(new FreeRTOSTaskMonitor(openmrn->stack()));
+  otaMonitor.reset(new OTAMonitorFlow(openmrn->stack()));
 
   // Initialize the factory reset helper for the CS
-  // this needs to be done after creation of the OpenMRN object
   resetHelper.reset(new FactoryResetHelper());
 
   // Initialize the WiFi Manager
@@ -278,26 +314,6 @@ void setup() {
 
   wifiInterface.init();
 
-  gpio_num_t canRXPin, canTXPin;
-  if(configStore->needLCCCan(&canRXPin, &canTXPin)) {
-    openmrn->add_can_port(new Esp32HardwareCan("esp32can", canRXPin, canTXPin, false));
-  }
-
-  nextionInterfaceInit();
-
-  // Start the OpenMRN stack
-  openmrn->begin();
-  openmrn->start_executor_thread();
-
-#if LCC_CPULOAD_REPORTING
-  os_thread_create(&cpuTickTaskHandle, "loadtick", 1, 0, &cpuTickTask, nullptr);
-  cpuTickTimer = timerBegin(LCC_CPU_TIMER_NUMBER, LCC_CPU_TIMER_DIVIDER, true);
-  timerAttachInterrupt(cpuTickTimer, &cpuTickTimerCallback, true);
-  // 1MHz clock, 163 ticks per second desired.
-  timerAlarmWrite(cpuTickTimer, 1000000/163, true);
-  timerAlarmEnable(cpuTickTimer);
-#endif
-
   register_monitored_hbridge(openmrn->stack()
                           , (adc1_channel_t)OPS_HBRIDGE_CURRENT_SENSE_ADC
                           , (gpio_num_t)OPS_HBRIDGE_ENABLE_PIN
@@ -319,6 +335,28 @@ void setup() {
                           , cfg.seg().hbridge().entry(1)
                           , true);
 
+  gpio_num_t canRXPin, canTXPin;
+  if(configStore->needLCCCan(&canRXPin, &canTXPin)) {
+    openmrn->add_can_port(new Esp32HardwareCan("esp32can", canRXPin, canTXPin, false));
+  }
+
+  nextionInterfaceInit();
+
+  // Start the OpenMRN stack
+  openmrn->begin();
+
+  // create OpenMRN executor thread
+  openmrn->start_executor_thread();
+
+#if LCC_CPULOAD_REPORTING
+  os_thread_create(&cpuTickTaskHandle, "loadtick", 1, 0, &cpuTickTask, nullptr);
+  cpuTickTimer = timerBegin(LCC_CPU_TIMER_NUMBER, LCC_CPU_TIMER_DIVIDER, true);
+  timerAttachInterrupt(cpuTickTimer, &cpuTickTimerCallback, true);
+  // 1MHz clock, 163 ticks per second desired.
+  timerAlarmWrite(cpuTickTimer, 1000000/163, true);
+  timerAlarmEnable(cpuTickTimer);
+#endif
+
   dccSignal[DCC_SIGNAL_OPERATIONS] = new SignalGenerator_RMT("OPS", 512, DCC_SIGNAL_OPERATIONS, DCC_SIGNAL_PIN_OPERATIONS, OPS_HBRIDGE_ENABLE_PIN);
   dccSignal[DCC_SIGNAL_PROGRAMMING] = new SignalGenerator_RMT("PROG", 10, DCC_SIGNAL_PROGRAMMING, DCC_SIGNAL_PIN_PROGRAMMING, PROG_HBRIDGE_ENABLE_PIN);
 
@@ -334,74 +372,16 @@ void setup() {
   initializeLocoNet();
 #endif
 
-  LOG(INFO, "[WatchDog] Reconfiguring Timer (15sec)");
-  // reset WDT to 15sec
-  esp_task_wdt_init(15, true);
-
-  // Enable watchdog timers
-  enableLoopWDT();
+  LOG(INFO, "[OpenMRN] Creating Loop task on core:%d", APP_CPU_NUM);
+  xTaskCreatePinnedToCore(openmrn_loop_task     // function
+                        , "OpenMRN-Loop"        // name
+                        , 2048                  // stack
+                        , nullptr               // function arg
+                        , 1                     // priority
+                        , nullptr               // handle
+                        , APP_CPU_NUM           // core id
+  );
 
   LOG(INFO, "ESP32 Command Station Started!");
   infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "ESP32-CS Started");
-}
-
-void loop() {
-  openmrn->loop();
-  if(otaInProgress && otaComplete) {
-    LOG(INFO, "OTA binary has been received, preparing to reboot!");
-
-    // shutdown and cleanup the configuration manager
-    delete configStore;
-
-    // wait for the WDT to restart the ESP32
-    esp_task_wdt_init(1, true);
-    while(true);
-  }
-  vTaskDelay(1);
-}
-
-void dumpTaskList()
-{
-#if configUSE_TRACE_FACILITY
-  UBaseType_t taskCount = uxTaskGetNumberOfTasks();
-  std::unique_ptr<TaskStatus_t[]> taskList(new TaskStatus_t[taskCount]);
-  uint32_t ulTotalRunTime;
-  UBaseType_t retrievedTaskCount = uxTaskGetSystemState(taskList.get(), taskCount, &ulTotalRunTime);
-  printf("time[us]: %" PRIu64 " core: %d, freeHeap: %u, largest: %u\n",
-          esp_timer_get_time(), xPortGetCoreID(), heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
-          heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
-
-#if configTASKLIST_INCLUDE_COREID
-  printf("%15s%10s%10s%10s%10s%10s%10s%10s%10s\n",
-          "NAME", "ID", "STATE", "PRIO", "BASE", "TIME", "CPU", "STACK", "CORE");
-#else
-  printf("%15s%10s%10s%10s%10s%10s%10s%10s\n",
-          "NAME", "ID", "STATE", "PRIO", "BASE", "TIME", "CPU", "STACK");
-#endif // configTASKLIST_INCLUDE_COREID
-
-  for (int task = 0; task < retrievedTaskCount; task++)
-  {
-#if configTASKLIST_INCLUDE_COREID
-    printf("%15s%10d%10s%10d%10d%10" PRIu64 "%10.2f%10d%10d\n"
-#else
-    printf("%15s%10d%10s%10d%10d%10" PRIu64 "%10.2f%10d\n"
-#endif // configTASKLIST_INCLUDE_COREID
-           , taskList[task].pcTaskName
-           , taskList[task].xTaskNumber
-           , taskList[task].eCurrentState == eRunning ? "Running" : 
-             taskList[task].eCurrentState == eReady ? "Ready" : 
-             taskList[task].eCurrentState == eBlocked ? "Blocked" : 
-             taskList[task].eCurrentState == eSuspended ? "Suspended" : 
-             taskList[task].eCurrentState == eDeleted ? "Deleted" : "Unknown"
-           , taskList[task].uxCurrentPriority
-           , taskList[task].uxBasePriority
-           , taskList[task].ulRunTimeCounter
-           , (float)taskList[task].ulRunTimeCounter / (float)ulTotalRunTime
-           , taskList[task].usStackHighWaterMark
-#if configTASKLIST_INCLUDE_COREID
-           , taskList[task].xCoreID
-#endif // configTASKLIST_INCLUDE_COREID
-          );
-  }
-#endif // configUSE_TRACE_FACILITY
 }

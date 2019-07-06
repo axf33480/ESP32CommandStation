@@ -192,7 +192,7 @@ StateFlowBase::Action InfoScreen::update()
     {
       replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE,
                   "Free Heap:%d",
-                  ESP.getFreeHeap());
+                  heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
     }
     else if (_rotatingStatusIndex == 1)
     {
