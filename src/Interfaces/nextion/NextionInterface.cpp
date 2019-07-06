@@ -66,13 +66,11 @@ static constexpr char const * NEXTION_DISPLAY_TYPE_STRINGS[] = {
 NEXTION_DEVICE_TYPE nextionDeviceType = NEXTION_DEVICE_TYPE::UNKOWN_DISPLAY;
 
 void nextionTask(void *param) {
-  esp_task_wdt_add(NULL);
 
   // attempt to identify the nextion display.
   constexpr uint8_t MAX_ATTEMPTS = 3;
   uint8_t attempt = 0;
   while(attempt++ < MAX_ATTEMPTS && nextionDeviceType == NEXTION_DEVICE_TYPE::UNKOWN_DISPLAY) {
-    esp_task_wdt_reset();
     LOG(INFO, "[Nextion] [%d/%d] Attempting to identify the attached Nextion display", attempt, MAX_ATTEMPTS);
     nextion.sendCommand("DRAKJHSUYDGBNCJHGJKSHBDN");
     nextion.sendCommand("connect");
@@ -123,7 +121,6 @@ void nextionTask(void *param) {
   static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(4, NEXTION_DISPLAY_TYPE_STRINGS[nextionDeviceType]);
 
   while(true) {
-    esp_task_wdt_reset();
     nextion.poll();
     vTaskDelay(NEXTION_INTERFACE_UPDATE_INTERVAL);
   }
