@@ -283,6 +283,7 @@ private:
   const uint64_t checkInterval_{MSEC_TO_NSEC(25)};
   const uint8_t overCurrentRetryCount_{3};
   const uint64_t overCurrentRetryInterval_{MSEC_TO_NSEC(250)};
+  const uint64_t currentReportInterval_{SEC_TO_USEC(30)};
   StateFlowTimer timer_{this};
   MemoryBit<uint8_t> shortBit_;
   MemoryBit<uint8_t> shutdownBit_;
@@ -292,6 +293,7 @@ private:
   BitEventProducer thermalProducer_;
   WriteHelper helper_;
   BarrierNotifiable n_;
+  uint64_t lastReport_{0};
   uint32_t lastReading_{0};
   uint8_t state_{STATE_OFF};
   uint8_t overCurrentCheckCount_{0};
@@ -336,7 +338,7 @@ private:
 #if ENERGIZE_OPS_TRACK_ON_STARTUP
     return call_immediately(STATE(sleep_and_check_state));
 #else
-    return exit();
+    return wait();
 #endif
   }
 
@@ -345,7 +347,7 @@ private:
     if (state_ == STATE_OFF)
     {
       ESP_ERROR_CHECK(gpio_set_level(enablePin_, 0));
-      return exit();
+      return wait();
     }
 
     uint8_t initialState = state_;
@@ -378,6 +380,11 @@ private:
         state_ = STATE_ON;
         overCurrentCheckCount_ = 0;
       }
+    }
+    if(esp_timer_get_time() - lastReport_ > currentReportInterval_)
+    {
+      lastReport_ = esp_timer_get_time();
+      LOG(INFO, "[%s] %6.0f mA / %d mA", name_.c_str(), getUsage() / 1000.0f, maxMilliAmps_);
     }
 
     if (initialState != state_)

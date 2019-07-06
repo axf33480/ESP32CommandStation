@@ -30,9 +30,6 @@ public:
 #if NEXTION_ENABLED
     titlePage_ = static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE]);
 #endif
-
-    // shutdown the flow by default
-    exit();
   }
 
   void report_start()

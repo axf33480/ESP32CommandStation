@@ -29,14 +29,12 @@ public:
    {
 #if configUSE_TRACE_FACILITY
     start_flow(STATE(delay));
-#else
-    exit();
 #endif
    }
 private:
   StateFlowTimer timer_{this};
   const uint64_t reportInterval_{SEC_TO_NSEC(60)};    // 1min
-  const uint64_t taskListInterval_{SEC_TO_NSEC(300)}; // 5min
+  const uint64_t taskListInterval_{SEC_TO_USEC(300)}; // 5min
   uint64_t lastTaskList_{0};
 
   Action report()
@@ -62,14 +60,16 @@ private:
       for (int task = 0; task < retrievedTaskCount; task++)
       {
         LOG(INFO,
-            "[TaskMon] %-16s id:%3d, prio:%2d/%2d, stack:%5d, core:%2d, "
+            "[TaskMon] %-16s id:%3d, prio:%2d/%2d, stack:%5d, core:%4s, "
             "cpu%%:%6.2f, state:%s"
           , taskList[task].pcTaskName
           , taskList[task].xTaskNumber
           , taskList[task].uxCurrentPriority
           , taskList[task].uxBasePriority
           , taskList[task].usStackHighWaterMark
-          , taskList[task].xCoreID != tskNO_AFFINITY ? taskList[task].xCoreID : -1
+          , taskList[task].xCoreID == tskNO_AFFINITY ? "BOTH" :
+            taskList[task].xCoreID == PRO_CPU_NUM ? "PRO" :
+            taskList[task].xCoreID == APP_CPU_NUM ? "APP" : "UNK"
           , ((float)taskList[task].ulRunTimeCounter / (float)ulTotalRunTime) * 100.0f
           , taskList[task].eCurrentState == eRunning ? "Running" :
             taskList[task].eCurrentState == eReady ? "Ready" :
