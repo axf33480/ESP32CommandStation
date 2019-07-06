@@ -280,6 +280,7 @@ private:
   uint32_t shutdownLimit_;
   const TrackOutputConfig cfg_;
   const StatusLED::LED targetLED_;
+  const uint8_t adcSampleCount_{64};
   const uint64_t checkInterval_{MSEC_TO_NSEC(25)};
   const uint8_t overCurrentRetryCount_{3};
   const uint64_t overCurrentRetryInterval_{MSEC_TO_NSEC(250)};
@@ -301,11 +302,11 @@ private:
   Action init() {
     adc1_config_channel_atten(channel_, ADC_CURRENT_ATTENUATION);
     LOG(INFO,
-        "[%s] Monitoring h-bridge (%s %u mA max) using ADC %d\n"
+        "[%s] Monitoring h-bridge (%s %u mA max) using ADC 1:%d\n"
         "Short limit %u/4096 (%.2f mA), events (on: %s, off: %s)\n"
         "Shutdown limit %u/4096 (%.2f mA), events (on: %s, off: %s)\n"
-        "Output enable pin %d\n"
-        "Thermal warning pin %d, events (on: %s, off: %s)"
+        "Thermal warning pin %d, events (on: %s, off: %s)\n"
+        "Output enable pin %d"
         , name_.c_str()
         , bridgeType_.c_str()
         , maxMilliAmps_
@@ -318,21 +319,22 @@ private:
         , ((shutdownLimit_ * maxMilliAmps_) / 4096.0f)
         , uint64_to_string_hex(shutdownBit_.event_on()).c_str()
         , uint64_to_string_hex(shutdownBit_.event_off()).c_str()
-        , enablePin_
         , thermalWarningPin_
         , uint64_to_string_hex(thermalBit_.event_on()).c_str()
         , uint64_to_string_hex(thermalBit_.event_off()).c_str()
+        , enablePin_
     );
 
-    ESP_ERROR_CHECK(gpio_reset_pin(enablePin_));
+    gpio_pad_select_gpio(enablePin_);
     ESP_ERROR_CHECK(gpio_set_direction(enablePin_, GPIO_MODE_OUTPUT));
+    ESP_ERROR_CHECK(gpio_pulldown_en(enablePin_));
     ESP_ERROR_CHECK(gpio_set_level(enablePin_, 0));
 
     if (thermalWarningPin_ >= 0)
     {
-      ESP_ERROR_CHECK(gpio_reset_pin(thermalWarningPin_));
+      gpio_pad_select_gpio(thermalWarningPin_);
       ESP_ERROR_CHECK(gpio_set_direction(thermalWarningPin_, GPIO_MODE_INPUT));
-      gpio_set_pull_mode(thermalWarningPin_, GPIO_PULLUP_ONLY);
+      ESP_ERROR_CHECK(gpio_pullup_en(thermalWarningPin_));
     }
 
 #if ENERGIZE_OPS_TRACK_ON_STARTUP
@@ -351,12 +353,17 @@ private:
     }
 
     uint8_t initialState = state_;
-    uint16_t reading = adc1_get_raw(channel_);
-    if (reading >= shutdownLimit_)
+    std::vector<int> samples;
+    while(samples.size() < adcSampleCount_) {
+      samples.push_back(adc1_get_raw(channel_));
+      usleep(1);
+    }
+    lastReading_ = (std::accumulate(samples.begin(), samples.end(), 0) / samples.size());
+    if (lastReading_ >= shutdownLimit_)
     {
       state_ = STATE_SHUTDOWN;
     }
-    else if (reading >= overCurrentLimit_)
+    else if (lastReading_ >= overCurrentLimit_)
     {
       // disable the h-bridge output
       ESP_ERROR_CHECK(gpio_set_level(enablePin_, 0));
@@ -390,15 +397,24 @@ private:
     if (initialState != state_)
     {
       ESP_ERROR_CHECK(gpio_set_level(enablePin_, state_ == STATE_ON));
-      if (state_ == STATE_OVERCURRENT)
+      // if we were in OVERCURRENT and we aren't now, or we are now
+      // in OVERCURRENT, send the event.
+      if ((initialState == STATE_OVERCURRENT && state_ != STATE_OVERCURRENT)
+        || state_ == STATE_OVERCURRENT)
       {
         shortProducer_.SendEventReport(&helper_, n_.reset(this));
       }
-      else if (state_ == STATE_SHUTDOWN)
+      // if we were in SHUTDOWN and we aren't now, or we are now
+      // in SHUTDOWN, send the event.
+      if ((initialState == STATE_SHUTDOWN && state_ != STATE_SHUTDOWN)
+        || state_ == STATE_SHUTDOWN)
       {
         shutdownProducer_.SendEventReport(&helper_, n_.reset(this));
       }
-      else if (state_ == STATE_THERMAL_SHUTDOWN)
+      // if we were in THERMAL_SHUTDOWN and we aren't now, or we are now
+      // in THERMAL_SHUTDOWN, send the event.
+      if ((initialState == STATE_THERMAL_SHUTDOWN && state_ != STATE_THERMAL_SHUTDOWN)
+        || state_ == STATE_THERMAL_SHUTDOWN)
       {
         thermalProducer_.SendEventReport(&helper_, n_.reset(this));
       }
