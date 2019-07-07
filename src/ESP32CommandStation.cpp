@@ -59,7 +59,6 @@ unique_ptr<HC12Radio> hc12;
 unique_ptr<SimpleUpdateLoop> dccUpdateLoop;
 unique_ptr<FreeRTOSTaskMonitor> taskMonitor;
 unique_ptr<OTAMonitorFlow> otaMonitor;
-vector<EventCallbackHandler *> eventCallbacks;
 
 #if LCC_USE_SPIFFS
 #define CDI_CONFIG_PREFIX "/spiffs"
@@ -187,7 +186,7 @@ extern "C" {
 void reboot()
 {
   // shutdown and cleanup the configuration manager
-  delete configStore;
+  configStore.reset(nullptr);
 
   LOG(INFO, "Restarting ESP32 Command Station");
   // restart the node
@@ -233,7 +232,7 @@ extern "C" void app_main()
   // set up ADC1 here since we use it for all motor boards
   adc1_config_width(ADC_WIDTH_BIT_12);
 
-  configStore = new ConfigurationManager();
+  configStore.reset(new ConfigurationManager());
 
   // pre-create LCC configuration directory
   mkdir(openlcb::CONFIG_DIR, ACCESSPERMS);
@@ -267,52 +266,14 @@ extern "C" void app_main()
   openmrn->stack()->create_config_file_if_needed(cfg.seg().internal_config(),
       openlcb::CANONICAL_VERSION, openlcb::CONFIG_FILE_SIZE);
 
-  // Register Emergency Off event handler (power off)
-  eventCallbacks.push_back(new EventCallbackHandler(Defs::EMERGENCY_OFF_EVENT,
-                                                    openlcb::CallbackEventHandler::RegistryEntryBits::IS_CONSUMER,
-                                                    openmrn->stack()->node(),
-                                                    [](const EventRegistryEntry &registry_entry,
-                                                       EventReport *report,
-                                                       BarrierNotifiable *done)
-    {
-      disable_all_hbridges();
-    },
-    nullptr)
-  );
-
-  // Register Clear Emergency Off event handler (power on)
-  eventCallbacks.push_back(new EventCallbackHandler(Defs::CLEAR_EMERGENCY_OFF_EVENT,
-                                                    openlcb::CallbackEventHandler::RegistryEntryBits::IS_CONSUMER,
-                                                    openmrn->stack()->node(),
-                                                    [](const EventRegistryEntry &registry_entry,
-                                                       EventReport *report,
-                                                       BarrierNotifiable *done)
-    {
-      // PROG output will not be enabled
-      enable_all_hbridges();
-    },
-    nullptr)
-  );
-
-  // Register Emergency Stop event handler
-  eventCallbacks.push_back(new EventCallbackHandler(Defs::EMERGENCY_STOP_EVENT,
-                                                    openlcb::CallbackEventHandler::RegistryEntryBits::IS_CONSUMER,
-                                                    openmrn->stack()->node(),
-                                                    [](const EventRegistryEntry &registry_entry,
-                                                       EventReport *report,
-                                                       BarrierNotifiable *done)
-    {
-      LocomotiveManager::emergencyStop();
-    },
-    nullptr)
-  );
-
   // Create the DCC Event Loop
   dccUpdateLoop.reset(new SimpleUpdateLoop(openmrn->stack()->service(), &dccPacketInjector));
 
   DCCPPProtocolHandler::init();
 
   wifiInterface.init();
+
+  setup_hbridge_event_handlers(openmrn->stack()->node());
 
   register_monitored_hbridge(openmrn->stack()
                           , (adc1_channel_t)OPS_HBRIDGE_CURRENT_SENSE_ADC
@@ -348,7 +309,7 @@ extern "C" void app_main()
   // create OpenMRN executor thread
   openmrn->start_executor_thread();
 
-#if LCC_CPULOAD_REPORTING
+#if CPULOAD_REPORTING
   os_thread_create(&cpuTickTaskHandle, "loadtick", 1, 0, &cpuTickTask, nullptr);
   cpuTickTimer = timerBegin(LCC_CPU_TIMER_NUMBER, LCC_CPU_TIMER_DIVIDER, true);
   timerAttachInterrupt(cpuTickTimer, &cpuTickTimerCallback, true);
@@ -360,7 +321,7 @@ extern "C" void app_main()
   dccSignal[DCC_SIGNAL_OPERATIONS] = new SignalGenerator_RMT("OPS", 512, DCC_SIGNAL_OPERATIONS, DCC_SIGNAL_PIN_OPERATIONS, OPS_HBRIDGE_ENABLE_PIN);
   dccSignal[DCC_SIGNAL_PROGRAMMING] = new SignalGenerator_RMT("PROG", 10, DCC_SIGNAL_PROGRAMMING, DCC_SIGNAL_PIN_PROGRAMMING, PROG_HBRIDGE_ENABLE_PIN);
 
-  LocomotiveManager::init();
+  LocomotiveManager::init(openmrn->stack()->node());
   TurnoutManager::init();
 
   OutputManager::init();

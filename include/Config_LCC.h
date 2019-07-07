@@ -63,8 +63,4 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 // be required.
 // #define LCC_FORCE_FACTORY_RESET_ON_STARTUP true
 
-// This define will cause cpu utilization metrics to be collected and reported by
-// the LCC CpuLoad and CpuLoadLog system.
-// #define LCC_CPULOAD_REPORTING true
-
 /////////////////////////////////////////////////////////////////////////////////////

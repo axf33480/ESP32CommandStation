@@ -53,4 +53,5 @@ private:
   ip_addr_t stationDNSServer_{ip_addr_any};
 };
 
-extern ConfigurationManager *configStore;
+extern unique_ptr<ConfigurationManager> configStore;
+extern unique_ptr<Esp32WiFiManager> wifiManager;

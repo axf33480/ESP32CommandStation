@@ -29,7 +29,7 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #include <sys/types.h>
 #include <fstream>
 
-ConfigurationManager *configStore;
+unique_ptr<ConfigurationManager> configStore;
 
 //#define CONFIG_USE_SD true
 

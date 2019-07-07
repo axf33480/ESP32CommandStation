@@ -41,3 +41,5 @@ private:
   STATE_FLOW_STATE(init);
   STATE_FLOW_STATE(update);
 };
+
+extern unique_ptr<HC12Radio> hc12;

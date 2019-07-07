@@ -18,6 +18,7 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #pragma once
 
 #include "interfaces/DCCppProtocol.h"
+#include "SimplifiedCallbackEventHandler.h"
 
 #define MAX_LOCOMOTIVE_FUNCTIONS 29
 #define MAX_LOCOMOTIVE_FUNCTION_PACKETS 5
@@ -229,7 +230,7 @@ public:
   static uint8_t getActiveLocoCount() {
     return _locos.length();
   }
-  static void init();
+  static void init(openlcb::Node *node);
   static void clear();
   static uint16_t store();
   static std::vector<RosterEntry *> getDefaultLocos(const int8_t=-1);
@@ -247,6 +248,7 @@ private:
   static LinkedList<RosterEntry *> _roster;
   static LinkedList<Locomotive *> _locos;
   static LinkedList<LocomotiveConsist *> _consists;
+  static unique_ptr<SimplifiedCallbackEventHandler> _eStopCallback;
 };
 
 // <t {REGISTER} {LOCO} {SPEED} {DIRECTION}> command handler, this command

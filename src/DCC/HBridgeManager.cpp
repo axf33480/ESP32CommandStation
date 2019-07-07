@@ -17,7 +17,25 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 #include "ESP32CommandStation.h"
 
+#include "SimplifiedCallbackEventHandler.h"
+
 vector<MonitoredHBridge *> monitoredHBridges;
+vector<SimplifiedCallbackEventHandler *> eventHandlers;
+
+void setup_hbridge_event_handlers(Node *node)
+{
+  // Register Emergency Off event handler (power off)
+  eventHandlers.push_back(
+    new SimplifiedCallbackEventHandler(Defs::EMERGENCY_OFF_EVENT
+                                     , node
+                                     , disable_all_hbridges)
+  );
+  eventHandlers.push_back(
+    new SimplifiedCallbackEventHandler(Defs::CLEAR_EMERGENCY_OFF_EVENT
+                                     , node
+                                     , enable_all_hbridges)
+  );
+}
 
 void register_monitored_hbridge(SimpleCanStack *stack
                               , const adc1_channel_t senseChannel

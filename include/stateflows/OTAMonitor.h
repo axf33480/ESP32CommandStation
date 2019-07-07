@@ -123,3 +123,5 @@ private:
     return call_immediately(STATE(reboot_node));
   }
 };
+
+extern unique_ptr<OTAMonitorFlow> otaMonitor;

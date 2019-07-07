@@ -64,3 +64,5 @@ private:
     uint32_t executorCount_{0};
     uint32_t lastExecutorCount_{0};
 };
+
+extern unique_ptr<InfoScreenStatCollector> infoScreenCollector;

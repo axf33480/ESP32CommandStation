@@ -82,3 +82,26 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 //#define ADC_CURRENT_ATTENUATION ADC_ATTEN_DB_11
 
 /////////////////////////////////////////////////////////////////////////////////////
+//
+// The following parameters define how many preamble bits will be transmitted as part
+// of the DCC packet to the track. For some older sound decodes it may be necessary
+// to increase from 22 bits on the PROG track to 30 or even 40.
+//
+// The maximum number of preamble bits is 50. For OPS the minimum to send is 11 but
+// 16 is required for RailCom support.
+
+#define OPS_TRACK_PREAMBLE_BITS 16
+
+#define PROG_TRACK_PREAMBLE_BITS 22
+
+/////////////////////////////////////////////////////////////////////////////////////
+//
+// DEFINE WHICH PINS ARE USED FOR OPS RAILCOM DETECTION
+//
+#define OPS_BRAKE_ENABLE_PIN NOT_A_PIN
+#define OPS_RAILCOM_ENABLE_PIN NOT_A_PIN
+#define OPS_RAILCOM_SHORT_PIN NOT_A_PIN
+#define OPS_RAILCOM_UART 2
+#define OPS_RAILCOM_UART_RX_PIN NOT_A_PIN
+
+/////////////////////////////////////////////////////////////////////////////////////

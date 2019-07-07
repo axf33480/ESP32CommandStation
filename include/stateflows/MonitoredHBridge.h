@@ -99,6 +99,8 @@ public:
       overCurrentLimit_ = (250 << 12) / maxMilliAmps_;
       shutdownLimit_ = overCurrentLimit_ << 1;
     }
+    // set warning limit to ~75% of overcurrent limit
+    warnLimit_ = ((overCurrentLimit_ << 1) + overCurrentLimit_) >> 2;
   }
 
   enum STATE
@@ -276,8 +278,9 @@ private:
   const string name_;
   const string bridgeType_;
   const bool isProgTrack_;
-  uint32_t overCurrentLimit_;
-  uint32_t shutdownLimit_;
+  uint32_t overCurrentLimit_{0};
+  uint32_t shutdownLimit_{0};
+  uint32_t warnLimit_{0};
   const TrackOutputConfig cfg_;
   const StatusLED::LED targetLED_;
   const uint8_t adcSampleCount_{64};
@@ -349,10 +352,12 @@ private:
     if (state_ == STATE_OFF)
     {
       ESP_ERROR_CHECK(gpio_set_level(enablePin_, 0));
+      statusLED->setStatusLED(targetLED_, StatusLED::COLOR::OFF);
       return wait();
     }
 
     uint8_t initialState = state_;
+    StatusLED::COLOR statusLEDColor = StatusLED::COLOR::GREEN;
     std::vector<int> samples;
     while(samples.size() < adcSampleCount_) {
       samples.push_back(adc1_get_raw(channel_));
@@ -362,6 +367,7 @@ private:
     if (lastReading_ >= shutdownLimit_)
     {
       state_ = STATE_SHUTDOWN;
+      statusLEDColor = StatusLED::COLOR::RED_BLINK;
     }
     else if (lastReading_ >= overCurrentLimit_)
     {
@@ -370,6 +376,7 @@ private:
       if(overCurrentCheckCount_++ >= overCurrentRetryCount_)
       {
         state_ = STATE_OVERCURRENT;
+        statusLEDColor = StatusLED::COLOR::RED;
       }
       else
       {
@@ -381,11 +388,17 @@ private:
       if (thermalWarningPin_ >= 0 && gpio_get_level(thermalWarningPin_))
       {
         state_ = STATE_THERMAL_SHUTDOWN;
+        statusLEDColor = StatusLED::COLOR::YELLOW_BLINK;
       }
       else if(initialState != STATE_ON)
       {
         state_ = STATE_ON;
         overCurrentCheckCount_ = 0;
+        statusLEDColor = StatusLED::COLOR::GREEN;
+        if (lastReading_ >= warnLimit_)
+        {
+          statusLEDColor = StatusLED::COLOR::YELLOW;
+        }
       }
     }
     if(esp_timer_get_time() - lastReport_ > currentReportInterval_)
@@ -418,10 +431,7 @@ private:
       {
         thermalProducer_.SendEventReport(&helper_, n_.reset(this));
       }
-      statusLED->setStatusLED(targetLED_,
-                              state_ == STATE_ON ?
-                                StatusLED::COLOR::GREEN :
-                                StatusLED::COLOR::RED);
+      statusLED->setStatusLED(targetLED_, statusLEDColor);
 #if LOCONET_ENABLED
       if (!isProgTrack_)
       {

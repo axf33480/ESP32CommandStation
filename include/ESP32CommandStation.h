@@ -23,6 +23,21 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 #define VERSION "1.4.0"
 
+/////////////////////////////////////////////////////////////////////////////////////
+// INTERNAL FLAGS
+/////////////////////////////////////////////////////////////////////////////////////
+
+// This flag will print a list of FreeRTOS tasks every ~5min. This is not recommended
+// to be enabled except during debugging sessions as it will cause the FreeRTOS
+// scheduler to remain in a "locked" state for an extended period.
+
+// #define ENABLE_TASK_LIST_REPORTING true
+
+// This flag will cause cpu utilization metrics to be collected and reported by
+// the LCC CpuLoad and CpuLoadLog system.
+
+// #define CPULOAD_REPORTING true
+
 #include <algorithm>
 #include <functional>
 #include <string>
@@ -44,7 +59,6 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #include <dcc/RailcomPortDebug.hxx>
 #include <dcc/SimpleUpdateLoop.hxx>
 
-#include <openlcb/CallbackEventHandler.hxx>
 #include <openlcb/ConfiguredTcpConnection.hxx>
 #include <openlcb/DccAccyConsumer.hxx>
 #include <openlcb/DccAccyProducer.hxx>
@@ -61,6 +75,14 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 #include <esp_ota_ops.h>
 
+#ifndef NOT_A_PIN
+#define NOT_A_PIN -1
+#endif
+
+#ifndef NOT_A_PORT
+#define NOT_A_PORT -1
+#endif
+
 #include "Config.h"
 
 using dcc::PacketFlowInterface;
@@ -68,7 +90,6 @@ using dcc::RailcomHubFlow;
 using dcc::RailcomPrintfFlow;
 using dcc::SimpleUpdateLoop;
 using openlcb::BitEventProducer;
-using openlcb::CallbackEventHandler;
 using openlcb::DccAccyConsumer;
 using openlcb::Defs;
 using openlcb::EventId;
@@ -85,41 +106,9 @@ using std::unique_ptr;
 using std::vector;
 using std::string;
 
-// Simplified callback handler to automatically register the callbacks
-class EventCallbackHandler : public CallbackEventHandler {
-public:
-  EventCallbackHandler(EventId eventID,
-                       uint32_t callbackType,
-                       Node *node,
-                       CallbackEventHandler::EventReportHandlerFn report_handler,
-                       CallbackEventHandler::EventStateHandlerFn state_handler) :
-    CallbackEventHandler(node, report_handler, state_handler)
-  {
-    add_entry(eventID, callbackType);
-  }
-};
-
 /////////////////////////////////////////////////////////////////////////////////////
-//
-// The following parameters define how many preamble bits will be transmitted as part
-// of the DCC packet to the track. For some older sound decodes it may be necessary
-// to increase from 22 bits on the PROG track to 30 or even 40.
-//
-// The maximum number of preamble bits is 50. For OPS the minimum to send is 11 but
-// 16 is recommended for RailCom support.
-
-#define OPS_TRACK_PREAMBLE_BITS 16
-#define PROG_TRACK_PREAMBLE_BITS 22
-
+// Configuration defaults
 /////////////////////////////////////////////////////////////////////////////////////
-//
-// DEFINE WHICH PINS ARE USED FOR OPS RAILCOM DETECTION
-//
-#define OPS_BRAKE_ENABLE_PIN NOT_A_PIN
-#define OPS_RAILCOM_ENABLE_PIN NOT_A_PIN
-#define OPS_RAILCOM_SHORT_PIN NOT_A_PIN
-#define OPS_RAILCOM_UART 2
-#define OPS_RAILCOM_UART_RX_PIN NOT_A_PIN
 
 #ifndef STATUS_LED_ENABLED
 #define STATUS_LED_ENABLED false
@@ -133,23 +122,6 @@ public:
 #define PROG_TRACK_PREAMBLE_BITS 22
 #endif
 
-#if OPS_TRACK_PREAMBLE_BITS < 11
-#error "OPS_TRACK_PREAMBLE_BITS is too low, a minimum of 11 bits must be transmitted for the DCC decoder to accept the packets."
-#endif
-
-#if OPS_TRACK_PREAMBLE_BITS > 20
-#error "OPS_TRACK_PREAMBLE_BITS is too high. The OPS track only supports up to 20 preamble bits."
-#endif
-
-#if PROG_TRACK_PREAMBLE_BITS < 22
-#error "PROG_TRACK_PREAMBLE_BITS is too low, a minimum of 22 bits must be transmitted for reliability on the PROG track."
-#endif
-
-#if OPS_TRACK_PREAMBLE_BITS > 50
-#error "PROG_TRACK_PREAMBLE_BITS is too high. The PROG track only supports up to 50 preamble bits."
-#endif
-
-// initialize default values for various pre-compiler checks to simplify logic in a lot of places
 #if (defined(INFO_SCREEN_LCD) && INFO_SCREEN_LCD) || (defined(INFO_SCREEN_OLED) && INFO_SCREEN_OLED)
 #define INFO_SCREEN_ENABLED true
 #if (defined(INFO_SCREEN_LCD) && INFO_SCREEN_LCD)
@@ -213,6 +185,14 @@ public:
 #define STATUS_LED_COLOR_ORDER RGB
 #endif
 
+#ifndef ENABLE_TASK_MONITOR
+#define ENABLE_TASK_MONITOR false
+#endif
+
+#ifndef CPULOAD_REPORTING
+#define CPULOAD_REPORTING false
+#endif
+
 /////////////////////////////////////////////////////////////////////////////////////
 // S88 Maximum sensors per bus.
 /////////////////////////////////////////////////////////////////////////////////////
@@ -247,14 +227,10 @@ constexpr uint16_t S88_MAX_SENSORS_PER_BUS = 512;
 #include "io/RemoteSensors.h"
 
 extern vector<uint8_t> restrictedPins;
-extern unique_ptr<Esp32WiFiManager> wifiManager;
 extern unique_ptr<dcc::RailcomHubFlow> railComHub;
 extern unique_ptr<dcc::RailcomPrintfFlow> railComDataDumper;
-extern unique_ptr<InfoScreenStatCollector> infoScreenCollector;
-extern unique_ptr<StatusLED> statusLED;
-extern unique_ptr<HC12Radio> hc12;
-extern unique_ptr<OTAMonitorFlow> otaMonitor;
 
+void setup_hbridge_event_handlers(Node *);
 void register_monitored_hbridge(SimpleCanStack *, const adc1_channel_t, const gpio_num_t, const gpio_num_t,
                                 const uint32_t, const uint32_t, const string &, const string &,
                                 const TrackOutputConfig &, const bool=false);
@@ -304,6 +280,9 @@ void initializeLocoNet();
 #error "Invalid Configuration detected, Config_MotorBoard.h is a mandatory module."
 #endif
 
+/////////////////////////////////////////////////////////////////////////////////////
+// OPS track h-bridge settings
+/////////////////////////////////////////////////////////////////////////////////////
 #if OPS_HBRIDGE_TYPE == L298
 #define OPS_HBRIDGE_MAX_MILIAMPS 2000
 #define OPS_HBRIDGE_LIMIT_MILIAMPS 2000
@@ -326,6 +305,10 @@ void initializeLocoNet();
 #define OPS_HBRIDGE_TYPE_NAME "BTS7960B"
 #endif
 
+
+/////////////////////////////////////////////////////////////////////////////////////
+// PROG track h-bridge settings
+/////////////////////////////////////////////////////////////////////////////////////
 #if PROG_HBRIDGE_TYPE == L298
 #define PROG_HBRIDGE_MAX_MILIAMPS 2000
 #define PROG_HBRIDGE_TYPE_NAME "L298"
@@ -344,6 +327,26 @@ void initializeLocoNet();
 #endif
 // programming track is current limited internally by the hbridge monitor code
 #define PROG_HBRIDGE_LIMIT_MILIAMPS PROG_HBRIDGE_MAX_MILIAMPS
+
+/////////////////////////////////////////////////////////////////////////////////////
+// Compile time validation of configuration settings
+/////////////////////////////////////////////////////////////////////////////////////
+
+#if OPS_TRACK_PREAMBLE_BITS < 11
+#error "OPS_TRACK_PREAMBLE_BITS is too low, a minimum of 11 bits must be transmitted for the DCC decoder to accept the packets."
+#endif
+
+#if OPS_TRACK_PREAMBLE_BITS > 20
+#error "OPS_TRACK_PREAMBLE_BITS is too high. The OPS track only supports up to 20 preamble bits."
+#endif
+
+#if PROG_TRACK_PREAMBLE_BITS < 22
+#error "PROG_TRACK_PREAMBLE_BITS is too low, a minimum of 22 bits must be transmitted for reliability on the PROG track."
+#endif
+
+#if OPS_TRACK_PREAMBLE_BITS > 50
+#error "PROG_TRACK_PREAMBLE_BITS is too high. The PROG track only supports up to 50 preamble bits."
+#endif
 
 #if OPS_HBRIDGE_ENABLE_PIN == PROG_HBRIDGE_ENABLE_PIN
 #error "Invalid Configuration detected, OPS_HBRIDGE_ENABLE_PIN and PROG_HBRIDGE_ENABLE_PIN must be unique."

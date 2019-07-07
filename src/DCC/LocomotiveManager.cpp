@@ -66,6 +66,8 @@ LinkedList<LocomotiveConsist *> LocomotiveManager::_consists([](LocomotiveConsis
   delete consist;
 });
 
+unique_ptr<SimplifiedCallbackEventHandler> LocomotiveManager::_eStopCallback;
+
 void LocomotiveManager::processThrottle(const std::vector<std::string> arguments) {
   int registerNumber = std::stoi(arguments[0]);
   uint16_t locoAddress = std::stoi(arguments[1]);
@@ -248,7 +250,7 @@ bool LocomotiveManager::removeLocomotiveConsist(const uint16_t consistAddress) {
   return false;
 }
 
-void LocomotiveManager::init() {
+void LocomotiveManager::init(Node *node) {
   bool persistNeeded = false;
   LOG(INFO, "[Roster] Initializing Locomotive Roster");
   if (configStore->exists(ROSTER_JSON_FILE)) {
@@ -321,6 +323,13 @@ void LocomotiveManager::init() {
   if (persistNeeded) {
     store();
   }
+
+  // Register Emergency Stop event handler
+  _eStopCallback.reset(
+    new SimplifiedCallbackEventHandler(Defs::EMERGENCY_STOP_EVENT
+                                     , node
+                                     , &LocomotiveManager::emergencyStop)
+  );
 
   // create background task for sending periodic updates to active locomotives/consists.
   xTaskCreatePinnedToCore(update, "LocoMgr", LOCO_MGR_TASK_STACK_SIZE, NULL,

@@ -39,7 +39,6 @@ private:
 
   Action report()
   {
-    uint64_t now = esp_timer_get_time();
     UBaseType_t taskCount = uxTaskGetNumberOfTasks();
     LOG(INFO,
         "[TaskMon] uptime: %02d:%02d:%02d freeHeap: %u, largest free block: %u, tasks: %d"
@@ -50,6 +49,8 @@ private:
       , heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)
       , taskCount
     );
+#if ENABLE_TASK_LIST_REPORTING
+    uint64_t now = esp_timer_get_time();
     if ((now - lastTaskList_) > taskListInterval_ || !lastTaskList_)
     {
       std::unique_ptr<TaskStatus_t[]> taskList(new TaskStatus_t[taskCount]);
@@ -80,6 +81,7 @@ private:
       }
       lastTaskList_ = now;
     }
+#endif // ENABLE_TASK_LIST_REPORTING
     return call_immediately(STATE(delay));
   }
   Action delay()
