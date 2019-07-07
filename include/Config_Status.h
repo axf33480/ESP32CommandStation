@@ -31,16 +31,18 @@ COPYRIGHT (c) 2019 Mike Dunston
 // This defines how bright the Status LEDs will be, supported values are 0 (off) to 255 (full brightness). 
 #define STATUS_LED_BRIGHTNESS 128
 
-// Define the type of RGB LEDs being used, the following types are supported organized by
-// the value to use in the STATUS_LED_TYPE define:
+// Define the type of RGB LEDs being used, the following types are supported
+// organized by the value to use in the STATUS_LED_TYPE define:
 //
-// WS281X_800: NeoPixel, WS2811, WS2812, WS2813, APA106
-// WS281X_400: NeoPixel, WS2811, WS2812, WS2813, APA106
-// SK6812: SK6812
-// LC6812: LC6812
-// 
-// All testing is done with WS2811/APA106 style LEDs.
-#define STATUS_LED_TYPE WS281X_800
+// STATUS_LED_TYPE  RESET PULSE  LED TYPES
+// WS281X           300 uS       NeoPixel, WS2811, WS2812, WS2813, APA106
+// WS281X_800K      50 uS        NeoPixel, WS2811, WS2812, WS2813, APA106
+// WS281X_400K      50 uS        NeoPixel, WS2811, WS2812, WS2813, APA106
+// SK6812           80 uS        SK6812
+// LC6812           80 uS        LC6812
+//
+// All testing is done with WS2811/APA106 style LEDs using the WS281X setting.
+#define STATUS_LED_TYPE WS281X
 
 // Defines the color order used by the Status LEDs
 //

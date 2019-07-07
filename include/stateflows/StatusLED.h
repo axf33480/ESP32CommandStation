@@ -42,12 +42,14 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #error "StatusLED: unknown LED color order"
 #endif
 
-#if STATUS_LED_TYPE == WS281X_800
-#define NEO_METHOD Neo800KbpsMethod
-#elif STATUS_LED_TYPE == WS281X_400
-#define NEO_METHOD Neo400KbpsMethod
+#if STATUS_LED_TYPE == WS281X
+#define NEO_METHOD NeoEsp32Rmt7Ws2812xMethod
+#elif STATUS_LED_TYPE == WS281X_800K
+#define NEO_METHOD NeoEsp32Rmt7800KbpsMethod
+#elif STATUS_LED_TYPE == WS281X_400K
+#define NEO_METHOD NeoEsp32Rmt7400KbpsMethod
 #elif STATUS_LED_TYPE == SK6812 || STATUS_LED_TYPE == LC6812
-#define NEO_METHOD NeoSk6812Method
+#define NEO_METHOD NeoEsp32Rmt7Sk6812Method
 #else
 #error "StatusLED: unknown LED type"
 #endif
