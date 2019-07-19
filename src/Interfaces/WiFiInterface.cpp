@@ -47,6 +47,9 @@ void WiFiInterface::init() {
   infoScreen->replaceLine(INFO_SCREEN_CLIENTS_LINE, "TCP Conn: 00");
 
   wifiManager->add_event_callback([](system_event_t *event) {
+#if NEXTION_ENABLED
+    auto nextionTitlePage = static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE]);
+#endif
     if(event->event_id == SYSTEM_EVENT_STA_GOT_IP) {
       statusLED->setStatusLED(StatusLED::LED::WIFI, StatusLED::COLOR::GREEN);
       tcpip_adapter_ip_info_t ip_info;
@@ -74,7 +77,7 @@ void WiFiInterface::init() {
       mDNS.publish("jmri", "_esp32cs._tcp", JMRI_LISTENER_PORT);
       esp32csWebServer.begin();
 #if NEXTION_ENABLED
-      static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->clearStatusText();
+      nextionTitlePage->clearStatusText();
       // transition to next screen since WiFi connection is complete
       nextionPages[THROTTLE_PAGE]->display();
 #endif
