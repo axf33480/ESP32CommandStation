@@ -96,7 +96,8 @@ public:
     /// AP with the provided SSID and PASSWORD. When the wifi_mode is
     /// WIFI_MODE_APSTA the Esp32WiFiManager will connect to the provided WiFi
     /// AP and create an AP with the SSID of "<hostname>" and the provided
-    /// password.
+    /// password. Note, the password for the AP will not be used if
+    /// soft_ap_auth is set to WIFI_AUTH_OPEN (default).
     /// @param station_static_ip is the static IP configuration to use for the
     /// Station WiFi connection. If not specified DHCP will be used instead.
     /// @param primary_dns_server is the primary DNS server to use when a
@@ -105,6 +106,8 @@ public:
     /// @param soft_ap_channel is the WiFi channel to use for the SoftAP.
     /// @param soft_ap_max_clients is the maximum number of stations that can
     /// connect to the SoftAP. This is limited to 1-4.
+    /// @param soft_ap_auth is the authentication mode for the AP when
+    /// wifi_mode is set to WIFI_MODE_AP or WIFI_MODE_APSTA.
     /// @param softap_static_ip is the static IP configuration for the SoftAP,
     /// when not specified the SoftAP will have an IP address of 192.168.4.1.
     ///
@@ -257,7 +260,7 @@ private:
     wifi_mode_t wifiMode_{WIFI_MODE_STA};
 
     /// Static IP Address configuration for the Station connection.
-    tcpip_adapter_ip_info_t *staticIPInfo_{nullptr};
+    tcpip_adapter_ip_info_t *stationStaticIP_{nullptr};
 
     /// Primary DNS Address to use when configured for Static IP.
     ip_addr_t primaryDNSAddress_{ip_addr_any};
@@ -274,7 +277,8 @@ private:
     wifi_auth_mode_t softAPAuthMode_{WIFI_AUTH_OPEN};
 
     /// Static IP Address configuration for the SoftAP.
-    tcpip_adapter_ip_info_t *softAPIPInfo_{nullptr};
+    /// Default static IP provided by ESP-IDF is 192.168.4.1.
+    tcpip_adapter_ip_info_t *softAPStaticIP_{nullptr};
 
     /// Cached copy of the file descriptor passed into apply_configuration.
     /// This is internally used by the wifi_manager_task to processed deferred

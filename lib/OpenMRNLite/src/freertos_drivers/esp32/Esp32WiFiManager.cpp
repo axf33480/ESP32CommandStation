@@ -54,16 +54,16 @@ using openlcb::TcpManualAddress;
 using std::string;
 using std::unique_ptr;
 
-#if !defined(ESP32_WIFI_MGR_MDNS_SOCKETPARAMS_LOG_LEVEL)
+#ifndef ESP32_WIFIMGR_SOCKETPARAMS_LOG_LEVEL
 /// Allows setting the log level for mDNS related log messages from 
 /// @ref DefaultSocketClientParams.
-#define ESP32_WIFI_MGR_MDNS_SOCKETPARAMS_LOG_LEVEL INFO
+#define ESP32_WIFIMGR_SOCKETPARAMS_LOG_LEVEL INFO
 #endif
 
-#if !defined(ESP32_WIFI_MGR_MDNS_QUERY_RES_LOG_LEVEL)
+#ifndef ESP32_WIFIMGR_MDNS_LOOKUP_LOG_LEVEL
 /// Allows setting the log level for mDNS results in the @ref mdns_lookup
 /// method.
-#define ESP32_WIFI_MGR_MDNS_QUERY_RES_LOG_LEVEL INFO
+#define ESP32_WIFIMGR_MDNS_LOOKUP_LOG_LEVEL INFO
 #endif
 
 // Start of global namespace block.
@@ -193,16 +193,16 @@ public:
                 LOG(INFO, "[Uplink] Reconnecting to %s.", arg.c_str());
                 break;
             case MDNS_SEARCH:
-                LOG(ESP32_WIFI_MGR_MDNS_SOCKETPARAMS_LOG_LEVEL,
+                LOG(ESP32_WIFIMGR_SOCKETPARAMS_LOG_LEVEL,
                     "[Uplink] Starting mDNS searching for %s.",
                     arg.c_str());
                 break;
             case MDNS_NOT_FOUND:
-                LOG(ESP32_WIFI_MGR_MDNS_SOCKETPARAMS_LOG_LEVEL,
+                LOG(ESP32_WIFIMGR_SOCKETPARAMS_LOG_LEVEL,
                     "[Uplink] mDNS search failed.");
                 break;
             case MDNS_FOUND:
-                LOG(ESP32_WIFI_MGR_MDNS_SOCKETPARAMS_LOG_LEVEL,
+                LOG(ESP32_WIFIMGR_SOCKETPARAMS_LOG_LEVEL,
                     "[Uplink] mDNS search succeeded.");
                 break;
             case CONNECT_MDNS:
@@ -212,7 +212,7 @@ public:
                 LOG(INFO, "[Uplink] Connecting to %s.", arg.c_str());
                 break;
             case CONNECT_FAILED_SELF:
-                LOG(ESP32_WIFI_MGR_MDNS_SOCKETPARAMS_LOG_LEVEL,
+                LOG(ESP32_WIFIMGR_SOCKETPARAMS_LOG_LEVEL,
                     "[Uplink] Rejecting attempt to connect to localhost.");
                 break;
             case CONNECTION_LOST:
@@ -241,7 +241,7 @@ private:
 Esp32WiFiManager::Esp32WiFiManager(const char *ssid, const char *password,
     SimpleCanStack *stack, const WiFiConfiguration &cfg,
     const char *hostname_prefix, wifi_mode_t wifi_mode,
-    tcpip_adapter_ip_info_t *static_ip, ip_addr_t primary_dns_server,
+    tcpip_adapter_ip_info_t *station_static_ip, ip_addr_t primary_dns_server,
     uint8_t soft_ap_channel, uint8_t soft_ap_max_stations,
     wifi_auth_mode_t soft_ap_auth, tcpip_adapter_ip_info_t *softap_static_ip)
     : DefaultConfigUpdateListener()
@@ -252,12 +252,12 @@ Esp32WiFiManager::Esp32WiFiManager(const char *ssid, const char *password,
     , manageWiFi_(true)
     , stack_(stack)
     , wifiMode_(wifi_mode)
-    , staticIPInfo_(static_ip)
+    , stationStaticIP_(station_static_ip)
     , primaryDNSAddress_(primary_dns_server)
     , softAPChannel_(soft_ap_channel)
     , softAPMaxStations_(soft_ap_max_stations)
     , softAPAuthMode_(soft_ap_auth)
-    , softAPIPInfo_(softap_static_ip)
+    , softAPStaticIP_(softap_static_ip)
 {
     // Extend the capacity of the hostname to make space for the node-id and
     // underscore.
@@ -424,9 +424,7 @@ void Esp32WiFiManager::process_wifi_event(system_event_t *event)
             TCPIP_ADAPTER_IF_STA, hostname_.c_str()));
         uint8_t mac[6];
         esp_wifi_get_mac(WIFI_IF_STA, mac);
-        LOG(INFO,
-            "[WiFi] MAC Address: %02x:%02x:%02x:%02x:%02x:%02x",
-            mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+        LOG(INFO, "[WiFi] MAC Address: %s", mac_to_string(mac).c_str());
 
         // Initialize the mDNS system.
         LOG(INFO, "[mDNS] Initializing mDNS system");
@@ -440,7 +438,7 @@ void Esp32WiFiManager::process_wifi_event(system_event_t *event)
         // Set the default mDNS instance name to the generated hostname.
         ESP_ERROR_CHECK(mdns_instance_name_set(hostname_.c_str()));
 
-        if (staticIPInfo_)
+        if (stationStaticIP_)
         {
             // Stop the DHCP service before connecting, this allows us to
             // specify a static IP address for the WiFi connection
@@ -453,28 +451,21 @@ void Esp32WiFiManager::process_wifi_event(system_event_t *event)
                 "IP     : " IPSTR "\n"
                 "Gateway: " IPSTR "\n"
                 "Netmask: " IPSTR,
-                IP2STR(&staticIPInfo_->ip),
-                IP2STR(&staticIPInfo_->gw),
-                IP2STR(&staticIPInfo_->netmask));
+                IP2STR(&stationStaticIP_->ip),
+                IP2STR(&stationStaticIP_->gw),
+                IP2STR(&stationStaticIP_->netmask));
             ESP_ERROR_CHECK(
                 tcpip_adapter_set_ip_info(TCPIP_ADAPTER_IF_STA,
-                                          staticIPInfo_));
+                                          stationStaticIP_));
 
             // if we do not have a primary DNS address configure the default
             if (ip_addr_isany(&primaryDNSAddress_))
             {
                 IP4_ADDR(&primaryDNSAddress_.u_addr.ip4, 8, 8, 8, 8);
-                LOG(INFO,
-                    "[WiFi] Configuring primary DNS address to: " IPSTR
-                    " (default)",
-                    IP2STR(&primaryDNSAddress_.u_addr.ip4));
             }
-            else
-            {
-                LOG(INFO,
-                    "[WiFi] Configuring primary DNS address to: " IPSTR,
-                    IP2STR(&primaryDNSAddress_.u_addr.ip4));
-            }
+            LOG(INFO,
+                "[WiFi] Configuring primary DNS address to: " IPSTR,
+                IP2STR(&primaryDNSAddress_.u_addr.ip4));
             // set the primary server (0)
             dns_setserver(0, &primaryDNSAddress_);
         }
@@ -578,56 +569,52 @@ void Esp32WiFiManager::process_wifi_event(system_event_t *event)
 
         uint8_t mac[6];
         esp_wifi_get_mac(WIFI_IF_AP, mac);
-        LOG(INFO,
-            "[SoftAP] MAC Address: %02x:%02x:%02x:%02x:%02x:%02x",
-            mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+        LOG(INFO, "[SoftAP] MAC Address: %s", mac_to_string(mac).c_str());
 
-        if (softAPIPInfo_ &&
-            (wifiMode_ == WIFI_MODE_APSTA || wifiMode_ == WIFI_MODE_AP))
+        if (softAPStaticIP_ && wifiMode_ != WIFI_MODE_STA)
         {
             // Stop the DHCP server so we can reconfigure it.
             LOG(INFO, "[SoftAP] Stoping DHCP Server (if running).");
-            ESP_ERROR_CHECK(
-                tcpip_adapter_dhcps_stop(TCPIP_ADAPTER_IF_AP));
+            ESP_ERROR_CHECK(tcpip_adapter_dhcps_stop(TCPIP_ADAPTER_IF_AP));
 
             LOG(INFO,
                 "[SoftAP] Configuring Static IP address:\n"
                 "IP     : " IPSTR "\n"
                 "Gateway: " IPSTR "\n"
                 "Netmask: " IPSTR,
-                IP2STR(&softAPIPInfo_->ip),
-                IP2STR(&softAPIPInfo_->gw),
-                IP2STR(&softAPIPInfo_->netmask));
+                IP2STR(&softAPStaticIP_->ip),
+                IP2STR(&softAPStaticIP_->gw),
+                IP2STR(&softAPStaticIP_->netmask));
             ESP_ERROR_CHECK(
                 tcpip_adapter_set_ip_info(TCPIP_ADAPTER_IF_AP,
-                                          softAPIPInfo_));
+                                          softAPStaticIP_));
 
             // Convert the Soft AP Static IP to a uint32 for manipulation
-            uint32_t apIP = ntohl(ip4_addr_get_u32(&softAPIPInfo_->ip));
+            uint32_t apIP = ntohl(ip4_addr_get_u32(&softAPStaticIP_->ip));
 
             // Default configuration is for DHCP addresses to follow
             // immediately after the static ip address of the Soft AP.
             ip4_addr_t first_ip, last_ip;
             ip4_addr_set_u32(&first_ip, htonl(apIP + 1));
             ip4_addr_set_u32(&last_ip, htonl(apIP + softAPMaxStations_));
-            
-            dhcps_lease_t lease {
-                true,
-                first_ip,
-                last_ip,
+
+            dhcps_lease_t dhcp_lease {
+                true,                   // enable dhcp lease functionality
+                first_ip,               // first ip to assign
+                last_ip,                // last ip to assign
             };
 
             LOG(INFO,
                 "[SoftAP] Configuring DHCP Server for IPs: " IPSTR " - " IPSTR,
-                IP2STR(&lease.start_ip), IP2STR(&lease.end_ip));
+                IP2STR(&dhcp_lease.start_ip), IP2STR(&dhcp_lease.end_ip));
             ESP_ERROR_CHECK(
                 tcpip_adapter_dhcps_option(TCPIP_ADAPTER_OP_SET,
                                            TCPIP_ADAPTER_REQUESTED_IP_ADDRESS,
-                                           (void *)&lease,
+                                           (void *)&dhcp_lease,
                                            sizeof(dhcps_lease_t)));
 
-            // Start the DHCP server before connecting, this allows us to
-            // specify a static IP address for the WiFi connection
+            // Start the DHCP server so it can provide IP addresses to stations
+            // when they connect.
             LOG(INFO, "[SoftAP] Starting DHCP Server.");
             ESP_ERROR_CHECK(
                 tcpip_adapter_dhcps_start(TCPIP_ADAPTER_IF_AP));
@@ -635,17 +622,15 @@ void Esp32WiFiManager::process_wifi_event(system_event_t *event)
     }
     else if (event->event_id == SYSTEM_EVENT_AP_STACONNECTED)
     {
-        LOG(INFO,
-            "[SoftAP aid:%d] " MACSTR " connected.",
+        LOG(INFO, "[SoftAP aid:%d] %s connected.",
             event->event_info.sta_connected.aid,
-            MAC2STR(event->event_info.sta_connected.mac));
+            mac_to_string(event->event_info.sta_connected.mac).c_str());
     }
     else if (event->event_id == SYSTEM_EVENT_AP_STADISCONNECTED)
     {
-        LOG(INFO,
-            "[SoftAP aid:%d] " MACSTR " disconnected.",
+        LOG(INFO, "[SoftAP aid:%d] %s disconnected.",
             event->event_info.sta_disconnected.aid,
-            MAC2STR(event->event_info.sta_connected.mac));
+            mac_to_string(event->event_info.sta_connected.mac).c_str());
     }
 
     {
@@ -711,9 +696,9 @@ void Esp32WiFiManager::start_wifi_system()
     //
     // These do not require recompilation of arduino-esp32 code as these are
     // used in the WIFI_INIT_CONFIG_DEFAULT macro, they simply need to be redefined.
-    cfg.static_rx_buf_num = 10;
+    cfg.static_rx_buf_num = 16;
     cfg.static_rx_buf_num = 32;
-    cfg.rx_ba_win = 6;
+    cfg.rx_ba_win = 16;
 
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
 
@@ -1101,20 +1086,21 @@ int mdns_lookup(
     split_mdns_service_name(&service_name, &protocol_name);
 
     mdns_result_t *results = NULL;
-    esp_err_t err = mdns_query_ptr(service_name.c_str(), protocol_name.c_str(),
-        MDNS_QUERY_TIMEOUT, MDNS_MAX_RESULTS, &results);
-    LOG(VERBOSE, "[mDNS] mdns_query_ptr: %s.", esp_err_to_name(err));
-    if (err)
+    if (ESP_ERROR_CHECK_WITHOUT_ABORT(
+            mdns_query_ptr(service_name.c_str(),
+                           protocol_name.c_str(),
+                           MDNS_QUERY_TIMEOUT,
+                           MDNS_MAX_RESULTS,
+                           &results)))
     {
         // failed to find any matches
-        LOG_ERROR("[mDNS] mDNS query failed: %s.", esp_err_to_name(err));
         return EAI_FAIL;
     }
 
     if (!results)
     {
         // failed to find any matches
-        LOG(ESP32_WIFI_MGR_MDNS_QUERY_RES_LOG_LEVEL,
+        LOG(ESP32_WIFIMGR_MDNS_LOOKUP_LOG_LEVEL,
             "[mDNS] No matches found for service: %s.",
             service);
         return EAI_AGAIN;
@@ -1133,7 +1119,7 @@ int mdns_lookup(
             // if this result has an IPv4 address process it
             if (ipaddr->addr.type == IPADDR_TYPE_V4)
             {
-                LOG(ESP32_WIFI_MGR_MDNS_QUERY_RES_LOG_LEVEL,
+                LOG(ESP32_WIFIMGR_MDNS_LOOKUP_LOG_LEVEL,
                     "[mDNS] Found %s as providing service: %s on port %d.",
                     res->hostname, service, res->port);
                 inet_addr_from_ip4addr(
@@ -1151,7 +1137,7 @@ int mdns_lookup(
 
     if (!match_found)
     {
-        LOG(ESP32_WIFI_MGR_MDNS_QUERY_RES_LOG_LEVEL,
+        LOG(ESP32_WIFIMGR_MDNS_LOOKUP_LOG_LEVEL,
             "[mDNS] No matches found for service: %s.",
             service);
         return EAI_AGAIN;
