@@ -236,11 +236,11 @@ public:
       EventId short_detected = cfg_.event_short().read(fd);
       EventId short_cleared = cfg_.event_short_cleared().read(fd);
 
-      EventId shutdown = cfg_.event_short().read(fd);
-      EventId shutdown_cleared = cfg_.event_short_cleared().read(fd);
+      EventId shutdown = cfg_.event_shutdown().read(fd);
+      EventId shutdown_cleared = cfg_.event_shutdown_cleared().read(fd);
 
-      EventId thermal_shutdown = cfg_.event_short().read(fd);
-      EventId thermal_shutdown_cleared = cfg_.event_short_cleared().read(fd);
+      EventId thermal_shutdown = cfg_.event_thermal_shutdown().read(fd);
+      EventId thermal_shutdown_cleared = cfg_.event_thermal_shutdown_cleared().read(fd);
 
       // reinitialize the event producer
       auto saved_node = shortBit_.node();
