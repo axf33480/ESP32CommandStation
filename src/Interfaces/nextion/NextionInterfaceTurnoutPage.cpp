@@ -355,7 +355,7 @@ void NextionTurnoutPage::deleteButtonHandler() {
   if(_pageMode == PAGE_MODE::DELETION) {
     for(uint8_t slot = 0; slot < getTurnoutsPerPageCount(); slot++) {
       if(_turnoutButtons[slot].getPictureID() == TURNOUT_IMAGE_IDS::TURNOUT_DELETED) {
-        TurnoutManager::removeByAddress(_toAddress[slot].getTextAsNumber());
+        turnoutManager->removeByAddress(_toAddress[slot].getTextAsNumber());
         LOG(INFO, "[Nextion] Turnout(%d) deleted from slot(%d)", _toAddress[slot].getTextAsNumber(), slot);
       }
     }
@@ -382,7 +382,7 @@ void NextionTurnoutPage::editButtonHandler() {
 void NextionTurnoutPage::refreshPage() {
   int maxTurnoutsPerPage = getTurnoutsPerPageCount();
   // make sure that we only ever display a maximum of TURNOUTS_PER_PAGE turnouts per page
-  uint16_t turnoutsToDisplay = min(TurnoutManager::getTurnoutCount() - _turnoutStartIndex, maxTurnoutsPerPage);
+  uint16_t turnoutsToDisplay = min(turnoutManager->getTurnoutCount() - _turnoutStartIndex, maxTurnoutsPerPage);
 
   while(turnoutsToDisplay == 0 && _turnoutStartIndex >= maxTurnoutsPerPage) {
     // we have overrun the list of turnouts (possibly from deletion)
@@ -391,12 +391,12 @@ void NextionTurnoutPage::refreshPage() {
       _turnoutStartIndex = 0;
     }
     // recalcuate the number of turnouts to display
-    turnoutsToDisplay = min(TurnoutManager::getTurnoutCount() - _turnoutStartIndex, maxTurnoutsPerPage);
+    turnoutsToDisplay = min(turnoutManager->getTurnoutCount() - _turnoutStartIndex, maxTurnoutsPerPage);
   }
 
   // update the number of turnouts we can display on the page
   for(uint8_t componentIndex = 0; componentIndex < turnoutsToDisplay; componentIndex++) {
-    auto turnout = TurnoutManager::getTurnoutByIndex(_turnoutStartIndex + componentIndex);
+    auto turnout = turnoutManager->getTurnoutByIndex(_turnoutStartIndex + componentIndex);
     if(turnout) {
       _turnoutButtons[componentIndex].setPictureID(getDefaultTurnoutPictureID(turnout));
       _turnoutButtons[componentIndex].show();
@@ -419,7 +419,7 @@ void NextionTurnoutPage::refreshPage() {
     _nextButton.setPictureID(NEXT_BUTTON_DISABLED);
     _nextButton.disable();
   } else if(turnoutsToDisplay == maxTurnoutsPerPage &&
-     TurnoutManager::getTurnoutCount() > (turnoutsToDisplay + _turnoutStartIndex)) {
+     turnoutManager->getTurnoutCount() > (turnoutsToDisplay + _turnoutStartIndex)) {
     // we are displaying a full page of turnouts and there is at least one
     // additional turnout to display so show the next page button
     _nextButton.setPictureID(NEXT_BUTTON_ENABLED);
@@ -440,14 +440,14 @@ void NextionTurnoutPage::refreshPage() {
 void NextionTurnoutPage::previousPageCallback(BaseNextionPage *previousPage) {
   NextionAddressPage *addressPage = static_cast<NextionAddressPage *>(previousPage);
   if(_pageMode == PAGE_MODE::EDIT) {
-    auto turnout = TurnoutManager::getTurnoutByAddress(addressPage->getCurrentAddress());
+    auto turnout = turnoutManager->getTurnoutByAddress(addressPage->getCurrentAddress());
     if(turnout) {
       turnout->update(addressPage->getNewAddress(), -1, addressPage->getTurnoutType());
     } else {
       LOG(WARNING, "[Nextion] Turnout with address %d no longer exists", addressPage->getCurrentAddress());
     }
   } else {
-    TurnoutManager::createOrUpdate(TurnoutManager::getTurnoutCount() + 1,
+    turnoutManager->createOrUpdate(turnoutManager->getTurnoutCount() + 1,
       addressPage->getNewAddress(), -1, addressPage->getTurnoutType());
   }
   // reset page mode for normal operations
@@ -459,7 +459,7 @@ void NextionTurnoutPage::toggleTurnout(const NextionButton *button) {
   for(uint8_t slot = 0; slot < getTurnoutsPerPageCount(); slot++) {
     if(&_turnoutButtons[slot] == button) {
       auto turnoutAddress = _toAddress[slot].getTextAsNumber();
-      auto turnout = TurnoutManager::getTurnoutByAddress(turnoutAddress);
+      auto turnout = turnoutManager->getTurnoutByAddress(turnoutAddress);
       if(turnout) {
         if(_pageMode == PAGE_MODE::DELETION) {
           if(_turnoutButtons[slot].getPictureID() == TURNOUT_IMAGE_IDS::TURNOUT_DELETED) {

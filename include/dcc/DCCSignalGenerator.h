@@ -20,6 +20,9 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #include <queue>
 #include <stdint.h>
 
+#include <dcc/Packet.hxx>
+#include <utils/Buffer.hxx>
+
 // Signal generator is for the OPS track
 #define DCC_SIGNAL_OPERATIONS 0
 // Signal generator is for the PROG track
@@ -52,12 +55,13 @@ struct Packet {
   int8_t numberOfRepeats;
 };
 
-class SignalGenerator {
+class SignalGenerator : public PacketFlowInterface {
 public:
   void startSignal(bool=true);
   void stopSignal();
   void loadBytePacket(const uint8_t *, uint8_t, uint8_t, bool=false);
   void loadPacket(std::vector<uint8_t>, int=0, bool=false);
+  void send(Buffer<dcc::Packet> *b, unsigned prio);
 
   inline void waitForQueueEmpty() {
     while(!isQueueEmpty()) {

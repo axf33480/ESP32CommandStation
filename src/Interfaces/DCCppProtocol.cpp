@@ -31,7 +31,7 @@ class ConfigErase : public DCCPPProtocolCommand {
 public:
   void process(const vector<string> arguments) {
     configStore->clear();
-    TurnoutManager::clear();
+    turnoutManager->clear();
     SensorManager::clear();
 #if S88_ENABLED
     S88BusManager::clear();
@@ -61,7 +61,7 @@ public:
       LocomotiveManager::store()));
 #else
     wifiInterface.broadcast(StringPrintf("<e %d %d %d 0 %d>",
-      TurnoutManager::store(),
+      turnoutManager->store(),
       SensorManager::store(),
       OutputManager::store(),
       LocomotiveManager::store()));
@@ -199,7 +199,7 @@ public:
       VERSION, __DATE__, __TIME__));
     broadcast_all_hbridge_statuses();
     LocomotiveManager::showStatus();
-    TurnoutManager::showStatus();
+    turnoutManager->showStatus();
     OutputManager::showStatus();
     wifiInterface.showInitInfo();
   }

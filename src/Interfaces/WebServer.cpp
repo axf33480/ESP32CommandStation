@@ -489,17 +489,17 @@ void ESP32CSWebServer::handleTurnouts(AsyncWebServerRequest *request) {
       readableStrings = request->arg(JSON_TURNOUTS_READABLE_STRINGS_NODE).toInt();
     }
     JsonArray array = jsonResponse->getRoot();
-    TurnoutManager::getState(array, readableStrings);
+    turnoutManager->getState(array, readableStrings);
   } else if (request->method() == HTTP_GET) {
     if(request->hasArg(JSON_ID_NODE)) {
-      auto turnout = TurnoutManager::getTurnoutByID(request->arg(JSON_ID_NODE).toInt());
+      auto turnout = turnoutManager->getTurnoutByID(request->arg(JSON_ID_NODE).toInt());
       if(turnout) {
         turnout->toJson(jsonResponse->getRoot());
       } else {
         jsonResponse->setCode(STATUS_NOT_FOUND);
       }
     } else if (request->hasArg(JSON_ADDRESS_NODE)) {
-      auto turnout = TurnoutManager::getTurnoutByID(request->arg(JSON_ADDRESS_NODE).toInt());
+      auto turnout = turnoutManager->getTurnoutByID(request->arg(JSON_ADDRESS_NODE).toInt());
       if(turnout) {
         turnout->toJson(jsonResponse->getRoot());
       } else {
@@ -515,9 +515,9 @@ void ESP32CSWebServer::handleTurnouts(AsyncWebServerRequest *request) {
     TurnoutType type = (TurnoutType)request->arg(JSON_TYPE_NODE).toInt();
     // auto generate ID
     if(turnoutID == -1) {
-      turnoutID = TurnoutManager::getTurnoutCount() + 1;
+      turnoutID = turnoutManager->getTurnoutCount() + 1;
     }
-    auto turnout = TurnoutManager::createOrUpdate((uint16_t)turnoutID, turnoutAddress, turnoutSubAddress, type);
+    auto turnout = turnoutManager->createOrUpdate((uint16_t)turnoutID, turnoutAddress, turnoutSubAddress, type);
     if(turnout) {
       turnout->toJson(jsonResponse->getRoot());
     } else {
@@ -525,17 +525,17 @@ void ESP32CSWebServer::handleTurnouts(AsyncWebServerRequest *request) {
     }
   } else if(request->method() == HTTP_DELETE) {
     if(request->hasArg(JSON_ID_NODE)) {
-      TurnoutManager::removeByID(request->arg(JSON_ID_NODE).toInt());
+      turnoutManager->removeByID(request->arg(JSON_ID_NODE).toInt());
     } else if (request->hasArg(JSON_ADDRESS_NODE)) {
-      TurnoutManager::removeByAddress(request->arg(JSON_ADDRESS_NODE).toInt());
+      turnoutManager->removeByAddress(request->arg(JSON_ADDRESS_NODE).toInt());
     } else {
       jsonResponse->setCode(STATUS_BAD_REQUEST);
     }
   } else if(request->method() == HTTP_PUT) {
     if(request->hasArg(JSON_ID_NODE)) {
-      TurnoutManager::toggleByID(request->arg(JSON_ID_NODE).toInt());
+      turnoutManager->toggleByID(request->arg(JSON_ID_NODE).toInt());
     } else if (request->hasArg(JSON_ADDRESS_NODE)) {
-      TurnoutManager::toggleByAddress(request->arg(JSON_ADDRESS_NODE).toInt());
+      turnoutManager->toggleByAddress(request->arg(JSON_ADDRESS_NODE).toInt());
     } else {
       jsonResponse->setCode(STATUS_BAD_REQUEST);
     }

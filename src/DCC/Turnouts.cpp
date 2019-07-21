@@ -71,7 +71,7 @@ way of initializing the directions of any Turnouts being monitored or controlled
 by a separate interface or GUI program.
 **********************************************************************/
 
-LinkedList<Turnout *> turnouts([](Turnout *turnout) {delete turnout; });
+unique_ptr<TurnoutManager> turnoutManager;
 
 static constexpr const char * TURNOUTS_JSON_FILE = "turnouts.json";
 
@@ -82,30 +82,34 @@ static constexpr const char *TURNOUT_TYPE_STRINGS[] = {
   "MULTI"
 };
 
-void TurnoutManager::init() {
-  LOG(INFO, "[Turnout] Initializing turnout list");
-  if(configStore->exists(TURNOUTS_JSON_FILE)) {
+TurnoutManager::TurnoutManager() {
+  LOG(INFO, "[Turnout] Initializing...");
+  if (configStore->exists(TURNOUTS_JSON_FILE)) {
     JsonObject root = configStore->load(TURNOUTS_JSON_FILE);
-    if(root.containsKey(JSON_COUNT_NODE) > 0 && root[JSON_COUNT_NODE].as<int>() > 0) {
+    if (root.containsKey(JSON_COUNT_NODE) > 0 && root[JSON_COUNT_NODE].as<int>() > 0) {
       uint16_t turnoutCount = root[JSON_COUNT_NODE].as<int>();
       infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Found %02d Turnouts", turnoutCount);
-      for(auto turnout : root[JSON_TURNOUTS_NODE].as<JsonArray>()) {
-        turnouts.add(new Turnout(turnout.as<JsonObject>()));
+      for (auto turnout : root[JSON_TURNOUTS_NODE].as<JsonArray>()) {
+        turnouts_.emplace_back(new Turnout(turnout.as<JsonObject>()));
       }
     }
   }
-  LOG(INFO, "[Turnout] Loaded %d turnouts", turnouts.length());
+  LOG(INFO, "[Turnout] Loaded %d turnouts", turnouts_.size());
 }
 
 void TurnoutManager::clear() {
-  turnouts.free();
+  AtomicHolder h(&lock_);
+  for (auto & turnout : turnouts_) {
+    turnout.reset(nullptr);
+  }
+  turnouts_.clear();
 }
 
 uint16_t TurnoutManager::store() {
   JsonObject root = configStore->createRootNode();
   JsonArray array = root.createNestedArray(JSON_TURNOUTS_NODE);
   uint16_t turnoutStoredCount = 0;
-  for (const auto& turnout : turnouts) {
+  for (const auto& turnout : turnouts_) {
     turnout->toJson(array.createNestedObject());
     turnoutStoredCount++;
   }
@@ -114,115 +118,153 @@ uint16_t TurnoutManager::store() {
   return turnoutStoredCount;
 }
 
-bool TurnoutManager::setByID(uint16_t id, bool thrown) {
-  auto turnout = getTurnoutByID(id);
-  if(turnout) {
-    turnout->set(thrown);
-    return true;
+bool TurnoutManager::setByID(uint16_t id, bool thrown, bool sendDCC) {
+  AtomicHolder h(&lock_);
+  for (auto & turnout : turnouts_) {
+    if (turnout->getID() == id) {
+      turnout->set(thrown, sendDCC);
+      return true;
+    }
   }
-  LOG(WARNING, "[Turnout %d] Unable to set state, turnout not found", id);
   return false;
+}
+
+void TurnoutManager::setByAddress(uint16_t address, bool thrown, bool sendDCC) {
+  AtomicHolder h(&lock_);
+  for (auto & turnout : turnouts_) {
+    if (turnout->getAddress() == address) {
+      turnout->set(thrown, sendDCC);
+      return;
+    }
+  }
+  turnouts_.emplace_back(new Turnout(turnouts_.size() + 1, address, -1));
+  turnouts_.back()->set(thrown, sendDCC);
 }
 
 bool TurnoutManager::toggleByID(uint16_t id) {
-  auto turnout = getTurnoutByID(id);
-  if(turnout) {
-    turnout->toggle();
-    return true;
+  AtomicHolder h(&lock_);
+  for (auto & turnout : turnouts_) {
+    if (turnout->getID() == id) {
+      turnout->toggle();
+      return true;
+    }
   }
-
-  LOG(WARNING, "[Turnout %d] Unable to set state, turnout not found", id);
   return false;
 }
 
-bool TurnoutManager::toggleByAddress(uint16_t address) {
-  auto turnout = getTurnoutByAddress(address);
-  if(turnout) {
-    turnout->toggle();
-    return true;
+void TurnoutManager::toggleByAddress(uint16_t address) {
+  AtomicHolder h(&lock_);
+  auto const &elem = std::find_if(turnouts_.begin(), turnouts_.end(),
+    [address](unique_ptr<Turnout> & turnout) -> bool {
+      return (turnout->getAddress() == address);
+    }
+  );
+  if (elem != turnouts_.end()) {
+    elem->get()->toggle();
+    return;
   }
-  LOG(WARNING, "[Turnout addr:%d] Unable to set state, turnout not found", address);
-  return false;
+  // we didn't find it, create it and throw it!
+  turnouts_.emplace_back(new Turnout(turnouts_.size() + 1, address, -1));
+  turnouts_.back()->toggle();
 }
 
 void TurnoutManager::getState(JsonArray array, bool readableStrings) {
-  for (const auto& turnout : turnouts) {
+  AtomicHolder h(&lock_);
+  for (auto& turnout : turnouts_) {
     JsonObject json = array.createNestedObject();
     turnout->toJson(json, readableStrings);
   }
 }
 
 void TurnoutManager::showStatus() {
-  for (const auto& turnout : turnouts) {
+  AtomicHolder h(&lock_);
+  for (auto& turnout : turnouts_) {
     turnout->showStatus();
   }
 }
 
 Turnout *TurnoutManager::createOrUpdate(const uint16_t id, const uint16_t address, const int8_t index, const TurnoutType type) {
-  Turnout *turnout = getTurnoutByID(id);
-  if(turnout) {
-    turnout->update(address, index, type);
-  } else {
-    turnout = new Turnout(id, address, index, false, type);
-    turnouts.add(turnout);
+  AtomicHolder h(&lock_);
+  auto const &elem = std::find_if(turnouts_.begin(), turnouts_.end(),
+    [id](unique_ptr<Turnout> & turnout) -> bool {
+      return (turnout->getID() == id);
+    }
+  );
+  if (elem != turnouts_.end()) {
+    elem->get()->update(address, index, type);
+    return elem->get();
   }
-  return turnout;
+  // we didn't find it, create it!
+  turnouts_.emplace_back(new Turnout(id, address, index, false, type));
+  return turnouts_.back().get();
 }
 
 bool TurnoutManager::removeByID(const uint16_t id) {
-  Turnout *turnout = getTurnoutByID(id);
-  if(turnout) {
-    LOG(VERBOSE, "[Turnout %d] Deleted", turnout->getID());
-    turnouts.remove(turnout);
+  AtomicHolder h(&lock_);
+  auto const &elem = std::find_if(turnouts_.begin(), turnouts_.end(),
+    [id](unique_ptr<Turnout> & turnout) -> bool {
+      return (turnout->getID() == id);
+    }
+  );
+  if (elem != turnouts_.end()) {
+    LOG(VERBOSE, "[Turnout %d] Deleted", elem->get()->getID());
+    turnouts_.erase(elem);
     return true;
   }
   return false;
 }
 
 bool TurnoutManager::removeByAddress(const uint16_t address) {
-  Turnout *turnout = getTurnoutByAddress(address);
-  if(turnout) {
-    LOG(VERBOSE, "[Turnout %d] Deleted as it used address %d", turnout->getID(), address);
-    turnouts.remove(turnout);
+  AtomicHolder h(&lock_);
+  auto const &elem = std::find_if(turnouts_.begin(), turnouts_.end(),
+    [address](unique_ptr<Turnout> & turnout) -> bool {
+      return (turnout->getAddress() == address);
+    }
+  );
+  if (elem != turnouts_.end()) {
+    LOG(VERBOSE, "[Turnout %d] Deleted as it used address %d", elem->get()->getID(), address);
+    turnouts_.erase(elem);
     return true;
   }
   return false;
 }
 
 Turnout *TurnoutManager::getTurnoutByIndex(const uint16_t index) {
-  Turnout *retval = nullptr;
-  uint16_t currentIndex = 0;
-  for (const auto& turnout : turnouts) {
-    if(currentIndex == index) {
-      retval = turnout;
-    }
-    currentIndex++;
+  AtomicHolder h(&lock_);
+  if (index < turnouts_.size()) {
+    return turnouts_[index].get();
   }
-  return retval;
+  return nullptr;
 }
 
 Turnout *TurnoutManager::getTurnoutByID(const uint16_t id) {
-  Turnout *retval = nullptr;
-  for (const auto& turnout : turnouts) {
-    if(turnout->getID() == id) {
-      retval = turnout;
+  AtomicHolder h(&lock_);
+  auto const &elem = std::find_if(turnouts_.begin(), turnouts_.end(),
+    [id](unique_ptr<Turnout> & turnout) -> bool {
+      return (turnout->getID() == id);
     }
+  );
+  if (elem != turnouts_.end()) {
+    return elem->get();
   }
-  return retval;
+  return nullptr;
 }
 
 Turnout *TurnoutManager::getTurnoutByAddress(const uint16_t address) {
-  Turnout *retval = nullptr;
-  for (const auto& turnout : turnouts) {
-    if(turnout->getAddress() == address) {
-      retval = turnout;
+  AtomicHolder h(&lock_);
+  auto const &elem = std::find_if(turnouts_.begin(), turnouts_.end(),
+    [address](unique_ptr<Turnout> & turnout) -> bool {
+      return (turnout->getAddress() == address);
     }
+  );
+  if (elem != turnouts_.end()) {
+    return elem->get();
   }
-  return retval;
+  return nullptr;
 }
 
 uint16_t TurnoutManager::getTurnoutCount() {
-  return turnouts.length();
+  return turnouts_.size();
 }
 
 void calculateTurnoutBoardAddressAndIndex(uint16_t *boardAddress, int8_t *boardIndex, uint16_t address) {
@@ -324,17 +366,17 @@ void Turnout::showStatus() {
 void TurnoutCommandAdapter::process(const std::vector<std::string> arguments) {
   if(arguments.empty()) {
     // list all turnouts
-    TurnoutManager::showStatus();
+    turnoutManager->showStatus();
   } else {
     uint16_t turnoutID = std::stoi(arguments[0]);
-    if (arguments.size() == 1 && TurnoutManager::removeByID(turnoutID)) {
+    if (arguments.size() == 1 && turnoutManager->removeByID(turnoutID)) {
       // delete turnout
       wifiInterface.broadcast(COMMAND_SUCCESSFUL_RESPONSE);
-    } else if (arguments.size() == 2 && TurnoutManager::setByID(turnoutID, arguments[1][0] == '1')) {
+    } else if (arguments.size() == 2 && turnoutManager->setByID(turnoutID, arguments[1][0] == '1')) {
       // throw turnout
     } else if (arguments.size() == 3) {
       // create/update turnout
-      TurnoutManager::createOrUpdate(turnoutID, std::stoi(arguments[1]), std::stoi(arguments[2]));
+      turnoutManager->createOrUpdate(turnoutID, std::stoi(arguments[1]), std::stoi(arguments[2]));
       wifiInterface.broadcast(COMMAND_SUCCESSFUL_RESPONSE);
     } else {
       wifiInterface.broadcast(COMMAND_FAILED_RESPONSE);
@@ -346,19 +388,19 @@ void TurnoutExCommandAdapter::process(const std::vector<std::string> arguments) 
   bool sendSuccess = false;
   if(!arguments.empty()) {
     if(std::stoi(arguments[0]) >= 0) {
-      if(arguments.size() == 1 && TurnoutManager::toggleByID(std::stoi(arguments[0]))) {
+      if(arguments.size() == 1 && turnoutManager->toggleByID(std::stoi(arguments[0]))) {
         // no response required for throw as it will automatically be sent by the turnout
         return;
       } else if(arguments.size() == 3 &&
-                TurnoutManager::createOrUpdate(std::stoi(arguments[0]), std::stoi(arguments[1]), -1, (TurnoutType)std::stoi(arguments[2]))) {
+                turnoutManager->createOrUpdate(std::stoi(arguments[0]), std::stoi(arguments[1]), -1, (TurnoutType)std::stoi(arguments[2]))) {
         sendSuccess = true;
       }
     } else {
-      auto turnout = TurnoutManager::getTurnoutByAddress(std::stoi(arguments[1]));
+      auto turnout = turnoutManager->getTurnoutByAddress(std::stoi(arguments[1]));
       if(turnout) {
         turnout->setType((TurnoutType)std::stoi(arguments[2]));
         sendSuccess = true;
-      } else if(TurnoutManager::createOrUpdate(TurnoutManager::getTurnoutCount() + 1, std::stoi(arguments[1]), -1, (TurnoutType)std::stoi(arguments[2]))) {
+      } else if(turnoutManager->createOrUpdate(turnoutManager->getTurnoutCount() + 1, std::stoi(arguments[1]), -1, (TurnoutType)std::stoi(arguments[2]))) {
         sendSuccess = true;
       }
     }

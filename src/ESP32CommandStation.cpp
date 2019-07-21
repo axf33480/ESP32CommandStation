@@ -108,42 +108,33 @@ public:
 
 std::unique_ptr<FactoryResetHelper> resetHelper;
 
-class DccPacketQueueInjector : public PacketFlowInterface {
+class DccTurnoutPacketFeeder : public PacketFlowInterface
+{
 public:
   void send(Buffer<dcc::Packet> *b, unsigned prio)
   {
-    dcc::Packet *pkt = b->data();
-    if(pkt->packet_header.send_long_preamble)
-    {
-      // prog track packet
-      dccSignal[DCC_SIGNAL_PROGRAMMING]->loadBytePacket(pkt->payload, pkt->dlc, pkt->packet_header.rept_count);
-    }
-    else
-    {
-      // ops track packet
-      dccSignal[DCC_SIGNAL_OPERATIONS]->loadBytePacket(pkt->payload, pkt->dlc, pkt->packet_header.rept_count);
-      // check if the packet looks like an accessories decoder packet
-      if(!pkt->packet_header.is_marklin && pkt->dlc == 2 && pkt->payload[0] & 0x80 && pkt->payload[1] & 0x80) {
-        // the second byte of the payload contains part of the address and is stored in ones complement format
-        uint8_t onesComplementByteTwo = (pkt->payload[1] ^ 0xF8);
-        // decode the accessories decoder address and update the TurnoutManager metadata
-        uint16_t boardAddress = (pkt->payload[0] & 0x3F) + ((onesComplementByteTwo >> 4) & 0x07);
-        uint8_t boardIndex = ((onesComplementByteTwo >> 1) % 4);
-        bool state = onesComplementByteTwo & 0x01;
-        // with the board address and index decoded from the packet we can assemble a 12bit decoder address
-        uint16_t decoderAddress = (boardAddress * 4 + boardIndex) - 3;
-        auto turnout = TurnoutManager::getTurnoutByAddress(decoderAddress);
-        if(turnout)
-        {
-          turnout->set(state, false);
-        }
-      }
+    // add ref count so send doesn't delete it
+    dcc::Packet *pkt = b->ref()->data();
+    dccSignal[DCC_SIGNAL_OPERATIONS]->send(b, prio);
+    // check if the packet looks like an accessories decoder packet
+    if(!pkt->packet_header.is_marklin && pkt->dlc == 2 && pkt->payload[0] & 0x80 && pkt->payload[1] & 0x80) {
+      // the second byte of the payload contains part of the address and is stored in ones complement format
+      uint8_t onesComplementByteTwo = (pkt->payload[1] ^ 0xF8);
+      // decode the accessories decoder address and update the TurnoutManager metadata
+      uint16_t boardAddress = (pkt->payload[0] & 0x3F) + ((onesComplementByteTwo >> 4) & 0x07);
+      uint8_t boardIndex = ((onesComplementByteTwo >> 1) % 4);
+      bool state = onesComplementByteTwo & 0x01;
+      // with the board address and index decoded from the packet we can assemble a 12bit decoder address
+      uint16_t decoderAddress = (boardAddress * 4 + boardIndex) - 3;
+      turnoutManager->setByAddress(decoderAddress, state, false);
     }
     b->unref();
   }
 };
 
-DccPacketQueueInjector dccPacketInjector;
+DccTurnoutPacketFeeder turnoutPacketFeeder;
+
+std::unique_ptr<DccAccyConsumer> turnoutConsumer;
 
 bool otaComplete = false;
 esp_ota_handle_t otaInProgress = 0;
@@ -267,7 +258,7 @@ extern "C" void app_main()
       openlcb::CANONICAL_VERSION, openlcb::CONFIG_FILE_SIZE);
 
   // Create the DCC Event Loop
-  dccUpdateLoop.reset(new SimpleUpdateLoop(openmrn->stack()->service(), &dccPacketInjector));
+  dccUpdateLoop.reset(new SimpleUpdateLoop(openmrn->stack()->service(), dccSignal[DCC_SIGNAL_OPERATIONS]));
 
   DCCPPProtocolHandler::init();
 
@@ -303,11 +294,29 @@ extern "C" void app_main()
 
   nextionInterfaceInit();
 
+  dccSignal[DCC_SIGNAL_OPERATIONS] = new SignalGenerator_RMT("OPS", 512, DCC_SIGNAL_OPERATIONS, DCC_SIGNAL_PIN_OPERATIONS, OPS_HBRIDGE_ENABLE_PIN);
+  dccSignal[DCC_SIGNAL_PROGRAMMING] = new SignalGenerator_RMT("PROG", 10, DCC_SIGNAL_PROGRAMMING, DCC_SIGNAL_PIN_PROGRAMMING, PROG_HBRIDGE_ENABLE_PIN);
+
+  LocomotiveManager::init(openmrn->stack()->node());
+  turnoutManager.reset(new TurnoutManager());
+
+  turnoutConsumer.reset(new DccAccyConsumer(openmrn->stack()->node(), &turnoutPacketFeeder));
+
   // Start the OpenMRN stack
   openmrn->begin();
 
   // create OpenMRN executor thread
   openmrn->start_executor_thread();
+
+  LOG(INFO, "[OpenMRN] Starting loop task on core:%d", APP_CPU_NUM);
+  xTaskCreatePinnedToCore(openmrn_loop_task     // function
+                        , "OpenMRN-Loop"        // name
+                        , 2048                  // stack
+                        , nullptr               // function arg
+                        , 1                     // priority
+                        , nullptr               // handle
+                        , APP_CPU_NUM           // core id
+  );
 
 #if CPULOAD_REPORTING
   os_thread_create(&cpuTickTaskHandle, "loadtick", 1, 0, &cpuTickTask, nullptr);
@@ -318,12 +327,6 @@ extern "C" void app_main()
   timerAlarmEnable(cpuTickTimer);
 #endif
 
-  dccSignal[DCC_SIGNAL_OPERATIONS] = new SignalGenerator_RMT("OPS", 512, DCC_SIGNAL_OPERATIONS, DCC_SIGNAL_PIN_OPERATIONS, OPS_HBRIDGE_ENABLE_PIN);
-  dccSignal[DCC_SIGNAL_PROGRAMMING] = new SignalGenerator_RMT("PROG", 10, DCC_SIGNAL_PROGRAMMING, DCC_SIGNAL_PIN_PROGRAMMING, PROG_HBRIDGE_ENABLE_PIN);
-
-  LocomotiveManager::init(openmrn->stack()->node());
-  TurnoutManager::init();
-
   OutputManager::init();
   SensorManager::init();
   S88BusManager::init();
@@ -332,16 +335,6 @@ extern "C" void app_main()
 #if LOCONET_ENABLED
   initializeLocoNet();
 #endif
-
-  LOG(INFO, "[OpenMRN] Creating Loop task on core:%d", APP_CPU_NUM);
-  xTaskCreatePinnedToCore(openmrn_loop_task     // function
-                        , "OpenMRN-Loop"        // name
-                        , 2048                  // stack
-                        , nullptr               // function arg
-                        , 1                     // priority
-                        , nullptr               // handle
-                        , APP_CPU_NUM           // core id
-  );
 
   LOG(INFO, "ESP32 Command Station Started!");
   infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "ESP32-CS Started");
