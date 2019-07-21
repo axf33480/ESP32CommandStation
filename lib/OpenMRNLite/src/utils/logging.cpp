@@ -33,10 +33,8 @@
 
 #include "logging.h"
 
-#if defined(__linux__) || defined(__MACH__)
+#if defined(__linux__) || defined(__MACH__) || defined(ESP32)
 char logbuffer[4096];
-#elif defined(ESP32)
-char logbuffer[512];
 #else
 /// Temporary buffer to sprintf() the log lines into.
 char logbuffer[256];

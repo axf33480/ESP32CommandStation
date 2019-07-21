@@ -121,10 +121,8 @@ extern os_mutex_t g_log_mutex;
 /// Shorthand for LOG(LEVEL_ERROR, message...). See @ref LOG.
 #define LOG_ERROR(message...) LOG(LEVEL_ERROR, message)
 
-#if defined(__linux__) || defined(__MACH__)
+#if defined(__linux__) || defined(__MACH__) || defined(ESP32)
 extern char logbuffer[4096];
-#elif defined(ESP32)
-extern char logbuffer[512];
 #else
 /// Temporary buffer to sprintf() the log lines into.
 extern char logbuffer[256];
