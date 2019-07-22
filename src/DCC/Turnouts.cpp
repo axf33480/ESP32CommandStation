@@ -267,9 +267,15 @@ uint16_t TurnoutManager::getTurnoutCount() {
   return turnouts_.size();
 }
 
-void calculateTurnoutBoardAddressAndIndex(uint16_t *boardAddress, int8_t *boardIndex, uint16_t address) {
+void encodeDCCAccessoryAddress(uint16_t *boardAddress, int8_t *boardIndex, uint16_t address)
+{
   *boardAddress = (address + 3) / 4;
   *boardIndex = (address - (*boardAddress * 4)) + 3;
+}
+
+uint16_t decodeDCCAccessoryAddress(uint16_t boardAddress, int8_t boardIndex)
+{
+  return (boardAddress * 4 + boardIndex) - 3;
 }
 
 Turnout::Turnout(uint16_t turnoutID, uint16_t address, int8_t index,
@@ -278,7 +284,7 @@ Turnout::Turnout(uint16_t turnoutID, uint16_t address, int8_t index,
   _type(type) {
   if(index == -1) {
     // convert the provided decoder address to a board address and accessory index
-    calculateTurnoutBoardAddressAndIndex(&_boardAddress, &_index, _address);
+    encodeDCCAccessoryAddress(&_boardAddress, &_index, _address);
     LOG(INFO, "[Turnout %d] Created using DCC address %d as type %s and initial state of %s",
       _turnoutID, _address, TURNOUT_TYPE_STRINGS[_type],
       _thrown ? JSON_VALUE_THROWN : JSON_VALUE_CLOSED);
@@ -298,7 +304,7 @@ Turnout::Turnout(JsonObject json) {
   _boardAddress = 0;
   if(_index == -1) {
     // convert the provided decoder address to a board address and accessory index
-    calculateTurnoutBoardAddressAndIndex(&_boardAddress, &_index, _address);
+    encodeDCCAccessoryAddress(&_boardAddress, &_index, _address);
     LOG(VERBOSE, "[Turnout %d] Loaded using DCC address %d as type %s and last known state of %s",
       _turnoutID, _address, TURNOUT_TYPE_STRINGS[_type],
       _thrown ? JSON_VALUE_THROWN : JSON_VALUE_CLOSED);
@@ -315,7 +321,7 @@ void Turnout::update(uint16_t address, int8_t index, TurnoutType type) {
   _type = type;
   if(index == -1) {
     // convert the provided decoder address to a board address and accessory index
-    calculateTurnoutBoardAddressAndIndex(&_boardAddress, &_index, _address);
+    encodeDCCAccessoryAddress(&_boardAddress, &_index, _address);
     LOG(VERBOSE, "[Turnout %d] Updated to use DCC address %d and type %s",
       _turnoutID, _address, TURNOUT_TYPE_STRINGS[_type]);
   } else {

@@ -106,7 +106,7 @@ void NextionAddressPage::addNumber(const NextionButton *button) {
       if(_addressPic.getPictureID() == TURNOUT_PIC) {
         uint16_t boardAddress = 0;
         int8_t boardIndex = 0;
-        calculateTurnoutBoardAddressAndIndex(&boardAddress, &boardIndex, std::stoi(_newAddressString));
+        encodeDCCAccessoryAddress(&boardAddress, &boardIndex, std::stoi(_newAddressString));
         _boardAddress.setTextAsNumber(boardAddress);
         _indexAddress.setTextAsNumber(boardIndex);
       }
@@ -135,7 +135,7 @@ void NextionAddressPage::removeNumber(const NextionButton *button) {
   if(_addressPic.getPictureID() == TURNOUT_PIC) {
     uint16_t boardAddress = 0;
     int8_t boardIndex = 0;
-    calculateTurnoutBoardAddressAndIndex(&boardAddress, &boardIndex, std::stoi(_newAddressString));
+    encodeDCCAccessoryAddress(&boardAddress, &boardIndex, std::stoi(_newAddressString));
     _boardAddress.setTextAsNumber(boardAddress);
     _indexAddress.setTextAsNumber(boardIndex);
   }

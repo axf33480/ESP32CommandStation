@@ -108,6 +108,8 @@ public:
 
 std::unique_ptr<FactoryResetHelper> resetHelper;
 
+// Specialized interface for DCC accessory packets that handles the update
+// of the TurnoutManager internal state data.
 class DccTurnoutPacketFeeder : public PacketFlowInterface
 {
 public:
@@ -115,18 +117,25 @@ public:
   {
     // add ref count so send doesn't delete it
     dcc::Packet *pkt = b->ref()->data();
+    // send the packet to the track
     dccSignal[DCC_SIGNAL_OPERATIONS]->send(b, prio);
-    // check if the packet looks like an accessories decoder packet
-    if(!pkt->packet_header.is_marklin && pkt->dlc == 2 && pkt->payload[0] & 0x80 && pkt->payload[1] & 0x80) {
-      // the second byte of the payload contains part of the address and is stored in ones complement format
+
+    // Verify that the packet looks like a DCC Accessory decoder packet
+    if(!pkt->packet_header.is_marklin &&
+        pkt->dlc == 2 &&
+        pkt->payload[0] & 0x80 &&
+        pkt->payload[1] & 0x80)
+    {
+      // the second byte of the payload contains part of the address and is
+      // stored in ones complement format.
       uint8_t onesComplementByteTwo = (pkt->payload[1] ^ 0xF8);
-      // decode the accessories decoder address and update the TurnoutManager metadata
-      uint16_t boardAddress = (pkt->payload[0] & 0x3F) + ((onesComplementByteTwo >> 4) & 0x07);
+      // decode the accessories decoder address from the packet payload.
+      uint16_t boardAddress = (pkt->payload[0] & 0x3F) +
+                              ((onesComplementByteTwo >> 4) & 0x07);
       uint8_t boardIndex = ((onesComplementByteTwo >> 1) % 4);
       bool state = onesComplementByteTwo & 0x01;
-      // with the board address and index decoded from the packet we can assemble a 12bit decoder address
-      uint16_t decoderAddress = (boardAddress * 4 + boardIndex) - 3;
-      turnoutManager->setByAddress(decoderAddress, state, false);
+      // Set the turnout to the requested state, don't send a DCC packet.
+      turnoutManager->setByAddress(decodeDCCAccessoryAddress(boardAddress, boardIndex), state, false);
     }
     b->unref();
   }

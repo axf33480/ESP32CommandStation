@@ -27,7 +27,8 @@ enum TurnoutType {
   MAX_TURNOUT_TYPES // NOTE: this must be the last entry in the enum.
 };
 
-void calculateTurnoutBoardAddressAndIndex(uint16_t *boardAddress, int8_t *boardIndex, uint16_t address);
+void encodeDCCAccessoryAddress(uint16_t *boardAddress, int8_t *boardIndex, uint16_t address);
+uint16_t decodeDCCAccessoryAddress(uint16_t boardAddress, int8_t boardIndex);
 
 class Turnout {
 public:
