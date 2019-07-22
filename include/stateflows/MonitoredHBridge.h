@@ -284,9 +284,9 @@ private:
   const TrackOutputConfig cfg_;
   const StatusLED::LED targetLED_;
   const uint8_t adcSampleCount_{64};
-  const uint64_t checkInterval_{MSEC_TO_NSEC(25)};
+  const uint64_t checkInterval_{MSEC_TO_NSEC(100)};
   const uint8_t overCurrentRetryCount_{3};
-  const uint64_t overCurrentRetryInterval_{MSEC_TO_NSEC(250)};
+  const uint64_t overCurrentRetryInterval_{MSEC_TO_NSEC(25)};
   const uint64_t currentReportInterval_{SEC_TO_USEC(30)};
   StateFlowTimer timer_{this};
   MemoryBit<uint8_t> shortBit_;
@@ -366,15 +366,23 @@ private:
     lastReading_ = (std::accumulate(samples.begin(), samples.end(), 0) / samples.size());
     if (lastReading_ >= shutdownLimit_)
     {
+      LOG_ERROR("[%s] Shutdown Threshold breached %6.2f mA (raw: %d)"
+              , name_.c_str()
+              , getUsage() / 1000.0f
+              , lastReading_);
       state_ = STATE_SHUTDOWN;
       statusLEDColor = StatusLED::COLOR::RED_BLINK;
     }
     else if (lastReading_ >= overCurrentLimit_)
     {
-      // disable the h-bridge output
-      ESP_ERROR_CHECK(gpio_set_level(enablePin_, 0));
       if(overCurrentCheckCount_++ >= overCurrentRetryCount_)
       {
+        // disable the h-bridge output
+        ESP_ERROR_CHECK(gpio_set_level(enablePin_, 0));
+        LOG_ERROR("[%s] Overcurrent detected %6.2f mA (raw: %d)"
+                , name_.c_str()
+                , getUsage() / 1000.0f
+                , lastReading_);
         state_ = STATE_OVERCURRENT;
         statusLEDColor = StatusLED::COLOR::RED;
       }
@@ -383,22 +391,21 @@ private:
         return call_immediately(STATE(sleep_and_check_overcurrent));
       }
     }
-    else
+    else if (thermalWarningPin_ >= 0 && gpio_get_level(thermalWarningPin_))
     {
-      if (thermalWarningPin_ >= 0 && gpio_get_level(thermalWarningPin_))
+      LOG_ERROR("[%s] Thermal shutdown detected", name_.c_str());
+      state_ = STATE_THERMAL_SHUTDOWN;
+      statusLEDColor = StatusLED::COLOR::YELLOW_BLINK;
+    }
+    else if(initialState != STATE_ON)
+    {
+      LOG(INFO, "[%s] Enabling to normal operations", name_.c_str());
+      state_ = STATE_ON;
+      overCurrentCheckCount_ = 0;
+      statusLEDColor = StatusLED::COLOR::GREEN;
+      if (lastReading_ >= warnLimit_)
       {
-        state_ = STATE_THERMAL_SHUTDOWN;
-        statusLEDColor = StatusLED::COLOR::YELLOW_BLINK;
-      }
-      else if(initialState != STATE_ON)
-      {
-        state_ = STATE_ON;
-        overCurrentCheckCount_ = 0;
-        statusLEDColor = StatusLED::COLOR::GREEN;
-        if (lastReading_ >= warnLimit_)
-        {
-          statusLEDColor = StatusLED::COLOR::YELLOW;
-        }
+        statusLEDColor = StatusLED::COLOR::YELLOW;
       }
     }
     if(esp_timer_get_time() - lastReport_ > currentReportInterval_)
