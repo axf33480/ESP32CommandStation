@@ -697,7 +697,7 @@ void Esp32WiFiManager::start_wifi_system()
     // These do not require recompilation of arduino-esp32 code as these are
     // used in the WIFI_INIT_CONFIG_DEFAULT macro, they simply need to be redefined.
     cfg.static_rx_buf_num = 16;
-    cfg.static_rx_buf_num = 32;
+    cfg.dynamic_rx_buf_num = 32;
     cfg.rx_ba_win = 16;
 
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
