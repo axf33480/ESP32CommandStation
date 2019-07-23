@@ -93,6 +93,7 @@ the state of any outputs being monitored or controlled by a separate interface
 or GUI program.
 
 **********************************************************************/
+#if ENABLE_OUTPUTS
 LinkedList<Output *> outputs([](Output *output) {delete output; });
 
 static constexpr const char * OUTPUTS_JSON_FILE = "outputs.json";
@@ -315,3 +316,4 @@ void OutputExCommandAdapter::process(const std::vector<std::string> arguments) {
     }
   }
 }
+#endif // ENABLE_OUTPUTS

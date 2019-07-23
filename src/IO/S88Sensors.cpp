@@ -41,6 +41,7 @@ S88 Sensors are reported in the same manner as generic Sensors:
   <q ID>     - for deactivation of S88 Sensor ID.
 
 **********************************************************************/
+#if ENABLE_SENSORS
 
 // Set some defaults for compilation purposes.
 #ifndef S88_CLOCK_PIN
@@ -333,3 +334,4 @@ void S88BusCommandAdapter::process(const std::vector<std::string> arguments) {
 S88Sensor::S88Sensor(uint16_t id, uint16_t index) : Sensor(id, NON_STORED_SENSOR_PIN, false, false), _index(index) {
   LOG(VERBOSE, "[S88] Sensor(%d) created with index %d", id, _index);
 }
+#endif // ENABLE_SENSORS

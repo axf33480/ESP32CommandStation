@@ -198,15 +198,19 @@ void ESP32CSWebServer::begin() {
   GET_URI("/features", handleFeatures)
   GET_POST_URI("/programmer", handleProgrammer)
   GET_PUT_URI("/power", handlePower)
-  GET_POST_PUT_DELETE_URI("/outputs", handleOutputs)
-  GET_POST_DELETE_URI("/sensors", handleSensors)
-  GET_POST_DELETE_URI("/remoteSensors", handleRemoteSensors)
   GET_POST_DELETE_URI("/config", handleConfig)
   GET_POST_PUT_DELETE_URI("/locomotive", handleLocomotive)
   POST_UPLOAD_URI("/update", handleOTA, otaUploadCallback)
 
+#if ENABLE_OUTPUTS
+  GET_POST_PUT_DELETE_URI("/outputs", handleOutputs)
+#endif
+#if ENABLE_SENSORS
+  GET_POST_DELETE_URI("/sensors", handleSensors)
+  GET_POST_DELETE_URI("/remoteSensors", handleRemoteSensors)
 #if S88_ENABLED
   GET_POST_DELETE_URI("/s88sensors", handleS88Sensors)
+#endif
 #endif
 
   webServer.rewrite("/", "/index.html");
@@ -419,6 +423,7 @@ void ESP32CSWebServer::handlePower(AsyncWebServerRequest *request)
  }
 
 void ESP32CSWebServer::handleOutputs(AsyncWebServerRequest *request) {
+#if ENABLE_OUTPUTS
   auto jsonResponse = new AsyncJsonResponse(request->method() == HTTP_GET && !request->params());
   if (request->method() == HTTP_GET && !request->hasArg(JSON_ID_NODE)) {
     JsonArray array = jsonResponse->getRoot();
@@ -458,6 +463,7 @@ void ESP32CSWebServer::handleOutputs(AsyncWebServerRequest *request) {
   }
   jsonResponse->setLength();
   request->send(jsonResponse);
+#endif // ENABLE_OUTPUTS
 }
 
 void ESP32CSWebServer::handleTurnouts(AsyncWebServerRequest *request) {
@@ -545,6 +551,7 @@ void ESP32CSWebServer::handleTurnouts(AsyncWebServerRequest *request) {
 }
 
 void ESP32CSWebServer::handleSensors(AsyncWebServerRequest *request) {
+#if ENABLE_SENSORS
   auto jsonResponse = new AsyncJsonResponse(request->method() == HTTP_GET && !request->params());
   if (request->method() == HTTP_GET && !request->hasArg(JSON_ID_NODE)) {
     JsonArray array = jsonResponse->getRoot();
@@ -574,6 +581,7 @@ void ESP32CSWebServer::handleSensors(AsyncWebServerRequest *request) {
   }
   jsonResponse->setLength();
   request->send(jsonResponse);
+#endif // ENABLE_SENSORS
 }
 
 void ESP32CSWebServer::handleConfig(AsyncWebServerRequest *request) {
@@ -587,7 +595,7 @@ void ESP32CSWebServer::handleConfig(AsyncWebServerRequest *request) {
   request->send(STATUS_OK, "application/json", configStore->getCSConfig().c_str());
 }
 
-#if S88_ENABLED
+#if S88_ENABLED && ENABLE_SENSORS
 void ESP32CSWebServer::handleS88Sensors(AsyncWebServerRequest *request) {
   auto jsonResponse = new AsyncJsonResponse(true);
   if(request->method() == HTTP_GET) {
@@ -610,6 +618,7 @@ void ESP32CSWebServer::handleS88Sensors(AsyncWebServerRequest *request) {
 #endif
 
 void ESP32CSWebServer::handleRemoteSensors(AsyncWebServerRequest *request) {
+#if ENABLE_SENSORS
   auto jsonResponse = new AsyncJsonResponse(true);
   if(request->method() == HTTP_GET) {
     JsonArray array = jsonResponse->getRoot();
@@ -622,6 +631,7 @@ void ESP32CSWebServer::handleRemoteSensors(AsyncWebServerRequest *request) {
   }
   jsonResponse->setLength();
   request->send(jsonResponse);
+#endif // ENABLE_SENSORS
 }
 
 void ESP32CSWebServer::handleLocomotive(AsyncWebServerRequest *request) {
@@ -727,12 +737,10 @@ void ESP32CSWebServer::handleOTA(AsyncWebServerRequest *request) {
 void ESP32CSWebServer::handleFeatures(AsyncWebServerRequest *request) {
   auto jsonResponse = new AsyncJsonResponse();
   JsonObject root = jsonResponse->getRoot();
-#if S88_ENABLED
-  root[JSON_S88_NODE] = JSON_VALUE_TRUE;
   root[JSON_S88_SENSOR_BASE_NODE] = S88_FIRST_SENSOR;
-#else
-  root[JSON_S88_NODE] = JSON_VALUE_FALSE;
-#endif
+  root[JSON_S88_NODE] = S88_ENABLED && ENABLE_SENSORS ? JSON_VALUE_TRUE : JSON_VALUE_FALSE;
+  root[JSON_OUTPUTS_NODE] = ENABLE_OUTPUTS ? JSON_VALUE_TRUE : JSON_VALUE_FALSE;
+  root[JSON_SENSORS_NODE] = ENABLE_SENSORS ? JSON_VALUE_TRUE : JSON_VALUE_FALSE;
   jsonResponse->setCode(STATUS_OK);
   jsonResponse->setLength();
   request->send(jsonResponse);

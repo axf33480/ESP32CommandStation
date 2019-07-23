@@ -44,20 +44,6 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 // to disable the CAN interface set this to NOT_A_PIN
 #define LCC_CAN_TX_PIN NOT_A_PIN
 
-// This defines where on the filesystem LCC configuration data will be persisted.
-#define LCC_CONFIG_DIR "/LCC"
-
-// This is where the CDI will be persisted on the filesystem and sent from on-demand
-// when the NODE CDI information is requested.
-#define LCC_CDI_FILE "/LCC/cdi.xml"
-
-// This is where the NODE persistent configuration will be stored on the filesystem.
-#define LCC_CONFIG_FILE "/LCC/config"
-
-// This defines which filesystem the LCC interface will use. Currently only SPIFFS is
-// supported but an SD card will be supported in the future.
-#define LCC_USE_SPIFFS true
-
 // This define will force a factory reset by removing the LCC_CDI_FILE and
 // LCC_CONFIG_FILE before starting the OpenMRN stack. This should not normally
 // be required.

@@ -50,6 +50,8 @@ where
           Usage is remote sensor dependent.
 **********************************************************************/
 
+#if ENABLE_SENSORS
+
 // sanity check to ensure configuration has been setup correctly, default
 // any missing parameters
 #ifndef REMOTE_SENSORS_PREFIX
@@ -190,3 +192,4 @@ void RemoteSensorsCommandAdapter::process(const std::vector<std::string> argumen
     }
   }
 }
+#endif // ENABLE_SENSORS

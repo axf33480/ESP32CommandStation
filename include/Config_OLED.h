@@ -28,7 +28,7 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 // TTGO: ttgo-lora32-v1
 // D-duino-32: d-duino-32 (if available, if not use block below)
 #if defined(OLED_SDA) && defined(OLED_SCL)
-#define OLED_CHIPSET SH1306
+#define INFO_SCREEN_OLED_CHIPSET SH1306
 #define INFO_SCREEN_OLED_I2C_ADDRESS 0x3C
 #define INFO_SCREEN_SDA_PIN OLED_SDA
 #define INFO_SCREEN_SCL_PIN OLED_SCL
@@ -39,7 +39,7 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 // For the D-duino-32/WeMos (LilyGo) OLED board the following
 // settings should be used if d-duino-32 is not available in platformio.ini
 
-//#define OLED_CHIPSET SH1306
+//#define INFO_SCREEN_OLED_CHIPSET SH1306
 //#define INFO_SCREEN_OLED_I2C_ADDRESS 0x3C
 //#define INFO_SCREEN_SDA_PIN 5
 //#define INFO_SCREEN_SCL_PIN 4
@@ -55,7 +55,7 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 //#define INFO_SCREEN_RESET_PIN 15
 
 // OLED Display Chipset, currently supported: SH1106 and SSD1306
-#define OLED_CHIPSET SH1106
+#define INFO_SCREEN_OLED_CHIPSET SH1106
 
 // OLED Display I2C address, most use 0x3C
 #define INFO_SCREEN_OLED_I2C_ADDRESS 0x3C

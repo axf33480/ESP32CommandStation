@@ -32,11 +32,15 @@ public:
   void process(const vector<string> arguments) {
     configStore->clear();
     turnoutManager->clear();
+#if SENSORS_ENABLED
     SensorManager::clear();
 #if S88_ENABLED
     S88BusManager::clear();
 #endif
+#endif
+#if ENABLE_OUTPUTS
     OutputManager::clear();
+#endif
     LocomotiveManager::clear();
     wifiInterface.broadcast(COMMAND_SUCCESSFUL_RESPONSE);
   }
@@ -62,8 +66,16 @@ public:
 #else
     wifiInterface.broadcast(StringPrintf("<e %d %d %d 0 %d>",
       turnoutManager->store(),
+#if SENSORS_ENABLED
       SensorManager::store(),
+#else
+      0,
+#endif
+#if ENABLE_OUTPUTS
       OutputManager::store(),
+#else
+      0,
+#endif
       LocomotiveManager::store()));
 #endif
   }
@@ -200,7 +212,9 @@ public:
     broadcast_all_hbridge_statuses();
     LocomotiveManager::showStatus();
     turnoutManager->showStatus();
+#if ENABLE_OUTPUTS
     OutputManager::showStatus();
+#endif
     wifiInterface.showInitInfo();
   }
 
@@ -306,15 +320,19 @@ void DCCPPProtocolHandler::init() {
   registerCommand(new WriteCVBitOpsCommand());
   registerCommand(new ConfigErase());
   registerCommand(new ConfigStore());
+#if OUTPUTS_ENABLED
   registerCommand(new OutputCommandAdapter());
   registerCommand(new OutputExCommandAdapter());
+#endif
   registerCommand(new TurnoutCommandAdapter());
   registerCommand(new TurnoutExCommandAdapter());
+#if SENSORS_ENABLED
   registerCommand(new SensorCommandAdapter());
-#if defined(S88_ENABLED) && S88_ENABLED
+#if S88_ENABLED
   registerCommand(new S88BusCommandAdapter());
 #endif
   registerCommand(new RemoteSensorsCommandAdapter());
+#endif
   registerCommand(new FreeHeapCommand());
   registerCommand(new EStopCommand());
 }

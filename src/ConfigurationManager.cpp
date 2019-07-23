@@ -167,9 +167,12 @@ ConfigurationManager::ConfigurationManager() {
     JsonObject config = createRootNode();
     JsonObject wifiConfig = config.createNestedObject(JSON_WIFI_NODE);
     JsonObject stationConfig = wifiConfig.createNestedObject(JSON_WIFI_STATION_NODE);
-#if WIFI_ENABLE_SOFT_AP
+#if WIFI_ENABLE_SOFT_AP_ONLY
+    wifiMode_ = WIFI_MODE_AP;
+    wifiConfig[JSON_WIFI_MODE_NODE] = JSON_VALUE_WIFI_MODE_SOFTAP_ONLY;
+#elif WIFI_ENABLE_SOFT_AP
     wifiMode_ = WIFI_MODE_APSTA;
-    wifiConfig[JSON_WIFI_MODE_NODE] = JSON_VALUE_WIFI_MODE_STATION_ONLY;
+    wifiConfig[JSON_WIFI_MODE_NODE] = JSON_VALUE_WIFI_MODE_SOFTAP_STATION;
 #else
     wifiConfig[JSON_WIFI_MODE_NODE] = JSON_VALUE_WIFI_MODE_STATION_ONLY;
 #endif

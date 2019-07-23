@@ -110,6 +110,28 @@ using std::string;
 // Configuration defaults
 /////////////////////////////////////////////////////////////////////////////////////
 
+// This defines where on the filesystem LCC configuration data will be persisted.
+#define LCC_CONFIG_DIR "/LCC"
+
+// This is where the CDI will be persisted on the filesystem and sent from on-demand
+// when the NODE CDI information is requested.
+#define LCC_CDI_FILE "/LCC/cdi.xml"
+
+// This is where the NODE persistent configuration will be stored on the filesystem.
+#define LCC_CONFIG_FILE "/LCC/config"
+
+#ifndef LCC_NODE_ID
+#define LCC_NODE_ID 0x050101013F00
+#endif
+
+#ifndef ENABLE_OUTPUTS
+#define ENABLE_OUTPUTS true
+#endif
+
+#ifndef ENABLE_SENSORS
+#define ENABLE_SENSORS true
+#endif
+
 #ifndef STATUS_LED_ENABLED
 #define STATUS_LED_ENABLED false
 #endif
@@ -183,6 +205,18 @@ using std::string;
 #ifndef STATUS_LED_ENABLED
 #define STATUS_LED_TYPE WS281X_800
 #define STATUS_LED_COLOR_ORDER RGB
+#endif
+
+#ifndef STATUS_LED_COLOR_ORDER
+#define STATUS_LED_COLOR_ORDER RGB
+#endif
+
+#ifndef STATUS_LED_TYPE
+#define STATUS_LED_TYPE WS281X
+#endif
+
+#ifndef STATUS_LED_BRIGHTNESS
+#define STATUS_LED_BRIGHTNESS 128
 #endif
 
 #ifndef ENABLE_TASK_MONITOR
@@ -263,15 +297,26 @@ void initializeLocoNet();
 #error "Invalid Configuration detected, Config_WiFi.h is a mandatory module."
 #endif
 
+#ifndef HOSTNAME_PREFIX
+#define HOSTNAME_PREFIX "esp32cs_"
+#endif
+
 /////////////////////////////////////////////////////////////////////////////////////
 // Ensure the required h-bridge parameters are specified and not overlapping.
 /////////////////////////////////////////////////////////////////////////////////////
-#if !defined(OPS_HBRIDGE_NAME) || \
-    !defined(OPS_HBRIDGE_ENABLE_PIN) || \
+
+#ifndef OPS_HBRIDGE_NAME
+#define OPS_HBRIDGE_NAME "OPS"
+#endif
+
+#ifndef PROG_HBRIDGE_NAME
+#define PROG_HBRIDGE_NAME "PROG"
+#endif
+
+#if !defined(OPS_HBRIDGE_ENABLE_PIN) || \
     !defined(OPS_HBRIDGE_THERMAL_PIN) || \
     !defined(OPS_HBRIDGE_CURRENT_SENSE_ADC) || \
     !defined(OPS_HBRIDGE_TYPE) || \
-    !defined(PROG_HBRIDGE_NAME) || \
     !defined(PROG_HBRIDGE_ENABLE_PIN) || \
     !defined(PROG_HBRIDGE_CURRENT_SENSE_ADC) || \
     !defined(PROG_HBRIDGE_TYPE) || \

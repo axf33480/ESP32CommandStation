@@ -17,9 +17,11 @@ COPYRIGHT (c) 2019 Mike Dunston
 
 #include "ESP32CommandStation.h"
 
+unique_ptr<StatusLED> statusLED;
+
 StateFlowBase::Action StatusLED::init() {
   LOG(INFO, "[StatusLED] Initializing LEDs");
-#if defined(STATUS_LED_DATA_PIN) && defined(STATUS_LED_BRIGHTNESS)
+#if STATUS_LED_ENABLED
   bus_.reset(new NeoPixelBrightnessBus<NEO_COLOR_MODE, NEO_METHOD>(LED::MAX_LED, STATUS_LED_DATA_PIN));
   bus_->Begin();
   bus_->SetBrightness(STATUS_LED_BRIGHTNESS);

@@ -52,18 +52,15 @@ static constexpr ConfigDef cfg(0);
 
 unique_ptr<RailcomHubFlow> railComHub;
 unique_ptr<RailcomPrintfFlow> railComDataDumper;
-unique_ptr<InfoScreen> infoScreen;
 unique_ptr<InfoScreenStatCollector> infoScreenCollector;
-unique_ptr<StatusLED> statusLED;
-unique_ptr<HC12Radio> hc12;
 unique_ptr<SimpleUpdateLoop> dccUpdateLoop;
 unique_ptr<FreeRTOSTaskMonitor> taskMonitor;
 unique_ptr<OTAMonitorFlow> otaMonitor;
 
-#if LCC_USE_SPIFFS
-#define CDI_CONFIG_PREFIX "/spiffs"
-#elif LCC_USE_SD
+#if CONFIG_USE_SD
 #define CDI_CONFIG_PREFIX "/sdcard"
+#else
+#define CDI_CONFIG_PREFIX "/spiffs"
 #endif
 
 namespace openlcb
@@ -336,10 +333,14 @@ extern "C" void app_main()
   timerAlarmEnable(cpuTickTimer);
 #endif
 
+#if ENABLE_OUTPUTS
   OutputManager::init();
+#endif
+#if ENABLE_SENSORS
   SensorManager::init();
   S88BusManager::init();
   RemoteSensorManager::init();
+#endif
 
 #if LOCONET_ENABLED
   initializeLocoNet();

@@ -17,6 +17,8 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 #include "ESP32CommandStation.h"
 
+unique_ptr<InfoScreen> infoScreen;
+
 #ifndef INFO_SCREEN_SDA_PIN
 #define INFO_SCREEN_SDA_PIN SDA
 #endif
@@ -24,14 +26,18 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #define INFO_SCREEN_SCL_PIN SCL
 #endif
 
+#ifndef INFO_SCREEN_OLED_LINES
+#define INFO_SCREEN_OLED_LINES 5
+#endif
+
 #include <Wire.h>
 #if INFO_SCREEN_OLED
 #include "interfaces/InfoScreen_OLED_font.h"
 #define INFO_SCREEN_I2C_TEST_ADDRESS INFO_SCREEN_OLED_I2C_ADDRESS
-#if OLED_CHIPSET == SH1106
+#if INFO_SCREEN_OLED_CHIPSET == SH1106
 #include <SH1106Wire.h>
 SH1106Wire oledDisplay(INFO_SCREEN_OLED_I2C_ADDRESS, INFO_SCREEN_SDA_PIN, INFO_SCREEN_SCL_PIN);
-#elif OLED_CHIPSET == SSD1306
+#elif INFO_SCREEN_OLED_CHIPSET == SSD1306
 #include <SSD1306Wire.h>
 SSD1306Wire oledDisplay(INFO_SCREEN_OLED_I2C_ADDRESS, INFO_SCREEN_SDA_PIN, INFO_SCREEN_SCL_PIN);
 #endif
@@ -62,6 +68,7 @@ void InfoScreen::replaceLine(int row, const std::string &format, ...) {
 }
 
 StateFlowBase::Action InfoScreen::init() {
+#if INFO_SCREEN_ENABLED
   replaceLine(INFO_SCREEN_STATION_INFO_LINE, "ESP32-CS: v%s", VERSION);
   replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Starting Up");
 
@@ -84,6 +91,7 @@ StateFlowBase::Action InfoScreen::init() {
         INFO_SCREEN_SDA_PIN,
         INFO_SCREEN_SCL_PIN);
   }
+#endif
   // The only time we should encounter this case is if the I2C init
   // fails. Cleanup and exit the flow.
   LOG(WARNING, "[InfoScreen] no output device");
@@ -91,6 +99,7 @@ StateFlowBase::Action InfoScreen::init() {
 }
 
 StateFlowBase::Action InfoScreen::i2cScan() {
+#if INFO_SCREEN_ENABLED
   // Scan the I2C bus and dump the output of devices that respond
   std::string scanresults =
     "Scanning for I2C devices...\n"
@@ -112,14 +121,14 @@ StateFlowBase::Action InfoScreen::i2cScan() {
       "I2C display not found at 0x%02x\n%s",
       INFO_SCREEN_I2C_TEST_ADDRESS,
       scanresults.c_str());
-
+#endif
   // we are done, shutdown the flow
   return exit();
 }
 
 StateFlowBase::Action InfoScreen::initOLED() {
 #if INFO_SCREEN_OLED
-#if defined(INFO_SCREEN_RESET_PIN)
+#ifdef INFO_SCREEN_RESET_PIN
   static bool resetCalled = false;
   if(!resetCalled) {
     // if we have a reset pin defined, attempt to reset the I2C screen

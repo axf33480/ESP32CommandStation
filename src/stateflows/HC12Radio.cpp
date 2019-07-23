@@ -17,6 +17,8 @@ COPYRIGHT (c) 2018-2019 Mike Dunston
 
 #include "ESP32CommandStation.h"
 
+unique_ptr<HC12Radio> hc12;
+
 #ifndef HC12_RADIO_BAUD
 #define HC12_RADIO_BAUD 19200
 #endif

@@ -165,7 +165,7 @@
        <a href='#' id='cs-turnout-refresh' data-role='button' data-show-label='false' data-icon='ui-icon-refresh' title='refresh' class='ui-button-inline'></a>
       </div>
      </div>
-     <h3>Sensors</h3>
+     <h3 id="cs-sensors-h3">Sensors</h3>
      <div id="cs-sensors">
       <div class="ui-grid-solo">
        <table id="cs-table-sensors" data-role="table" class="ui-body-d ui-shadow table-stripe ui-responsive">
@@ -210,7 +210,7 @@
        <a href='#' id='cs-sensor-s88-refresh' data-role='button' data-show-label='false' data-icon='ui-icon-refresh' title='refresh' class='ui-button-inline'></a>
       </div>
      </div>
-     <h3>Outputs</h3>
+     <h3 id="cs-outputs-h3">Outputs</h3>
      <div id="cs-outputs">
       <div class="ui-grid-solo">
        <table id="cs-table-outputs" data-role="table" class="ui-body-d ui-shadow table-stripe ui-responsive">
@@ -596,6 +596,15 @@ function initPage() {
     }, 1);
    },
    success : function (data, status, xhr) {
+    if(data.sensors === 'false') {
+     $('#cs-sensors-h3').hide();
+     $('#cs-sensors').hide();
+     disableS88Tab();
+    }
+    if(data.outputs === 'false') {
+     $('#cs-outputs-h3').hide();
+     $('#cs-outputs').hide();
+    }
     if(data.s88 === 'false') {
      disableS88Tab();
     } else {

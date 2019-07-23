@@ -74,6 +74,7 @@ Depending on whether the physical sensor is acting as an "event-trigger" or a
 
 **********************************************************************/
 
+#if ENABLE_SENSORS
 LinkedList<Sensor *> sensors([](Sensor *sensor) {delete sensor; });
 
 TaskHandle_t SensorManager::_taskHandle;
@@ -264,3 +265,5 @@ void SensorCommandAdapter::process(const std::vector<std::string> arguments) {
     }
   }
 }
+
+#endif // ENABLE_SENSORS
