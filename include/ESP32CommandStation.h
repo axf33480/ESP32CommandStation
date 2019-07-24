@@ -76,7 +76,6 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #endif
 
 #ifndef ESP32CS_EXTERNAL_CONFIGURATION
-#pragma message("config being included!")
 #include "Config.h"
 #endif
 
