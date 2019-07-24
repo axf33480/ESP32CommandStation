@@ -34,12 +34,13 @@ unique_ptr<ConfigurationManager> configStore;
 //#define CONFIG_USE_SD true
 
 #define SPIFFS_FILESYSTEM_PREFIX "/spiffs"
+#define SD_FILESYSTEM_PREFIX "/sdcard"
 
 // Handle for the SD card (if mounted)
 sdmmc_card_t *sdcard = nullptr;
 
 #if CONFIG_USE_SD
-#define FILESYSTEM_PREFIX "/sdcard"
+#define FILESYSTEM_PREFIX SD_FILESYSTEM_PREFIX
 #else
 // default to SPIFFS storage
 #define FILESYSTEM_PREFIX SPIFFS_FILESYSTEM_PREFIX
@@ -57,7 +58,7 @@ static const char* const OLD_CONFIG_DIR = FILESYSTEM_PREFIX "/DCCppESP32";
 unique_ptr<Esp32WiFiManager> wifiManager;
 
 void recursiveWalkTree(const std::string &path, bool remove=false) {
-  LOG(VERBOSE, "[Config] Reading directory: %s", path.c_str());
+  LOG(INFO, "[Config] Reading directory: %s", path.c_str());
   DIR *dir = opendir(path.c_str());
   if(dir) {
     dirent *ent = NULL;
@@ -70,7 +71,7 @@ void recursiveWalkTree(const std::string &path, bool remove=false) {
         } else {
           struct stat statbuf;
           stat(fullPath.c_str(), &statbuf);
-          LOG(VERBOSE, "[Config] %s (%d bytes)", fullPath.c_str(), (int)statbuf.st_size);
+          LOG(INFO, "[Config] %s (%d bytes)", fullPath.c_str(), (int)statbuf.st_size);
         }
       } else if(ent->d_type == DT_DIR) {
         recursiveWalkTree(fullPath, remove);
@@ -114,7 +115,7 @@ ConfigurationManager::ConfigurationManager() {
     .allocation_unit_size = 16 * 1024
   };
   ESP_ERROR_CHECK(
-    esp_vfs_fat_sdmmc_mount(FILESYSTEM_PREFIX,
+    esp_vfs_fat_sdmmc_mount(SD_FILESYSTEM_PREFIX,
                             &host,
                             &slot_config,
                             &mount_config,
@@ -130,9 +131,9 @@ ConfigurationManager::ConfigurationManager() {
         (float)(((uint64_t)sdcard->csd.capacity) * sdcard->csd.sector_size) / 1048576);
   }
 #endif
-  mkdir(ESP32CS_CONFIG_DIR, ACCESSPERMS);
   std::string configRoot = FILESYSTEM_PREFIX;
   recursiveWalkTree(configRoot);
+  mkdir(ESP32CS_CONFIG_DIR, ACCESSPERMS);
 
   if(exists(ESP32_CS_CONFIG_JSON)) {
     LOG(INFO, "[Config] Found existing CS config file.");

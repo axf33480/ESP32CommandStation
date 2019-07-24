@@ -19,6 +19,10 @@ COPYRIGHT (c) 2018-2019 Mike Dunston
 
 unique_ptr<HC12Radio> hc12;
 
+#ifndef HC12_UART_NUM
+#define HC12_UART_NUM 1
+#endif
+
 #ifndef HC12_RADIO_BAUD
 #define HC12_RADIO_BAUD 19200
 #endif
@@ -28,6 +32,12 @@ unique_ptr<HC12Radio> hc12;
 #ifndef HC12_TX_PIN
 #define HC12_TX_PIN 10
 #endif
+
+HC12Radio::HC12Radio(openlcb::SimpleCanStack *stack) : StateFlowBase(stack->service()), uart_((uart_port_t)HC12_UART_NUM) {
+#if HC12_RADIO_ENABLED
+  start_flow(STATE(init));
+#endif
+}
 
 StateFlowBase::Action HC12Radio::init() {
   LOG(INFO, "[HC12] Initializing UART(%d) at %ul baud on RX %d, TX %d",

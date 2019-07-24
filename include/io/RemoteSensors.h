@@ -18,7 +18,7 @@ COPYRIGHT (c) 2018 Dan Worth
 
 #pragma once
 
-#include "ESP32CommandStation.h"
+#include "io/Sensors.h"
 
 class RemoteSensor : public Sensor {
 public:

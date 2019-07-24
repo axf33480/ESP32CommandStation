@@ -245,6 +245,14 @@ void Sensor::show() {
   wifiInterface.broadcast(StringPrintf("<Q %d %d %d>", _sensorID, _pin, _pullUp));
 }
 
+void Sensor::set(bool state) {
+  if(_lastState != state) {
+    _lastState = state;
+    LOG(INFO, "Sensor: %d :: %s", _sensorID, _lastState ? "ACTIVE" : "INACTIVE");
+    wifiInterface.broadcast(StringPrintf("<%c %d>", state ? "Q" : "q", _sensorID));
+  }
+}
+
 void SensorCommandAdapter::process(const std::vector<std::string> arguments) {
   if(arguments.empty()) {
     // list all sensors

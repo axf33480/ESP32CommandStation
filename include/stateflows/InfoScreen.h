@@ -21,8 +21,6 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #include <executor/StateFlow.hxx>
 #include <openlcb/SimpleStack.hxx>
 
-#include "Config.h"
-
 #if defined(INFO_SCREEN_OLED) && INFO_SCREEN_OLED
 #define INFO_SCREEN_STATION_INFO_LINE 0
 #define INFO_SCREEN_IP_ADDR_LINE 1
@@ -45,11 +43,7 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 class InfoScreen : public StateFlowBase {
 public:
-  InfoScreen(openlcb::SimpleCanStack *stack) : StateFlowBase(stack->service()) {
-#if INFO_SCREEN_ENABLED
-    start_flow(STATE(init));
-#endif
-  }
+  InfoScreen(openlcb::SimpleCanStack *);
   void clear();
   void replaceLine(int, const std::string&, ...);
 private:

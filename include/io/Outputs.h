@@ -17,11 +17,11 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 #pragma once
 
-#include "ESP32CommandStation.h"
+#include "interfaces/DCCppProtocol.h"
 
-const uint8_t OUTPUT_IFLAG_INVERT = 0;
-const uint8_t OUTPUT_IFLAG_RESTORE_STATE = 1;
-const uint8_t OUTPUT_IFLAG_FORCE_STATE = 2;
+const uint8_t OUTPUT_IFLAG_INVERT = BIT0;
+const uint8_t OUTPUT_IFLAG_RESTORE_STATE = BIT1;
+const uint8_t OUTPUT_IFLAG_FORCE_STATE = BIT2;
 
 class Output {
 public:
@@ -45,13 +45,13 @@ public:
   void showStatus();
   std::string getFlagsAsString() {
     std::string flags = "";
-    if(bitRead(_flags, OUTPUT_IFLAG_INVERT)) {
+    if((_flags & OUTPUT_IFLAG_INVERT) == OUTPUT_IFLAG_INVERT) {
       flags += "activeLow";
     } else {
       flags += "activeHigh";
     }
-    if(bitRead(_flags, OUTPUT_IFLAG_RESTORE_STATE)) {
-      if(bitRead(_flags, OUTPUT_IFLAG_FORCE_STATE)) {
+    if((_flags & OUTPUT_IFLAG_RESTORE_STATE) == OUTPUT_IFLAG_RESTORE_STATE) {
+      if((_flags & OUTPUT_IFLAG_FORCE_STATE) == OUTPUT_IFLAG_FORCE_STATE) {
         flags += ",force(on)";
       } else {
         flags += ",force(off)";

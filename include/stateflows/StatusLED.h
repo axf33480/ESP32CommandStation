@@ -17,14 +17,12 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 #pragma once
 
-#include "ESP32CommandStation.h"
-
 #include <executor/StateFlow.hxx>
 #include <openlcb/SimpleStack.hxx>
 #include <NeoPixelBrightnessBus.h>
 
-#define NEO_COLOR_TYPE RgbColor
 #if STATUS_LED_COLOR_ORDER == RGB
+#define NEO_COLOR_TYPE RgbColor
 #define NEO_COLOR_MODE NeoRgbFeature
 #elif STATUS_LED_COLOR_ORDER == GRB
 #define NEO_COLOR_MODE NeoGrbFeature
@@ -35,8 +33,10 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #define NEO_COLOR_MODE NeoGrbwFeature
 #define NEO_COLOR_TYPE RgbwColor
 #elif STATUS_LED_COLOR_ORDER == BRG
+#define NEO_COLOR_TYPE RgbColor
 #define NEO_COLOR_MODE NeoBrgFeature
 #elif STATUS_LED_COLOR_ORDER == RBG
+#define NEO_COLOR_TYPE RgbColor
 #define NEO_COLOR_MODE NeoRbgFeature
 #else
 #error "StatusLED: unknown LED color order"
@@ -54,9 +54,11 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #error "StatusLED: unknown LED type"
 #endif
 
-class StatusLED : public StateFlowBase {
+class StatusLED : public StateFlowBase
+{
 public:
-  enum COLOR {
+  enum COLOR : uint8_t
+  {
     OFF,
     RED,
     GREEN,
@@ -66,7 +68,8 @@ public:
     YELLOW_BLINK,
   };
 
-  enum LED {
+  enum LED : uint8_t
+  {
     WIFI,
     OPS_TRACK,
     PROG_TRACK,
@@ -75,8 +78,10 @@ public:
     MAX_LED
   };
 
-  StatusLED(openlcb::SimpleCanStack *stack) : StateFlowBase(stack->service()) {
-    for(int index = 0; index < LED::MAX_LED; index++) {
+  StatusLED(openlcb::SimpleCanStack *stack) : StateFlowBase(stack->service())
+  {
+    for(int index = 0; index < LED::MAX_LED; index++)
+    {
       colors_[index] = RGB_OFF_;
       state_[index] = false;
     }

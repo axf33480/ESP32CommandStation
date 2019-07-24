@@ -47,6 +47,12 @@ SSD1306Wire oledDisplay(INFO_SCREEN_OLED_I2C_ADDRESS, INFO_SCREEN_SDA_PIN, INFO_
 LiquidCrystal_PCF8574 lcdDisplay(INFO_SCREEN_LCD_I2C_ADDRESS);
 #endif
 
+InfoScreen::InfoScreen(openlcb::SimpleCanStack *stack) : StateFlowBase(stack->service()) {
+#if INFO_SCREEN_ENABLED
+  start_flow(STATE(init));
+#endif
+}
+
 void InfoScreen::clear() {
   LOG(VERBOSE, "[InfoScreen] clear screen");
   for(int i = 0; i < 5; i++) {

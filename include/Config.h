@@ -15,7 +15,6 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
   along with this program.  If not, see http://www.gnu.org/licenses
 **********************************************************************/
 
-#ifndef ESP32CS_EXTERNAL_CONFIGURATION
 /////////////////////////////////////////////////////////////////////////////////////
 //
 // The WiFi interface is part of the ESP32 Command Station core functionality
@@ -97,7 +96,5 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 // outputs.
 
 //#define ALLOW_USAGE_OF_RESTRICTED_GPIO_PINS
-
-#endif // ESP32CS_EXTERNAL_CONFIGURATION
 
 /////////////////////////////////////////////////////////////////////////////////////

@@ -44,11 +44,23 @@ std::unique_ptr<OpenMRN> openmrn;
 // for the ESP32
 string dummystring("abcdef");
 
-// ConfigDef comes from LCCCDI.h and is specific to this particular device and
-// target. It defines the layout of the configuration memory space and is also
-// used to generate the cdi.xml file. Here we instantiate the configuration
-// layout. The argument of offset zero is ignored and will be removed later.
+// ConfigDef comes from CSConfigDescriptor.h and is specific to this particular
+// device and target. It defines the layout of the configuration memory space
+// and is also used to generate the cdi.xml file. Here we instantiate the
+// configuration layout. The argument of offset zero is ignored and will be
+// removed later.
 static constexpr ConfigDef cfg(0);
+
+// define the SNIP data for the Command Station.
+namespace openlcb {
+  const SimpleNodeStaticValues SNIP_STATIC_DATA = {
+    4,
+    "github.com/atanisoft (Mike Dunston)",
+    "ESP32 Command Station",
+    "ESP32-v1",
+    VERSION
+  };
+}
 
 unique_ptr<RailcomHubFlow> railComHub;
 unique_ptr<RailcomPrintfFlow> railComDataDumper;

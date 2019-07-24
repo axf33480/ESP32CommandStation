@@ -17,7 +17,7 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 #pragma once
 
-#include "ESP32CommandStation.h"
+#include "io/Sensors.h"
 
 class S88Sensor : public Sensor {
 public:

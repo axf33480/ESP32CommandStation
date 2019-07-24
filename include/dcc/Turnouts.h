@@ -17,7 +17,7 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 #pragma once
 
-#include "ESP32CommandStation.h"
+#include "interfaces/DCCppProtocol.h"
 
 enum TurnoutType {
   LEFT=0,

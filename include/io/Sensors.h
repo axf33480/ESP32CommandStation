@@ -17,7 +17,7 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 #pragma once
 
-#include "ESP32CommandStation.h"
+#include "interfaces/DCCppProtocol.h"
 
 const int8_t NON_STORED_SENSOR_PIN=-1;
 
@@ -43,13 +43,7 @@ public:
   virtual void check();
   void show();
 protected:
-  void set(bool state) {
-    if(_lastState != state) {
-      _lastState = state;
-      LOG(INFO, "Sensor: %d :: %s", _sensorID, _lastState ? "ACTIVE" : "INACTIVE");
-      wifiInterface.broadcast(StringPrintf("<%c %d>", state ? "Q" : "q", _sensorID));
-    }
-  }
+  void set(bool);
   void setID(uint16_t id) {
     _sensorID = id;
   }

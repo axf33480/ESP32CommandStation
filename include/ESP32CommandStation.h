@@ -15,14 +15,6 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
   along with this program.  If not, see http://www.gnu.org/licenses
 **********************************************************************/
 
-#pragma once
-
-/////////////////////////////////////////////////////////////////////////////////////
-// RELEASE VERSION
-/////////////////////////////////////////////////////////////////////////////////////
-
-#define VERSION "1.4.0"
-
 /////////////////////////////////////////////////////////////////////////////////////
 // INTERNAL FLAGS
 /////////////////////////////////////////////////////////////////////////////////////
@@ -83,7 +75,10 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #define NOT_A_PORT -1
 #endif
 
+#ifndef ESP32CS_EXTERNAL_CONFIGURATION
+#pragma message("config being included!")
 #include "Config.h"
+#endif
 
 using dcc::PacketFlowInterface;
 using dcc::RailcomHubFlow;
@@ -248,6 +243,7 @@ constexpr uint16_t S88_MAX_SENSORS_PER_BUS = 512;
 #include "interfaces/NextionInterface.h"
 #include "interfaces/WiFiInterface.h"
 
+#include "stateflows/FreeRTOSTaskMonitor.h"
 #include "stateflows/InfoScreen.h"
 #include "stateflows/InfoScreenCollector.h"
 #include "stateflows/MonitoredHBridge.h"
@@ -332,22 +328,29 @@ void initializeLocoNet();
 #define OPS_HBRIDGE_MAX_MILIAMPS 2000
 #define OPS_HBRIDGE_LIMIT_MILIAMPS 2000
 #define OPS_HBRIDGE_TYPE_NAME "L298"
+#pragma message("Using L298 for OPS")
 #elif OPS_HBRIDGE_TYPE == LMD18200
 #define OPS_HBRIDGE_MAX_MILIAMPS 3000
 #define OPS_HBRIDGE_LIMIT_MILIAMPS 3000
 #define OPS_HBRIDGE_TYPE_NAME "LMD18200"
+#pragma message("Using LMD18200 for OPS")
 #elif OPS_HBRIDGE_TYPE == POLOLU
 #define OPS_HBRIDGE_MAX_MILIAMPS 2500
 #define OPS_HBRIDGE_LIMIT_MILIAMPS 2500
 #define OPS_HBRIDGE_TYPE_NAME "POLOLU"
+#pragma message("Using POLOLU for OPS")
 #elif OPS_HBRIDGE_TYPE == BTS7960B_5A
 #define OPS_HBRIDGE_MAX_MILIAMPS 43000
 #define OPS_HBRIDGE_LIMIT_MILIAMPS 5000
 #define OPS_HBRIDGE_TYPE_NAME "BTS7960B"
+#pragma message("Using BTS7960B for OPS")
 #elif OPS_HBRIDGE_TYPE == BTS7960B_10A
 #define OPS_HBRIDGE_MAX_MILIAMPS 43000
 #define OPS_HBRIDGE_LIMIT_MILIAMPS 10000
 #define OPS_HBRIDGE_TYPE_NAME "BTS7960B"
+#pragma message("Using BTS7960B for OPS")
+#else
+#error "Unrecognized OPS_HBRIDGE_TYPE: " + OPS_HBRIDGE_TYPE
 #endif
 
 

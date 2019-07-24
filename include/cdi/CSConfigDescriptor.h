@@ -17,21 +17,44 @@ COPYRIGHT (c) 2019 Mike Dunston
 
 #pragma once
 
-#include "ESP32CommandStation.h"
 #include <openlcb/ConfigRepresentation.hxx>
 #include <openlcb/MemoryConfig.hxx>
 #include <openlcb/TractionCvCdi.hxx>
 #include <freertos_drivers/esp32/Esp32WiFiConfiguration.hxx>
 
-namespace openlcb {
-    const SimpleNodeStaticValues SNIP_STATIC_DATA = {
-        4,
-        "github.com/atanisoft (Mike Dunston)",
-        "ESP32 Command Station",
-        "ESP32-v1",
-        VERSION
-    };
+/// Track output configuration
+CDI_GROUP(TrackOutputConfig);
+CDI_GROUP_ENTRY(description,
+                openlcb::StringConfigEntry<15>,
+                Name("Description"),
+                Description("Track output description."));
+CDI_GROUP_ENTRY(event_short,
+                openlcb::EventConfigEntry,
+                Name("Short Detected"),
+                Description("This event will be produced when a short has been detected on the track output."));
+CDI_GROUP_ENTRY(event_short_cleared,
+                openlcb::EventConfigEntry,
+                Name("Short Cleared"),
+                Description("This event will be produced when a short has been cleared on the track output."));
+CDI_GROUP_ENTRY(event_shutdown,
+                openlcb::EventConfigEntry,
+                Name("H-Bridge Shutdown"),
+                Description("This event will be produced when the track output power has exceeded the safety threshold of the H-Bridge."));
+CDI_GROUP_ENTRY(event_shutdown_cleared,
+                openlcb::EventConfigEntry,
+                Name("H-Bridge Shutdown Cleared"),
+                Description("This event will be produced when the track output power has returned to safe levels."));
+CDI_GROUP_ENTRY(event_thermal_shutdown,
+                openlcb::EventConfigEntry,
+                Name("H-Bridge Thermal Shutdown"),
+                Description("This event will be produced when the H-Bridge raises a thermal warning alert."));
+CDI_GROUP_ENTRY(event_thermal_shutdown_cleared,
+                openlcb::EventConfigEntry,
+                Name("H-Bridge Thermal Shutdown Cleared"),
+                Description("This event will be produced when the H-Bridge clears the thermal warning alert."));
+CDI_GROUP_END();
 
+namespace openlcb {
     /// Modify this value whenever the config needs to be reinitialized on the
     /// node for a firmware update.
     static constexpr uint16_t CANONICAL_VERSION = 0x0140;
