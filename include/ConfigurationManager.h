@@ -15,7 +15,8 @@ COPYRIGHT (c) 2018-2019 Mike Dunston
   along with this program.  If not, see http://www.gnu.org/licenses
 **********************************************************************/
 
-#pragma once
+#ifndef CONFIG_MGR_H_
+#define CONFIG_MGR_H_
 
 #include <ArduinoJson.h>
 #include <openlcb/Defs.hxx>
@@ -56,3 +57,5 @@ private:
 
 extern unique_ptr<ConfigurationManager> configStore;
 extern unique_ptr<Esp32WiFiManager> wifiManager;
+
+#endif // CONFIG_MGR_H_

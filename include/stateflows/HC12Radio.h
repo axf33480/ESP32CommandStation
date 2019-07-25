@@ -15,7 +15,8 @@ COPYRIGHT (c) 2018-2019 Mike Dunston
   along with this program.  If not, see http://www.gnu.org/licenses
 **********************************************************************/
 
-#pragma once
+#ifndef HC12_RADIO_H_
+#define HC12_RADIO_H_
 
 #include <executor/StateFlow.hxx>
 #include <openlcb/SimpleStack.hxx>
@@ -34,3 +35,4 @@ private:
 };
 
 extern unique_ptr<HC12Radio> hc12;
+#endif // HC12_RADIO_H_

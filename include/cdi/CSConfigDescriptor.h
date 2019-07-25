@@ -15,7 +15,8 @@ COPYRIGHT (c) 2019 Mike Dunston
   along with this program.  If not, see http://www.gnu.org/licenses
 **********************************************************************/
 
-#pragma once
+#ifndef CS_CDI_H_
+#define CS_CDI_H_
 
 #include <openlcb/ConfigRepresentation.hxx>
 #include <openlcb/MemoryConfig.hxx>
@@ -97,3 +98,5 @@ namespace openlcb
     CDI_GROUP_ENTRY(version, VersionSeg);
     CDI_GROUP_END();
 }
+
+#endif // CS_CDI_H_

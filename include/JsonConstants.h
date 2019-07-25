@@ -15,7 +15,8 @@ COPYRIGHT (c) 2019 Mike Dunston
   along with this program.  If not, see http://www.gnu.org/licenses
 **********************************************************************/
 
-#pragma once
+#ifndef JSON_CONSTS_H_
+#define JSON_CONSTS_H_
 
 constexpr const char * JSON_FILE_NODE = "file";
 
@@ -108,5 +109,6 @@ constexpr const char * JSON_VALUE_SHORT_ADDRESS = "Short Address";
 constexpr const char * JSON_VALUE_MOBILE_DECODER = "Mobile Decoder";
 constexpr const char * JSON_VALUE_STATIONARY_DECODER = "Stationary Decoder";
 
-
 constexpr const char * ESP32_CS_CONFIG_JSON = "esp32cs-config.json";
+
+#endif // JSON_CONSTS_H_

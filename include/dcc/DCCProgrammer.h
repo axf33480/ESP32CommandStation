@@ -14,7 +14,9 @@ COPYRIGHT (c) 2019 Mike Dunston
   You should have received a copy of the GNU General Public License
   along with this program.  If not, see http://www.gnu.org/licenses
 **********************************************************************/
-#pragma once
+
+#ifndef DCC_PROG_H_
+#define DCC_PROG_H_
 
 #include <stdint.h>
 
@@ -64,7 +66,6 @@ enum CONSIST_FUNCTION_CONTROL_FL_F9_F12_BITS {
   F12_BIT=4
 };
 
-
 extern bool progTrackBusy;
 
 bool enterProgrammingMode();
@@ -74,3 +75,5 @@ bool writeProgCVByte(const uint16_t, const uint8_t);
 bool writeProgCVBit(const uint16_t, const uint8_t, const bool);
 void writeOpsCVByte(const uint16_t, const uint16_t, const uint8_t);
 void writeOpsCVBit(const uint16_t, const uint16_t, const uint8_t, const bool);
+
+#endif // DCC_PROG_H_

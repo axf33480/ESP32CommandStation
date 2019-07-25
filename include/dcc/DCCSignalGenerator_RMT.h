@@ -14,7 +14,9 @@ COPYRIGHT (c) 2019 Mike Dunston
   You should have received a copy of the GNU General Public License
   along with this program.  If not, see http://www.gnu.org/licenses
 **********************************************************************/
-#pragma once
+
+#ifndef DCC_SIGNAL_RMT_H_
+#define DCC_SIGNAL_RMT_H_
 
 #include "DCCSignalGenerator.h"
 #include <driver/rmt.h>
@@ -41,3 +43,5 @@ protected:
 private:
   uart_t *_railComUART;
 };
+
+#endif // DCC_SIGNAL_RMT_H_

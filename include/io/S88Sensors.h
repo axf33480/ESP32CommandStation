@@ -15,7 +15,8 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
   along with this program.  If not, see http://www.gnu.org/licenses
 **********************************************************************/
 
-#pragma once
+#ifndef S88_SENSORS_H_
+#define S88_SENSORS_H_
 
 #include "io/Sensors.h"
 
@@ -97,3 +98,4 @@ public:
   }
 };
 
+#endif // S88_SENSORS_H_

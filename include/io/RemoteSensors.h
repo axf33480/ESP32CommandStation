@@ -16,7 +16,8 @@ COPYRIGHT (c) 2018 Dan Worth
   along with this program.  If not, see http://www.gnu.org/licenses
 **********************************************************************/
 
-#pragma once
+#ifndef REMOTE_SENSORS_H_
+#define REMOTE_SENSORS_H_
 
 #include "io/Sensors.h"
 
@@ -63,3 +64,5 @@ public:
     return "RS";
   }
 };
+
+#endif // REMOTE_SENSORS_H_

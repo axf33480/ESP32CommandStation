@@ -17,6 +17,10 @@ COPYRIGHT (c) 2019 Mike Dunston
 
 #include "ESP32CommandStation.h"
 
+#ifndef ADC_CURRENT_ATTENUATION
+#define ADC_CURRENT_ATTENUATION ADC_ATTEN_DB_11
+#endif
+
 MonitoredHBridge::MonitoredHBridge(SimpleCanStack *stack
                  , const adc1_channel_t senseChannel
                  , const gpio_num_t enablePin

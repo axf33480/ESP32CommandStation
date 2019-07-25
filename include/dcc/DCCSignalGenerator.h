@@ -14,7 +14,9 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
   You should have received a copy of the GNU General Public License
   along with this program.  If not, see http://www.gnu.org/licenses
 **********************************************************************/
-#pragma once
+
+#ifndef DCC_SIGNAL_H_
+#define DCC_SIGNAL_H_
 
 #include <mutex>
 #include <queue>
@@ -241,3 +243,5 @@ static constexpr DRAM_ATTR uint8_t DCC_PACKET_BIT_MASK[] =
 extern std::unique_ptr<SignalGenerator> dccSignal[MAX_DCC_SIGNAL_GENERATORS];
 bool isDCCSignalEnabled();
 void sendDCCEmergencyStop();
+
+#endif // DCC_SIGNAL_H_

@@ -137,6 +137,18 @@ uint32_t get_hbridge_sample(string name)
   return 0;
 }
 
+uint32_t get_hbridge_max_amps(string name)
+{
+  for (auto hbridge : monitoredHBridges)
+  {
+    if (hbridge->getName() == name)
+    {
+      return hbridge->getMaxMilliAmps();
+    }
+  }
+  return 0;
+} 
+
 void broadcast_all_hbridge_statuses()
 {
   for (auto hbridge : monitoredHBridges)

@@ -15,7 +15,8 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
   along with this program.  If not, see http://www.gnu.org/licenses
 **********************************************************************/
 
-#pragma once
+#ifndef STATUS_LED_H_
+#define STATUS_LED_H_
 
 #include <executor/StateFlow.hxx>
 #include <openlcb/SimpleStack.hxx>
@@ -108,3 +109,5 @@ private:
 };
 
 extern unique_ptr<StatusLED> statusLED;
+
+#endif // STATUS_LED_H_

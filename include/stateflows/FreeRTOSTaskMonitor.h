@@ -15,7 +15,8 @@ COPYRIGHT (c) 2019 Mike Dunston
   along with this program.  If not, see http://www.gnu.org/licenses
 **********************************************************************/
 
-#pragma once
+#ifndef FREERTOS_TASK_MON_H_
+#define FREERTOS_TASK_MON_H_
 
 #include <executor/StateFlow.hxx>
 #include <openlcb/SimpleStack.hxx>
@@ -37,3 +38,4 @@ private:
     return sleep_and_call(&timer_, reportInterval_, STATE(report));
   }
 };
+#endif // FREERTOS_TASK_MON_H_

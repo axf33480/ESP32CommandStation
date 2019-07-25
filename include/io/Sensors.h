@@ -15,7 +15,8 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
   along with this program.  If not, see http://www.gnu.org/licenses
 **********************************************************************/
 
-#pragma once
+#ifndef SENSORS_H_
+#define SENSORS_H_
 
 #include "interfaces/DCCppProtocol.h"
 
@@ -77,3 +78,5 @@ public:
     return "S";
   }
 };
+
+#endif // SENSORS_H_

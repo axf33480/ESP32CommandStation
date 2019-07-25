@@ -15,7 +15,8 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
   along with this program.  If not, see http://www.gnu.org/licenses
 **********************************************************************/
 
-#pragma once
+#ifndef DCC_PROTOCOL_H_
+#define DCC_PROTOCOL_H_
 
 #include <vector>
 #include <string>
@@ -49,3 +50,5 @@ private:
 
 const std::string COMMAND_FAILED_RESPONSE = "<X>";
 const std::string COMMAND_SUCCESSFUL_RESPONSE = "<O>";
+
+#endif // DCC_PROTOCOL_H_

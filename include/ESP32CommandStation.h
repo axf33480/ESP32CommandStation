@@ -15,6 +15,9 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
   along with this program.  If not, see http://www.gnu.org/licenses
 **********************************************************************/
 
+#ifndef ESP32_CS_H_
+#define ESP32_CS_H_
+
 /////////////////////////////////////////////////////////////////////////////////////
 // INTERNAL FLAGS
 /////////////////////////////////////////////////////////////////////////////////////
@@ -232,6 +235,7 @@ constexpr uint16_t S88_MAX_SENSORS_PER_BUS = 512;
 #include "dcc/DCCSignalGenerator.h"
 #include "dcc/DCCSignalGenerator_RMT.h"
 #include "dcc/DCCProgrammer.h"
+#include "dcc/HBridgeManager.h"
 #include "dcc/Locomotive.h"
 #include "dcc/Turnouts.h"
 
@@ -255,22 +259,6 @@ constexpr uint16_t S88_MAX_SENSORS_PER_BUS = 512;
 extern vector<uint8_t> restrictedPins;
 extern unique_ptr<dcc::RailcomHubFlow> railComHub;
 extern unique_ptr<dcc::RailcomPrintfFlow> railComDataDumper;
-
-void setup_hbridge_event_handlers(Node *);
-void register_monitored_hbridge(SimpleCanStack *, const adc1_channel_t, const gpio_num_t, const gpio_num_t,
-                                const uint32_t, const uint32_t, const string &, const string &,
-                                const TrackOutputConfig &, const bool=false);
-
-void get_hbridge_status_json(JsonArray);
-bool is_track_power_on();
-void enable_all_hbridges();
-void enable_named_hbridge(string);
-void disable_all_hbridges();
-void disable_named_hbridge(string);
-uint32_t get_hbridge_sample(string);
-void broadcast_all_hbridge_statuses();
-void broadcast_named_hbridge_status(string);
-string get_hbridge_info_screen_data();
 
 #if LOCONET_ENABLED
 #include <LocoNetESP32UART.h>
@@ -320,35 +308,35 @@ void initializeLocoNet();
 /////////////////////////////////////////////////////////////////////////////////////
 // OPS track h-bridge settings
 /////////////////////////////////////////////////////////////////////////////////////
+#define L298          0
+#define LMD18200      1
+#define POLOLU        2
+#define BTS7960B_5A   3
+#define BTS7960B_10A  4
+
 #if OPS_HBRIDGE_TYPE == L298
 #define OPS_HBRIDGE_MAX_MILIAMPS 2000
 #define OPS_HBRIDGE_LIMIT_MILIAMPS 2000
 #define OPS_HBRIDGE_TYPE_NAME "L298"
-#pragma message("Using L298 for OPS")
 #elif OPS_HBRIDGE_TYPE == LMD18200
 #define OPS_HBRIDGE_MAX_MILIAMPS 3000
 #define OPS_HBRIDGE_LIMIT_MILIAMPS 3000
 #define OPS_HBRIDGE_TYPE_NAME "LMD18200"
-#pragma message("Using LMD18200 for OPS")
 #elif OPS_HBRIDGE_TYPE == POLOLU
 #define OPS_HBRIDGE_MAX_MILIAMPS 2500
 #define OPS_HBRIDGE_LIMIT_MILIAMPS 2500
 #define OPS_HBRIDGE_TYPE_NAME "POLOLU"
-#pragma message("Using POLOLU for OPS")
 #elif OPS_HBRIDGE_TYPE == BTS7960B_5A
 #define OPS_HBRIDGE_MAX_MILIAMPS 43000
 #define OPS_HBRIDGE_LIMIT_MILIAMPS 5000
 #define OPS_HBRIDGE_TYPE_NAME "BTS7960B"
-#pragma message("Using BTS7960B for OPS")
 #elif OPS_HBRIDGE_TYPE == BTS7960B_10A
 #define OPS_HBRIDGE_MAX_MILIAMPS 43000
 #define OPS_HBRIDGE_LIMIT_MILIAMPS 10000
 #define OPS_HBRIDGE_TYPE_NAME "BTS7960B"
-#pragma message("Using BTS7960B for OPS")
 #else
-#error "Unrecognized OPS_HBRIDGE_TYPE: " + OPS_HBRIDGE_TYPE
+#error "Unrecognized OPS_HBRIDGE_TYPE"
 #endif
-
 
 /////////////////////////////////////////////////////////////////////////////////////
 // PROG track h-bridge settings
@@ -368,6 +356,8 @@ void initializeLocoNet();
 #elif PROG_HBRIDGE_TYPE == BTS7960B_10A
 #define PROG_HBRIDGE_MAX_MILIAMPS 43000
 #define PROG_HBRIDGE_TYPE_NAME "BTS7960B"
+#else
+#error "Unrecognized PROG_HBRIDGE_TYPE"
 #endif
 // programming track is current limited internally by the hbridge monitor code
 #define PROG_HBRIDGE_LIMIT_MILIAMPS PROG_HBRIDGE_MAX_MILIAMPS
@@ -628,3 +618,5 @@ void initializeLocoNet();
 #if LCC_CAN_RX_PIN == LCC_CAN_TX_PIN && LCC_CAN_RX_PIN != NOT_A_PIN && LCC_CAN_TX_PIN != NOT_A_PIN
   #error "Invalid Configuration detected, LCC_CAN_RX_PIN and LCC_CAN_TX_PIN must be unique."
 #endif
+
+#endif // ESP32_CS_H_

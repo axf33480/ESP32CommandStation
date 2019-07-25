@@ -28,7 +28,7 @@ static constexpr uint8_t PROG_TRACK_CV_ATTEMPTS = 3;
 bool progTrackBusy = false;
 
 bool enterProgrammingMode() {
-  const uint16_t milliAmpStartupLimit = (4096 * 100 / PROG_HBRIDGE_MAX_MILIAMPS);
+  const uint16_t milliAmpStartupLimit = (4096 * 100 / get_hbridge_max_amps(PROG_HBRIDGE_NAME));
 
   // check if the programming track is already in use
   if(progTrackBusy) {
@@ -72,7 +72,7 @@ void leaveProgrammingMode() {
 }
 
 int16_t readCV(const uint16_t cv) {
-  const uint16_t milliAmpAck = (4096 * 60 / PROG_HBRIDGE_MAX_MILIAMPS);
+  const uint16_t milliAmpAck = (4096 * 60 / get_hbridge_max_amps(PROG_HBRIDGE_NAME));
   uint8_t readCVBitPacket[4] = { (uint8_t)(0x78 + (highByte(cv - 1) & 0x03)), lowByte(cv - 1), 0x00, 0x00};
   uint8_t verifyCVPacket[4] = { (uint8_t)(0x74 + (highByte(cv - 1) & 0x03)), lowByte(cv - 1), 0x00, 0x00};
   int16_t cvValue = -1;
@@ -120,7 +120,7 @@ int16_t readCV(const uint16_t cv) {
 }
 
 bool writeProgCVByte(const uint16_t cv, const uint8_t cvValue) {
-  const uint16_t milliAmpAck = (4096 * 60 / PROG_HBRIDGE_MAX_MILIAMPS);
+  const uint16_t milliAmpAck = (4096 * 60 / get_hbridge_max_amps(PROG_HBRIDGE_NAME));
   uint8_t writeCVBytePacket[4] = { (uint8_t)(0x7C + (highByte(cv - 1) & 0x03)), lowByte(cv - 1), cvValue, 0x00};
   uint8_t verifyCVBytePacket[4] = { (uint8_t)(0x74 + (highByte(cv - 1) & 0x03)), lowByte(cv - 1), cvValue, 0x00};
   bool writeVerified = false;
@@ -153,7 +153,7 @@ bool writeProgCVByte(const uint16_t cv, const uint8_t cvValue) {
 }
 
 bool writeProgCVBit(const uint16_t cv, const uint8_t bit, const bool value) {
-  const uint16_t milliAmpAck = (4096 * 60 / PROG_HBRIDGE_MAX_MILIAMPS);
+  const uint16_t milliAmpAck = (4096 * 60 / get_hbridge_max_amps(PROG_HBRIDGE_NAME));
   uint8_t writeCVBitPacket[4] = { (uint8_t)(0x78 + (highByte(cv - 1) & 0x03)), lowByte(cv - 1), (uint8_t)(0xF0 + bit + value * 8), 0x00};
   uint8_t verifyCVBitPacket[4] = { (uint8_t)(0x74 + (highByte(cv - 1) & 0x03)), lowByte(cv - 1), (uint8_t)(0xB0 + bit + value * 8), 0x00};
   bool writeVerified = false;

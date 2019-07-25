@@ -15,7 +15,8 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
   along with this program.  If not, see http://www.gnu.org/licenses
 **********************************************************************/
 
-#pragma once
+#ifndef OUTPUTS_H_
+#define OUTPUTS_H_
 
 #include "interfaces/DCCppProtocol.h"
 
@@ -97,3 +98,5 @@ public:
     return "Zex";
   }
 };
+
+#endif // OUTPUTS_H_

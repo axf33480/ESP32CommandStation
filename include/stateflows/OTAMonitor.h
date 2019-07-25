@@ -15,7 +15,8 @@ COPYRIGHT (c) 2019 Mike Dunston
   along with this program.  If not, see http://www.gnu.org/licenses
 **********************************************************************/
 
-#pragma once
+#ifndef OTA_MONITOR_H_
+#define OTA_MONITOR_H_
 
 #include "stateflows/InfoScreen.h"
 #include "interfaces/NextionInterface.h"
@@ -125,3 +126,5 @@ private:
 };
 
 extern unique_ptr<OTAMonitorFlow> otaMonitor;
+
+#endif // OTA_MONITOR_H_

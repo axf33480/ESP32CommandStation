@@ -15,7 +15,8 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
   along with this program.  If not, see http://www.gnu.org/licenses
 **********************************************************************/
 
-#pragma once
+#ifndef WIFI_INTERFACE_H_
+#define WIFI_INTERFACE_H_
 
 class WiFiInterface {
 public:
@@ -80,3 +81,5 @@ private:
 
 extern std::vector<WebSocketClient *> webSocketClients;
 extern std::vector<int> jmriClients;
+
+#endif // WIFI_INTERFACE_H_

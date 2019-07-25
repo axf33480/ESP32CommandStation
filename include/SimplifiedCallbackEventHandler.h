@@ -15,7 +15,8 @@ COPYRIGHT (c) 2019 Mike Dunston
   along with this program.  If not, see http://www.gnu.org/licenses
 **********************************************************************/
 
-#pragma once
+#ifndef SIMPLE_CALLBACK_HANDLER_H_
+#define SIMPLE_CALLBACK_HANDLER_H_
 
 #include <openlcb/CallbackEventHandler.hxx>
 #include <openlcb/EventHandler.hxx>
@@ -68,3 +69,5 @@ public:
 private:
   std::function<void()> callback_{nullptr};
 };
+
+#endif // SIMPLE_CALLBACK_HANDLER_H_

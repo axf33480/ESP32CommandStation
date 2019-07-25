@@ -15,7 +15,8 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
   along with this program.  If not, see http://www.gnu.org/licenses
 **********************************************************************/
 
-#pragma once
+#ifndef INFO_SCREEN_H_
+#define INFO_SCREEN_H_
 
 #include <string>
 #include <executor/StateFlow.hxx>
@@ -58,3 +59,4 @@ private:
 };
 
 extern unique_ptr<InfoScreen> infoScreen;
+#endif // INFO_SCREEN_H_

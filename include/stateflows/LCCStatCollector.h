@@ -15,7 +15,8 @@ COPYRIGHT (c) 2019 Mike Dunston
   along with this program.  If not, see http://www.gnu.org/licenses
 **********************************************************************/
 
-#pragma once
+#ifndef LCC_STAT_COLLECTOR_H_
+#define LCC_STAT_COLLECTOR_H_
 
 #include <executor/StateFlow.hxx>
 #include <openlcb/IfCan.hxx>
@@ -66,3 +67,5 @@ private:
 };
 
 extern std::unique_ptr<LCCStatCollector> lccStatCollector;
+
+#endif // LCC_STAT_COLLECTOR_H_

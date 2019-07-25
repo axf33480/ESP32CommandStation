@@ -15,7 +15,8 @@ COPYRIGHT (c) 2018-2019 Mike Dunston
   along with this program.  If not, see http://www.gnu.org/licenses
 **********************************************************************/
 
-#pragma once
+#ifndef MONITORED_H_BRIDGE_
+#define MONITORED_H_BRIDGE_
 
 #include "cdi/CSConfigDescriptor.h"
 #include <executor/StateFlow.hxx>
@@ -26,13 +27,9 @@ COPYRIGHT (c) 2018-2019 Mike Dunston
 #include <driver/adc.h>
 #include <esp_adc_cal.h>
 
-#ifndef ADC_CURRENT_ATTENUATION
-#define ADC_CURRENT_ATTENUATION ADC_ATTEN_DB_11
-#endif
-
 class MonitoredHBridge : public StateFlowBase, public DefaultConfigUpdateListener {
 public:
-  MonitoredHBridge(SimpleCanStack *
+  MonitoredHBridge(openlcb::SimpleCanStack *
                  , const adc1_channel_t
                  , const gpio_num_t
                  , const gpio_num_t
@@ -194,3 +191,5 @@ private:
     return sleep_and_call(&timer_, overCurrentRetryInterval_, STATE(check));
   }
 };
+
+#endif // MONITORED_H_BRIDGE_

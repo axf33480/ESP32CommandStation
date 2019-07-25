@@ -16,7 +16,8 @@ COPYRIGHT (c) 2018-2019 Mike Dunston
   along with this program.  If not, see http://www.gnu.org/licenses
 **********************************************************************/
 
-#pragma once
+#ifndef NEXTION_INTERFACE_H_
+#define NEXTION_INTERFACE_H_
 
 #include "dcc/Turnouts.h"
 
@@ -327,3 +328,5 @@ enum TURNOUT_IMAGE_IDS
   THREEWAY_RIGHT = 120,
   TURNOUT_DELETED = 121
 };
+
+#endif // NEXTION_INTERFACE_H_
