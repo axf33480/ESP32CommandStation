@@ -157,7 +157,7 @@ std::unique_ptr<DccAccyConsumer> turnoutConsumer;
 bool otaComplete = false;
 esp_ota_handle_t otaInProgress = 0;
 
-#if LCC_CPULOAD_REPORTING
+#if CPULOAD_REPORTING
 #include <freertos_drivers/arduino/CpuLoad.hxx>
 
 #include <esp_spi_flash.h>
@@ -166,8 +166,8 @@ CpuLoad cpuLogTracker;
 hw_timer_t *cpuTickTimer = nullptr;
 CpuLoadLog cpuLoadLogger(openmrn.stack()->service());
 
-constexpr uint8_t LCC_CPU_TIMER_NUMBER = 3;
-constexpr uint8_t LCC_CPU_TIMER_DIVIDER = 80;
+constexpr uint8_t CPULOAD_TIMER_NUMBER = 3;
+constexpr uint8_t CPULOAD_TIMER_DIVIDER = 80;
 
 os_thread_t cpuTickTaskHandle;
 
@@ -187,7 +187,7 @@ void IRAM_ATTR cpuTickTimerCallback() {
     vTaskNotifyGiveFromISR(cpuTickTaskHandle, &xHigherPriorityTaskWoken);
     portYIELD_FROM_ISR();
 }
-#endif // LCC_CPULOAD_REPORTING
+#endif // CPULOAD_REPORTING
 
 extern "C" {
 
@@ -338,7 +338,7 @@ extern "C" void app_main()
 
 #if CPULOAD_REPORTING
   os_thread_create(&cpuTickTaskHandle, "loadtick", 1, 0, &cpuTickTask, nullptr);
-  cpuTickTimer = timerBegin(LCC_CPU_TIMER_NUMBER, LCC_CPU_TIMER_DIVIDER, true);
+  cpuTickTimer = timerBegin(CPULOAD_TIMER_NUMBER, CPULOAD_TIMER_DIVIDER, true);
   timerAttachInterrupt(cpuTickTimer, &cpuTickTimerCallback, true);
   // 1MHz clock, 163 ticks per second desired.
   timerAlarmWrite(cpuTickTimer, 1000000/163, true);
