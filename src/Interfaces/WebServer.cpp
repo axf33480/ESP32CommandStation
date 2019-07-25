@@ -141,7 +141,8 @@ void otaUploadCallback(AsyncWebServerRequest *request
   esp_err_t res = ESP_OK;
   if (!index)
   {
-    res = esp_ota_begin(esp_ota_get_next_update_partition(NULL)
+    request->_tempObject = (void *)esp_ota_get_next_update_partition(NULL);
+    res = esp_ota_begin((esp_partition_t *)request->_tempObject
                       , OTA_SIZE_UNKNOWN
                       , &otaHandle);
     if (res != ESP_OK)
@@ -165,12 +166,20 @@ void otaUploadCallback(AsyncWebServerRequest *request
     {
       goto ota_failure;
     }
+    LOG(INFO, "[WebSrv] OTA binary received, setting boot partition");
+    res = esp_ota_set_boot_partition((esp_partition_t *)request->_tempObject);
+    if (res != ESP_OK)
+    {
+      goto ota_failure;
+    }
+    request->_tempObject = nullptr;
     LOG(INFO, "[WebSrv] OTA Update Complete!");
     otaMonitor->report_success();
   }
   return;
 
 ota_failure:
+  request->_tempObject = nullptr;
   LOG_ERROR("[WebSrv] OTA Update failure: %s (%d)", esp_err_to_name(res), res);
   request->send(STATUS_BAD_REQUEST, "text/plain", esp_err_to_name(res));
   otaMonitor->report_failure(res);
