@@ -29,7 +29,8 @@ COPYRIGHT (c) 2018-2019 Mike Dunston
 
 void nextionInterfaceInit();
 
-enum NEXTION_PAGES {
+enum NEXTION_PAGES
+{
   TITLE_PAGE = 0,
   ADDRESS_PAGE = 1,
   THROTTLE_PAGE = 2,
@@ -39,7 +40,8 @@ enum NEXTION_PAGES {
   MAX_PAGES
 };
 
-enum NEXTION_DEVICE_TYPE {
+enum NEXTION_DEVICE_TYPE
+{
   BASIC_3_2_DISPLAY,
   BASIC_3_5_DISPLAY,
   BASIC_5_0_DISPLAY,
@@ -49,21 +51,24 @@ enum NEXTION_DEVICE_TYPE {
   UNKOWN_DISPLAY
 };
 
-class BaseNextionPage : public NextionPage {
+class BaseNextionPage : public NextionPage
+{
 public:
   BaseNextionPage(Nextion &, uint8_t, const std::string &);
   void display();
   void refresh();
   virtual void refreshPage() = 0;
   void setTrackPower(bool=true);
-  void setPreviousPage(uint8_t pageID) {
+  void setPreviousPage(uint8_t pageID)
+  {
     _returnPageID = pageID;
   }
   void displayPreviousPage(bool=true);
   void returnToPreviousPage() {
     displayPreviousPage(false);
   }
-  uint8_t getReturnPage() {
+  uint8_t getReturnPage()
+  {
     return _returnPageID;
   }
   void sendEStop();
@@ -87,29 +92,37 @@ private:
 extern BaseNextionPage *nextionPages[MAX_PAGES];
 extern NEXTION_DEVICE_TYPE nextionDeviceType;
 
-class NextionTitlePage : public BaseNextionPage {
+class NextionTitlePage : public BaseNextionPage
+{
 public:
   NextionTitlePage(Nextion &nextion) : BaseNextionPage(nextion, TITLE_PAGE, "0"),
     _versionText(nextion, TITLE_PAGE, 3, "Version"),
-    _statusText {
+    _statusText
+    {
       NextionText(nextion, TITLE_PAGE, 4, "Status1"), 
       NextionText(nextion, TITLE_PAGE, 5, "Status2"),
       NextionText(nextion, TITLE_PAGE, 6, "Status3"),
       NextionText(nextion, TITLE_PAGE, 7, "Status4"),
       NextionText(nextion, TITLE_PAGE, 8, "Status5")
-     } {}
+     }
+  {
+
+  }
   void refreshPage() override {}
   void setStatusText(int line, std::string text) {
     _statusText[line].setText(text.c_str());
   }
-  void clearStatusText() {
-    for(auto line : _statusText) {
+  void clearStatusText()
+  {
+    for (auto line : _statusText)
+    {
       line.setText("");
     }
   }
 protected:
-  void init() override {
-    _versionText.setText(VERSION);
+  void init() override
+  {
+    _versionText.setText(ESP32CS_VERSION);
   }
   void displayPage() override {}
 private:
@@ -117,25 +130,31 @@ private:
   NextionText _statusText[5];
 };
 
-class NextionAddressPage : public BaseNextionPage {
+class NextionAddressPage : public BaseNextionPage
+{
 public:
   NextionAddressPage(Nextion &);
-  void setCurrentAddress(uint32_t address) {
+  void setCurrentAddress(uint32_t address)
+  {
     _address = address;
   }
   void addNumber(const NextionButton *);
   void removeNumber(const NextionButton *);
   void changeTurnoutType(const NextionButton *);
-  uint32_t getNewAddress() {
+  uint32_t getNewAddress()
+  {
     return std::stoi(_newAddressString);
   }
-  uint32_t getCurrentAddress() {
+  uint32_t getCurrentAddress()
+  {
     return _address;
   }
-  TurnoutType getTurnoutType() {
+  TurnoutType getTurnoutType()
+  {
     return (TurnoutType)_turnoutType;
   }
-  void setTurnoutType(TurnoutType type) {
+  void setTurnoutType(TurnoutType type)
+  {
     _turnoutType = type;
   }
   void refreshPage() override {}
@@ -159,7 +178,8 @@ private:
   std::string _newAddressString{"0"};
 };
 
-class NextionThrottlePage : public BaseNextionPage {
+class NextionThrottlePage : public BaseNextionPage
+{
 public:
   NextionThrottlePage(Nextion &);
   void activateLoco(const NextionButton *);
@@ -171,7 +191,8 @@ public:
   void decreaseLocoSpeed();
   void increaseLocoSpeed();
   void setLocoSpeed(uint8_t speed);
-  void refreshPage() override {
+  void refreshPage() override
+  {
     refreshLocomotiveDetails();
   }
   void invalidateLocomotive(uint32_t);
@@ -200,24 +221,29 @@ private:
   NextionNumber _speedNumber;
 };
 
-class NextionTurnoutPage : public BaseNextionPage {
+class NextionTurnoutPage : public BaseNextionPage
+{
 public:
   NextionTurnoutPage(Nextion &);
   void toggleTurnout(const NextionButton *);
   
   void refreshPage() override;
-  void incrementTurnoutPage() {
+  void incrementTurnoutPage()
+  {
     _turnoutStartIndex += getTurnoutsPerPageCount();
     refresh();
   }
-  void decrementTurnoutPage() {
+  void decrementTurnoutPage()
+  {
     _turnoutStartIndex -= getTurnoutsPerPageCount();
-    if(_turnoutStartIndex < 0) {
+    if (_turnoutStartIndex < 0)
+    {
       _turnoutStartIndex = 0;
     }
     refresh();
   }
-  void addNewTurnout() {
+  void addNewTurnout()
+  {
     _pageMode = PAGE_MODE::ADDITION;
     auto addressPage = static_cast<NextionAddressPage *>(nextionPages[ADDRESS_PAGE]);
     addressPage->setCurrentAddress(0);
@@ -228,7 +254,8 @@ public:
   void editButtonHandler();
 protected:
   void init() override {}
-  void displayPage() override {
+  void displayPage() override
+  {
     refreshPage();
   }
   void previousPageCallback(BaseNextionPage *);
@@ -247,21 +274,24 @@ private:
   NextionButton _addButton;
   NextionButton _delButton;
   NextionButton _editButton;
-  enum PAGE_MODE {
+  enum PAGE_MODE
+  {
     NORMAL, ADDITION, DELETION, EDIT
   };
   int16_t _turnoutStartIndex{0};
   PAGE_MODE _pageMode{PAGE_MODE::NORMAL};
 };
 
-class NextionSetupPage : public BaseNextionPage {
+class NextionSetupPage : public BaseNextionPage
+{
 public:
   NextionSetupPage(Nextion &);
   void refreshPage() override {}
 protected:
   void init() override {}
-  void displayPage() override {
-    _versionText.setText(VERSION);
+  void displayPage() override
+  {
+    _versionText.setText(ESP32CS_VERSION);
     _ssidText.setText(SSID_NAME);
     tcpip_adapter_ip_info_t ip;
     tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_STA, &ip);
@@ -278,7 +308,8 @@ private:
   NextionText _ssidText;
 };
 
-enum TURNOUT_IMAGE_IDS {
+enum TURNOUT_IMAGE_IDS
+{
   LEFT_HAND_CLOSED = 106,
   LEFT_HAND_THROWN = 107,
   RIGHT_HAND_CLOSED = 108,

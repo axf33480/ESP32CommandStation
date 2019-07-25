@@ -207,8 +207,11 @@ public:
 class StatusCommand : public DCCPPProtocolCommand {
 public:
   void process(const vector<string> arguments) {
-    wifiInterface.broadcast(StringPrintf("<iDCC++ ESP32 Command Station: V-%s / %s %s>",
-      VERSION, __DATE__, __TIME__));
+    wifiInterface.broadcast(
+      StringPrintf("<iDCC++ ESP32 Command Station: V-%s / %s %s>"
+                 , ESP32CS_VERSION
+                 , __DATE__
+                 , __TIME__));
     broadcast_all_hbridge_statuses();
     LocomotiveManager::showStatus();
     turnoutManager->showStatus();

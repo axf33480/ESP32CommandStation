@@ -59,7 +59,7 @@ void handleWsEvent(AsyncWebSocket * server,
       AtomicHolder h(&webSocketAtomic);
       webSocketClients.push_back(new WebSocketClient(client->id(), ntohl(client->remoteIP())));
     }
-    client->printf("<iDCC++ ESP32 Command Station: V-%s / %s %s>", VERSION, __DATE__, __TIME__);
+    client->printf("<iDCC++ ESP32 Command Station: V-%s / %s %s>", ESP32CS_VERSION, __DATE__, __TIME__);
     infoScreen->replaceLine(INFO_SCREEN_CLIENTS_LINE, 
                             "TCP Conn: %02d",
                             webSocketClients.size() + jmriClients.size());
@@ -835,7 +835,7 @@ void ESP32CSWebServer::notFoundHandler(AsyncWebServerRequest *request) {
       request->send(STATUS_OK,
                     "text/html",
                     StringPrintf(REDIRECT_HTML,
-                                 VERSION,
+                                 ESP32CS_VERSION,
                                  softAPAddress_.c_str(),
                                  softAPAddress_.c_str()).c_str());
       return;

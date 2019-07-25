@@ -21,9 +21,9 @@ COPYRIGHT (c) 2019 Mike Dunston
 #include <openlcb/IfCan.hxx>
 #include <openlcb/SimpleStack.hxx>
 
-class InfoScreenStatCollector : public StateFlowBase {
+class LCCStatCollector : public StateFlowBase {
 public:
-    InfoScreenStatCollector(openlcb::SimpleCanStack *stack) : StateFlowBase(stack->service()), stack_(stack) {
+    LCCStatCollector(openlcb::SimpleCanStack *stack) : StateFlowBase(stack->service()), stack_(stack) {
         start_flow(STATE(startup_delay));
     }
     StateFlowBase::Action startup_delay() {
@@ -65,4 +65,4 @@ private:
     uint32_t lastExecutorCount_{0};
 };
 
-extern unique_ptr<InfoScreenStatCollector> infoScreenCollector;
+extern std::unique_ptr<LCCStatCollector> lccStatCollector;

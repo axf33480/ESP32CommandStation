@@ -52,8 +52,6 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #include <dcc/SimpleUpdateLoop.hxx>
 
 #include <openlcb/ConfiguredTcpConnection.hxx>
-#include <openlcb/DccAccyConsumer.hxx>
-#include <openlcb/DccAccyProducer.hxx>
 #include <openlcb/TcpDefs.hxx>
 
 #include <os/MDNS.hxx>
@@ -84,7 +82,6 @@ using dcc::RailcomHubFlow;
 using dcc::RailcomPrintfFlow;
 using dcc::SimpleUpdateLoop;
 using openlcb::BitEventProducer;
-using openlcb::DccAccyConsumer;
 using openlcb::Defs;
 using openlcb::EventId;
 using openlcb::EventRegistry;
@@ -244,7 +241,7 @@ constexpr uint16_t S88_MAX_SENSORS_PER_BUS = 512;
 
 #include "stateflows/FreeRTOSTaskMonitor.h"
 #include "stateflows/InfoScreen.h"
-#include "stateflows/InfoScreenCollector.h"
+#include "stateflows/LCCStatCollector.h"
 #include "stateflows/MonitoredHBridge.h"
 #include "stateflows/StatusLED.h"
 #include "stateflows/HC12Radio.h"

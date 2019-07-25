@@ -17,9 +17,11 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 #pragma once
 
+#include <openlcb/DccAccyConsumer.hxx>
 #include "interfaces/DCCppProtocol.h"
 
-enum TurnoutType {
+enum TurnoutType
+{
   LEFT=0,
   RIGHT,
   WYE,
@@ -30,7 +32,8 @@ enum TurnoutType {
 void encodeDCCAccessoryAddress(uint16_t *boardAddress, int8_t *boardIndex, uint16_t address);
 uint16_t decodeDCCAccessoryAddress(uint16_t boardAddress, int8_t boardIndex);
 
-class Turnout {
+class Turnout
+{
 public:
   Turnout(uint16_t, uint16_t, int8_t, bool=false, TurnoutType=TurnoutType::LEFT);
   Turnout(JsonObject);
@@ -38,29 +41,37 @@ public:
   void update(uint16_t, int8_t, TurnoutType);
   void set(bool=false, bool=true);
   void toJson(JsonObject, bool=false);
-  uint16_t getID() {
+  uint16_t getID()
+  {
     return _turnoutID;
   }
-  uint16_t getAddress() {
+  uint16_t getAddress()
+  {
     return _address;
   }
-  uint16_t getBoardAddress() {
+  uint16_t getBoardAddress()
+  {
     return _boardAddress;
   }
-  uint8_t getIndex() {
+  uint8_t getIndex()
+  {
     return _index;
   }
-  bool isThrown() {
+  bool isThrown()
+  {
     return _thrown;
   }
-  void toggle() {
+  void toggle()
+  {
     set(!_thrown);
   }
   void showStatus();
-  TurnoutType getType() {
+  TurnoutType getType()
+  {
     return _type;
   }
-  void setType(const TurnoutType type) {
+  void setType(const TurnoutType type)
+  {
     _type = type;
   }
 private:
@@ -72,9 +83,10 @@ private:
   TurnoutType _type;
 };
 
-class TurnoutManager {
+class TurnoutManager : public PacketFlowInterface
+{
 public:
-  TurnoutManager();
+  TurnoutManager(openlcb::Node *);
   void clear();
   uint16_t store();
   bool setByID(uint16_t, bool=false, bool=true);
@@ -90,32 +102,40 @@ public:
   Turnout *getTurnoutByID(const uint16_t);
   Turnout *getTurnoutByAddress(const uint16_t);
   uint16_t getTurnoutCount();
+  void send(Buffer<dcc::Packet> *, unsigned);
 private:
   Atomic lock_;
   std::vector<std::unique_ptr<Turnout>> turnouts_;
+  std::unique_ptr<openlcb::DccAccyConsumer> turnoutEventConsumer_;
 };
 
 extern std::unique_ptr<TurnoutManager> turnoutManager;
 
-class TurnoutCommandAdapter : public DCCPPProtocolCommand {
+class TurnoutCommandAdapter : public DCCPPProtocolCommand
+{
 public:
   void process(const std::vector<std::string>);
-  std::string getID() {
+  std::string getID()
+  {
     return "T";
   }
 };
-class TurnoutExCommandAdapter : public DCCPPProtocolCommand {
+class TurnoutExCommandAdapter : public DCCPPProtocolCommand
+{
 public:
   void process(const std::vector<std::string>);
-  std::string getID() {
+  std::string getID()
+  {
     return "Tex";
   }
 };
 
-class AccessoryCommand : public DCCPPProtocolCommand {
+class AccessoryCommand : public DCCPPProtocolCommand
+{
 public:
   void process(const std::vector<std::string>);
-  std::string getID() {
+  std::string getID()
+  {
     return "a";
   }
 };

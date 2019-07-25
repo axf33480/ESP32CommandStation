@@ -75,7 +75,7 @@ void InfoScreen::replaceLine(int row, const std::string &format, ...) {
 
 StateFlowBase::Action InfoScreen::init() {
 #if INFO_SCREEN_ENABLED
-  replaceLine(INFO_SCREEN_STATION_INFO_LINE, "ESP32-CS: v%s", VERSION);
+  replaceLine(INFO_SCREEN_STATION_INFO_LINE, "ESP32-CS: v%s", ESP32CS_VERSION);
   replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Starting Up");
 
   LOG(INFO, "[InfoScreen] Initializing");
@@ -239,36 +239,36 @@ StateFlowBase::Action InfoScreen::update()
       {
         replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE
                   , "LCC Nodes: %d"
-                  , infoScreenCollector->getRemoteNodeCount()
+                  , lccStatCollector->getRemoteNodeCount()
         );
       }
       else if (_lccStatusIndex == 1)
       {
         replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE
                   , "LCC Lcl: %d"
-                  , infoScreenCollector->getLocalNodeCount()
+                  , lccStatCollector->getLocalNodeCount()
         );
       }
       else if (_lccStatusIndex == 2)
       {
         replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE
                   , "LCC dg_svc: %d"
-                  , infoScreenCollector->getDatagramCount()
+                  , lccStatCollector->getDatagramCount()
         );
       }
       else if (_lccStatusIndex == 3)
       {
         replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE
                   , "LCC Ex: %d"
-                  , infoScreenCollector->getExecutorCount()
+                  , lccStatCollector->getExecutorCount()
         );
       }
       else if (_lccStatusIndex == 4)
       {
         replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE
                   , "LCC Pool: %d/%d"
-                  , infoScreenCollector->getPoolFreeCount()
-                  , infoScreenCollector->getPoolSize()
+                  , lccStatCollector->getPoolFreeCount()
+                  , lccStatCollector->getPoolSize()
         );
       }
 #if LOCONET_ENABLED

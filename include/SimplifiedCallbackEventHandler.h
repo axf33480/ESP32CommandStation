@@ -18,6 +18,7 @@ COPYRIGHT (c) 2019 Mike Dunston
 #pragma once
 
 #include <openlcb/CallbackEventHandler.hxx>
+#include <openlcb/EventHandler.hxx>
 #include <openlcb/Node.hxx>
 
 // Simplified callback handler to automatically register the callbacks
@@ -57,7 +58,10 @@ public:
     add_entry(id, RegistryEntryBits::IS_CONSUMER);
   }
 
-  void report(const EventRegistryEntry &registry_entry, EventReport *report,BarrierNotifiable *done)
+  // hook point for the callback invocation.
+  void report(const EventRegistryEntry &entry
+            , EventReport *report
+            , BarrierNotifiable *done)
   {
     callback_();
   }

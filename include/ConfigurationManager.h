@@ -21,7 +21,8 @@ COPYRIGHT (c) 2018-2019 Mike Dunston
 #include <openlcb/Defs.hxx>
 
 // Class definition for the Configuration Management system in ESP32 Command Station
-class ConfigurationManager {
+class ConfigurationManager
+{
 public:
   ConfigurationManager();
   virtual ~ConfigurationManager();
@@ -35,7 +36,7 @@ public:
   void store(const char *, const JsonObject);
   JsonObject createRootNode(bool=true);
   openlcb::NodeID getNodeId();
-  bool needLCCCan(gpio_num_t *, gpio_num_t *);
+  void configureCAN(OpenMRN *openmrn);
   void configureWiFi(openlcb::SimpleCanStack *, const WiFiConfiguration &);
   std::string getCSConfig();
   bool isAPEnabled()

@@ -54,11 +54,8 @@ CDI_GROUP_ENTRY(event_thermal_shutdown_cleared,
                 Description("This event will be produced when the H-Bridge clears the thermal warning alert."));
 CDI_GROUP_END();
 
-namespace openlcb {
-    /// Modify this value whenever the config needs to be reinitialized on the
-    /// node for a firmware update.
-    static constexpr uint16_t CANONICAL_VERSION = 0x0140;
-
+namespace openlcb
+{
     using TrackOutputs = RepeatedGroup<TrackOutputConfig, 2>;
 
     /// Defines the main segment in the configuration CDI. This is laid out at

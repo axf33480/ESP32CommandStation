@@ -57,38 +57,52 @@ static const char* const OLD_CONFIG_DIR = FILESYSTEM_PREFIX "/DCCppESP32";
 // Global handle for WiFi Manager
 unique_ptr<Esp32WiFiManager> wifiManager;
 
-void recursiveWalkTree(const std::string &path, bool remove=false) {
+void recursiveWalkTree(const string &path, bool remove=false)
+{
   LOG(INFO, "[Config] Reading directory: %s", path.c_str());
   DIR *dir = opendir(path.c_str());
-  if(dir) {
+  if (dir)
+  {
     dirent *ent = NULL;
-    while((ent = readdir(dir)) != NULL) {
-      std::string fullPath = path + "/" + ent->d_name;
-      if(ent->d_type == DT_REG) {
-        if(remove) {
+    while ((ent = readdir(dir)) != NULL)
+    {
+      string fullPath = path + "/" + ent->d_name;
+      if (ent->d_type == DT_REG)
+      {
+        if (remove)
+        {
           LOG(VERBOSE, "[Config] Removing: %s", fullPath.c_str());
           unlink(fullPath.c_str());
-        } else {
+        }
+        else
+        {
           struct stat statbuf;
           stat(fullPath.c_str(), &statbuf);
           LOG(INFO, "[Config] %s (%d bytes)", fullPath.c_str(), (int)statbuf.st_size);
         }
-      } else if(ent->d_type == DT_DIR) {
+      }
+      else if (ent->d_type == DT_DIR)
+      {
         recursiveWalkTree(fullPath, remove);
       }
     }
     closedir(dir);
-    if(remove) {
+    if (remove)
+    {
       LOG(VERBOSE, "[Config] Removing directory: %s", path.c_str());
       rmdir(path.c_str());
     }
-  } else {
+  }
+  else
+  {
     LOG_ERROR("[Config] Failed to open directory: %s", path.c_str());
   }
 }
 
-ConfigurationManager::ConfigurationManager() {
-  esp_vfs_spiffs_conf_t conf = {
+ConfigurationManager::ConfigurationManager()
+{
+  esp_vfs_spiffs_conf_t conf =
+  {
     .base_path = SPIFFS_FILESYSTEM_PREFIX,
     .partition_label = NULL,
     .max_files = 5,
@@ -97,19 +111,22 @@ ConfigurationManager::ConfigurationManager() {
   // Attempt to mount the partition
   esp_err_t res = esp_vfs_spiffs_register(&conf);
   // check that the partition mounted
-  if(res != ESP_OK) {
+  if (res != ESP_OK)
+  {
     LOG(FATAL,
         "[Config] Failed to mount SPIFFS partition, err %s (%d), giving up!",
         esp_err_to_name(res), res);
   }
   size_t total = 0, used = 0;
-  if(esp_spiffs_info(NULL, &total, &used) == ESP_OK) {
+  if (esp_spiffs_info(NULL, &total, &used) == ESP_OK)
+  {
     LOG(INFO, "[Config] SPIFFS usage: %.2f/%.2f KiB", (float)(used / 1024.0f), (float)(total / 1024.0f));
   }
 #if CONFIG_USE_SD
   sdmmc_host_t host = SDSPI_HOST_DEFAULT();
   sdspi_slot_config_t slot_config = SDSPI_SLOT_CONFIG_DEFAULT();
-  esp_vfs_fat_sdmmc_mount_config_t mount_config = {
+  esp_vfs_fat_sdmmc_mount_config_t mount_config =
+  {
     .format_if_mount_failed = true,
     .max_files = 5,
     .allocation_unit_size = 16 * 1024
@@ -122,48 +139,63 @@ ConfigurationManager::ConfigurationManager() {
                             &sdcard));
   FATFS *fsinfo;
   DWORD clusters;
-  if(f_getfree("0:", &clusters, &fsinfo) == FR_OK) {
+  if (f_getfree("0:", &clusters, &fsinfo) == FR_OK)
+  {
     LOG(INFO, "[Config] SD usage: %.2f/%.2f MB",
         (float)(((uint64_t)fsinfo->csize * (fsinfo->n_fatent - 2 - fsinfo->free_clst)) * fsinfo->ssize) / 1048576,
         (float)(((uint64_t)fsinfo->csize * (fsinfo->n_fatent - 2)) * fsinfo->ssize) / 1048576);
-  } else {
+  }
+  else
+  {
     LOG(INFO, "[Config] SD capacity %.2f MB",
         (float)(((uint64_t)sdcard->csd.capacity) * sdcard->csd.sector_size) / 1048576);
   }
 #endif
-  std::string configRoot = FILESYSTEM_PREFIX;
+  string configRoot = FILESYSTEM_PREFIX;
   recursiveWalkTree(configRoot);
   mkdir(ESP32CS_CONFIG_DIR, ACCESSPERMS);
 
-  if(exists(ESP32_CS_CONFIG_JSON)) {
+  if (exists(ESP32_CS_CONFIG_JSON))
+  {
     LOG(INFO, "[Config] Found existing CS config file.");
     JsonObject config = load(ESP32_CS_CONFIG_JSON);
     serializeJson(jsonBuffer, csConfig_);
-    if(config.containsKey(JSON_WIFI_NODE)) {
+    if (config.containsKey(JSON_WIFI_NODE))
+    {
       JsonObject wifiConfig = config.getMember(JSON_WIFI_NODE);
       std::string wifiMode = wifiConfig[JSON_WIFI_MODE_NODE];
-      if(!wifiMode.compare(JSON_VALUE_WIFI_MODE_SOFTAP_ONLY)) {
+      if (!wifiMode.compare(JSON_VALUE_WIFI_MODE_SOFTAP_ONLY))
+      {
         wifiMode_ =  WIFI_MODE_AP;
-      } else if(!wifiMode.compare(JSON_VALUE_WIFI_MODE_SOFTAP_STATION)) {
+      }
+      else if (!wifiMode.compare(JSON_VALUE_WIFI_MODE_SOFTAP_STATION))
+      {
         wifiMode_ =  WIFI_MODE_APSTA;
-      } else if(!wifiMode.compare(JSON_VALUE_WIFI_MODE_STATION_ONLY)) {
+      }
+      else if (!wifiMode.compare(JSON_VALUE_WIFI_MODE_STATION_ONLY))
+      {
         wifiMode_ =  WIFI_MODE_STA;
       }
-      if(wifiConfig.containsKey(JSON_WIFI_STATION_NODE)) {
+      if (wifiConfig.containsKey(JSON_WIFI_STATION_NODE))
+      {
         JsonObject stationConfig = wifiConfig.getMember(JSON_WIFI_STATION_NODE);
         std::string stationMode = stationConfig[JSON_WIFI_MODE_NODE];
-        if(!stationMode.compare(JSON_VALUE_STATION_IP_MODE_STATIC)) {
+        if (!stationMode.compare(JSON_VALUE_STATION_IP_MODE_STATIC))
+        {
           stationStaticIP_.reset(new tcpip_adapter_ip_info_t());
           stationStaticIP_->ip.addr = ipaddr_addr(stationConfig[JSON_WIFI_STATION_IP_NODE]);
           stationStaticIP_->gw.addr = ipaddr_addr(stationConfig[JSON_WIFI_STATION_GATEWAY_NODE]);
           stationStaticIP_->netmask.addr = ipaddr_addr(stationConfig[JSON_WIFI_STATION_NETMASK_NODE]);
         }
       }
-      if(wifiConfig.containsKey(JSON_WIFI_DNS_NODE)) {
+      if (wifiConfig.containsKey(JSON_WIFI_DNS_NODE))
+      {
         stationDNSServer_.u_addr.ip4.addr = ipaddr_addr(wifiConfig[JSON_WIFI_DNS_NODE]);
       }
     }
-  } else {
+  }
+  else
+  {
     LOG(INFO, "[Config] CS Config not found, seeding defaults");
     JsonObject config = createRootNode();
     JsonObject wifiConfig = config.createNestedObject(JSON_WIFI_NODE);
@@ -200,70 +232,84 @@ ConfigurationManager::ConfigurationManager() {
 
 ConfigurationManager::~ConfigurationManager() {
   // Unmount the SPIFFS partition
-  if(esp_spiffs_mounted(NULL)) {
+  if (esp_spiffs_mounted(NULL))
+  {
     LOG(INFO, "[Config] Unmounting SPIFFS...");
     ESP_ERROR_CHECK(esp_vfs_spiffs_unregister(NULL));
   }
   // Unmount the SD card if it was mounted
-  if(sdcard) {
+  if (sdcard)
+  {
     LOG(INFO, "[Config] Unmounting SD...");
     esp_vfs_fat_sdmmc_unmount();
   }
 }
 
-void ConfigurationManager::clear() {
+void ConfigurationManager::clear()
+{
   LOG(INFO, "[Config] Clearing persistent config...");
-  std::string configRoot = ESP32CS_CONFIG_DIR;
+  string configRoot = ESP32CS_CONFIG_DIR;
   recursiveWalkTree(configRoot, true);
   mkdir(configRoot.c_str(), ACCESSPERMS);
 }
 
-bool ConfigurationManager::exists(const char *name) {
-  std::string oldConfigFilePath = getFilePath(name, true);
-  std::string configFilePath = getFilePath(name);
-  if(std::ifstream(oldConfigFilePath).good() && !std::ifstream(configFilePath).good()) {
-    LOG(INFO, "[Config] Migrating configuration file %s to %s.",
-        oldConfigFilePath.c_str(), configFilePath.c_str());
+bool ConfigurationManager::exists(const char *name)
+{
+  string oldConfigFilePath = getFilePath(name, true);
+  string configFilePath = getFilePath(name);
+  if (std::ifstream(oldConfigFilePath).good() &&
+     !std::ifstream(configFilePath).good())
+  {
+    LOG(INFO
+      , "[Config] Migrating configuration file %s to %s."
+      , oldConfigFilePath.c_str()
+      , configFilePath.c_str());
     rename(oldConfigFilePath.c_str(), configFilePath.c_str());
   }
   LOG(VERBOSE, "[Config] Checking for %s", configFilePath.c_str());
   return std::ifstream(configFilePath).good();
 }
 
-void ConfigurationManager::remove(const char *name) {
-  std::string configFilePath = getFilePath(name);
+void ConfigurationManager::remove(const char *name)
+{
+  string configFilePath = getFilePath(name);
   LOG(VERBOSE, "[Config] Removing %s", configFilePath.c_str());
   unlink(configFilePath.c_str());
 }
 
-JsonObject ConfigurationManager::load(const char *name) {
-  std::string configFilePath = getFilePath(name);
+JsonObject ConfigurationManager::load(const char *name)
+{
+  string configFilePath = getFilePath(name);
   LOG(VERBOSE, "[Config] Loading %s", configFilePath.c_str());
   jsonBuffer.clear();
   std::ifstream configFile(configFilePath);
-  if(configFile.good()) {
+  if (configFile.good())
+  {
     deserializeJson(jsonBuffer, configFile);
   }
   return jsonBuffer.as<JsonObject>();
 }
 
-JsonObject ConfigurationManager::load(const char *name, DynamicJsonDocument &buffer) {
-  std::string configFilePath = getFilePath(name);
+JsonObject ConfigurationManager::load(const char *name, DynamicJsonDocument &buffer)
+{
+  string configFilePath = getFilePath(name);
   LOG(VERBOSE, "[Config] Loading %s", configFilePath.c_str());
   std::ifstream configFile(configFilePath);
   deserializeJson(buffer, configFile);
   return buffer.as<JsonObject>();
 }
 
-void ConfigurationManager::store(const char *name, const JsonObject json) {
-  std::string configFilePath = getFilePath(name);
+void ConfigurationManager::store(const char *name, const JsonObject json)
+{
+  string configFilePath = getFilePath(name);
   LOG(VERBOSE, "[Config] Storing %s", configFilePath.c_str());
   std::ofstream configFile(configFilePath, std::ios::out | std::ios::trunc);
   serializeJson(jsonBuffer, configFile);
 }
 
 JsonObject ConfigurationManager::createRootNode(bool clearBuffer) {
-  if(clearBuffer) {
+  if (clearBuffer)
+  {
     jsonBuffer.clear();
   }
   return jsonBuffer.as<JsonObject>();
@@ -273,32 +319,43 @@ openlcb::NodeID ConfigurationManager::getNodeId() {
   return UINT64_C(LCC_NODE_ID);
 }
 
-bool ConfigurationManager::needLCCCan(gpio_num_t *rxPin, gpio_num_t *txPin) {
-#if LCC_CAN_RX_PIN != NOT_A_PIN && LCC_CAN_TX_PIN != NOT_A_PIN
-  *rxPin = (gpio_num_t)LCC_CAN_RX_PIN;
-  *txPin = (gpio_num_t)LCC_CAN_TX_PIN;
-  return true;
-#else
-  return false;
-#endif
+void ConfigurationManager::configureCAN(OpenMRN *openmrn)
+{
+  gpio_num_t canRXPin = (gpio_num_t)LCC_CAN_RX_PIN;
+  gpio_num_t canTXPin = (gpio_num_t)LCC_CAN_TX_PIN;
+  if (canRXPin != NOT_A_PIN && canTXPin != NOT_A_PIN)
+  {
+    openmrn->add_can_port(new Esp32HardwareCan("esp32can", canRXPin, canTXPin, false));
+  }
 }
 
-void ConfigurationManager::configureWiFi(openlcb::SimpleCanStack *stack, const WiFiConfiguration &cfg) {
-  if(wifiMode_ == WIFI_MODE_AP) {
+void ConfigurationManager::configureWiFi(openlcb::SimpleCanStack *stack, const WiFiConfiguration &cfg)
+{
+  if (wifiMode_ == WIFI_MODE_AP)
+  {
     LOG(INFO, "[Config] WiFi Mode: SoftAP");
-  } else if(wifiMode_ == WIFI_MODE_APSTA) {
+  }
+  else if (wifiMode_ == WIFI_MODE_APSTA)
+  {
     LOG(INFO, "[Config] WiFi Mode: Station + SoftAP");
-  } else if(wifiMode_ == WIFI_MODE_STA) {
+  }
+  else if (wifiMode_ == WIFI_MODE_STA)
+  {
     LOG(INFO, "[Config] WiFi Mode: Station");
   }
-  if(stationStaticIP_.get()) {
+
+  if (stationStaticIP_.get())
+  {
     LOG(INFO, "[Config] WiFi Station IP-MODE: STATIC IP: " IPSTR ", GW: " IPSTR ", SN: " IPSTR,
         IP2STR(&stationStaticIP_->ip), IP2STR(&stationStaticIP_->gw), IP2STR(&stationStaticIP_->netmask));
-  } else {
+  }
+  else
+  {
     LOG(INFO, "[Config] WiFi Station IP-MODE: DHCP");
   }
 
-  if(stationDNSServer_.u_addr.ip4.addr != ip_addr_any.u_addr.ip4.addr) {
+  if (stationDNSServer_.u_addr.ip4.addr != ip_addr_any.u_addr.ip4.addr)
+  {
     LOG(INFO, "[Config] WiFi Station DNS: " IPSTR, IP2STR(&stationDNSServer_.u_addr.ip4));
   }
 
@@ -311,13 +368,16 @@ void ConfigurationManager::configureWiFi(openlcb::SimpleCanStack *stack, const W
                                          WIFI_AUTH_OPEN));
 }
 
-std::string ConfigurationManager::getFilePath(const char *name, bool oldPath) {
-  if(oldPath) {
+string ConfigurationManager::getFilePath(const char *name, bool oldPath)
+{
+  if (oldPath)
+  {
     return StringPrintf("%s/%s", OLD_CONFIG_DIR, name);
   }
   return StringPrintf("%s/%s", ESP32CS_CONFIG_DIR, name);
 }
 
-std::string ConfigurationManager::getCSConfig() {
+string ConfigurationManager::getCSConfig()
+{
   return csConfig_;
 }

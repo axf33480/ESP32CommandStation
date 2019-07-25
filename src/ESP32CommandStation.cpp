@@ -58,16 +58,18 @@ namespace openlcb {
     "github.com/atanisoft (Mike Dunston)",
     "ESP32 Command Station",
     "ESP32-v1",
-    VERSION
+    ESP32CS_VERSION
   };
 }
 
+// state flows that are not defined elsewhere
+unique_ptr<FreeRTOSTaskMonitor> taskMonitor;
+unique_ptr<LCCStatCollector> lccStatCollector;
+unique_ptr<OTAMonitorFlow> otaMonitor;
+
+unique_ptr<SimpleUpdateLoop> dccUpdateLoop;
 unique_ptr<RailcomHubFlow> railComHub;
 unique_ptr<RailcomPrintfFlow> railComDataDumper;
-unique_ptr<InfoScreenStatCollector> infoScreenCollector;
-unique_ptr<SimpleUpdateLoop> dccUpdateLoop;
-unique_ptr<FreeRTOSTaskMonitor> taskMonitor;
-unique_ptr<OTAMonitorFlow> otaMonitor;
 
 #if CONFIG_USE_SD
 #define CDI_CONFIG_PREFIX "/sdcard"
@@ -116,43 +118,6 @@ public:
 };
 
 std::unique_ptr<FactoryResetHelper> resetHelper;
-
-// Specialized interface for DCC accessory packets that handles the update
-// of the TurnoutManager internal state data.
-class DccTurnoutPacketFeeder : public PacketFlowInterface
-{
-public:
-  void send(Buffer<dcc::Packet> *b, unsigned prio)
-  {
-    // add ref count so send doesn't delete it
-    dcc::Packet *pkt = b->ref()->data();
-    // send the packet to the track
-    dccSignal[DCC_SIGNAL_OPERATIONS]->send(b, prio);
-
-    // Verify that the packet looks like a DCC Accessory decoder packet
-    if(!pkt->packet_header.is_marklin &&
-        pkt->dlc == 2 &&
-        pkt->payload[0] & 0x80 &&
-        pkt->payload[1] & 0x80)
-    {
-      // the second byte of the payload contains part of the address and is
-      // stored in ones complement format.
-      uint8_t onesComplementByteTwo = (pkt->payload[1] ^ 0xF8);
-      // decode the accessories decoder address from the packet payload.
-      uint16_t boardAddress = (pkt->payload[0] & 0x3F) +
-                              ((onesComplementByteTwo >> 4) & 0x07);
-      uint8_t boardIndex = ((onesComplementByteTwo >> 1) % 4);
-      bool state = onesComplementByteTwo & 0x01;
-      // Set the turnout to the requested state, don't send a DCC packet.
-      turnoutManager->setByAddress(decodeDCCAccessoryAddress(boardAddress, boardIndex), state, false);
-    }
-    b->unref();
-  }
-};
-
-DccTurnoutPacketFeeder turnoutPacketFeeder;
-
-std::unique_ptr<DccAccyConsumer> turnoutConsumer;
 
 bool otaComplete = false;
 esp_ota_handle_t otaInProgress = 0;
@@ -213,12 +178,14 @@ void openmrn_loop_task(void *unused)
 {
   while(true) {
     openmrn->loop();
+    // yield to other tasks by going to sleep for 1ms
+    vTaskDelay(pdMS_TO_TICKS(1));
   }
 }
 
 extern "C" void app_main()
 {
-  // Setup UART0 115200 8N1 TX: 1, RX: 3, 2k buffer
+  // Setup UART0 115200 8N1 TX: 1, RX: 3, 2k buffer (1k rx, 1k tx)
   uart_config_t uart0 = {
     .baud_rate           = 115200,
     .data_bits           = UART_DATA_8_BITS,         // 8 bit bytes
@@ -231,19 +198,25 @@ extern "C" void app_main()
   uart_param_config(UART_NUM_0, &uart0);
   uart_driver_install(UART_NUM_0, 1024, 1024, 0, NULL, 0);
 
-  LOG(INFO, "\n\nESP32 Command Station v%s starting up", VERSION);
+  LOG(INFO
+    , "\n\nESP32 Command Station v%s starting up"
+    , ESP32CS_VERSION);
 
+  // Initialize the Arduino-ESP32 stack early in the startup flow.
   LOG(INFO, "[Arduino] Initializing Arduino stack");
-  // start the arduino stack first
   initArduino();
 
+  // Configure ADC1 up front to use 12 bit (0-4095) as we use it for all
+  // monitored h-bridges.
   LOG(INFO, "[ADC] Configure 12-bit ADC resolution");
-  // set up ADC1 here since we use it for all motor boards
   adc1_config_width(ADC_WIDTH_BIT_12);
 
+  // Initialize the Configuration Manager. This will mount SPIFFS and SD
+  // (if configured) and then load the CS configuration (if present) or
+  // prepare the default configuration.
   configStore.reset(new ConfigurationManager());
 
-  // pre-create LCC configuration directory
+  // Pre-create LCC configuration directory.
   mkdir(openlcb::CONFIG_DIR, ACCESSPERMS);
 
 #if LCC_FORCE_FACTORY_RESET_ON_STARTUP
@@ -252,31 +225,49 @@ extern "C" void app_main()
   unlink(openlcb::CONFIG_FILENAME);
 #endif
 
+  // Initialize the OpenMRN stack.
   openmrn.reset(new OpenMRN(configStore->getNodeId()));
 
-  // Initialize state flows
-  infoScreen.reset(new InfoScreen(openmrn->stack()));
-  infoScreenCollector.reset(new InfoScreenStatCollector(openmrn->stack()));
-  statusLED.reset(new StatusLED(openmrn->stack()));
+  // Initialize global state flows.
   hc12.reset(new HC12Radio(openmrn->stack()));
-  taskMonitor.reset(new FreeRTOSTaskMonitor(openmrn->stack()));
+  infoScreen.reset(new InfoScreen(openmrn->stack()));
+  lccStatCollector.reset(new LCCStatCollector(openmrn->stack()));
   otaMonitor.reset(new OTAMonitorFlow(openmrn->stack()));
+  statusLED.reset(new StatusLED(openmrn->stack()));
+  taskMonitor.reset(new FreeRTOSTaskMonitor(openmrn->stack()));
 
-  // Initialize the factory reset helper for the CS
+  // Initialize the factory reset helper for the CS.
   resetHelper.reset(new FactoryResetHelper());
 
-  // Initialize the WiFi Manager
+  // Initialize the WiFi Manager.
   configStore->configureWiFi(openmrn->stack(), cfg.seg().wifi());
 
-  // Create the CDI.xml dynamically if it doesn't already exist
+  // Create the CDI.xml dynamically if it doesn't already exist.
   openmrn->create_config_descriptor_xml(cfg, openlcb::CDI_FILENAME);
 
-  // Create the default internal configuration file if it doesn't already exist
-  openmrn->stack()->create_config_file_if_needed(cfg.seg().internal_config(),
-      openlcb::CANONICAL_VERSION, openlcb::CONFIG_FILE_SIZE);
+  // Create the default internal configuration file if it doesn't already exist.
+  openmrn->stack()->create_config_file_if_needed(cfg.seg().internal_config()
+                                               , ESP32CS_NUMERIC_VERSION
+                                               , openlcb::CONFIG_FILE_SIZE);
 
-  // Create the DCC Event Loop
-  dccUpdateLoop.reset(new SimpleUpdateLoop(openmrn->stack()->service(), dccSignal[DCC_SIGNAL_OPERATIONS]));
+  // Initialize the DCC Signal Generators.
+  dccSignal[DCC_SIGNAL_OPERATIONS].reset(
+    new SignalGenerator_RMT(OPS_HBRIDGE_NAME           // name
+                          , 512                        // packet queue size
+                          , DCC_SIGNAL_OPERATIONS      // signal ID
+                          , DCC_SIGNAL_PIN_OPERATIONS  // signal pin
+                          , OPS_HBRIDGE_ENABLE_PIN));  // h-bridge enable pin
+  dccSignal[DCC_SIGNAL_PROGRAMMING].reset(
+    new SignalGenerator_RMT(PROG_HBRIDGE_NAME           // name
+                          , 10                          // packet queue size
+                          , DCC_SIGNAL_PROGRAMMING      // signal ID
+                          , DCC_SIGNAL_PIN_PROGRAMMING  // signal pin
+                          , PROG_HBRIDGE_ENABLE_PIN));  // h-bridge enable pin
+
+  // Create the DCC Update Loop.
+  dccUpdateLoop.reset(
+    new SimpleUpdateLoop(openmrn->stack()->service()
+                       , dccSignal[DCC_SIGNAL_OPERATIONS].get()));
 
   DCCPPProtocolHandler::init();
 
@@ -297,7 +288,7 @@ extern "C" void app_main()
   register_monitored_hbridge(openmrn->stack()
                           , (adc1_channel_t)PROG_HBRIDGE_CURRENT_SENSE_ADC
                           , (gpio_num_t)PROG_HBRIDGE_ENABLE_PIN
-                          , (gpio_num_t)-1
+                          , (gpio_num_t)NOT_A_PIN
                           , PROG_HBRIDGE_LIMIT_MILIAMPS
                           , PROG_HBRIDGE_MAX_MILIAMPS
                           , PROG_HBRIDGE_NAME
@@ -305,25 +296,22 @@ extern "C" void app_main()
                           , cfg.seg().hbridge().entry(1)
                           , true);
 
-  gpio_num_t canRXPin, canTXPin;
-  if(configStore->needLCCCan(&canRXPin, &canTXPin)) {
-    openmrn->add_can_port(new Esp32HardwareCan("esp32can", canRXPin, canTXPin, false));
-  }
+  // Initialize the CAN interface (if configured).
+  configStore->configureCAN(openmrn.get());
 
   nextionInterfaceInit();
 
-  dccSignal[DCC_SIGNAL_OPERATIONS] = new SignalGenerator_RMT("OPS", 512, DCC_SIGNAL_OPERATIONS, DCC_SIGNAL_PIN_OPERATIONS, OPS_HBRIDGE_ENABLE_PIN);
-  dccSignal[DCC_SIGNAL_PROGRAMMING] = new SignalGenerator_RMT("PROG", 10, DCC_SIGNAL_PROGRAMMING, DCC_SIGNAL_PIN_PROGRAMMING, PROG_HBRIDGE_ENABLE_PIN);
-
   LocomotiveManager::init(openmrn->stack()->node());
-  turnoutManager.reset(new TurnoutManager());
 
-  turnoutConsumer.reset(new DccAccyConsumer(openmrn->stack()->node(), &turnoutPacketFeeder));
+  // Initialize the turnout manager and register it with the LCC stack to
+  // process accessories packets.
+  turnoutManager.reset(new TurnoutManager(openmrn->stack()->node()));
 
-  // Start the OpenMRN stack
+  // Start the OpenMRN stack.
   openmrn->begin();
 
-  // create OpenMRN executor thread
+  // create OpenMRN executor thread, this will consume near 100% of core 0
+  // all tasks must use core 1!
   openmrn->start_executor_thread();
 
   LOG(INFO, "[OpenMRN] Starting loop task on core:%d", APP_CPU_NUM);
@@ -348,6 +336,7 @@ extern "C" void app_main()
 #if ENABLE_OUTPUTS
   OutputManager::init();
 #endif
+
 #if ENABLE_SENSORS
   SensorManager::init();
   S88BusManager::init();

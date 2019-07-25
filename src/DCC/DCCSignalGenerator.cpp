@@ -17,18 +17,24 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 #include "ESP32CommandStation.h"
 
-SignalGenerator *dccSignal[MAX_DCC_SIGNAL_GENERATORS];
+unique_ptr<SignalGenerator> dccSignal[MAX_DCC_SIGNAL_GENERATORS];
 
-bool isDCCSignalEnabled() {
-  if(dccSignal[DCC_SIGNAL_OPERATIONS]->isEnabled() || dccSignal[DCC_SIGNAL_PROGRAMMING]->isEnabled()) {
+bool isDCCSignalEnabled()
+{
+  if(dccSignal[DCC_SIGNAL_OPERATIONS]->isEnabled() ||
+     dccSignal[DCC_SIGNAL_PROGRAMMING]->isEnabled())
+  {
     return true;
   }
   return false;
 }
 
-void sendDCCEmergencyStop() {
-  for(auto generator : dccSignal) {
-    if(generator->isEnabled()) {
+void sendDCCEmergencyStop()
+{
+  for(auto & generator : dccSignal)
+  {
+    if(generator->isEnabled())
+    {
       generator->loadBytePacket(eStopPacket, 2, 0, true);
     }
   }
