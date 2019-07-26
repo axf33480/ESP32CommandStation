@@ -50,7 +50,7 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 // This defines the hostname prefix to use for the ESP32 Command Station. The LCC
 // Node ID will be appended to this value.
 //
-#define HOSTNAME_PREFIX "ESP32CS_"
+#define HOSTNAME_PREFIX "esp32cs_"
 
 //#define WIFI_ENABLE_SOFT_AP true
 //#define WIFI_SOFT_AP_CHANNEL 6
