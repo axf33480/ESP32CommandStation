@@ -78,7 +78,7 @@ public:
         sem_.post();
     }
 
-#ifdef OPENMRN_FEATURE_MUTEX_FREERTOS
+#if OPENMRN_FEATURE_MUTEX_FREERTOS
     void notify_from_isr() OVERRIDE
     {
         int woken = 0;

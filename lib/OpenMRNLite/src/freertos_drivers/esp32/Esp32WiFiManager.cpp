@@ -463,8 +463,7 @@ void Esp32WiFiManager::process_wifi_event(system_event_t *event)
             {
                 IP4_ADDR(&primaryDNSAddress_.u_addr.ip4, 8, 8, 8, 8);
             }
-            LOG(INFO,
-                "[WiFi] Configuring primary DNS address to: " IPSTR,
+            LOG(INFO, "[WiFi] Configuring primary DNS address to: " IPSTR,
                 IP2STR(&primaryDNSAddress_.u_addr.ip4));
             // set the primary server (0)
             dns_setserver(0, &primaryDNSAddress_);
@@ -694,6 +693,10 @@ void Esp32WiFiManager::start_wifi_system()
     // https://github.com/espressif/arduino-esp32/issues/2899 and
     // https://github.com/espressif/arduino-esp32/pull/2912
     //
+    // Note: these numbers are slightly higher to allow compatibility with the
+    // WROVER chip and WROOM-32 chip. The increase results in ~2kb less heap
+    // at runtime.
+    //
     // These do not require recompilation of arduino-esp32 code as these are
     // used in the WIFI_INIT_CONFIG_DEFAULT macro, they simply need to be redefined.
     cfg.static_rx_buf_num = 16;
@@ -734,7 +737,7 @@ void Esp32WiFiManager::start_wifi_system()
         else
         {
             // Configure the SSID for the Soft AP based on the generated
-            // hostname.
+            // hostname when operating in WIFI_MODE_APSTA mode.
             strcpy(reinterpret_cast<char *>(conf.ap.ssid), hostname_.c_str());
         }
         
@@ -747,7 +750,7 @@ void Esp32WiFiManager::start_wifi_system()
         ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_AP, &conf));
     }
 
-    // If we need to connect to an SSID (STATION mode), configure it now.
+    // If we need to connect to an SSID, configure it now.
     if (wifiMode_ == WIFI_MODE_APSTA || wifiMode_ == WIFI_MODE_STA)
     {
         // Configure the SSID details for the station based on the SSID and

@@ -344,6 +344,7 @@ public:
         for (auto *e : loopMembers_)
         {
 #if defined(ESP32) && CONFIG_TASK_WDT
+
             // Feed the watchdog so it doesn't reset the ESP32
             esp_task_wdt_reset();
 #endif // ESP32
@@ -368,8 +369,7 @@ public:
         // Remove IDLE0 task watchdog, because the openmrn task sometimes uses
         // 100% cpu and it is pinned to CPU 0.
         disableCore0WDT();
-#endif
-
+#endif // CONFIG_TASK_WDT_CHECK_IDLE_TASK_CPU0
 #else
         stack_->executor()->start_thread(
             "OpenMRN", OPENMRN_TASK_PRIORITY, OPENMRN_STACK_SIZE);
