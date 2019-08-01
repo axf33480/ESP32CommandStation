@@ -314,7 +314,7 @@ void initializeLocoNet();
     !defined(PROG_HBRIDGE_TYPE) || \
     !defined(OPS_SIGNAL_PIN) || \
     !defined(PROG_SIGNAL_PIN)
-#error "Invalid Configuration detected, Config_MotorBoard.h is a mandatory module."
+#error "Invalid Configuration detected, Config_HBridge.h is a mandatory module."
 #endif
 
 /////////////////////////////////////////////////////////////////////////////////////
