@@ -18,131 +18,64 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #ifndef LOCOMOTIVE_H_
 #define LOCOMOTIVE_H_
 
+#include <dcc/Loco.hxx>
+
 #include "interfaces/DCCppProtocol.h"
 #include "SimplifiedCallbackEventHandler.h"
 
 #define MAX_LOCOMOTIVE_FUNCTIONS 29
 #define MAX_LOCOMOTIVE_FUNCTION_PACKETS 5
 
-class Locomotive/* : public dcc::Dcc128Train*/ {
+class Locomotive : public dcc::Dcc128Train
+{
 public:
-  Locomotive(uint8_t);
-  Locomotive(JsonObject);
-  Locomotive(const char *);
-  virtual ~Locomotive() {}
-  int8_t getRegister() {
+  Locomotive(uint16_t, const bool=true);
+  void setRegister(int8_t registerNumber)
+  {
+    _registerNumber = registerNumber;
+  }
+
+  int8_t getRegister()
+  {
     return _registerNumber;
   }
-  void setLocoAddress(uint16_t locoAddress) {
-    _locoAddress = locoAddress;
+
+  void set_speed(dcc::SpeedType speed) override
+  {
+    dcc::Dcc128Train::set_speed(speed);
+    showStatus();
   }
-  uint16_t getLocoAddress() {
-    return _locoAddress;
+  void set_fn(uint32_t address, uint16_t value) override
+  {
+    dcc::Dcc128Train::set_fn(address, value);
+    LOG(INFO, "[Loco %d] Set function %d to %s", legacy_address(), address
+      , value ? JSON_VALUE_ON : JSON_VALUE_OFF);
   }
-  void setSpeed(int8_t speed) {
-    _speed = std::max((int8_t)0, std::min(speed, (int8_t)127));
-    LOG(INFO, "[Loco %d] speed: %d", _locoAddress, _speed);
-  }
-  int8_t getSpeed() {
-    return _speed;
-  }
-  void setDirection(bool forward) {
-    _direction = forward;
-  }
-  bool isDirectionForward() {
-    return _direction;
-  }
+
   void setOrientationForward(bool forward) {
     _orientation = forward;
   }
+
   bool isOrientationForward() {
     return _orientation;
   }
-  void setIdle() {
-    setSpeed(0);
-    sendLocoUpdate(true);
-  }
-  void sendLocoUpdate(bool=false);
   void showStatus();
   void toJson(JsonObject, bool=true, bool=true);
-
-#define _LOCO_FUNCTION_UPDATE_IMPL(funcID, pkt, offs, base, limit, sendPacket) \
-  if(funcID >= base && funcID <= limit) { \
-    if(state) { \
-      bitSet(_functionPackets[pkt][offs], funcID - base); \
-    } else { \
-      bitClear(_functionPackets[pkt][offs], funcID - base); \
-    } \
-    if(sendPacket) { \
-      dccSignal[DCC_SIGNAL_OPERATIONS]->loadPacket(_functionPackets[pkt]); \
-      _lastFunctionsPacketTime[pkt] = esp_timer_get_time(); \
-    } \
-    return; \
-  }
-
-  // batch mode function updates (used for protocol reader)
-  void setFunctions(uint8_t firstFunction, uint8_t lastFunction, uint8_t mask) {
-    for(uint8_t funcID = firstFunction; funcID <= lastFunction; funcID++) {
-      setFunction(funcID, bitRead(mask, funcID - firstFunction), funcID < lastFunction);
-    }
-  }
-
-  void setFunction(uint8_t funcID, bool state=false, bool batch=false) {
-    LOG(INFO, "[Loco %d] F%d:%s", _locoAddress, funcID, state ? JSON_VALUE_ON : JSON_VALUE_OFF);
-    _functionState[funcID] = state;
-    uint8_t offs = 1;
-    if(_locoAddress > 127) {
-      offs++;
-    }
-    // handle function zero in special case
-    if(!funcID) {
-      if(state) {
-        bitSet(_functionPackets[0][offs], 4);
-      } else {
-        bitClear(_functionPackets[0][offs], 4);
-      }
-      if(!batch) {
-        dccSignal[DCC_SIGNAL_OPERATIONS]->loadPacket(_functionPackets[0]);
-        _lastFunctionsPacketTime[0] = esp_timer_get_time();
-      }
-      return;
-    }
-    _LOCO_FUNCTION_UPDATE_IMPL(funcID, 0, offs, 1, 4, !batch)
-    _LOCO_FUNCTION_UPDATE_IMPL(funcID, 1, offs, 5, 8, !batch)
-    _LOCO_FUNCTION_UPDATE_IMPL(funcID, 2, offs, 9, 12, !batch)
-    _LOCO_FUNCTION_UPDATE_IMPL(funcID, 3, offs + 1, 13, 20, !batch)
-    _LOCO_FUNCTION_UPDATE_IMPL(funcID, 4, offs + 1, 21, 28, !batch)
-  }
-  bool isFunctionEnabled(uint8_t funcID) {
-    return _functionState[funcID];
-  }
+  static Locomotive *fromJson(JsonObject, bool=true);
+  static Locomotive *fromJsonFile(const char *, bool=true);
 private:
-  void createFunctionPackets();
   int8_t _registerNumber{-1};
-  uint16_t _locoAddress{0};
-  int8_t _speed{0};
-  bool _direction{true};
   bool _orientation{true};
-  uint64_t _lastPacketTime{0};
-  uint64_t _lastFunctionsPacketTime[MAX_LOCOMOTIVE_FUNCTION_PACKETS]{0,0,0,0,0};
-  bool _functionState[MAX_LOCOMOTIVE_FUNCTIONS]{false,false,false,false,false,false,false,false,
-                                                false,false,false,false,false,false,false,false,
-                                                false,false,false,false,false,false,false,false,
-                                                false,false,false,false};
-  std::vector<uint8_t> _functionPackets[MAX_LOCOMOTIVE_FUNCTION_PACKETS];
 };
 
-class LocomotiveConsist : public Locomotive {
+class LocomotiveConsist : public Locomotive
+{
 public:
   LocomotiveConsist(uint8_t address, bool decoderAssistedConsist=false) :
-    Locomotive(-1), _decoderAssisstedConsist(decoderAssistedConsist) {
-    setLocoAddress(address);
+    Locomotive(address), _decoderAssisstedConsist(decoderAssistedConsist) {
   }
-  LocomotiveConsist(JsonObject);
-  LocomotiveConsist(const char *);
   virtual ~LocomotiveConsist();
   void showStatus();
-  void toJson(JsonObject, bool=true, bool=true);
   bool isAddressInConsist(uint16_t);
   void updateThrottle(uint16_t, int8_t, bool);
   void addLocomotive(uint16_t, bool, uint8_t);
@@ -151,15 +84,9 @@ public:
   bool isDecoderAssistedConsist() {
     return _decoderAssisstedConsist;
   }
-  void sendLocoUpdate() {
-    if (_decoderAssisstedConsist) {
-      Locomotive::sendLocoUpdate();
-    } else {
-      for (const auto& loco : _locos) {
-        loco->sendLocoUpdate();
-      }
-    }
-  }
+  void toJson(JsonObject, bool=true, const bool=true);
+  static LocomotiveConsist *fromJson(JsonObject);
+  static LocomotiveConsist *fromJsonFile(const char *);
 private:
   bool _decoderAssisstedConsist;
   std::vector<Locomotive *> _locos;
@@ -226,7 +153,6 @@ public:
   static void processConsistThrottle(const std::vector<std::string>);
   static void showStatus();
   static void showConsistStatus();
-  static void update(void *);
   static void emergencyStop();
   static uint8_t getActiveLocoCount() {
     return _locos.length();

@@ -76,36 +76,22 @@ NO CV changes, when consist is addressed (either by LEAD or TRAIL loco), all
 locomotives in consist will be updated concurrently via multiple packet queuing.
 **********************************************************************/
 
-LocomotiveConsist::LocomotiveConsist(const char *filename) : Locomotive(filename) {
-  DynamicJsonDocument jsonBuffer{1024};
-  JsonObject entry = configStore->load(filename, jsonBuffer);
-  _decoderAssisstedConsist = entry[JSON_DECODER_ASSISTED_NODE] == JSON_VALUE_TRUE;
-  for(auto loco : entry[JSON_LOCOS_NODE].as<JsonArray>()) {
-    _locos.push_back(new Locomotive(loco[JSON_FILE_NODE].as<char *>()));
-  }
-}
-
-LocomotiveConsist::LocomotiveConsist(JsonObject json) : Locomotive(json) {
-  _decoderAssisstedConsist = json[JSON_DECODER_ASSISTED_NODE] == JSON_VALUE_TRUE;
-  for(auto loco : json[JSON_LOCOS_NODE].as<JsonArray>()) {
-    _locos.push_back(new Locomotive(loco.as<JsonObject>()));
-  }
-}
-
 LocomotiveConsist::~LocomotiveConsist() {
   releaseLocomotives();
 }
 
 void LocomotiveConsist::showStatus() {
   // <U ID LEAD TRAIL [{OTHER}]>
-  LOG(INFO, "[Consist %d] speed: %d, direction: %s, decoderAssisted: %s",
-    getLocoAddress(), getSpeed(), isDirectionForward() ? JSON_VALUE_FORWARD : JSON_VALUE_REVERSE,
-    _decoderAssisstedConsist ? JSON_VALUE_TRUE : JSON_VALUE_FALSE);
-  std::string statusCmd = StringPrintf("<U %d", getLocoAddress() * _decoderAssisstedConsist ? -1 : 1);
+  auto speed = get_speed();
+  LOG(INFO, "[Consist %d] speed: %d, direction: %s, decoderAssisted: %s"
+    , legacy_address(), (speed.get_dcc_128() & 0x7F)
+    , speed.direction() ? JSON_VALUE_REVERSE : JSON_VALUE_FORWARD
+    , _decoderAssisstedConsist ? JSON_VALUE_TRUE : JSON_VALUE_FALSE);
+  string statusCmd = StringPrintf("<U %d", legacy_address() * _decoderAssisstedConsist ? -1 : 1);
   for (const auto& loco : _locos) {
-    LOG(INFO, "LOCO: %d, ORIENTATION: %s", loco->getLocoAddress(),
+    LOG(INFO, "LOCO: %d, ORIENTATION: %s", loco->legacy_address(),
       loco->isOrientationForward() ? JSON_VALUE_FORWARD : JSON_VALUE_REVERSE);
-    statusCmd += StringPrintf(" %d", loco->getLocoAddress() * loco->isOrientationForward() ? 1 : -1);
+    statusCmd += StringPrintf(" %d", loco->legacy_address() * loco->isOrientationForward() ? 1 : -1);
   }
   statusCmd += ">";
   wifiInterface.broadcast(statusCmd);
@@ -114,47 +100,66 @@ void LocomotiveConsist::showStatus() {
 void LocomotiveConsist::toJson(JsonObject jsonObject, bool includeSpeedDir, bool includeFunctions) {
   Locomotive::toJson(jsonObject, includeSpeedDir, includeFunctions);
   jsonObject[JSON_CONSIST_NODE] = JSON_VALUE_TRUE;
-  if(_decoderAssisstedConsist) {
-    jsonObject[JSON_DECODER_ASSISTED_NODE] = JSON_VALUE_TRUE;
-  } else {
-    jsonObject[JSON_DECODER_ASSISTED_NODE] = JSON_VALUE_FALSE;
-  }
+  jsonObject[JSON_DECODER_ASSISTED_NODE] = _decoderAssisstedConsist ? JSON_VALUE_TRUE : JSON_VALUE_FALSE;
   JsonArray locoArray = jsonObject.createNestedArray(JSON_LOCOS_NODE);
   for (const auto& loco : _locos) {
     loco->toJson(locoArray.createNestedObject(), includeSpeedDir, includeFunctions);
   }
 }
+LocomotiveConsist *LocomotiveConsist::fromJsonFile(const char *filename) {
+  DynamicJsonDocument jsonBuffer{1024};
+  JsonObject entry = configStore->load(filename, jsonBuffer);
+  return fromJson(entry);
+}
+
+LocomotiveConsist *LocomotiveConsist::fromJson(JsonObject json) {
+  LocomotiveConsist * consist =
+    new LocomotiveConsist(json[JSON_ADDRESS_NODE].as<uint16_t>()
+                        , json[JSON_DECODER_ASSISTED_NODE] == JSON_VALUE_TRUE);
+  for(JsonObject member : json.getMember(JSON_LOCOS_NODE).as<JsonArray>())
+  {
+    if (member.getMember(JSON_FILE_NODE).isNull())
+    {
+      consist->_locos.push_back(Locomotive::fromJson(member, false));
+    }
+    else
+    {
+      consist->_locos.push_back(Locomotive::fromJsonFile(member.getMember(JSON_FILE_NODE).as<char *>(), false));
+    }
+  }
+  return consist;
+}
 
 bool LocomotiveConsist::isAddressInConsist(uint16_t locoAddress) {
   for (const auto& loco : _locos) {
-    if (loco->getLocoAddress() == locoAddress) {
+    if (loco->legacy_address() == locoAddress) {
       return true;
     }
   }
   return false;
 }
 
-void LocomotiveConsist::updateThrottle(uint16_t locoAddress, int8_t speed, bool forward) {
-  // only if the speed or direction is different than the last update should
-  // we process any further
-  if (speed != getSpeed() || forward != isDirectionForward()) {
-    if (!_decoderAssisstedConsist) {
-      // if it is a basic consist then sending a throttle request to any
-      // locomotive in the consist will cause all locomotives to update
-      for (const auto& loco : _locos) {
-        loco->setSpeed(speed);
-        loco->setDirection(forward);
-        loco->sendLocoUpdate();
-      }
-    } else if (_locos[0]->getLocoAddress() == locoAddress ||
-               _locos[1]->getLocoAddress() == locoAddress ||
-               getLocoAddress() == locoAddress) {
-      // only if we are addressing the lead or trail locomotive should we react to
-      // the throttle adjustment
-      setSpeed(speed);
-      setDirection(forward);
-      sendLocoUpdate();
+void LocomotiveConsist::updateThrottle(uint16_t locoAddress, int8_t speed, bool forward)
+{
+  auto req_speed = get_speed();
+  req_speed.set_dcc_128(speed);
+  req_speed.set_direction(forward ? dcc::SpeedType::FORWARD : dcc::SpeedType::REVERSE);
+  if (!_decoderAssisstedConsist)
+  {
+    // if it is a basic consist then sending a throttle request to any
+    // locomotive in the consist will cause all locomotives to update
+    for (const auto& loco : _locos)
+    {
+      loco->set_speed(req_speed);
     }
+  }
+  else if (_locos[0]->legacy_address() == locoAddress ||
+           _locos[1]->legacy_address() == locoAddress ||
+           legacy_address() == locoAddress)
+  {
+    // only if we are addressing the lead or trail locomotive should we react to
+    // the throttle adjustment
+    set_speed(req_speed);
   }
 }
 
@@ -166,22 +171,22 @@ void LocomotiveConsist::addLocomotive(uint16_t locoAddress, bool forward,
   if(_decoderAssisstedConsist) {
     // write the loco consist address
     if(forward) {
-      writeOpsCVByte(locoAddress, CV_NAMES::CONSIST_ADDRESS, getLocoAddress());
+      writeOpsCVByte(locoAddress, CV_NAMES::CONSIST_ADDRESS, legacy_address());
     } else {
       // if the locomotive is in reverse orientation set bit 7 on the consist
       // address to inform the decoder of this change
       // see s-9.2.2 CV 19 details
       writeOpsCVByte(locoAddress, CV_NAMES::CONSIST_ADDRESS,
-        getLocoAddress() + CONSIST_ADDRESS_REVERSED_ORIENTATION);
+        legacy_address() + CONSIST_ADDRESS_REVERSED_ORIENTATION);
     }
     // toggle FL/FR based on position, if it is the lead or trail locomotive
     // enable the function.
     if(position <= 1) {
-      _locos[position]->setFunction(0, true);
+      _locos[position]->set_fn(0, true);
       writeOpsCVBit(locoAddress, CV_NAMES::CONSIST_FUNCTION_CONTROL_FL_F9_F12,
         CONSIST_FUNCTION_CONTROL_FL_F9_F12_BITS::FL_BIT, false);
     } else {
-      _locos[position]->setFunction(0, false);
+      _locos[position]->set_fn(0, false);
       writeOpsCVBit(locoAddress, CV_NAMES::CONSIST_FUNCTION_CONTROL_FL_F9_F12,
         CONSIST_FUNCTION_CONTROL_FL_F9_F12_BITS::FL_BIT, true);
     }
@@ -203,7 +208,7 @@ bool LocomotiveConsist::removeLocomotive(uint16_t locoAddress) {
   uint8_t index = 0;
   bool locoFound = false;
   for(uint8_t index = 0; index < _locos.size(); index++) {
-    if(_locos[index]->getLocoAddress() == locoAddress) {
+    if(_locos[index]->legacy_address() == locoAddress) {
       locoFound = true;
       break;
     }
@@ -211,10 +216,9 @@ bool LocomotiveConsist::removeLocomotive(uint16_t locoAddress) {
   if(locoFound) {
     _locos.erase(_locos.begin() + index);
     if(_decoderAssisstedConsist) {
-      // if we are in an advanced consist, send a progtramming packet to clear
+      // if we are in an advanced consist, send a programming packet to clear
       // the consist address from the decoder
-      writeOpsCVByte(locoAddress, CV_NAMES::CONSIST_ADDRESS,
-        CONSIST_ADDRESS_NO_ADDRESS);
+      writeOpsCVByte(locoAddress, CV_NAMES::CONSIST_ADDRESS, CONSIST_ADDRESS_NO_ADDRESS);
     }
   }
   return locoFound;
@@ -227,7 +231,7 @@ void LocomotiveConsist::releaseLocomotives() {
   _locos.clear();
 }
 
-void ConsistCommandAdapter::process(const std::vector<std::string> arguments) {
+void ConsistCommandAdapter::process(const vector<string> arguments) {
   if (arguments.empty()) {
     LocomotiveManager::showConsistStatus();
   } else if (arguments.size() == 1 &&
@@ -241,7 +245,7 @@ void ConsistCommandAdapter::process(const std::vector<std::string> arguments) {
       auto consist = LocomotiveManager::getConsistForLoco(locomotiveAddress);
       if (consist != nullptr) {
         wifiInterface.broadcast(StringPrintf("<V %d %d>",
-          consist->getLocoAddress() * consist->isDecoderAssistedConsist() ? -1 : 1,
+          consist->legacy_address() * consist->isDecoderAssistedConsist() ? -1 : 1,
           locomotiveAddress));
         return;
       }

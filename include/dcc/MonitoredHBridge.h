@@ -37,8 +37,15 @@ public:
                  , const uint32_t
                  , const string &
                  , const string &
-                 , const TrackOutputConfig &
-                 , const bool=false);
+                 , const TrackOutputConfig &);
+
+  MonitoredHBridge(openlcb::SimpleCanStack *
+                 , const adc1_channel_t
+                 , const gpio_num_t
+                 , const uint32_t
+                 , const string &
+                 , const string &
+                 , const TrackOutputConfig &);
 
   enum STATE
   {

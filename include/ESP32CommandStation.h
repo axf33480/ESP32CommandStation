@@ -41,21 +41,32 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 #include <driver/uart.h>
 
+// disable Arduino-esp32 binary.h inclusion as it conflicts with
+// esp_vfs.h/termios.h
+#define Binary_h
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <StringArray.h>
 
 #include <OpenMRNLite.h>
 
+#include <dcc/LocalTrackIf.hxx>
 #include <dcc/Loco.hxx>
 #include <dcc/Packet.hxx>
 #include <dcc/PacketFlowInterface.hxx>
+#include <dcc/ProgrammingTrackBackend.hxx>
 #include <dcc/RailcomHub.hxx>
 #include <dcc/RailcomPortDebug.hxx>
 #include <dcc/SimpleUpdateLoop.hxx>
 
+#include <executor/PoolToQueueFlow.hxx>
+
 #include <openlcb/ConfiguredTcpConnection.hxx>
+#include <openlcb/DccAccyConsumer.hxx>
+#include <openlcb/DccAccyProducer.hxx>
+#include <openlcb/MemoryConfig.hxx>
 #include <openlcb/TcpDefs.hxx>
+#include <openlcb/TractionCvSpace.hxx>
 
 #include <os/MDNS.hxx>
 
@@ -80,20 +91,29 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #include "Config.h"
 #endif
 
+using dcc::Dcc128Train;
+using dcc::DccLongAddress;
+using dcc::LocalTrackIf;
+using dcc::Packet;
 using dcc::PacketFlowInterface;
 using dcc::RailcomHubFlow;
 using dcc::RailcomPrintfFlow;
 using dcc::SimpleUpdateLoop;
+using dcc::SpeedType;
+
 using openlcb::BitEventProducer;
+using openlcb::DccAccyConsumer;
 using openlcb::Defs;
 using openlcb::EventId;
 using openlcb::EventRegistry;
 using openlcb::EventRegistryEntry;
 using openlcb::EventReport;
 using openlcb::MemoryBit;
+using openlcb::MemoryConfigDefs;
 using openlcb::Node;
 using openlcb::NodeID;
 using openlcb::SimpleCanStack;
+using openlcb::TractionCvSpace;
 using openlcb::WriteHelper;
 
 using std::unique_ptr;
@@ -232,11 +252,10 @@ constexpr uint16_t S88_MAX_SENSORS_PER_BUS = 512;
 #include "JsonConstants.h"
 #include "ConfigurationManager.h"
 
-#include "dcc/DCCSignalGenerator.h"
-#include "dcc/DCCSignalGenerator_RMT.h"
 #include "dcc/DCCProgrammer.h"
-#include "dcc/HBridgeManager.h"
 #include "dcc/Locomotive.h"
+#include "dcc/MonitoredHBridge.h"
+#include "dcc/RMTTrackDevice.h"
 #include "dcc/Turnouts.h"
 
 #include "interfaces/DCCppProtocol.h"
@@ -246,7 +265,6 @@ constexpr uint16_t S88_MAX_SENSORS_PER_BUS = 512;
 #include "stateflows/FreeRTOSTaskMonitor.h"
 #include "stateflows/InfoScreen.h"
 #include "stateflows/LCCStatCollector.h"
-#include "stateflows/MonitoredHBridge.h"
 #include "stateflows/StatusLED.h"
 #include "stateflows/HC12Radio.h"
 #include "stateflows/OTAMonitor.h"
@@ -257,8 +275,10 @@ constexpr uint16_t S88_MAX_SENSORS_PER_BUS = 512;
 #include "io/RemoteSensors.h"
 
 extern vector<uint8_t> restrictedPins;
-extern unique_ptr<dcc::RailcomHubFlow> railComHub;
-extern unique_ptr<dcc::RailcomPrintfFlow> railComDataDumper;
+extern unique_ptr<RMTTrackDevice> trackSignal;
+extern unique_ptr<LocalTrackIf> trackInterface;
+extern unique_ptr<RailcomHubFlow> railComHub;
+extern unique_ptr<RailcomPrintfFlow> railComDataDumper;
 
 #if LOCONET_ENABLED
 #include <LocoNetESP32UART.h>
@@ -285,125 +305,60 @@ void initializeLocoNet();
 // Ensure the required h-bridge parameters are specified and not overlapping.
 /////////////////////////////////////////////////////////////////////////////////////
 
-#ifndef OPS_HBRIDGE_NAME
-#define OPS_HBRIDGE_NAME "OPS"
-#endif
-
-#ifndef PROG_HBRIDGE_NAME
-#define PROG_HBRIDGE_NAME "PROG"
-#endif
-
-#if !defined(OPS_HBRIDGE_ENABLE_PIN) || \
-    !defined(OPS_HBRIDGE_THERMAL_PIN) || \
-    !defined(OPS_HBRIDGE_CURRENT_SENSE_ADC) || \
+#if !defined(OPS_ENABLE_PIN) || \
+    !defined(OPS_THERMAL_PIN) || \
+    !defined(OPS_CURRENT_SENSE_ADC) || \
     !defined(OPS_HBRIDGE_TYPE) || \
-    !defined(PROG_HBRIDGE_ENABLE_PIN) || \
-    !defined(PROG_HBRIDGE_CURRENT_SENSE_ADC) || \
+    !defined(PROG_ENABLE_PIN) || \
+    !defined(PROG_CURRENT_SENSE_ADC) || \
     !defined(PROG_HBRIDGE_TYPE) || \
-    !defined(DCC_SIGNAL_PIN_OPERATIONS) || \
-    !defined(DCC_SIGNAL_PIN_PROGRAMMING)
+    !defined(OPS_SIGNAL_PIN) || \
+    !defined(PROG_SIGNAL_PIN)
 #error "Invalid Configuration detected, Config_MotorBoard.h is a mandatory module."
 #endif
-
-/////////////////////////////////////////////////////////////////////////////////////
-// OPS track h-bridge settings
-/////////////////////////////////////////////////////////////////////////////////////
-#define L298          0
-#define LMD18200      1
-#define POLOLU        2
-#define BTS7960B_5A   3
-#define BTS7960B_10A  4
-
-#if OPS_HBRIDGE_TYPE == L298
-#define OPS_HBRIDGE_MAX_MILIAMPS 2000
-#define OPS_HBRIDGE_LIMIT_MILIAMPS 2000
-#define OPS_HBRIDGE_TYPE_NAME "L298"
-#elif OPS_HBRIDGE_TYPE == LMD18200
-#define OPS_HBRIDGE_MAX_MILIAMPS 3000
-#define OPS_HBRIDGE_LIMIT_MILIAMPS 3000
-#define OPS_HBRIDGE_TYPE_NAME "LMD18200"
-#elif OPS_HBRIDGE_TYPE == POLOLU
-#define OPS_HBRIDGE_MAX_MILIAMPS 2500
-#define OPS_HBRIDGE_LIMIT_MILIAMPS 2500
-#define OPS_HBRIDGE_TYPE_NAME "POLOLU"
-#elif OPS_HBRIDGE_TYPE == BTS7960B_5A
-#define OPS_HBRIDGE_MAX_MILIAMPS 43000
-#define OPS_HBRIDGE_LIMIT_MILIAMPS 5000
-#define OPS_HBRIDGE_TYPE_NAME "BTS7960B"
-#elif OPS_HBRIDGE_TYPE == BTS7960B_10A
-#define OPS_HBRIDGE_MAX_MILIAMPS 43000
-#define OPS_HBRIDGE_LIMIT_MILIAMPS 10000
-#define OPS_HBRIDGE_TYPE_NAME "BTS7960B"
-#else
-#error "Unrecognized OPS_HBRIDGE_TYPE"
-#endif
-
-/////////////////////////////////////////////////////////////////////////////////////
-// PROG track h-bridge settings
-/////////////////////////////////////////////////////////////////////////////////////
-#if PROG_HBRIDGE_TYPE == L298
-#define PROG_HBRIDGE_MAX_MILIAMPS 2000
-#define PROG_HBRIDGE_TYPE_NAME "L298"
-#elif PROG_HBRIDGE_TYPE == LMD18200
-#define PROG_HBRIDGE_MAX_MILIAMPS 3000
-#define PROG_HBRIDGE_TYPE_NAME "LMD18200"
-#elif PROG_HBRIDGE_TYPE == POLOLU
-#define PROG_HBRIDGE_MAX_MILIAMPS 2500
-#define PROG_HBRIDGE_TYPE_NAME "POLOLU"
-#elif PROG_HBRIDGE_TYPE == BTS7960B_5A
-#define PROG_HBRIDGE_MAX_MILIAMPS 43000
-#define PROG_HBRIDGE_TYPE_NAME "BTS7960B"
-#elif PROG_HBRIDGE_TYPE == BTS7960B_10A
-#define PROG_HBRIDGE_MAX_MILIAMPS 43000
-#define PROG_HBRIDGE_TYPE_NAME "BTS7960B"
-#else
-#error "Unrecognized PROG_HBRIDGE_TYPE"
-#endif
-// programming track is current limited internally by the hbridge monitor code
-#define PROG_HBRIDGE_LIMIT_MILIAMPS PROG_HBRIDGE_MAX_MILIAMPS
 
 /////////////////////////////////////////////////////////////////////////////////////
 // Compile time validation of configuration settings
 /////////////////////////////////////////////////////////////////////////////////////
 
-#if OPS_TRACK_PREAMBLE_BITS < 11
-#error "OPS_TRACK_PREAMBLE_BITS is too low, a minimum of 11 bits must be transmitted for the DCC decoder to accept the packets."
+#if OPS_PREAMBLE_BITS < 11
+#error "OPS_PREAMBLE_BITS is too low, a minimum of 11 bits must be transmitted for the DCC decoder to accept the packets."
 #endif
 
-#if OPS_TRACK_PREAMBLE_BITS > 20
-#error "OPS_TRACK_PREAMBLE_BITS is too high. The OPS track only supports up to 20 preamble bits."
+#if OPS_PREAMBLE_BITS > 20
+#error "OPS_PREAMBLE_BITS is too high. The OPS track only supports up to 20 preamble bits."
 #endif
 
-#if PROG_TRACK_PREAMBLE_BITS < 22
-#error "PROG_TRACK_PREAMBLE_BITS is too low, a minimum of 22 bits must be transmitted for reliability on the PROG track."
+#if PROG_PREAMBLE_BITS < 22
+#error "PROG_PREAMBLE_BITS is too low, a minimum of 22 bits must be transmitted for reliability on the PROG track."
 #endif
 
-#if OPS_TRACK_PREAMBLE_BITS > 50
-#error "PROG_TRACK_PREAMBLE_BITS is too high. The PROG track only supports up to 50 preamble bits."
+#if PROG_PREAMBLE_BITS > 50
+#error "PROG_PREAMBLE_BITS is too high. The PROG track only supports up to 50 preamble bits."
 #endif
 
-#if OPS_HBRIDGE_ENABLE_PIN == PROG_HBRIDGE_ENABLE_PIN
-#error "Invalid Configuration detected, OPS_HBRIDGE_ENABLE_PIN and PROG_HBRIDGE_ENABLE_PIN must be unique."
+#if OPS_ENABLE_PIN == PROG_ENABLE_PIN
+#error "Invalid Configuration detected, OPS_ENABLE_PIN and PROG_ENABLE_PIN must be unique."
 #endif
 
-#if DCC_SIGNAL_PIN_OPERATIONS == DCC_SIGNAL_PIN_PROGRAMMING
-#error "Invalid Configuration detected, DCC_SIGNAL_PIN_OPERATIONS and DCC_SIGNAL_PIN_PROGRAMMING must be unique."
+#if OPS_SIGNAL_PIN == PROG_SIGNAL_PIN
+#error "Invalid Configuration detected, OPS_SIGNAL_PIN and PROG_SIGNAL_PIN must be unique."
 #endif
 
-#if STATUS_LED_ENABLED && STATUS_LED_DATA_PIN == OPS_HBRIDGE_ENABLE_PIN
-#error "Invalid Configuration detected, STATUS_LED_DATA_PIN and OPS_HBRIDGE_ENABLE_PIN must be unique."
+#if STATUS_LED_ENABLED && STATUS_LED_DATA_PIN == OPS_ENABLE_PIN
+#error "Invalid Configuration detected, STATUS_LED_DATA_PIN and OPS_ENABLE_PIN must be unique."
 #endif
 
-#if STATUS_LED_ENABLED && STATUS_LED_DATA_PIN == PROG_HBRIDGE_ENABLE_PIN
-#error "Invalid Configuration detected, STATUS_LED_DATA_PIN and PROG_HBRIDGE_ENABLE_PIN must be unique."
+#if STATUS_LED_ENABLED && STATUS_LED_DATA_PIN == PROG_ENABLE_PIN
+#error "Invalid Configuration detected, STATUS_LED_DATA_PIN and PROG_ENABLE_PIN must be unique."
 #endif
 
-#if STATUS_LED_ENABLED && STATUS_LED_DATA_PIN == DCC_SIGNAL_PIN_OPERATIONS
-#error "Invalid Configuration detected, STATUS_LED_DATA_PIN and DCC_SIGNAL_PIN_OPERATIONS must be unique."
+#if STATUS_LED_ENABLED && STATUS_LED_DATA_PIN == OPS_SIGNAL_PIN
+#error "Invalid Configuration detected, STATUS_LED_DATA_PIN and OPS_SIGNAL_PIN must be unique."
 #endif
 
-#if STATUS_LED_ENABLED && STATUS_LED_DATA_PIN == DCC_SIGNAL_PIN_PROGRAMMING
-#error "Invalid Configuration detected, STATUS_LED_DATA_PIN and DCC_SIGNAL_PIN_PROGRAMMING must be unique."
+#if STATUS_LED_ENABLED && STATUS_LED_DATA_PIN == PROG_SIGNAL_PIN
+#error "Invalid Configuration detected, STATUS_LED_DATA_PIN and PROG_SIGNAL_PIN must be unique."
 #endif
 
 /////////////////////////////////////////////////////////////////////////////////////

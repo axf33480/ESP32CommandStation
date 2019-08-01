@@ -16,6 +16,8 @@ COPYRIGHT (c) 2019 Mike Dunston
 **********************************************************************/
 
 #include "ESP32CommandStation.h"
+#if 0
+#include "DCCSignalGenerator.h"
 
 // number of samples to take when monitoring current after a CV verify
 // (bit or byte) has been sent
@@ -184,49 +186,39 @@ bool writeProgCVBit(const uint16_t cv, const uint8_t bit, const bool value) {
   }
   return writeVerified;
 }
+#endif
 
 void writeOpsCVByte(const uint16_t locoAddress, const uint16_t cv, const uint8_t cvValue) {
-  auto& signalGenerator = dccSignal[DCC_SIGNAL_OPERATIONS];
   LOG(VERBOSE, "[OPS] Updating CV %d to %d for loco %d", cv, cvValue, locoAddress);
-  if(locoAddress > 127) {
-    uint8_t writeCVBytePacket[] = {
-      (uint8_t)(0xC0 | highByte(locoAddress)),
-      lowByte(locoAddress),
-      (uint8_t)(0xEC + (highByte(cv - 1) & 0x03)),
-      lowByte(cv - 1),
-      cvValue,
-      0x00};
-    signalGenerator->loadBytePacket(writeCVBytePacket, 5, 4);
-  } else {
-    uint8_t writeCVBytePacket[] = {
-      lowByte(locoAddress),
-      (uint8_t)(0xEC + (highByte(cv - 1) & 0x03)),
-      lowByte(cv - 1),
-      cvValue,
-      0x00};
-    signalGenerator->loadBytePacket(writeCVBytePacket, 4, 4);
+  auto *b = trackInterface->alloc();
+  b->data()->start_dcc_packet();
+  if(locoAddress > 127)
+  {
+    b->data()->add_dcc_address(dcc::DccLongAddress(locoAddress));
   }
+  else
+  {
+    b->data()->add_dcc_address(dcc::DccShortAddress(locoAddress));
+  }
+  b->data()->add_dcc_pom_write1(cv, cvValue);
+  b->data()->packet_header.rept_count = 3;
+  trackInterface->send(b);
 }
 
 void writeOpsCVBit(const uint16_t locoAddress, const uint16_t cv, const uint8_t bit, const bool value) {
-  auto& signalGenerator = dccSignal[DCC_SIGNAL_OPERATIONS];
   LOG(VERBOSE, "[OPS] Updating CV %d bit %d to %d for loco %d", cv, bit, value, locoAddress);
-  if(locoAddress > 127) {
-    uint8_t writeCVBitPacket[] = {
-      (uint8_t)(0xC0 | highByte(locoAddress)),
-      lowByte(locoAddress),
-      (uint8_t)(0xE8 + (highByte(cv - 1) & 0x03)),
-      lowByte(cv - 1),
-      (uint8_t)(0xF0 + bit + value * 8),
-      0x00};
-    signalGenerator->loadBytePacket(writeCVBitPacket, 5, 4);
-  } else {
-    uint8_t writeCVBitPacket[] = {
-      lowByte(locoAddress),
-      (uint8_t)(0xE8 + (highByte(cv - 1) & 0x03)),
-      lowByte(cv - 1),
-      (uint8_t)(0xF0 + bit + value * 8),
-      0x00};
-    signalGenerator->loadBytePacket(writeCVBitPacket, 4, 4);
+  auto *b = trackInterface->alloc();
+  b->data()->start_dcc_packet();
+  if(locoAddress > 127)
+  {
+    b->data()->add_dcc_address(dcc::DccLongAddress(locoAddress));
   }
+  else
+  {
+    b->data()->add_dcc_address(dcc::DccShortAddress(locoAddress));
+  }
+  // TODO add_dcc_pom_write_bit(cv, bit, value)
+  b->data()->add_dcc_prog_command(0xe8, cv - 1, (uint8_t)(0xF0 + bit + value * 8));
+  b->data()->packet_header.rept_count = 3;
+  trackInterface->send(b);
 }

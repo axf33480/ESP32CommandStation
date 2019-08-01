@@ -46,7 +46,7 @@ enum HTTP_STATUS_CODES {
 };
 
 Atomic webSocketAtomic;
-std::vector<WebSocketClient *> webSocketClients;
+vector<WebSocketClient *> webSocketClients;
 
 void handleWsEvent(AsyncWebSocket * server,
                    AsyncWebSocketClient * client,
@@ -150,7 +150,8 @@ void otaUploadCallback(AsyncWebServerRequest *request
       goto ota_failure;
     }
     LOG(INFO, "[WebSrv] OTA Update starting...");
-    disable_all_hbridges();
+    trackSignal->disable_ops_output();
+    trackSignal->disable_prog_output();
     otaMonitor->report_start();
   }
   res = esp_ota_write(otaHandle, data, len);
@@ -240,6 +241,7 @@ void ESP32CSWebServer::broadcastToWS(const std::string &buf) {
 void ESP32CSWebServer::handleProgrammer(AsyncWebServerRequest *request) {
   auto jsonResponse = new AsyncJsonResponse();
   // new programmer request
+  #if 0
   if (request->method() == HTTP_GET) {
     if (request->arg(JSON_PROG_ON_MAIN).equalsIgnoreCase(JSON_VALUE_TRUE)) {
       jsonResponse->setCode(STATUS_NOT_ALLOWED);
@@ -368,8 +370,11 @@ void ESP32CSWebServer::handleProgrammer(AsyncWebServerRequest *request) {
       }
     }
   } else {
+    #endif
     jsonResponse->setCode(STATUS_BAD_REQUEST);
+    #if 0
   }
+  #endif
   jsonResponse->setLength();
   request->send(jsonResponse);
  }
@@ -382,48 +387,28 @@ void ESP32CSWebServer::handlePower(AsyncWebServerRequest *request)
     if(request->params())
     {
       jsonResponse = new AsyncJsonResponse();
-      if (is_track_power_on())
-      {
-        jsonResponse->getRoot()[JSON_STATE_NODE] = JSON_VALUE_TRUE;
-      }
-      else
-      {
-        jsonResponse->getRoot()[JSON_STATE_NODE] = JSON_VALUE_FALSE;
-      }
+      jsonResponse->getRoot()[JSON_STATE_NODE] =
+        trackSignal->is_enabled() ? JSON_VALUE_TRUE : JSON_VALUE_FALSE;
     }
     else
     {
       jsonResponse = new AsyncJsonResponse(true);
-      get_hbridge_status_json(jsonResponse->getRoot());
+      trackSignal->generate_status_json(jsonResponse->getRoot());
     }
     jsonResponse->setLength();
     request->send(jsonResponse);
     return;
   }
-  else if (request->method() == HTTP_PUT)
+  else if (request->method() == HTTP_PUT && request->hasArg(JSON_STATE_NODE))
   {
-    if(request->hasArg(JSON_OVERALL_STATE_NODE))
+    if(request->arg(JSON_STATE_NODE).equalsIgnoreCase(JSON_VALUE_TRUE))
     {
-      if(request->arg(JSON_OVERALL_STATE_NODE).equalsIgnoreCase(JSON_VALUE_TRUE))
-      {
-        enable_all_hbridges();
-      }
-      else
-      {
-        disable_all_hbridges();
-      }
+      trackSignal->enable_ops_output();
     }
-    else if(request->hasArg(JSON_NAME_NODE))
+    else
     {
-      string bridge = request->arg(JSON_NAME_NODE).c_str();
-      if (request->arg(JSON_STATE_NODE).equalsIgnoreCase(JSON_VALUE_TRUE))
-      {
-        enable_named_hbridge(bridge);
-      }
-      else
-      {
-        disable_named_hbridge(bridge);
-      }
+      trackSignal->disable_ops_output();
+      trackSignal->disable_prog_output();
     }
     request->send(STATUS_OK);
     return;
@@ -595,9 +580,9 @@ void ESP32CSWebServer::handleSensors(AsyncWebServerRequest *request) {
 
 void ESP32CSWebServer::handleConfig(AsyncWebServerRequest *request) {
   if (request->method() == HTTP_POST) {
-    DCCPPProtocolHandler::getCommandHandler("E")->process(std::vector<std::string>());
+    DCCPPProtocolHandler::getCommandHandler("E")->process(vector<string>());
   } else if (request->method() == HTTP_DELETE) {
-    DCCPPProtocolHandler::getCommandHandler("e")->process(std::vector<std::string>());
+    DCCPPProtocolHandler::getCommandHandler("e")->process(vector<string>());
   } else if (request->method() != HTTP_GET) {
     request->send(STATUS_BAD_REQUEST);
   }
@@ -657,7 +642,7 @@ void ESP32CSWebServer::handleLocomotive(AsyncWebServerRequest *request) {
   // PUT /locomotive?address=<address>&speed=<speed>&dir=[FWD|REV]&fX=[true|false] - Update locomotive state, fX is short for function X where X is 0-28.
   // DELETE /locomotive?address=<address> - removes locomotive from active management
   const String url = request->url();
-  auto jsonResponse = new AsyncJsonResponse(request->method() == HTTP_GET && !request->params());
+  auto jsonResponse = new AsyncJsonResponse(request->method() == HTTP_GET && !request->params(), 2048);
   jsonResponse->setCode(STATUS_OK);
   // check if we have an eStop command, we don't care how this gets sent to the
   // command station (method) so check it first
@@ -698,29 +683,23 @@ void ESP32CSWebServer::handleLocomotive(AsyncWebServerRequest *request) {
     } else if (request->hasArg(JSON_ADDRESS_NODE)) {
       auto loco = LocomotiveManager::getLocomotive(request->arg(JSON_ADDRESS_NODE).toInt());
       if(request->method() == HTTP_PUT || request->method() == HTTP_POST) {
+        auto upd_speed = loco->get_speed();
         // Creation / Update of active locomotive
-        bool needUpdate = false;
         if(request->hasArg(JSON_IDLE_NODE) && request->arg(JSON_IDLE_NODE).equalsIgnoreCase(JSON_VALUE_TRUE)) {
-          loco->setIdle();
-          needUpdate = true;
-        }
-        if(request->hasArg(JSON_DIRECTION_NODE)) {
-          loco->setDirection(request->arg(JSON_DIRECTION_NODE).equalsIgnoreCase(JSON_VALUE_FORWARD));
-          needUpdate = true;
+          upd_speed.set_dcc_128(0);
         }
         if(request->hasArg(JSON_SPEED_NODE)) {
-          loco->setSpeed(request->arg(JSON_SPEED_NODE).toInt());
-          needUpdate = true;
+          upd_speed.set_dcc_128(request->arg(JSON_SPEED_NODE).toInt());
         }
+        if(request->hasArg(JSON_DIRECTION_NODE)) {
+          upd_speed.set_direction(request->arg(JSON_DIRECTION_NODE).equalsIgnoreCase(JSON_VALUE_FORWARD) ? dcc::SpeedType::FORWARD : dcc::SpeedType::REVERSE);
+        }
+        loco->set_speed(upd_speed);
         for(uint8_t funcID = 0; funcID <=28 ; funcID++) {
           String fArg = "f" + String(funcID);
           if(request->hasArg(fArg.c_str())) {
-            loco->setFunction(funcID, request->arg(fArg.c_str()).equalsIgnoreCase(JSON_VALUE_TRUE));
+            loco->set_fn(funcID, request->arg(fArg.c_str()).equalsIgnoreCase(JSON_VALUE_TRUE));
           }
-        }
-        if(needUpdate) {
-          loco->sendLocoUpdate(true);
-          loco->showStatus();
         }
       } else if(request->method() == HTTP_DELETE) {
         // Removal of an active locomotive

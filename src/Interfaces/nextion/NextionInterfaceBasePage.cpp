@@ -64,10 +64,11 @@ void BaseNextionPage::refresh() {
 }
 
 void BaseNextionPage::setTrackPower(bool on) {
-  if(on) {
-    enable_all_hbridges();
+  if (on) {
+    trackSignal->enable_ops_output();
   } else {
-    disable_all_hbridges();
+    trackSignal->disable_ops_output();
+    trackSignal->disable_prog_output();
   }
   refreshPowerButtons();
 }
@@ -87,7 +88,7 @@ void BaseNextionPage::displayPreviousPage(bool invokeCallback) {
 }
 
 void BaseNextionPage::refreshPowerButtons() {
-  if(is_track_power_on()) {
+  if(trackSignal->is_enabled()) {
     _onButton.setPictureID(ON_PIC_ON);
     _offButton.setPictureID(OFF_PIC_OFF);
   } else {

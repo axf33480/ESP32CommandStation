@@ -15,14 +15,14 @@ The primary focus of v1.4.0 will be improvements to the DCC signal code and addi
 
 ### Config
 
-- [ ] SoftAP support for initial config and "non-home" network. (https://github.com/atanisoft/ESP32CommandStation/issues/4)
+- [-] SoftAP support for initial config and "non-home" network. (https://github.com/atanisoft/ESP32CommandStation/issues/4)
 
 ### DCC System
 
-- [ ] continue sending eStop packet until eStop is cleared.
-- [ ] rework DCC Prog Track interface so it supports multiple requests (serialized) and async response to web.
-- [ ] refactor signal generation for better RailCom/LCC integration (dcc::Packet, UpdateLoop, RailcomHub, ProgrammingTrackBackend, LocalTrackIf).
-- [ ] allow adjustment of the DCC preamble bit count, default is 16 (OPS) and 22 (PROG). The OPS value is constrained between 11 and 20 and PROG between 22 and 50.
+- [-] continue sending eStop packet until eStop is cleared.
+- [-] rework DCC Prog Track interface so it supports multiple requests (serialized) and async response to web.
+- [x] refactor signal generation for better RailCom/LCC integration (dcc::Packet, UpdateLoop, RailcomHub, ProgrammingTrackBackend, LocalTrackIf).
+- [x] allow adjustment of the DCC preamble bit count, default is 16 (OPS) and 22 (PROG). The OPS value is constrained between 11 and 20 and PROG between 22 and 50.
 - [ ] test and expose OPS RailCom configuration.
 
 ### Web Interface
@@ -36,8 +36,8 @@ The primary focus of v1.4.0 will be improvements to the DCC signal code and addi
 
 - [x] migrate to Esp32WiFiManager instead of Arduino WiFi library.
 - [x] Refresh OpenMRNLite lib to latest openmrn code.
-- [ ] adjust InfoScreen LCC details so they are useful, right now it is a placeholder.
-- [ ] implement CV memory space.
+- [-] adjust InfoScreen LCC details so they are useful, right now it is a placeholder.
+- [x] implement CV memory space.
 
 ### InfoScreen
 

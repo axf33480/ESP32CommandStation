@@ -174,7 +174,7 @@ void RemoteSensor::toJson(JsonObject json, bool includeState) {
   json[JSON_PULLUP_NODE] = isPullUp();
 }
 
-void RemoteSensorsCommandAdapter::process(const std::vector<std::string> arguments) {
+void RemoteSensorsCommandAdapter::process(const vector<string> arguments) {
   if(arguments.empty()) {
     // list all sensors
     RemoteSensorManager::show();

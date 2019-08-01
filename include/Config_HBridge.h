@@ -40,23 +40,19 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 // BTS7960B_5A    : Infineon Technologies BTS 7960 Motor Driver Module. Max Output 5A (43A actual max) https://www.infineon.com/dgdl/bts7960b-pb-final.pdf
 // BTS7960B_10A   : Infineon Technologies BTS 7960 Motor Driver Module. Max Output 10A (43A actual max) https://www.infineon.com/dgdl/bts7960b-pb-final.pdf
 
-// MAIN TRACK MOTORBOARD NAME
-#define OPS_HBRIDGE_NAME "OPS"
 // MAIN TRACK NOTORBOARD ENABLED PIN
-#define OPS_HBRIDGE_ENABLE_PIN 25
+#define OPS_ENABLE_PIN 25
 // MAIN TRACK H-Bridge Thermal Warning Pin
-#define OPS_HBRIDGE_THERMAL_PIN -1
+#define OPS_THERMAL_PIN -1
 // MAIN TRACK MOTORBOARD CURRENT SENSE ADC PIN
-#define OPS_HBRIDGE_CURRENT_SENSE_ADC ADC1_CHANNEL_0
+#define OPS_CURRENT_SENSE_ADC ADC1_CHANNEL_0
 // MAIN TRACK MOTORBOARD MOTOR_BOARD_TYPE
 #define OPS_HBRIDGE_TYPE L298
 
-// PROG TRACK MOTORBOARD NAME
-#define PROG_HBRIDGE_NAME "PROG"
 // PROG TRACK NOTORBOARD ENABLED PIN
-#define PROG_HBRIDGE_ENABLE_PIN 23
+#define PROG_ENABLE_PIN 23
 // PROG TRACK MOTORBOARD CURRENT SENSE ADC PIN
-#define PROG_HBRIDGE_CURRENT_SENSE_ADC ADC1_CHANNEL_3
+#define PROG_CURRENT_SENSE_ADC ADC1_CHANNEL_3
 // PROG TRACK MOTORBOARD MOTOR_BOARD_TYPE
 #define PROG_HBRIDGE_TYPE L298
 
@@ -65,10 +61,10 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 // DEFINE WHICH PINS ARE USED FOR DCC SIGNAL GENERATION
 //
 // OPERATIONS TRACK DCC SIGNAL PIN
-#define DCC_SIGNAL_PIN_OPERATIONS 19
+#define OPS_SIGNAL_PIN 19
 
 // PROGRAMMING TRACK DCC SIGNAL PIN
-#define DCC_SIGNAL_PIN_PROGRAMMING 18
+#define PROG_SIGNAL_PIN 18
 
 /////////////////////////////////////////////////////////////////////////////////////
 //
@@ -90,18 +86,18 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 // The maximum number of preamble bits is 50. For OPS the minimum to send is 11 but
 // 16 is required for RailCom support.
 
-#define OPS_TRACK_PREAMBLE_BITS 16
+#define OPS_PREAMBLE_BITS 16
 
-#define PROG_TRACK_PREAMBLE_BITS 22
+#define PROG_PREAMBLE_BITS 22
 
 /////////////////////////////////////////////////////////////////////////////////////
 //
 // DEFINE WHICH PINS ARE USED FOR OPS RAILCOM DETECTION
 //
-#define OPS_BRAKE_ENABLE_PIN NOT_A_PIN
-#define OPS_RAILCOM_ENABLE_PIN NOT_A_PIN
-#define OPS_RAILCOM_SHORT_PIN NOT_A_PIN
-#define OPS_RAILCOM_UART 2
-#define OPS_RAILCOM_UART_RX_PIN NOT_A_PIN
+#define RAILCOM_BRAKE_ENABLE_PIN NOT_A_PIN
+#define RAILCOM_ENABLE_PIN NOT_A_PIN
+#define RAILCOM_SHORT_PIN NOT_A_PIN
+#define RAILCOM_UART 2
+#define RAILCOM_UART_RX_PIN NOT_A_PIN
 
 /////////////////////////////////////////////////////////////////////////////////////

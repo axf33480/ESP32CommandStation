@@ -29,6 +29,10 @@
  * Control flow that acts as a trackInterface and sends all packets to a local
  * fd that represents the DCC mainline, such as TivaDCC.
  *
+ * NOTE: This has been customized for ESP32 Command Station to split the OPS
+ * and PROG ioctl handling based on the send_long_preamble header flag. This
+ * is not intended for merge back to OpenMRN.
+ * 
  * @author Balazs Racz
  * @date 24 Aug 2014
  */
@@ -61,7 +65,10 @@ StateFlowBase::Action LocalTrackIf::entry()
   if (ret < 0)
   {
     HASSERT(errno == ENOSPC);
-    ::ioctl(fd_, CAN_IOC_WRITE_ACTIVE, this);
+    ::ioctl(fd_
+          , p->packet_header.send_long_preamble ?
+            CAN_IOC_WRITE_PROG_ACTIVE : CAN_IOC_WRITE_OPS_ACTIVE
+          , this);
     return wait();
   }
   return finish();

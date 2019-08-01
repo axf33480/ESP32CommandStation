@@ -27,8 +27,8 @@ void *jmriClientHandler(void *arg);
 MDNS mDNS;
 ESP32CSWebServer esp32csWebServer(&mDNS);
 Atomic jmriClientsAtomic;
-std::vector<int> jmriClients;
-std::unique_ptr<SocketListener> JMRIListener;
+vector<int> jmriClients;
+unique_ptr<SocketListener> JMRIListener;
 WiFiInterface wifiInterface;
 
 constexpr int JMRI_CLIENT_PRIORITY = 1;

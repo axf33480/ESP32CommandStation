@@ -25,7 +25,7 @@ using openlcb::ConfigDef;
 const char * buildTime = __DATE__ " " __TIME__;
 
 #ifndef ALLOW_USAGE_OF_RESTRICTED_GPIO_PINS
-std::vector<uint8_t> restrictedPins
+vector<uint8_t> restrictedPins
 {
   0, // Bootstrap / Firmware Flash Download
   1, // UART0 TX
@@ -36,7 +36,7 @@ std::vector<uint8_t> restrictedPins
   12, 15 // Bootstrap / SD pins
 };
 #else
-std::vector<uint8_t> restrictedPins;
+vector<uint8_t> restrictedPins;
 #endif
 
 std::unique_ptr<OpenMRN> openmrn;
@@ -62,14 +62,31 @@ namespace openlcb {
   };
 }
 
+OVERRIDE_CONST_TRUE(gridconnect_tcp_use_select);
+OVERRIDE_CONST(gridconnect_buffer_size, 3512);
+OVERRIDE_CONST(gridconnect_buffer_delay_usec, 1000);
+OVERRIDE_CONST_TRUE(gc_generate_newlines);
+OVERRIDE_CONST(executor_select_prescaler, 60);
+//OVERRIDE_CONST(gridconnect_bridge_max_outgoing_packets, );
+
+// increase the local node count so that we can have a few train nodes active
+OVERRIDE_CONST(local_nodes_count, 30);
+OVERRIDE_CONST(local_alias_cache_size, 30);
+
 // state flows that are not defined elsewhere
 unique_ptr<FreeRTOSTaskMonitor> taskMonitor;
 unique_ptr<LCCStatCollector> lccStatCollector;
 unique_ptr<OTAMonitorFlow> otaMonitor;
 
+unique_ptr<RMTTrackDevice> trackSignal;
+unique_ptr<LocalTrackIf> trackInterface;
 unique_ptr<SimpleUpdateLoop> dccUpdateLoop;
+unique_ptr<PoolToQueueFlow<Buffer<dcc::Packet>>> dccPacketFlow;
 unique_ptr<RailcomHubFlow> railComHub;
 unique_ptr<RailcomPrintfFlow> railComDataDumper;
+unique_ptr<ProgrammingTrackBackend> progTrackBackend;
+unique_ptr<DccAccyConsumer> accessoryConsumer;
+unique_ptr<TractionCvSpace> cvMemorySpace;
 
 #if CONFIG_USE_SD
 #define CDI_CONFIG_PREFIX "/sdcard"
@@ -198,9 +215,7 @@ extern "C" void app_main()
   uart_param_config(UART_NUM_0, &uart0);
   uart_driver_install(UART_NUM_0, 1024, 1024, 0, NULL, 0);
 
-  LOG(INFO
-    , "\n\nESP32 Command Station v%s starting up"
-    , ESP32CS_VERSION);
+  LOG(INFO, "\n\nESP32 Command Station v%s starting up", ESP32CS_VERSION);
 
   // Initialize the Arduino-ESP32 stack early in the startup flow.
   LOG(INFO, "[Arduino] Initializing Arduino stack");
@@ -242,6 +257,9 @@ extern "C" void app_main()
   // Initialize the WiFi Manager.
   configStore->configureWiFi(openmrn->stack(), cfg.seg().wifi());
 
+  // Initialize the CAN interface.
+  configStore->configureCAN(openmrn.get());
+
   // Create the CDI.xml dynamically if it doesn't already exist.
   openmrn->create_config_descriptor_xml(cfg, openlcb::CDI_FILENAME);
 
@@ -250,54 +268,58 @@ extern "C" void app_main()
                                                , ESP32CS_NUMERIC_VERSION
                                                , openlcb::CONFIG_FILE_SIZE);
 
-  // Initialize the DCC Signal Generators.
-  dccSignal[DCC_SIGNAL_OPERATIONS].reset(
-    new SignalGenerator_RMT(OPS_HBRIDGE_NAME           // name
-                          , 512                        // packet queue size
-                          , DCC_SIGNAL_OPERATIONS      // signal ID
-                          , DCC_SIGNAL_PIN_OPERATIONS  // signal pin
-                          , OPS_HBRIDGE_ENABLE_PIN));  // h-bridge enable pin
-  dccSignal[DCC_SIGNAL_PROGRAMMING].reset(
-    new SignalGenerator_RMT(PROG_HBRIDGE_NAME           // name
-                          , 10                          // packet queue size
-                          , DCC_SIGNAL_PROGRAMMING      // signal ID
-                          , DCC_SIGNAL_PIN_PROGRAMMING  // signal pin
-                          , PROG_HBRIDGE_ENABLE_PIN));  // h-bridge enable pin
+  // Initialize the RailCom Hub
+  railComHub.reset(new RailcomHubFlow(openmrn->stack()->service()));
 
-  // Create the DCC Update Loop.
+  // Initialize Track Signal Device (both OPS and PROG)
+  trackSignal.reset(new RMTTrackDevice(openmrn->stack()
+                                     , railComHub.get()
+                                     , cfg.seg().hbridge().entry(0)
+                                     , cfg.seg().hbridge().entry(1)));
+
+  // Initialize Local Track inteface
+  trackInterface.reset(new LocalTrackIf(openmrn->stack()->service(), 10));
+
+  // Initialize DCC Accessory consumer
+  accessoryConsumer.reset(new DccAccyConsumer(openmrn->stack()->node()
+                                            , trackInterface.get()));
+
+  cvMemorySpace.reset(new TractionCvSpace(openmrn->stack()->memory_config_handler()
+                                        , trackInterface.get()
+                                        , railComHub.get()
+                                        , MemoryConfigDefs::SPACE_DCC_CV));
+
+  // Open a handle to the track device driver
+  int track = ::open("/dev/track", O_RDWR);
+  HASSERT(track > 0);
+  // pass the track device handle to the track interface
+  trackInterface->set_fd(track);
+
+  // Initialize the DCC Update Loop.
   dccUpdateLoop.reset(
-    new SimpleUpdateLoop(openmrn->stack()->service()
-                       , dccSignal[DCC_SIGNAL_OPERATIONS].get()));
+    new SimpleUpdateLoop(openmrn->stack()->service(), trackInterface.get()));
 
+  // Attach the DCC update loop to the track interface
+  dccPacketFlow.reset(
+    new PoolToQueueFlow<Buffer<dcc::Packet>>(openmrn->stack()->service()
+                                           , trackInterface->pool()
+                                           , dccUpdateLoop.get()));
+
+  // Add a data dumper for the RailCom Hub
+  railComDataDumper.reset(new RailcomPrintfFlow(railComHub.get()));
+
+  // Initialize the Programming Track backend handler
+  progTrackBackend.reset(
+    new ProgrammingTrackBackend(openmrn->stack()->service()
+                              , std::bind(&RMTTrackDevice::enable_prog_output
+                                        , trackSignal.get())
+                              , std::bind(&RMTTrackDevice::disable_prog_output
+                                        , trackSignal.get())));
+
+  // Initialize the DCC++ protocol adapter
   DCCPPProtocolHandler::init();
 
   wifiInterface.init();
-
-  setup_hbridge_event_handlers(openmrn->stack()->node());
-
-  register_monitored_hbridge(openmrn->stack()
-                          , (adc1_channel_t)OPS_HBRIDGE_CURRENT_SENSE_ADC
-                          , (gpio_num_t)OPS_HBRIDGE_ENABLE_PIN
-                          , (gpio_num_t)OPS_HBRIDGE_THERMAL_PIN
-                          , OPS_HBRIDGE_LIMIT_MILIAMPS
-                          , OPS_HBRIDGE_MAX_MILIAMPS
-                          , OPS_HBRIDGE_NAME
-                          , OPS_HBRIDGE_TYPE_NAME
-                          , cfg.seg().hbridge().entry(0));
-
-  register_monitored_hbridge(openmrn->stack()
-                          , (adc1_channel_t)PROG_HBRIDGE_CURRENT_SENSE_ADC
-                          , (gpio_num_t)PROG_HBRIDGE_ENABLE_PIN
-                          , (gpio_num_t)NOT_A_PIN
-                          , PROG_HBRIDGE_LIMIT_MILIAMPS
-                          , PROG_HBRIDGE_MAX_MILIAMPS
-                          , PROG_HBRIDGE_NAME
-                          , PROG_HBRIDGE_TYPE_NAME
-                          , cfg.seg().hbridge().entry(1)
-                          , true);
-
-  // Initialize the CAN interface (if configured).
-  configStore->configureCAN(openmrn.get());
 
   nextionInterfaceInit();
 
@@ -309,20 +331,6 @@ extern "C" void app_main()
 
   // Start the OpenMRN stack.
   openmrn->begin();
-
-  // create OpenMRN executor thread, this will consume near 100% of core 0
-  // all tasks must use core 1!
-  openmrn->start_executor_thread();
-
-  LOG(INFO, "[OpenMRN] Starting loop task on core:%d", APP_CPU_NUM);
-  xTaskCreatePinnedToCore(openmrn_loop_task     // function
-                        , "OpenMRN-Loop"        // name
-                        , 2048                  // stack
-                        , nullptr               // function arg
-                        , 1                     // priority
-                        , nullptr               // handle
-                        , APP_CPU_NUM           // core id
-  );
 
 #if CPULOAD_REPORTING
   os_thread_create(&cpuTickTaskHandle, "loadtick", 1, 0, &cpuTickTask, nullptr);
@@ -347,6 +355,23 @@ extern "C" void app_main()
   initializeLocoNet();
 #endif
 
+  // create OpenMRN executor thread, this can consume near 100% of core 0
+  // all tasks must use core 1!
+  openmrn->start_executor_thread();
+
+  LOG(INFO, "[OpenMRN] Starting loop task on core:%d", APP_CPU_NUM);
+  xTaskCreatePinnedToCore(openmrn_loop_task     // function
+                        , "OpenMRN-Loop"        // name
+                        , 4096                  // stack
+                        , nullptr               // function arg
+                        , 1                     // priority
+                        , nullptr               // handle
+                        , APP_CPU_NUM           // core id
+  );
+
   LOG(INFO, "ESP32 Command Station Started!");
   infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "ESP32-CS Started");
+
+  // put the ESP32 CS main task thread to sleep
+  vTaskDelay(portMAX_DELAY);
 }

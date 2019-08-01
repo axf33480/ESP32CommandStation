@@ -253,7 +253,7 @@ void Sensor::set(bool state) {
   }
 }
 
-void SensorCommandAdapter::process(const std::vector<std::string> arguments) {
+void SensorCommandAdapter::process(const vector<string> arguments) {
   if(arguments.empty()) {
     // list all sensors
     for (const auto& sensor : sensors) {

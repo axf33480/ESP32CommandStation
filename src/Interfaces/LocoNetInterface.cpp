@@ -55,7 +55,9 @@ void initializeLocoNet()
   locoNet.onPacket(OPC_LOCO_SPD, [](lnMsg *msg) {
     auto loco = LocomotiveManager::getLocomotiveByRegister(msg->lsp.slot);
     if(loco) {
-      loco->setSpeed(msg->lsp.spd);
+      auto speed = loco->get_speed();
+      speed.set_dcc_128(msg->lsp.spd)
+      loco->set_speed(speed);
     } else {
       locoNet.send(OPC_LONG_ACK, OPC_LOCO_SPD, 0);
     }
@@ -63,12 +65,14 @@ void initializeLocoNet()
   locoNet.onPacket(OPC_LOCO_DIRF, [](lnMsg *msg) {
     auto loco = LocomotiveManager::getLocomotiveByRegister(msg->ldf.slot);
     if(loco) {
-      loco->setDirection(msg->ldf.dirf & DIRF_DIR);
-      loco->setFunction(0, msg->ldf.dirf & DIRF_F0);
-      loco->setFunction(1, msg->ldf.dirf & DIRF_F1);
-      loco->setFunction(2, msg->ldf.dirf & DIRF_F2);
-      loco->setFunction(3, msg->ldf.dirf & DIRF_F3);
-      loco->setFunction(4, msg->ldf.dirf & DIRF_F4);
+      auto speed = loco->get_speed();
+      speed.set_direction(msg->ldf.dirf & DIRF_DIR);
+      loco->set_speed(speed);
+      loco->set_fn(0, msg->ldf.dirf & DIRF_F0);
+      loco->set_fn(1, msg->ldf.dirf & DIRF_F1);
+      loco->set_fn(2, msg->ldf.dirf & DIRF_F2);
+      loco->set_fn(3, msg->ldf.dirf & DIRF_F3);
+      loco->set_fn(4, msg->ldf.dirf & DIRF_F4);
     } else {
       locoNet.send(OPC_LONG_ACK, OPC_LOCO_DIRF, 0);
     }
@@ -76,10 +80,10 @@ void initializeLocoNet()
   locoNet.onPacket(OPC_LOCO_SND, [](lnMsg *msg) {
     auto loco = LocomotiveManager::getLocomotiveByRegister(msg->ls.slot);
     if(loco) {
-      loco->setFunction(5, msg->ls.snd & SND_F5);
-      loco->setFunction(6, msg->ls.snd & SND_F6);
-      loco->setFunction(7, msg->ls.snd & SND_F7);
-      loco->setFunction(8, msg->ls.snd & SND_F8);
+      loco->set_fn(5, msg->ls.snd & SND_F5);
+      loco->set_fn(6, msg->ls.snd & SND_F6);
+      loco->set_fn(7, msg->ls.snd & SND_F7);
+      loco->set_fn(8, msg->ls.snd & SND_F8);
     } else {
       locoNet.send(OPC_LONG_ACK, OPC_LOCO_SND, 0);
     }

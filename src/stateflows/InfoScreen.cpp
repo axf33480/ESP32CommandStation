@@ -229,7 +229,7 @@ StateFlowBase::Action InfoScreen::update()
     else if (_rotatingStatusIndex == 3)
     {
       replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE
-                , get_hbridge_info_screen_data()
+                , trackSignal->get_info_screen_data()
       );
     }
     else if (_rotatingStatusIndex == 4)

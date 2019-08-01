@@ -80,8 +80,8 @@ void nextionTask(void *param) {
       // break the returned string into its comma delimited chunks
       // start after the first space
       std::stringstream buf(screenID.substring(screenID.indexOf(' ') + 1).c_str());
-      std::vector<std::string> parts;
-      std::string part;
+      vector<string> parts;
+      string part;
       while(getline(buf, part, ',')) {
         parts.push_back(part);
       }

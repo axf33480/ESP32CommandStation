@@ -312,7 +312,7 @@ void S88SensorBus::show() {
   }
 }
 
-void S88BusCommandAdapter::process(const std::vector<std::string> arguments) {
+void S88BusCommandAdapter::process(const vector<string> arguments) {
   if(arguments.empty()) {
     // list all sensor groups
     for (const auto& sensorBus : s88SensorBus) {

@@ -67,8 +67,10 @@ namespace openlcb
     /// then optional arguments list.
     CDI_GROUP_ENTRY(internal_config, InternalConfigData);
     /// CV Access via MemoryConfig protocol.
-    //CDI_GROUP_ENTRY(cv, TractionShortCvSpace);
+    CDI_GROUP_ENTRY(cv, TractionShortCvSpace);
+    /// WiFi configuration
     CDI_GROUP_ENTRY(wifi, WiFiConfiguration, Name("WiFi Configuration"));
+    /// H-Bridge configuration
     CDI_GROUP_ENTRY(hbridge, TrackOutputs, Name("H-Bridge Configuration"));
     CDI_GROUP_END();
 

@@ -93,10 +93,14 @@ public:
   void process(const vector<string> arguments) {
     int cvNumber = std::stoi(arguments[0]);
     int16_t cvValue = -1;
+
+// TODO: shift this to state flow
+/*
     if(enterProgrammingMode()) {
       cvValue = readCV(cvNumber);
       leaveProgrammingMode();
     }
+*/
     wifiInterface.broadcast(StringPrintf("<r%s|%s|%d %d>",
       arguments[1].c_str(),
       arguments[2].c_str(),
@@ -118,6 +122,8 @@ public:
   void process(const vector<string> arguments) {
     int cvNumber = std::stoi(arguments[0]);
     int16_t cvValue = std::stoi(arguments[1]);
+// TODO: shift this to state flow
+/*
     if(enterProgrammingMode()) {
       if(!writeProgCVByte(cvNumber, cvValue)) {
         cvValue = -1;
@@ -126,6 +132,7 @@ public:
     } else {
       cvValue = -1;
     }
+*/
     wifiInterface.broadcast(StringPrintf("<r%s|%s|%d %d>",
       arguments[2].c_str(),
       arguments[3].c_str(),
@@ -148,6 +155,8 @@ public:
     int cvNumber = std::stoi(arguments[0]);
     uint8_t bit = std::stoi(arguments[1]);
     int8_t bitValue = std::stoi(arguments[1]);
+// TODO: shift this to state flow
+/*
     if(enterProgrammingMode()) {
       if(!writeProgCVBit(cvNumber, bit, bitValue == 1)) {
         bitValue = -1;
@@ -156,6 +165,7 @@ public:
     } else {
       bitValue = -1;
     }
+*/
     wifiInterface.broadcast(StringPrintf("<r%s|%s|%d %d %d>",
       arguments[2].c_str(),
       arguments[3].c_str(),
@@ -212,7 +222,7 @@ public:
                  , ESP32CS_VERSION
                  , __DATE__
                  , __TIME__));
-    broadcast_all_hbridge_statuses();
+    trackSignal->broadcast_status();
     LocomotiveManager::showStatus();
     turnoutManager->showStatus();
 #if ENABLE_OUTPUTS
@@ -254,14 +264,7 @@ class CurrentDrawCommand : public DCCPPProtocolCommand {
 public:
   void process(const vector<string> arguments)
   {
-    if (arguments.empty())
-    {
-      broadcast_all_hbridge_statuses();
-    }
-    else
-    {
-      broadcast_named_hbridge_status(arguments[0]);
-    }
+    trackSignal->broadcast_status();
   }
   string getID()
   {
@@ -273,14 +276,7 @@ class PowerOnCommand : public DCCPPProtocolCommand {
 public:
   void process(const vector<string> arguments)
   {
-    if (arguments.empty())
-    {
-      enable_all_hbridges();
-    }
-    else
-    {
-      enable_named_hbridge(arguments[0]);
-    }
+    trackSignal->enable_ops_output();
   }
   string getID() {
     return "1";
@@ -291,14 +287,7 @@ class PowerOffCommand : public DCCPPProtocolCommand {
 public:
   void process(const vector<string> arguments)
   {
-    if (arguments.empty())
-    {
-      disable_all_hbridges();
-    }
-    else
-    {
-      disable_named_hbridge(arguments[0]);
-    }
+    trackSignal->disable_ops_output();
   }
   string getID() {
     return "0";
@@ -340,14 +329,14 @@ void DCCPPProtocolHandler::init() {
   registerCommand(new EStopCommand());
 }
 
-void DCCPPProtocolHandler::process(const std::string &commandString) {
-  std::vector<std::string> parts;
+void DCCPPProtocolHandler::process(const string &commandString) {
+  vector<string> parts;
   std::stringstream buf(commandString);
-  std::string part;
+  string part;
   while(getline(buf, part, ' ')) {
     parts.push_back(part);
   }
-  std::string commandID = parts.front();
+  string commandID = parts.front();
   parts.erase(parts.begin());
   LOG(VERBOSE, "Command: %s, argument count: %d", commandID.c_str(), parts.size());
   bool processed = false;

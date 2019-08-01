@@ -18,6 +18,7 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #ifndef TURNOUTS_H_
 #define TURNOUTS_H_
 
+#include <dcc/PacketSource.hxx>
 #include <openlcb/DccAccyConsumer.hxx>
 #include "interfaces/DCCppProtocol.h"
 
@@ -33,7 +34,7 @@ enum TurnoutType
 void encodeDCCAccessoryAddress(uint16_t *boardAddress, int8_t *boardIndex, uint16_t address);
 uint16_t decodeDCCAccessoryAddress(uint16_t boardAddress, int8_t boardIndex);
 
-class Turnout
+class Turnout : public dcc::NonTrainPacketSource
 {
 public:
   Turnout(uint16_t, uint16_t, int8_t, bool=false, TurnoutType=TurnoutType::LEFT);
@@ -75,6 +76,7 @@ public:
   {
     _type = type;
   }
+  void get_next_packet(unsigned code, dcc::Packet* packet) override;
 private:
   uint16_t _turnoutID;
   uint16_t _address;

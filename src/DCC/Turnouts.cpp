@@ -102,7 +102,7 @@ TurnoutManager::TurnoutManager(openlcb::Node *node)
   LOG(INFO, "[Turnout] Loaded %d turnouts", turnouts_.size());
 
   // register the LCC event handler
-  turnoutEventConsumer_.reset(new openlcb::DccAccyConsumer(node, this));
+  turnoutEventConsumer_.reset(new DccAccyConsumer(node, this));
 }
 
 void TurnoutManager::clear()
@@ -313,6 +313,7 @@ uint16_t TurnoutManager::getTurnoutCount()
   return turnouts_.size();
 }
 
+// TODO shift this to consume the LCC event directly
 void TurnoutManager::send(Buffer<dcc::Packet> *b, unsigned prio)
 {
   // add ref count so send doesn't delete it
@@ -334,8 +335,7 @@ void TurnoutManager::send(Buffer<dcc::Packet> *b, unsigned prio)
     // Set the turnout to the requested state, don't send a DCC packet.
     setByAddress(decodeDCCAccessoryAddress(boardAddress, boardIndex), state, false);
   }
-  // send the packet to the track
-  dccSignal[DCC_SIGNAL_OPERATIONS]->send(b, prio);
+  b->unref();
 }
 
 void encodeDCCAccessoryAddress(uint16_t *boardAddress, int8_t *boardIndex, uint16_t address)
@@ -466,18 +466,9 @@ void Turnout::toJson(JsonObject json, bool readableStrings)
 void Turnout::set(bool thrown, bool sendDCCPacket)
 {
   _thrown = thrown;
-  if (sendDCCPacket &&
-      dccSignal[DCC_SIGNAL_OPERATIONS]->isEnabled())
+  if (sendDCCPacket)
   {
-    vector<uint8_t> packetBuffer;
-    // first byte is of the form 10AAAAAA, where AAAAAA represent 6 least
-    // signifcant bits of accessory address
-    packetBuffer.push_back(0x80 + _boardAddress % 64);
-    // second byte is of the form 1AAACDDD, where C should be 1, and the least
-    // significant D represent activate/deactivate
-    packetBuffer.push_back(((((_boardAddress / 64) % 8) << 4) +
-      (_index % 4 << 1) + _thrown) ^ 0xF8);
-    dccSignal[DCC_SIGNAL_OPERATIONS]->loadPacket(packetBuffer, 1);
+    packet_processor_add_refresh_source(this);
   }
   wifiInterface.broadcast(StringPrintf("<H %d %d>", _turnoutID, _thrown));
   LOG(VERBOSE
@@ -489,6 +480,14 @@ void Turnout::set(bool thrown, bool sendDCCPacket)
 void Turnout::showStatus()
 {
   wifiInterface.broadcast(StringPrintf("<H %d %d %d %d>", _turnoutID, _address, _index, _thrown));
+}
+
+void Turnout::get_next_packet(unsigned code, dcc::Packet* packet)
+{
+  packet->add_dcc_basic_accessory(_address, _thrown);
+
+  // remove ourselves as turnouts are single fire sources
+  packet_processor_remove_refresh_source(this);
 }
 
 void TurnoutCommandAdapter::process(const vector<string> arguments)
@@ -567,26 +566,11 @@ void TurnoutExCommandAdapter::process(const vector<string> arguments)
   wifiInterface.broadcast(sendSuccess ? COMMAND_SUCCESSFUL_RESPONSE : COMMAND_FAILED_RESPONSE);
 }
 
-void AccessoryCommand::process(const std::vector<std::string> arguments)
+void AccessoryCommand::process(const vector<string> arguments)
 {
-  if (dccSignal[DCC_SIGNAL_OPERATIONS]->isEnabled())
-  {
-    vector<uint8_t> packetBuffer;
-    uint16_t boardAddress = std::stoi(arguments[0]);
-    uint8_t boardIndex = std::stoi(arguments[1]);
-    bool activate = arguments[2][0] == '1';
-    LOG(VERBOSE
-      , "[Turnout] DCC Accessory Packet %d:%d state: %d"
-      , boardAddress
-      , boardIndex
-      , activate);
-    // first byte is of the form 10AAAAAA, where AAAAAA represent 6 least
-    // signifcant bits of accessory address
-    packetBuffer.push_back(0x80 + boardAddress % 64);
-    // second byte is of the form 1AAACDDD, where C should be 1, and the least
-    // significant D represent activate/deactivate
-    packetBuffer.push_back(((((boardAddress / 64) % 8) << 4) +
-      (boardIndex % 4 << 1) + activate) ^ 0xF8);
-    dccSignal[DCC_SIGNAL_OPERATIONS]->loadPacket(packetBuffer, 1);
-  }
+  turnoutManager->setByAddress(
+      decodeDCCAccessoryAddress(std::stoi(arguments[0])
+                              , std::stoi(arguments[1]))
+    , std::stoi(arguments[2])
+  );
 }

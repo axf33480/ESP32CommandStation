@@ -29,8 +29,7 @@ MonitoredHBridge::MonitoredHBridge(SimpleCanStack *stack
                  , const uint32_t maxMilliAmps
                  , const string &name
                  , const string &bridgeType
-                 , const TrackOutputConfig &cfg
-                 , const bool programmingTrack) :
+                 , const TrackOutputConfig &cfg) :
   StateFlowBase(stack->service())
   , DefaultConfigUpdateListener()
   , channel_(senseChannel)
@@ -39,11 +38,11 @@ MonitoredHBridge::MonitoredHBridge(SimpleCanStack *stack
   , maxMilliAmps_(maxMilliAmps)
   , name_(name)
   , bridgeType_(bridgeType)
-  , isProgTrack_(programmingTrack)
+  , isProgTrack_(false)
   , overCurrentLimit_(((((limitMilliAmps << 3) + limitMilliAmps) / 10) << 12) / maxMilliAmps_) // ~90% max value
   , shutdownLimit_(4090)
   , cfg_(cfg)
-  , targetLED_(isProgTrack_ ? StatusLED::LED::PROG_TRACK : StatusLED::LED::OPS_TRACK)
+  , targetLED_(StatusLED::LED::OPS_TRACK)
   , shortBit_(stack->node(), 0, 0, &state_, STATE_OVERCURRENT)
   , shutdownBit_(stack->node(), 0, 0, &state_, STATE_SHUTDOWN)
   , thermalBit_(stack->node(), 0, 0, &state_, STATE_THERMAL_SHUTDOWN)
@@ -51,12 +50,38 @@ MonitoredHBridge::MonitoredHBridge(SimpleCanStack *stack
   , shutdownProducer_(&shortBit_)
   , thermalProducer_(&shortBit_)
 {
-  if (isProgTrack_)
-  {
-    // programming track needs to be current limited to ~250mA
-    overCurrentLimit_ = (250 << 12) / maxMilliAmps_;
-    shutdownLimit_ = overCurrentLimit_ << 1;
-  }
+  // set warning limit to ~75% of overcurrent limit
+  warnLimit_ = ((overCurrentLimit_ << 1) + overCurrentLimit_) >> 2;
+}
+
+MonitoredHBridge::MonitoredHBridge(SimpleCanStack *stack
+                 , const adc1_channel_t senseChannel
+                 , const gpio_num_t enablePin
+                 , const uint32_t maxMilliAmps
+                 , const string &name
+                 , const string &bridgeType
+                 , const TrackOutputConfig &cfg) :
+  StateFlowBase(stack->service())
+  , DefaultConfigUpdateListener()
+  , channel_(senseChannel)
+  , enablePin_(enablePin)
+  , thermalWarningPin_((gpio_num_t)NOT_A_PIN)
+  , maxMilliAmps_(maxMilliAmps)
+  , name_(name)
+  , bridgeType_(bridgeType)
+  , isProgTrack_(true)
+  , overCurrentLimit_((250 << 12) / maxMilliAmps_) // ~90% max value
+  , shutdownLimit_(4090)
+  , cfg_(cfg)
+  , targetLED_(StatusLED::LED::PROG_TRACK)
+  , shortBit_(stack->node(), 0, 0, &state_, STATE_OVERCURRENT)
+  , shutdownBit_(stack->node(), 0, 0, &state_, STATE_SHUTDOWN)
+  , thermalBit_(stack->node(), 0, 0, &state_, STATE_THERMAL_SHUTDOWN)
+  , shortProducer_(&shortBit_)
+  , shutdownProducer_(&shortBit_)
+  , thermalProducer_(&shortBit_)
+{
+  shutdownLimit_ = overCurrentLimit_ << 1;
   // set warning limit to ~75% of overcurrent limit
   warnLimit_ = ((overCurrentLimit_ << 1) + overCurrentLimit_) >> 2;
 }
@@ -187,7 +212,7 @@ StateFlowBase::Action MonitoredHBridge::check()
 
   uint8_t initialState = state_;
   StatusLED::COLOR statusLEDColor = StatusLED::COLOR::GREEN;
-  std::vector<int> samples;
+  vector<int> samples;
   while(samples.size() < adcSampleCount_) {
     samples.push_back(adc1_get_raw(channel_));
     usleep(1);

@@ -25,20 +25,6 @@ static constexpr const char * OLD_CONSISTS_JSON_FILE = "consists.json";
 static constexpr const char * CONSISTS_JSON_FILE = "lococonsists.json";
 static constexpr const char * CONSIST_ENTRY_JSON_FILE = "consist-%d.json";
 
-// Priority for the LocomotiveManager periodic update task, this needs to
-// be higher than the loopTask priority (1) so it runs often.
-static constexpr UBaseType_t LOCO_MGR_TASK_PRIORITY = 5;
-
-// Stack size to allocate for the LocomotiveManager periodic update task.
-// TODO: reduce this after measuring actual usage.
-static constexpr uint32_t LOCO_MGR_TASK_STACK_SIZE = 3072;
-
-// Interval at which to wake up the LocomotiveManager periodic update task.
-static constexpr TickType_t LOCO_MGR_TASK_INTERVAL = pdMS_TO_TICKS(25);
-
-// ESP32 Core which to run the LocomotiveManager periodic update task.
-static constexpr uint8_t LOCO_MGR_CORE_AFFINITY = 1;
-
 // Active Locomotive instances, these will have periodic update packets sent
 // at least every 40ms.
 LinkedList<Locomotive *> LocomotiveManager::_locos([](Locomotive *loco) {
@@ -59,7 +45,7 @@ LinkedList<RosterEntry *> LocomotiveManager::_roster([](RosterEntry *entry) {
 // will receive periodic updates and treated as "idle" if they are not in active
 // use.
 LinkedList<LocomotiveConsist *> LocomotiveManager::_consists([](LocomotiveConsist *consist) {
-  std::string filename = StringPrintf(CONSIST_ENTRY_JSON_FILE, consist->getLocoAddress());
+  string filename = StringPrintf(CONSIST_ENTRY_JSON_FILE, consist->legacy_address());
   if(configStore->exists(filename.c_str())) {
     configStore->remove(filename.c_str());
   }
@@ -68,73 +54,103 @@ LinkedList<LocomotiveConsist *> LocomotiveManager::_consists([](LocomotiveConsis
 
 unique_ptr<SimplifiedCallbackEventHandler> LocomotiveManager::_eStopCallback;
 
-void LocomotiveManager::processThrottle(const std::vector<std::string> arguments) {
+void LocomotiveManager::processThrottle(const vector<string> arguments) {
   int registerNumber = std::stoi(arguments[0]);
   uint16_t locoAddress = std::stoi(arguments[1]);
-  if(isConsistAddress(locoAddress) || isAddressInConsist(locoAddress)) {
+  if(isConsistAddress(locoAddress) || isAddressInConsist(locoAddress))
+  {
     processConsistThrottle(arguments);
     return;
   }
   Locomotive *instance = getLocomotiveByRegister(registerNumber);
-  if(instance == nullptr) {
-    instance = new Locomotive(registerNumber);
+  if(instance == nullptr)
+  {
+    instance = new Locomotive(locoAddress);
     _locos.add(instance);
   }
-  instance->setLocoAddress(locoAddress);
-  instance->setSpeed(std::stoi(arguments[2]));
-  instance->setDirection(arguments[3][0] == '1');
-  instance->sendLocoUpdate(true);
+  dcc::SpeedType speed;
+  speed.set_dcc_128(std::stoi(arguments[2]));
+  if (!std::stoi(arguments[3]))
+  {
+    speed.set_direction(dcc::SpeedType::REVERSE);
+  }
+  instance->set_speed(speed);
   instance->showStatus();
 }
 
-void LocomotiveManager::processThrottleEx(const std::vector<std::string> arguments) {
-  uint16_t locoAddress = std::stoi(arguments[0]);
-  int8_t speed = std::stoi(arguments[1]);
-  int8_t dir = std::stoi(arguments[2]);
-  auto instance = getLocomotive(locoAddress);
-  if(speed >= 0) {
-    instance->setSpeed(speed);
+void LocomotiveManager::processThrottleEx(const vector<string> arguments) {
+  uint16_t locoAddress(std::stoi(arguments[0]));
+  int8_t req_speed(std::stoi(arguments[1]));
+  int8_t req_dir(std::stoi(arguments[2]));
+  auto instance(getLocomotive(locoAddress));
+
+  dcc::SpeedType upd_speed(instance->get_speed());
+  if (req_speed >= 0)
+  {
+    upd_speed.set_dcc_128(req_speed);
   }
-  if(dir >= 0) {
-    instance->setDirection(dir == 1);
+  if (req_dir >= 0)
+  {
+    upd_speed.set_direction(req_dir ? dcc::SpeedType::FORWARD : dcc::SpeedType::REVERSE);
   }
-  instance->sendLocoUpdate(true);
-  instance->showStatus();
+  instance->set_speed(upd_speed);
 }
 
 // This method decodes the incoming function packet(s) to update the stored
 // functinon states. Loco update will be sent afterwards.
-void LocomotiveManager::processFunction(const std::vector<std::string> arguments) {
-  int locoAddress = std::stoi(arguments[0]);
-  int functionByte = std::stoi(arguments[1]);
-  if(isConsistAddress(locoAddress)) {
+void LocomotiveManager::processFunction(const vector<string> arguments)
+{
+  uint16_t locoAddress = std::stoi(arguments[0]);
+  uint8_t functionByte = std::stoi(arguments[1]);
+  if(isConsistAddress(locoAddress))
+  {
     return;
   }
   auto loco = getLocomotive(locoAddress);
+  uint8_t firstFunction = 1, lastFunction = 4;
+  uint8_t bits = functionByte;
   // check this is a request for functions F13-F28
-  if(arguments.size() > 2) {
-    int secondaryFunctionByte = std::stoi(arguments[2]);
-    if((functionByte & 0xDE) == 0xDE) {
-      loco->setFunctions(13, 20, secondaryFunctionByte);
-    } else {
-      loco->setFunctions(21, 28, secondaryFunctionByte);
+  if(arguments.size() > 2)
+  {
+    bits = std::stoi(arguments[2]);
+    if((functionByte & 0xDE) == 0xDE)
+    {
+      firstFunction = 13;
+      lastFunction = 20;
     }
-  } else {
+    else
+    {
+      firstFunction = 21;
+      lastFunction = 28;
+    }
+  }
+  else
+  {
     // this is a request for functions FL,F1-F12
     // for safety this guarantees that first nibble of function byte will always
     // be of binary form 10XX which should always be the case for FL,F1-F12
-    if((functionByte & 0xB0) == 0xB0) {
-      loco->setFunctions(5, 8, functionByte);
-    } else if((functionByte & 0xA0) == 0xA0) {
-      loco->setFunctions(9, 12, functionByte);
-    } else {
-      loco->setFunction(0, bitRead(functionByte, 4), true);
-      loco->setFunctions(1, 4, functionByte);
+    if((functionByte & 0xB0) == 0xB0)
+    {
+      firstFunction = 5;
+      lastFunction = 8;
     }
+    else if((functionByte & 0xA0) == 0xA0)
+    {
+      firstFunction = 9;
+      lastFunction = 12;
+    }
+    else
+    {
+      loco->set_fn(0, bitRead(functionByte, 4));
+    }
+  }
+  for(uint8_t funcID = firstFunction; funcID <= lastFunction; funcID++)
+  {
+    loco->set_fn(funcID, bitRead(bits, funcID - firstFunction));
   }
 }
 
-void LocomotiveManager::processFunctionEx(const std::vector<std::string> arguments) {
+void LocomotiveManager::processFunctionEx(const vector<string> arguments) {
   int locoAddress = std::stoi(arguments[0]);
   int function = std::stoi(arguments[1]);
   int state = std::stoi(arguments[2]);
@@ -142,15 +158,15 @@ void LocomotiveManager::processFunctionEx(const std::vector<std::string> argumen
     return;
   }
   auto loco = getLocomotive(locoAddress);
-  loco->setFunction(function, state);
+  loco->set_fn(function, state);
 }
 
-void LocomotiveManager::processConsistThrottle(const std::vector<std::string> arguments) {
+void LocomotiveManager::processConsistThrottle(const vector<string> arguments) {
   uint16_t locoAddress = std::stoi(arguments[1]);
   int8_t speed = std::stoi(arguments[2]);
   bool forward = arguments[3][0] == '1';
   for (const auto& consist : _consists) {
-    if (consist->getLocoAddress() == locoAddress || consist->isAddressInConsist(locoAddress)) {
+    if (consist->legacy_address() == locoAddress || consist->isAddressInConsist(locoAddress)) {
       consist->updateThrottle(locoAddress, speed, forward);
       return;
     }
@@ -170,41 +186,22 @@ void LocomotiveManager::showConsistStatus() {
   }
 }
 
-void LocomotiveManager::update(void *arg) {
-  TickType_t lastWakeupTick = xTaskGetTickCount();
-  while(true) {
-    // We only queue packets if the OPS track output is enabled.
-    if(dccSignal[DCC_SIGNAL_OPERATIONS]->isEnabled()) {
-      LOG(VERBOSE, "[LocoMgr] %d active locos, %d active consists", _locos.length(), _consists.length());
-      for (const auto& loco : _locos) {
-        loco->sendLocoUpdate();
-      }
-      for (const auto& loco : _consists) {
-        loco->sendLocoUpdate();
-      }
-    }
-    vTaskDelayUntil(&lastWakeupTick, LOCO_MGR_TASK_INTERVAL);
-  }
-}
-
 void LocomotiveManager::emergencyStop() {
   for (const auto& loco : _locos) {
-    loco->setSpeed(-1);
+    loco->set_emergencystop();
   }
-  sendDCCEmergencyStop();
 }
 
 Locomotive *LocomotiveManager::getLocomotive(const uint16_t locoAddress, const bool managed) {
   Locomotive *instance = nullptr;
   if(locoAddress) {
     for (const auto& loco : _locos) {
-      if(loco->getLocoAddress() == locoAddress) {
+      if(loco->legacy_address() == locoAddress) {
         instance = loco;
       }
     }
     if(instance == nullptr) {
-      instance = new Locomotive(_locos.length() + 1);
-      instance->setLocoAddress(locoAddress);
+      instance = new Locomotive(locoAddress, managed);
       if(managed) {
         _locos.add(instance);
       }
@@ -225,12 +222,12 @@ Locomotive *LocomotiveManager::getLocomotiveByRegister(const uint8_t registerNum
 void LocomotiveManager::removeLocomotive(const uint16_t locoAddress) {
   Locomotive *locoToRemove = nullptr;
   for (const auto& loco : _locos) {
-    if(loco->getLocoAddress() == locoAddress) {
+    if(loco->legacy_address() == locoAddress) {
       locoToRemove = loco;
     }
   }
   if(locoToRemove != nullptr) {
-    locoToRemove->setIdle();
+    locoToRemove->set_speed(0);
     _locos.remove(locoToRemove);
   }
 }
@@ -238,7 +235,7 @@ void LocomotiveManager::removeLocomotive(const uint16_t locoAddress) {
 bool LocomotiveManager::removeLocomotiveConsist(const uint16_t consistAddress) {
   LocomotiveConsist *consistToRemove = nullptr;
   for (const auto& consist : _consists) {
-    if(consist->getLocoAddress() == consistAddress) {
+    if(consist->legacy_address() == consistAddress) {
       consistToRemove = consist;
     }
   }
@@ -298,7 +295,7 @@ void LocomotiveManager::init(Node *node) {
         JsonObject consistEntry = entry.to<JsonObject>();
         std::string file = consistEntry[JSON_FILE_NODE].as<std::string>();
         if (configStore->exists(file.c_str())) {
-          _consists.add(new LocomotiveConsist(file.c_str()));
+          _consists.add(LocomotiveConsist::fromJsonFile(file.c_str()));
         } else {
           LOG_ERROR("[Consist] Unable to locate Locomotive Consist Entry %s!", file.c_str());
         }
@@ -313,7 +310,7 @@ void LocomotiveManager::init(Node *node) {
       LOG(INFO, "[Consist] Loading %d Locomotive Consists", consistCount);
       infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Load %02d Consists", consistCount);
       for (auto entry : consistRoot[JSON_CONSISTS_NODE].as<JsonArray>()) {
-        _consists.add(new LocomotiveConsist(entry.as<JsonObject>()));
+        _consists.add(LocomotiveConsist::fromJson(entry.as<JsonObject>()));
       }
     }
     configStore->remove(OLD_CONSISTS_JSON_FILE);
@@ -330,10 +327,6 @@ void LocomotiveManager::init(Node *node) {
                                      , node
                                      , &LocomotiveManager::emergencyStop)
   );
-
-  // create background task for sending periodic updates to active locomotives/consists.
-  xTaskCreatePinnedToCore(update, "LocoMgr", LOCO_MGR_TASK_STACK_SIZE, NULL,
-                          LOCO_MGR_TASK_PRIORITY, nullptr, LOCO_MGR_CORE_AFFINITY);
 }
 
 void LocomotiveManager::clear() {
@@ -363,7 +356,7 @@ uint16_t LocomotiveManager::store() {
   JsonArray consistArray = consistRoot.createNestedArray(JSON_CONSISTS_NODE);
   uint16_t consistStoredCount = 0;
   for (const auto& consist : _consists) {
-    std::string filename = StringPrintf(CONSIST_ENTRY_JSON_FILE, consist->getLocoAddress());
+    string filename = StringPrintf(CONSIST_ENTRY_JSON_FILE, consist->legacy_address());
     consistArray.createNestedObject()[JSON_FILE_NODE] = filename.c_str();
     jsonBuffer.clear();
     JsonObject entryRoot = jsonBuffer.to<JsonObject>();
@@ -376,8 +369,8 @@ uint16_t LocomotiveManager::store() {
   return locoStoredCount + consistStoredCount;
 }
 
-std::vector<RosterEntry *> LocomotiveManager::getDefaultLocos(const int8_t maxCount) {
-  std::vector<RosterEntry *> retval;
+vector<RosterEntry *> LocomotiveManager::getDefaultLocos(const int8_t maxCount) {
+  vector<RosterEntry *> retval;
   for (const auto& entry : _roster) {
     if(entry->isDefaultOnThrottles()) {
       if(maxCount < 0 || (maxCount > 0 && retval.size() < maxCount)) {
@@ -413,7 +406,7 @@ void LocomotiveManager::getRosterEntries(JsonArray array) {
 
 bool LocomotiveManager::isConsistAddress(uint16_t address) {
   for (const auto& consist : _consists) {
-    if(consist->getLocoAddress() == address) {
+    if(consist->legacy_address() == address) {
       return true;
     }
   }
@@ -431,7 +424,7 @@ bool LocomotiveManager::isAddressInConsist(uint16_t address) {
 
 LocomotiveConsist *LocomotiveManager::getConsistByID(uint8_t consistAddress) {
   for (const auto& consist : _consists) {
-    if(consist->getLocoAddress() == consistAddress) {
+    if(consist->legacy_address() == consistAddress) {
       return consist;
     }
   }
@@ -452,8 +445,8 @@ LocomotiveConsist *LocomotiveManager::createLocomotiveConsist(int8_t consistAddr
     LOG(INFO, "[Consist] Creating new Loco Consist, automatic address selection...");
     uint8_t newConsistAddress = 127;
     for (const auto& consist : _consists) {
-      if(newConsistAddress > consist->getLocoAddress() - 1 && !isConsistAddress(consist->getLocoAddress() - 1)) {
-        newConsistAddress = consist->getLocoAddress() - 1;
+      if(newConsistAddress > consist->legacy_address() - 1 && !isConsistAddress(consist->legacy_address() - 1)) {
+        newConsistAddress = consist->legacy_address() - 1;
         LOG(INFO, "[Consist] Found free address for new Loco Consist: %d", newConsistAddress);
         break;
       }

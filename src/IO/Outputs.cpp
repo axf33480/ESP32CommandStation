@@ -282,7 +282,7 @@ void Output::showStatus() {
   wifiInterface.broadcast(StringPrintf("<Y %d %d %d %d>", _id, _pin, _flags, !_active));
 }
 
-void OutputCommandAdapter::process(const std::vector<std::string> arguments) {
+void OutputCommandAdapter::process(const vector<string> arguments) {
   if(arguments.empty()) {
     // list all outputs
     OutputManager::showStatus();
@@ -303,7 +303,7 @@ void OutputCommandAdapter::process(const std::vector<std::string> arguments) {
   }
 }
 
-void OutputExCommandAdapter::process(const std::vector<std::string> arguments) {
+void OutputExCommandAdapter::process(const vector<string> arguments) {
   if(arguments.empty()) {
     wifiInterface.broadcast(COMMAND_FAILED_RESPONSE);
   } else {
