@@ -160,6 +160,7 @@ using openlcb::WriteHelper;
 #include "interfaces/NextionInterface.h"
 #include "interfaces/WiFiInterface.h"
 
+#include "stateflows/AutoSyncFileFlow.h"
 #include "stateflows/FreeRTOSTaskMonitor.h"
 #include "stateflows/InfoScreen.h"
 #include "stateflows/LCCStatCollector.h"

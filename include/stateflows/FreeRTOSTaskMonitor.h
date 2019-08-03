@@ -18,12 +18,13 @@ COPYRIGHT (c) 2019 Mike Dunston
 #ifndef FREERTOS_TASK_MON_H_
 #define FREERTOS_TASK_MON_H_
 
+#include <executor/Service.hxx>
 #include <executor/StateFlow.hxx>
 #include <openlcb/SimpleStack.hxx>
 
 class FreeRTOSTaskMonitor : public StateFlowBase {
 public:
-  FreeRTOSTaskMonitor(openlcb::SimpleCanStack *);
+  FreeRTOSTaskMonitor(Service *);
 
 private:
   StateFlowTimer timer_{this};

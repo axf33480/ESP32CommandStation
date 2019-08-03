@@ -21,12 +21,12 @@ COPYRIGHT (c) 2019 Mike Dunston
 #include "stateflows/InfoScreen.h"
 #include "interfaces/NextionInterface.h"
 
+#include <executor/Service.hxx>
 #include <executor/StateFlow.hxx>
-#include <openlcb/SimpleStack.hxx>
 
 class OTAMonitorFlow : public StateFlowBase {
 public:
-  OTAMonitorFlow(openlcb::SimpleCanStack *stack) : StateFlowBase(stack->service())
+  OTAMonitorFlow(Service *service) : StateFlowBase(service)
   {
 #if NEXTION_ENABLED
     titlePage_ = static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE]);

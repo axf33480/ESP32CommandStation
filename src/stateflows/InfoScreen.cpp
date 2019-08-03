@@ -19,27 +19,18 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 unique_ptr<InfoScreen> infoScreen;
 
-#ifndef INFO_SCREEN_SDA_PIN
-#define INFO_SCREEN_SDA_PIN SDA
-#endif
-#ifndef INFO_SCREEN_SCL_PIN
-#define INFO_SCREEN_SCL_PIN SCL
-#endif
-
-#ifndef INFO_SCREEN_OLED_LINES
-#define INFO_SCREEN_OLED_LINES 5
-#endif
-
 #include <Wire.h>
 #if INFO_SCREEN_OLED
 #include "interfaces/InfoScreen_OLED_font.h"
 #define INFO_SCREEN_I2C_TEST_ADDRESS INFO_SCREEN_OLED_I2C_ADDRESS
 #if INFO_SCREEN_OLED_CHIPSET == SH1106
 #include <SH1106Wire.h>
-SH1106Wire oledDisplay(INFO_SCREEN_OLED_I2C_ADDRESS, INFO_SCREEN_SDA_PIN, INFO_SCREEN_SCL_PIN);
+SH1106Wire oledDisplay(INFO_SCREEN_OLED_I2C_ADDRESS, INFO_SCREEN_SDA_PIN
+                     , INFO_SCREEN_SCL_PIN);
 #elif INFO_SCREEN_OLED_CHIPSET == SSD1306
 #include <SSD1306Wire.h>
-SSD1306Wire oledDisplay(INFO_SCREEN_OLED_I2C_ADDRESS, INFO_SCREEN_SDA_PIN, INFO_SCREEN_SCL_PIN);
+SSD1306Wire oledDisplay(INFO_SCREEN_OLED_I2C_ADDRESS, INFO_SCREEN_SDA_PIN
+                      , INFO_SCREEN_SCL_PIN);
 #endif
 #elif INFO_SCREEN_LCD
 #define INFO_SCREEN_I2C_TEST_ADDRESS INFO_SCREEN_LCD_I2C_ADDRESS
@@ -47,22 +38,28 @@ SSD1306Wire oledDisplay(INFO_SCREEN_OLED_I2C_ADDRESS, INFO_SCREEN_SDA_PIN, INFO_
 LiquidCrystal_PCF8574 lcdDisplay(INFO_SCREEN_LCD_I2C_ADDRESS);
 #endif
 
-InfoScreen::InfoScreen(openlcb::SimpleCanStack *stack) : StateFlowBase(stack->service()) {
+InfoScreen::InfoScreen(openlcb::SimpleCanStack *stack)
+  : StateFlowBase(stack->service())
+{
   lccStatCollector_.reset(new LCCStatCollector(stack));
 #if INFO_SCREEN_ENABLED
   start_flow(STATE(init));
 #endif
 }
 
-void InfoScreen::clear() {
+void InfoScreen::clear()
+{
   LOG(VERBOSE, "[InfoScreen] clear screen");
-  for(int i = 0; i < 5; i++) {
+  for (int i = 0; i < 5; i++)
+  {
     screenLines_[i] = ""; 
   }
 }
 
-void InfoScreen::replaceLine(int row, const std::string &format, ...) {
-  if(row < 0) {
+void InfoScreen::replaceLine(int row, const std::string &format, ...)
+{
+  if (row < 0)
+  {
     return;
   }
   char buf[256] = {0};
@@ -74,16 +71,19 @@ void InfoScreen::replaceLine(int row, const std::string &format, ...) {
   LOG(VERBOSE, "[InfoScreen] replaceLine(%d): %s", row, buf);
 }
 
-StateFlowBase::Action InfoScreen::init() {
+StateFlowBase::Action InfoScreen::init()
+{
 #if INFO_SCREEN_ENABLED
   replaceLine(INFO_SCREEN_STATION_INFO_LINE, "ESP32-CS: v%s", ESP32CS_VERSION);
   replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Starting Up");
 
-  LOG(INFO, "[InfoScreen] Initializing");
-  if(Wire.begin(INFO_SCREEN_SDA_PIN, INFO_SCREEN_SCL_PIN)) {
+  LOG(INFO, "[InfoScreen] Detecting display...");
+  if(Wire.begin(INFO_SCREEN_SDA_PIN, INFO_SCREEN_SCL_PIN))
+  {
     // Verify that there is an I2C device on the expected address
     Wire.beginTransmission(INFO_SCREEN_I2C_TEST_ADDRESS);
-    if(Wire.endTransmission() == I2C_ERROR_OK) {
+    if(Wire.endTransmission() == I2C_ERROR_OK)
+    {
       // Device found, initialize it
 #if INFO_SCREEN_OLED
       return call_immediately(STATE(initOLED));
@@ -92,16 +92,16 @@ StateFlowBase::Action InfoScreen::init() {
 #endif
     }
     return yield_and_call(STATE(i2cScan));
-  } else {
-    LOG(FATAL,
-        "Failed to initialize I2C bus with SDA: %d, SCL: %d!",
-        INFO_SCREEN_SDA_PIN,
-        INFO_SCREEN_SCL_PIN);
+  }
+  else
+  {
+    LOG(FATAL, "Failed to initialize I2C bus with SDA: %d, SCL: %d!"
+      , INFO_SCREEN_SDA_PIN, INFO_SCREEN_SCL_PIN);
   }
 #endif
   // The only time we should encounter this case is if the I2C init
   // fails. Cleanup and exit the flow.
-  LOG(WARNING, "[InfoScreen] no output device");
+  LOG(WARNING, "[InfoScreen] no display detected");
   return exit();
 }
 
@@ -133,25 +133,30 @@ StateFlowBase::Action InfoScreen::i2cScan() {
   return exit();
 }
 
-StateFlowBase::Action InfoScreen::initOLED() {
+StateFlowBase::Action InfoScreen::initOLED()
+{
 #if INFO_SCREEN_OLED
 #ifdef INFO_SCREEN_RESET_PIN
   static bool resetCalled = false;
-  if(!resetCalled) {
+  if(!resetCalled)
+  {
     // if we have a reset pin defined, attempt to reset the I2C screen
     LOG(INFO, "[InfoScreen] Resetting OLED display");
     pinMode(INFO_SCREEN_RESET_PIN, OUTPUT);
     digitalWrite(INFO_SCREEN_RESET_PIN, LOW);
     return sleep_and_call(&timer_, MSEC_TO_NSEC(50), STATE(initOLED));
     resetCalled = true;;
-  } else {
+  }
+  else
+  {
     digitalWrite(INFO_SCREEN_RESET_PIN, HIGH);
   }
 #endif
   LOG(INFO,
       "[InfoScreen] Detected OLED on address %02x, initializing display...",
       INFO_SCREEN_I2C_TEST_ADDRESS);
-  if(!oledDisplay.init()) {
+  if(!oledDisplay.init())
+  {
     LOG_ERROR("[InfoScreen] Failed to initailize OLED screen, disabling!");
     return exit();
   }
@@ -168,11 +173,13 @@ StateFlowBase::Action InfoScreen::initOLED() {
 #endif
 }
 
-StateFlowBase::Action InfoScreen::initLCD() {
+StateFlowBase::Action InfoScreen::initLCD()
+{
 #if INFO_SCREEN_LCD
   LOG(INFO,
-      "[InfoScreen] Detected LCD on address %02x, initializing %dx%x display...",
-      INFO_SCREEN_I2C_TEST_ADDRESS, INFO_SCREEN_LCD_COLUMNS, INFO_SCREEN_LCD_LINES);
+      "[InfoScreen] Detected LCD on address %02x, initializing %dx%x display..."
+    , INFO_SCREEN_I2C_TEST_ADDRESS, INFO_SCREEN_LCD_COLUMNS
+    , INFO_SCREEN_LCD_LINES);
   lcdDisplay.begin(INFO_SCREEN_LCD_COLUMNS, INFO_SCREEN_LCD_LINES);
   lcdDisplay.setBacklight(255);
   lcdDisplay.clear();
@@ -197,7 +204,8 @@ StateFlowBase::Action InfoScreen::update()
   }
 #endif
   // switch to next status line detail set after 10 iterations
-  if(++_lastRotation > 10) {
+  if(++_lastRotation > 10)
+  {
     _lastRotation = 0;
     ++_rotatingStatusIndex %= _rotatingStatusLineCount;
   }
@@ -206,15 +214,13 @@ StateFlowBase::Action InfoScreen::update()
   {
     if(_rotatingStatusIndex == 0)
     {
-      replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE
-                , "Free Heap:%d"
+      replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Free Heap:%d"
                 , heap_caps_get_free_size(MALLOC_CAP_INTERNAL)
       );
     }
     else if (_rotatingStatusIndex == 1)
     {
-      replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE
-                , "Uptime: %02d:%02d:%02d"
+      replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Uptime: %02d:%02d:%02d"
                 , (uint32_t)(USEC_TO_SEC(esp_timer_get_time()) / 3600)
                 , (uint32_t)(USEC_TO_SEC(esp_timer_get_time()) % 3600) / 60
                 , (uint32_t)(USEC_TO_SEC(esp_timer_get_time()) % 60)
@@ -222,8 +228,7 @@ StateFlowBase::Action InfoScreen::update()
     }
     else if (_rotatingStatusIndex == 2)
     {
-      replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE
-                , "Active Locos:%3d"
+      replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Active Locos:%3d"
                 , LocomotiveManager::getActiveLocoCount()
       );
     }
@@ -238,36 +243,31 @@ StateFlowBase::Action InfoScreen::update()
       ++_lccStatusIndex %= 5;
       if(_lccStatusIndex == 0)
       {
-        replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE
-                  , "LCC Nodes: %d"
+        replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "LCC Nodes: %d"
                   , lccStatCollector_->getRemoteNodeCount()
         );
       }
       else if (_lccStatusIndex == 1)
       {
-        replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE
-                  , "LCC Lcl: %d"
+        replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "LCC Lcl: %d"
                   , lccStatCollector_->getLocalNodeCount()
         );
       }
       else if (_lccStatusIndex == 2)
       {
-        replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE
-                  , "LCC dg_svc: %d"
+        replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "LCC dg_svc: %d"
                   , lccStatCollector_->getDatagramCount()
         );
       }
       else if (_lccStatusIndex == 3)
       {
-        replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE
-                  , "LCC Ex: %d"
+        replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "LCC Ex: %d"
                   , lccStatCollector_->getExecutorCount()
         );
       }
       else if (_lccStatusIndex == 4)
       {
-        replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE
-                  , "LCC Pool: %d/%d"
+        replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "LCC Pool: %d/%d"
                   , lccStatCollector_->getPoolFreeCount()
                   , lccStatCollector_->getPoolSize()
         );
@@ -276,16 +276,14 @@ StateFlowBase::Action InfoScreen::update()
     }
     else if (_rotatingStatusIndex == _firstLocoNetIndex)
     {
-      replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE
-                , "LN-RX: %d/%d"
+      replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "LN-RX: %d/%d"
                 , locoNet.getRxStats()->rxPackets
                 , locoNet.getRxStats()->rxErrors
       );
     }
     else if (_rotatingStatusIndex == _firstLocoNetIndex + 1)
     {
-      replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE
-                , "LN-TX: %d/%d/%d"
+      replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "LN-TX: %d/%d/%d"
                 , locoNet.getTxStats()->txPackets
                 , locoNet.getTxStats()->txErrors
                 , locoNet.getTxStats()->collisions

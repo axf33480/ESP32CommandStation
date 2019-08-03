@@ -18,12 +18,12 @@ COPYRIGHT (c) 2018-2019 Mike Dunston
 #ifndef HC12_RADIO_H_
 #define HC12_RADIO_H_
 
+#include <executor/Service.hxx>
 #include <executor/StateFlow.hxx>
-#include <openlcb/SimpleStack.hxx>
 
 class HC12Radio : public StateFlowBase {
 public:
-  HC12Radio(openlcb::SimpleCanStack *);
+  HC12Radio(Service *);
   void send(const std::string &text);
 private:
   StateFlowTimer timer_{this};

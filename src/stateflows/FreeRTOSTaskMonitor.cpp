@@ -17,8 +17,8 @@ COPYRIGHT (c) 2019 Mike Dunston
 
 #include "ESP32CommandStation.h"
 
-FreeRTOSTaskMonitor::FreeRTOSTaskMonitor(openlcb::SimpleCanStack *stack)
-: StateFlowBase(stack->service())
+FreeRTOSTaskMonitor::FreeRTOSTaskMonitor(Service *service)
+  : StateFlowBase(service)
 {
 #if configUSE_TRACE_FACILITY
   start_flow(STATE(delay));

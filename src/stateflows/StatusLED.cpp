@@ -19,9 +19,10 @@ COPYRIGHT (c) 2019 Mike Dunston
 
 unique_ptr<StatusLED> statusLED;
 
-StateFlowBase::Action StatusLED::init() {
-  LOG(INFO, "[StatusLED] Initializing LEDs");
+StateFlowBase::Action StatusLED::init()
+{
 #if STATUS_LED_ENABLED
+  LOG(INFO, "[Status] Initializing LEDs");
   bus_.reset(new NeoPixelBrightnessBus<NEO_COLOR_MODE, NEO_METHOD>(LED::MAX_LED, STATUS_LED_DATA_PIN));
   bus_->Begin();
   bus_->SetBrightness(STATUS_LED_BRIGHTNESS);
@@ -74,7 +75,8 @@ StateFlowBase::Action StatusLED::update()
   return sleep_and_call(&timer_, updateInterval_, STATE(update));
 }
 
-void StatusLED::setStatusLED(const LED led, const COLOR color, const bool on) {
+void StatusLED::setStatusLED(const LED led, const COLOR color, const bool on)
+{
   colors_[led] = color;
   state_[led] = on;
 }

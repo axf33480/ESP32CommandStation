@@ -18,8 +18,8 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #ifndef STATUS_LED_H_
 #define STATUS_LED_H_
 
+#include <executor/Service.hxx>
 #include <executor/StateFlow.hxx>
-#include <openlcb/SimpleStack.hxx>
 #include <NeoPixelBrightnessBus.h>
 
 #if STATUS_LED_COLOR_ORDER == RGB
@@ -81,7 +81,7 @@ public:
     MAX_LED
   };
 
-  StatusLED(openlcb::SimpleCanStack *stack) : StateFlowBase(stack->service())
+  StatusLED(Service *service) : StateFlowBase(service)
   {
     for(int index = 0; index < LED::MAX_LED; index++)
     {

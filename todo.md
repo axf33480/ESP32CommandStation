@@ -20,8 +20,7 @@ The primary focus of v1.4.0 will be improvements to the DCC signal code and addi
 ### DCC System
 
 - [-] continue sending eStop packet until eStop is cleared.
-- [-] rework DCC Prog Track interface so it supports multiple requests (serialized) and async response to web.
-- [x] refactor signal generation for better RailCom/LCC integration (dcc::Packet, UpdateLoop, RailcomHub, ProgrammingTrackBackend, LocalTrackIf).
+- [x] refactor signal generation to use: dcc::Packet, UpdateLoop, RailcomHub, ProgrammingTrackBackend, LocalTrackIf.
 - [x] allow adjustment of the DCC preamble bit count, default is 16 (OPS) and 22 (PROG). The OPS value is constrained between 11 and 20 and PROG between 22 and 50.
 - [ ] test and expose OPS RailCom configuration.
 
@@ -29,7 +28,6 @@ The primary focus of v1.4.0 will be improvements to the DCC signal code and addi
 
 - [ ] add dialog for failed CS requests.
 - [ ] Expose Loco Consist creation.
-- [ ] Rework web prog req to be async rather than blocking (can cause WDT failure with retries 5+)
 - [x] Hide power button for prog track when it is off
 
 ### LCC Integration
@@ -51,7 +49,9 @@ The entries below are not tracked to a specific release or in any particular pri
 - [ ] Add S88 sensor data to InfoScreen status line, 16 sensor output rotation.
 
 ### DCC System
-TBD
+
+- [-] rework DCC Prog Track interface so it supports multiple requests (serialized) and async response to web.
+- [ ] Concurrency guards for ProgrammingTrackBackend.
 
 ### Config
 
@@ -62,6 +62,7 @@ TBD
 
 - [ ] WiThrottle support (https://github.com/atanisoft/ESP32CommandStation/issues/15)
 - [ ] Add strict validation of input parameter data.
+- [ ] Rework web prog req to be async rather than blocking
 
 ### LCC Integration
 

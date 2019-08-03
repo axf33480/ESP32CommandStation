@@ -155,7 +155,6 @@ public:
   {
       LOG(VERBOSE, "Factory Reset Helper invoked");
       cfg_.description().write(fd, StringPrintf("%s Track Output", name_.c_str()).c_str());
-      fsync(fd);
   }
 
 private:

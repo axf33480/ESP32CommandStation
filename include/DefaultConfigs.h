@@ -162,4 +162,17 @@ constexpr uint16_t S88_MAX_SENSORS_PER_BUS = 512;
 #ifndef S88_FIRST_SENSOR
 #define S88_FIRST_SENSOR S88_MAX_SENSORS_PER_BUS
 #endif
+
+
+#ifndef INFO_SCREEN_SDA_PIN
+#define INFO_SCREEN_SDA_PIN SDA
+#endif
+#ifndef INFO_SCREEN_SCL_PIN
+#define INFO_SCREEN_SCL_PIN SCL
+#endif
+
+#ifndef INFO_SCREEN_OLED_LINES
+#define INFO_SCREEN_OLED_LINES 5
+#endif
+
 #endif // _DEFAULT_CONFIGS_H_

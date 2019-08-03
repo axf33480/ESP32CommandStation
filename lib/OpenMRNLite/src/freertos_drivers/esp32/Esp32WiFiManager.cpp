@@ -404,9 +404,6 @@ void Esp32WiFiManager::factory_reset(int fd)
 
     // Reconnect to last connected node.
     CDI_FACTORY_RESET(cfg_.uplink().reconnect);
-
-    // Flush the config to storage.
-    fsync(fd);
 }
 
 // Processes a WiFi system event

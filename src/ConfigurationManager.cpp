@@ -367,19 +367,21 @@ void ConfigurationManager::configureWiFi(openlcb::SimpleCanStack *stack, const W
     LOG(INFO, "[Config] WiFi Mode: Station");
   }
 
-  if (stationStaticIP_.get())
+  if (wifiMode_ != WIFI_MODE_AP)
   {
-    LOG(INFO, "[Config] WiFi Station IP-MODE: STATIC IP: " IPSTR ", GW: " IPSTR ", SN: " IPSTR,
-        IP2STR(&stationStaticIP_->ip), IP2STR(&stationStaticIP_->gw), IP2STR(&stationStaticIP_->netmask));
-  }
-  else
-  {
-    LOG(INFO, "[Config] WiFi Station IP-MODE: DHCP");
-  }
-
-  if (stationDNSServer_.u_addr.ip4.addr != ip_addr_any.u_addr.ip4.addr)
-  {
-    LOG(INFO, "[Config] WiFi Station DNS: " IPSTR, IP2STR(&stationDNSServer_.u_addr.ip4));
+    if (stationStaticIP_.get())
+    {
+      LOG(INFO, "[Config] WiFi Station IP-MODE: STATIC IP: " IPSTR ", GW: " IPSTR ", SN: " IPSTR,
+          IP2STR(&stationStaticIP_->ip), IP2STR(&stationStaticIP_->gw), IP2STR(&stationStaticIP_->netmask));
+    }
+    else
+    {
+      LOG(INFO, "[Config] WiFi Station IP-MODE: DHCP");
+    }
+    if (stationDNSServer_.u_addr.ip4.addr != ip_addr_any.u_addr.ip4.addr)
+    {
+      LOG(INFO, "[Config] WiFi Station DNS: " IPSTR, IP2STR(&stationDNSServer_.u_addr.ip4));
+    }
   }
 
   wifiManager.reset(new Esp32WiFiManager(wifiSSID_.c_str(),

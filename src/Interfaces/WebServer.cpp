@@ -120,7 +120,7 @@ ESP32CSWebServer::ESP32CSWebServer(MDNS *mdns) : mdns_(mdns)
 
 #define GET_POST_DELETE_URI(uri, method) \
   webServer.on(uri \
-             , HTTP_GET | HTTP_POST \
+             , HTTP_GET | HTTP_POST | HTTP_DELETE \
              , std::bind(&ESP32CSWebServer::method, this, std::placeholders::_1));
 
 #define GET_POST_PUT_DELETE_URI(uri, method) \
@@ -649,7 +649,8 @@ void ESP32CSWebServer::handleTurnouts(AsyncWebServerRequest *request)
   request->send(jsonResponse);
 }
 
-void ESP32CSWebServer::handleSensors(AsyncWebServerRequest *request) {
+void ESP32CSWebServer::handleSensors(AsyncWebServerRequest *request)
+{
 #if ENABLE_SENSORS
   auto jsonResponse = new AsyncJsonResponse(request->method() == HTTP_GET && !request->params());
   if (request->method() == HTTP_GET && !request->hasArg(JSON_ID_NODE))
@@ -696,12 +697,18 @@ void ESP32CSWebServer::handleSensors(AsyncWebServerRequest *request) {
 #endif // ENABLE_SENSORS
 }
 
-void ESP32CSWebServer::handleConfig(AsyncWebServerRequest *request) {
-  if (request->method() == HTTP_POST) {
+void ESP32CSWebServer::handleConfig(AsyncWebServerRequest *request)
+{
+  if (request->method() == HTTP_POST)
+  {
     DCCPPProtocolHandler::getCommandHandler("E")->process(vector<string>());
-  } else if (request->method() == HTTP_DELETE) {
+  }
+  else if (request->method() == HTTP_DELETE)
+  {
     DCCPPProtocolHandler::getCommandHandler("e")->process(vector<string>());
-  } else if (request->method() != HTTP_GET) {
+  }
+  else if (request->method() != HTTP_GET)
+  {
     request->send(STATUS_BAD_REQUEST);
   }
   request->send(STATUS_OK, "application/json", configStore->getCSConfig().c_str());

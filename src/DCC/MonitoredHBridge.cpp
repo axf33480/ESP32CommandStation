@@ -159,16 +159,32 @@ void MonitoredHBridge::enable()
 StateFlowBase::Action MonitoredHBridge::init()
 {
   adc1_config_channel_atten(channel_, ADC_CURRENT_ATTENUATION);
+  string thermalPinLine = "";
+  string progAckLine = "";
+  if (thermalWarningPin_ >= 0)
+  {
+    thermalPinLine =
+      StringPrintf("\nThermal warning pin %d, events (on: %s, off: %s)"
+                 , thermalWarningPin_
+                 , uint64_to_string_hex(thermalBit_.event_on()).c_str()
+                 , uint64_to_string_hex(thermalBit_.event_off()).c_str());
+  }
+  if (isProgTrack_)
+  {
+    progAckLine = StringPrintf("\nProg ACK: %u/4096 (%.2f mA)", progAckLimit_
+                            , ((progAckLimit_ * maxMilliAmps_) / 4096.0f));
+  }
+
   LOG(INFO,
-      "[%s] Monitoring h-bridge (%s %u mA max) using ADC 1:%d\n"
+      "[%s] Monitoring h-bridge (%s %u mA max) using ADC 1:%d, en-pin:%d\n"
       "Short limit %u/4096 (%.2f mA), events (on: %s, off: %s)\n"
-      "Shutdown limit %u/4096 (%.2f mA), events (on: %s, off: %s)\n"
-      "Thermal warning pin %d, events (on: %s, off: %s)\n"
-      "Output enable pin %d"
+      "Shutdown limit %u/4096 (%.2f mA), events (on: %s, off: %s)"
+      "%s%s"
       , name_.c_str()
       , bridgeType_.c_str()
       , maxMilliAmps_
       , channel_
+      , enablePin_
       , overCurrentLimit_
       , ((overCurrentLimit_ * maxMilliAmps_) / 4096.0f)
       , uint64_to_string_hex(shortBit_.event_on()).c_str()
@@ -177,19 +193,9 @@ StateFlowBase::Action MonitoredHBridge::init()
       , ((shutdownLimit_ * maxMilliAmps_) / 4096.0f)
       , uint64_to_string_hex(shutdownBit_.event_on()).c_str()
       , uint64_to_string_hex(shutdownBit_.event_off()).c_str()
-      , thermalWarningPin_
-      , uint64_to_string_hex(thermalBit_.event_on()).c_str()
-      , uint64_to_string_hex(thermalBit_.event_off()).c_str()
-      , enablePin_
+      , thermalPinLine.c_str()
+      , progAckLine.c_str()
   );
-
-  if (isProgTrack_)
-  {
-    LOG(INFO
-      , "Prog ACK: %u/4096 (%.2f mA)"
-      , progAckLimit_
-      , ((progAckLimit_ * maxMilliAmps_) / 4096.0f));
-  }
 
   gpio_pad_select_gpio(enablePin_);
   ESP_ERROR_CHECK(gpio_set_direction(enablePin_, GPIO_MODE_OUTPUT));

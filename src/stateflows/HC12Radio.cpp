@@ -33,7 +33,7 @@ unique_ptr<HC12Radio> hc12;
 #define HC12_TX_PIN 10
 #endif
 
-HC12Radio::HC12Radio(openlcb::SimpleCanStack *stack) : StateFlowBase(stack->service()), uart_((uart_port_t)HC12_UART_NUM) {
+HC12Radio::HC12Radio(Service *service) : StateFlowBase(service), uart_((uart_port_t)HC12_UART_NUM) {
 #if HC12_RADIO_ENABLED
   start_flow(STATE(init));
 #endif

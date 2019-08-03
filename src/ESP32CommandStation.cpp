@@ -72,7 +72,6 @@ unique_ptr<OTAMonitorFlow> otaMonitor;
 unique_ptr<RMTTrackDevice> trackSignal;
 unique_ptr<LocalTrackIf> trackInterface;
 unique_ptr<RailcomHubFlow> railComHub;
-unique_ptr<ProgrammingTrackBackend> progTrackBackend;
 
 #if CONFIG_USE_SD
 #define CDI_CONFIG_PREFIX "/sdcard"
@@ -117,7 +116,6 @@ public:
         LOG(VERBOSE, "Factory Reset Helper invoked");
         cfg.userinfo().name().write(fd, "ESP32 Command Station");
         cfg.userinfo().description().write(fd, "");
-        fsync(fd);
     }
 };
 
@@ -243,13 +241,13 @@ extern "C" void app_main()
   openmrn.reset(new OpenMRN(configStore->getNodeId()));
 
   // Initialize global state flows.
-  hc12.reset(new HC12Radio(openmrn->stack()));
   infoScreen.reset(new InfoScreen(openmrn->stack()));
-  otaMonitor.reset(new OTAMonitorFlow(openmrn->stack()));
-  statusLED.reset(new StatusLED(openmrn->stack()));
+  hc12.reset(new HC12Radio(openmrn->stack()->service()));
+  otaMonitor.reset(new OTAMonitorFlow(openmrn->stack()->service()));
+  statusLED.reset(new StatusLED(openmrn->stack()->service()));
 
   // Task Monitor, periodically dumps runtime state to STDOUT.
-  FreeRTOSTaskMonitor taskMonitor(openmrn->stack());
+  FreeRTOSTaskMonitor taskMonitor(openmrn->stack()->service());
 
   // Initialize the factory reset helper for the CS.
   FactoryResetHelper resetHelper;
@@ -264,9 +262,13 @@ extern "C" void app_main()
   openmrn->create_config_descriptor_xml(cfg, openlcb::CDI_FILENAME);
 
   // Create the default internal configuration file if it doesn't already exist.
-  openmrn->stack()->create_config_file_if_needed(cfg.seg().internal_config()
-                                               , ESP32CS_NUMERIC_VERSION
-                                               , openlcb::CONFIG_FILE_SIZE);
+  int config_fd =
+    openmrn->stack()->create_config_file_if_needed(cfg.seg().internal_config()
+                                                 , ESP32CS_NUMERIC_VERSION
+                                                 , openlcb::CONFIG_FILE_SIZE);
+
+  // Configure automatic sync of the LCC configuration file to disk.
+  AutoSyncFileFlow configFileSync(openmrn->stack()->service(), config_fd);
 
   // Initialize the RailCom Hub
   railComHub.reset(new RailcomHubFlow(openmrn->stack()->service()));
@@ -305,12 +307,12 @@ extern "C" void app_main()
   RailcomPrintfFlow railComDataDumper(railComHub.get());
 
   // Initialize the Programming Track backend handler
-  progTrackBackend.reset(
-    new ProgrammingTrackBackend(openmrn->stack()->service()
-                              , std::bind(&RMTTrackDevice::enable_prog_output
-                                        , trackSignal.get())
-                              , std::bind(&RMTTrackDevice::disable_prog_output
-                                        , trackSignal.get())));
+  ProgrammingTrackBackend
+    progTrackBackend(openmrn->stack()->service()
+                   , std::bind(&RMTTrackDevice::enable_prog_output
+                             , trackSignal.get())
+                   , std::bind(&RMTTrackDevice::disable_prog_output
+                             , trackSignal.get()));
 
   // Initialize the DCC++ protocol adapter
   DCCPPProtocolHandler::init();
@@ -357,14 +359,9 @@ extern "C" void app_main()
   openmrn->start_executor_thread();
 
   LOG(INFO, "[OpenMRN] Starting loop task on core:%d", APP_CPU_NUM);
-  xTaskCreatePinnedToCore(openmrn_loop_task     // function
-                        , "OpenMRN-Loop"        // name
-                        , 4096                  // stack
-                        , nullptr               // function arg
-                        , 1                     // priority
-                        , nullptr               // handle
-                        , APP_CPU_NUM           // core id
-  );
+  xTaskCreatePinnedToCore(openmrn_loop_task, "OpenMRN:loop"
+                        , openmrn_arduino::OPENMRN_STACK_SIZE, nullptr, 1
+                        , nullptr, APP_CPU_NUM);
 
   LOG(INFO, "ESP32 Command Station Started!");
   infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "ESP32-CS Started");
