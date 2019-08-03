@@ -91,21 +91,15 @@ public:
 class ReadCVCommand : public DCCPPProtocolCommand {
 public:
   void process(const vector<string> arguments) {
-    int cvNumber = std::stoi(arguments[0]);
-    int16_t cvValue = -1;
-
-// TODO: shift this to state flow
-/*
-    if(enterProgrammingMode()) {
-      cvValue = readCV(cvNumber);
-      leaveProgrammingMode();
-    }
-*/
-    wifiInterface.broadcast(StringPrintf("<r%s|%s|%d %d>",
-      arguments[1].c_str(),
-      arguments[2].c_str(),
-      cvNumber,
-      cvValue));
+    uint16_t cv = std::stoi(arguments[0]);
+    uint16_t callback = std::stoi(arguments[1]);
+    uint16_t callbackSub = std::stoi(arguments[2]);
+    int16_t value = readCV(cv);
+    wifiInterface.broadcast(StringPrintf("<r%d|%d|%d %d>",
+      callback,
+      callbackSub,
+      cv,
+      value));
   }
 
   string getID() {
@@ -120,24 +114,20 @@ public:
 class WriteCVByteProgCommand : public DCCPPProtocolCommand {
 public:
   void process(const vector<string> arguments) {
-    int cvNumber = std::stoi(arguments[0]);
-    int16_t cvValue = std::stoi(arguments[1]);
-// TODO: shift this to state flow
-/*
-    if(enterProgrammingMode()) {
-      if(!writeProgCVByte(cvNumber, cvValue)) {
-        cvValue = -1;
-      }
-      leaveProgrammingMode();
-    } else {
-      cvValue = -1;
+    uint16_t cv = std::stoi(arguments[0]);
+    uint16_t value = std::stoi(arguments[1]);
+    uint16_t callback = std::stoi(arguments[2]);
+    uint16_t callbackSub = std::stoi(arguments[3]);
+    if (!writeProgCVByte(cv, value))
+    {
+      LOG(INFO, "[PROG] Failed to write CV %d as %d", cv, value);
+      wifiInterface.broadcast(StringPrintf("<r%d|%d|%d -1>", callback, callbackSub, cv));
     }
-*/
-    wifiInterface.broadcast(StringPrintf("<r%s|%s|%d %d>",
-      arguments[2].c_str(),
-      arguments[3].c_str(),
-      cvNumber,
-      cvValue));
+    else
+    {
+      LOG(INFO, "[PROG] CV %d set and verify as %d", cv, value);
+      wifiInterface.broadcast(StringPrintf("<r%d|%d|%d %d>", callback, callbackSub, cv, value));
+    }
   }
 
   string getID() {
@@ -152,26 +142,20 @@ public:
 class WriteCVBitProgCommand : public DCCPPProtocolCommand {
 public:
   void process(const vector<string> arguments) {
-    int cvNumber = std::stoi(arguments[0]);
+    int cv = std::stoi(arguments[0]);
     uint8_t bit = std::stoi(arguments[1]);
-    int8_t bitValue = std::stoi(arguments[1]);
-// TODO: shift this to state flow
-/*
-    if(enterProgrammingMode()) {
-      if(!writeProgCVBit(cvNumber, bit, bitValue == 1)) {
-        bitValue = -1;
-      }
-      leaveProgrammingMode();
-    } else {
-      bitValue = -1;
+    int8_t value = std::stoi(arguments[2]);
+    uint16_t callback = std::stoi(arguments[3]);
+    uint16_t callbackSub = std::stoi(arguments[4]);
+    if (!writeProgCVBit(cv, bit, value))
+    {
+      LOG(INFO, "[PROG] Failed to write CV %d BIT %d as %d", cv, bit, value);
+      wifiInterface.broadcast(StringPrintf("<r%d|%d|%d %d -1>", callback, callbackSub, cv, bit));
     }
-*/
-    wifiInterface.broadcast(StringPrintf("<r%s|%s|%d %d %d>",
-      arguments[2].c_str(),
-      arguments[3].c_str(),
-      cvNumber,
-      bit,
-      bitValue));
+    else
+    {
+      wifiInterface.broadcast(StringPrintf("<r%d|%d|%d %d %d>", callback, callbackSub, cv, bit, value));
+    }
   }
 
   string getID() {
@@ -403,3 +387,4 @@ void DCCPPProtocolConsumer::processData() {
   }
   _buffer.erase(_buffer.begin(), consumed); // drop everything we used from the buffer.
 }
+

@@ -179,7 +179,7 @@ bool OutputManager::createOrUpdate(const uint16_t id, const uint8_t pin, const u
       return true;
     }
   }
-  if(std::find(restrictedPins.begin(), restrictedPins.end(), pin) != restrictedPins.end()) {
+  if(is_restricted_pin(pin)) {
     return false;
   }
   outputs.add(new Output(id, pin, flags));

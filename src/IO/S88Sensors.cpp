@@ -72,7 +72,7 @@ extern LinkedList<Sensor *> sensors;
 static constexpr const char * S88_SENSORS_JSON_FILE = "s88.json";
 
 TaskHandle_t S88BusManager::_taskHandle;
-xSemaphoreHandle S88BusManager::_s88SensorLock;
+OSMutex S88BusManager::_s88SensorLock;
 
 static constexpr UBaseType_t S88_SENSOR_TASK_PRIORITY = 1;
 static constexpr uint32_t S88_SENSOR_TASK_STACK_SIZE = 2048;
@@ -125,7 +125,7 @@ uint8_t S88BusManager::store() {
 
 void S88BusManager::s88SensorTask(void *param) {
   while(true) {
-    MUTEX_LOCK(_s88SensorLock);
+    OSMutexLock l(&_s88SensorLock);
     for (const auto& sensorBus : s88SensorBus) {
       sensorBus->prepForRead();
     }
@@ -156,7 +156,6 @@ void S88BusManager::s88SensorTask(void *param) {
       digitalWrite(S88_CLOCK_PIN, LOW);
       delayMicroseconds(S88_SENSOR_READ_TIME);
     }
-    MUTEX_UNLOCK(_s88SensorLock);
     vTaskDelay(S88_SENSOR_CHECK_DELAY);
   }
 }
@@ -170,27 +169,24 @@ bool S88BusManager::createOrUpdateBus(const uint8_t id, const uint8_t dataPin, c
       return false;
     }
   }
-  MUTEX_LOCK(_s88SensorLock);
+  OSMutexLock l(&_s88SensorLock);
   // check for existing bus to be updated
   for (const auto& sensorBus : s88SensorBus) {
     if(sensorBus->getID() == id) {
       sensorBus->update(dataPin, sensorCount);
-      MUTEX_UNLOCK(_s88SensorLock);
       return true;
     }
   }
-  if(std::find(restrictedPins.begin(), restrictedPins.end(), dataPin) != restrictedPins.end()) {
-    MUTEX_UNLOCK(_s88SensorLock);
+  if(is_restricted_pin(dataPin)) {
     LOG_ERROR("[S88] Attempt to use a restricted pin: %d", dataPin);
     return false;
   }
   s88SensorBus.add(new S88SensorBus(id, dataPin, sensorCount));
-  MUTEX_UNLOCK(_s88SensorLock);
   return true;
 }
 
 bool S88BusManager::removeBus(const uint8_t id) {
-  MUTEX_LOCK(_s88SensorLock);
+  OSMutexLock l(&_s88SensorLock);
   S88SensorBus *sensorBusToRemove = nullptr;
   for (const auto& sensorBus : s88SensorBus) {
     if(sensorBus->getID() == id) {
@@ -199,10 +195,8 @@ bool S88BusManager::removeBus(const uint8_t id) {
   }
   if(sensorBusToRemove != nullptr) {
     s88SensorBus.remove(sensorBusToRemove);
-    MUTEX_UNLOCK(_s88SensorLock);
     return true;
   }
-  MUTEX_UNLOCK(_s88SensorLock);
   return false;
 }
 

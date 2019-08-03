@@ -21,6 +21,7 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #include <string>
 #include <executor/StateFlow.hxx>
 #include <openlcb/SimpleStack.hxx>
+#include "stateflows/LCCStatCollector.h"
 
 #if defined(INFO_SCREEN_OLED) && INFO_SCREEN_OLED
 #define INFO_SCREEN_STATION_INFO_LINE 0
@@ -56,6 +57,7 @@ private:
   std::string screenLines_[5]{"", "", "", "", ""};
   bool redraw_{true};
   StateFlowTimer timer_{this};
+  std::unique_ptr<LCCStatCollector> lccStatCollector_;
 };
 
 extern unique_ptr<InfoScreen> infoScreen;

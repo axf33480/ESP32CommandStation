@@ -18,7 +18,7 @@ COPYRIGHT (c) 2018-2019 Mike Dunston
 #ifndef MONITORED_H_BRIDGE_
 #define MONITORED_H_BRIDGE_
 
-#include "cdi/CSConfigDescriptor.h"
+#include "cdi/TrackOutputDescriptor.h"
 #include <executor/StateFlow.hxx>
 #include <openlcb/SimpleStack.hxx>
 #include <utils/ConfigUpdateListener.hxx>
@@ -49,11 +49,11 @@ public:
 
   enum STATE
   {
-    STATE_OVERCURRENT = 1
-  , STATE_SHUTDOWN = 2
-  , STATE_THERMAL_SHUTDOWN = 4
-  , STATE_ON = 8
-  , STATE_OFF = 16
+    STATE_OVERCURRENT       = 1
+  , STATE_SHUTDOWN          = 2
+  , STATE_THERMAL_SHUTDOWN  = 4
+  , STATE_ON                = 8
+  , STATE_OFF               = 16
   };
 
   string getName()
@@ -134,11 +134,13 @@ public:
       shortProducer_.BitEventProducer::~BitEventProducer();
       new (&shortProducer_)BitEventProducer(&shortBit_);
 
+      saved_node = shutdownBit_.node();
       shutdownBit_.MemoryBit<uint8_t>::~MemoryBit();
       new (&shutdownBit_)MemoryBit<uint8_t>(saved_node, shutdown, shutdown_cleared, &state_, STATE_SHUTDOWN);
       shutdownProducer_.BitEventProducer::~BitEventProducer();
       new (&shutdownProducer_)BitEventProducer(&shutdownBit_);
 
+      saved_node = thermalBit_.node();
       thermalBit_.MemoryBit<uint8_t>::~MemoryBit();
       new (&thermalBit_)MemoryBit<uint8_t>(saved_node, thermal_shutdown, thermal_shutdown_cleared, &state_, STATE_THERMAL_SHUTDOWN);
       thermalProducer_.BitEventProducer::~BitEventProducer();
@@ -153,6 +155,7 @@ public:
   {
       LOG(VERBOSE, "Factory Reset Helper invoked");
       cfg_.description().write(fd, StringPrintf("%s Track Output", name_.c_str()).c_str());
+      fsync(fd);
   }
 
 private:
@@ -166,6 +169,7 @@ private:
   uint32_t overCurrentLimit_{0};
   uint32_t shutdownLimit_{0};
   uint32_t warnLimit_{0};
+  uint32_t progAckLimit_{0};
   const TrackOutputConfig cfg_;
   const uint8_t targetLED_;
   const uint8_t adcSampleCount_{64};

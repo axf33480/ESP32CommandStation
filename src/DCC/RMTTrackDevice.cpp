@@ -16,7 +16,6 @@ COPYRIGHT (c) 2019 Mike Dunston
 **********************************************************************/
 
 #include "ESP32CommandStation.h"
-#include <dcc/DccDebug.hxx>
 
 /////////////////////////////////////////////////////////////////////////////////////
 // DCC packet queue sizes for the RMT driver
@@ -244,7 +243,10 @@ RMTTrackDevice::RMTTrackDevice(SimpleCanStack *stack
                              , const gpio_num_t railComShortPin
                              , const uart_port_t railComUART
                              , const gpio_num_t railComReceivePin)
-                             : opsSignalPin_(opsSignalPin)
+                             : BitEventInterface(Defs::CLEAR_EMERGENCY_OFF_EVENT
+                                               , Defs::EMERGENCY_OFF_EVENT)
+                             , stack_(stack)
+                             , opsSignalPin_(opsSignalPin)
                              , opsRMTChannel_(opsChannel)
                              , opsPreambleBits_(opsPreambleBits)
                              , opsOutputEnablePin_(opsOutputEnablePin)
@@ -307,7 +309,7 @@ RMTTrackDevice::RMTTrackDevice(SimpleCanStack *stack
       .use_ref_tick        = false                     // unused
     };
     ESP_ERROR_CHECK(uart_param_config(railComUartPort_, &uart));
-    ESP_ERROR_CHECK(uart_driver_install(railComUartPort_, UART_FIFO_LEN, 0, 0, NULL, 0));
+    ESP_ERROR_CHECK(uart_driver_install(railComUartPort_, UART_FIFO_LEN + 1, 0, 0, NULL, 0));
     ESP_ERROR_CHECK(uart_disable_rx_intr(railComUartPort_));
     ESP_ERROR_CHECK(uart_disable_tx_intr(railComUartPort_));
     railcomReader_ = std::bind(&RMTTrackDevice::read_railcom_response, this);
@@ -322,14 +324,6 @@ RMTTrackDevice::RMTTrackDevice(SimpleCanStack *stack
                              , this);
   }
 
-  powerOn_.reset(
-    new SimplifiedCallbackEventHandler(Defs::EMERGENCY_OFF_EVENT
-                                     , stack->node()
-                                     , std::bind(&RMTTrackDevice::disable_ops_output, this)));
-  powerOff_.reset(
-    new SimplifiedCallbackEventHandler(Defs::CLEAR_EMERGENCY_OFF_EVENT
-                                     , stack->node()
-                                     , std::bind(&RMTTrackDevice::enable_ops_output, this)));
   opsHBridge_.reset(
     new MonitoredHBridge(stack
                        , opsSenseChannel
@@ -530,6 +524,8 @@ void RMTTrackDevice::enable_ops_output()
     opsSignalActive_ = true;
     LOG(INFO, "[RMT] Starting RMT for OPS");
 
+    opsHBridge_->enable();
+
     // send one bit to kickstart the signal, remaining data will come from the
     // packet queue. We intentionally do not wait for the RMT TX complete here.
     rmt_write_items(opsRMTChannel_, &DCC_RMT_ONE_BIT, 1, false);
@@ -543,6 +539,8 @@ void RMTTrackDevice::disable_ops_output()
     AtomicHolder l(&packetQueueLock_);
     opsSignalActive_ = false;
     LOG(INFO, "[RMT] Shutting down RMT for OPS");
+
+    opsHBridge_->disable();
   }
 }
 
@@ -557,6 +555,8 @@ void RMTTrackDevice::enable_prog_output()
     // send one bit to kickstart the signal, remaining data will come from the
     // packet queue. We intentionally do not wait for the RMT TX complete here.
     rmt_write_items(progRMTChannel_, &DCC_RMT_ONE_BIT, 1, false);
+
+    progHBridge_->enable();
   }
 }
 
@@ -567,6 +567,8 @@ void RMTTrackDevice::disable_prog_output()
     AtomicHolder l(&packetQueueLock_);
     progSignalActive_ = false;
     LOG(INFO, "[RMT] Shutting down RMT for PROG");
+
+    progHBridge_->disable();
 
     // if we have any pending packets, consume them now so we do not send them
     // to the track.
@@ -616,9 +618,10 @@ void RMTTrackDevice::initRMTDevice(const char *name
   uint8_t memoryBlocks = (maxBitCount / RMT_MEM_ITEM_NUM) + 1;
   HASSERT(memoryBlocks <= MAX_RMT_MEMORY_BLOCKS);
 
-  LOG(INFO, "[%s] Using RMT(%d), pin: %d, memory: %d (%d max usage), clk-div: "
-            "%d, DCC bit timing: zero: %duS, one: %duS"
-          , name, channel, pin, memoryBlocks, maxBitCount, RMT_CLOCK_DIVIDER
+  LOG(INFO, "[%s] Using RMT(%d), pin: %d, memory: %d blocks (%d/%d bits), "
+            "clk-div: %d, DCC bit timing: zero: %duS, one: %duS"
+          , name, channel, pin, memoryBlocks, maxBitCount
+          , (memoryBlocks * RMT_MEM_ITEM_NUM), RMT_CLOCK_DIVIDER
           , DCC_ZERO_BIT_PULSE_USEC, DCC_ONE_BIT_PULSE_USEC);
   rmt_config_t opsRMTConfig =
   {

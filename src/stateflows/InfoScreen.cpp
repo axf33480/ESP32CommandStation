@@ -48,6 +48,7 @@ LiquidCrystal_PCF8574 lcdDisplay(INFO_SCREEN_LCD_I2C_ADDRESS);
 #endif
 
 InfoScreen::InfoScreen(openlcb::SimpleCanStack *stack) : StateFlowBase(stack->service()) {
+  lccStatCollector_.reset(new LCCStatCollector(stack));
 #if INFO_SCREEN_ENABLED
   start_flow(STATE(init));
 #endif
@@ -239,36 +240,36 @@ StateFlowBase::Action InfoScreen::update()
       {
         replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE
                   , "LCC Nodes: %d"
-                  , lccStatCollector->getRemoteNodeCount()
+                  , lccStatCollector_->getRemoteNodeCount()
         );
       }
       else if (_lccStatusIndex == 1)
       {
         replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE
                   , "LCC Lcl: %d"
-                  , lccStatCollector->getLocalNodeCount()
+                  , lccStatCollector_->getLocalNodeCount()
         );
       }
       else if (_lccStatusIndex == 2)
       {
         replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE
                   , "LCC dg_svc: %d"
-                  , lccStatCollector->getDatagramCount()
+                  , lccStatCollector_->getDatagramCount()
         );
       }
       else if (_lccStatusIndex == 3)
       {
         replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE
                   , "LCC Ex: %d"
-                  , lccStatCollector->getExecutorCount()
+                  , lccStatCollector_->getExecutorCount()
         );
       }
       else if (_lccStatusIndex == 4)
       {
         replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE
                   , "LCC Pool: %d/%d"
-                  , lccStatCollector->getPoolFreeCount()
-                  , lccStatCollector->getPoolSize()
+                  , lccStatCollector_->getPoolFreeCount()
+                  , lccStatCollector_->getPoolSize()
         );
       }
 #if LOCONET_ENABLED

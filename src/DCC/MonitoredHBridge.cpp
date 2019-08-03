@@ -70,8 +70,9 @@ MonitoredHBridge::MonitoredHBridge(SimpleCanStack *stack
   , name_(name)
   , bridgeType_(bridgeType)
   , isProgTrack_(true)
-  , overCurrentLimit_((250 << 12) / maxMilliAmps_) // ~90% max value
+  , overCurrentLimit_((250 << 12) / maxMilliAmps_) // ~250mA
   , shutdownLimit_(4090)
+  , progAckLimit_((60 << 12) / maxMilliAmps_)      // ~60mA
   , cfg_(cfg)
   , targetLED_(StatusLED::LED::PROG_TRACK)
   , shortBit_(stack->node(), 0, 0, &state_, STATE_OVERCURRENT)
@@ -182,6 +183,14 @@ StateFlowBase::Action MonitoredHBridge::init()
       , enablePin_
   );
 
+  if (isProgTrack_)
+  {
+    LOG(INFO
+      , "Prog ACK: %u/4096 (%.2f mA)"
+      , progAckLimit_
+      , ((progAckLimit_ * maxMilliAmps_) / 4096.0f));
+  }
+
   gpio_pad_select_gpio(enablePin_);
   ESP_ERROR_CHECK(gpio_set_direction(enablePin_, GPIO_MODE_OUTPUT));
   ESP_ERROR_CHECK(gpio_pulldown_en(enablePin_));
@@ -226,6 +235,10 @@ StateFlowBase::Action MonitoredHBridge::check()
             , lastReading_);
     state_ = STATE_SHUTDOWN;
     statusLEDColor = StatusLED::COLOR::RED_BLINK;
+    if (isProgTrack_)
+    {
+      Singleton<ProgrammingTrackBackend>::instance()->notify_service_mode_short();
+    }
   }
   else if (lastReading_ >= overCurrentLimit_)
   {
@@ -239,6 +252,10 @@ StateFlowBase::Action MonitoredHBridge::check()
               , lastReading_);
       state_ = STATE_OVERCURRENT;
       statusLEDColor = StatusLED::COLOR::RED;
+      if (isProgTrack_)
+      {
+        Singleton<ProgrammingTrackBackend>::instance()->notify_service_mode_short();
+      }
     }
     else
     {
@@ -261,6 +278,10 @@ StateFlowBase::Action MonitoredHBridge::check()
     {
       statusLEDColor = StatusLED::COLOR::YELLOW;
     }
+  }
+  if (isProgTrack_ && state_ == STATE_ON && lastReading_ >= progAckLimit_)
+  {
+    Singleton<ProgrammingTrackBackend>::instance()->notify_service_mode_ack();
   }
   if(esp_timer_get_time() - lastReport_ > currentReportInterval_)
   {

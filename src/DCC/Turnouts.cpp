@@ -107,7 +107,7 @@ TurnoutManager::TurnoutManager(openlcb::Node *node)
 
 void TurnoutManager::clear()
 {
-  AtomicHolder h(&lock_);
+  AtomicHolder h(this);
   for (auto & turnout : turnouts_)
   {
     turnout.reset(nullptr);
@@ -132,7 +132,7 @@ uint16_t TurnoutManager::store()
 
 bool TurnoutManager::setByID(uint16_t id, bool thrown, bool sendDCC)
 {
-  AtomicHolder h(&lock_);
+  AtomicHolder h(this);
   for (auto & turnout : turnouts_)
   {
     if (turnout->getID() == id)
@@ -146,7 +146,7 @@ bool TurnoutManager::setByID(uint16_t id, bool thrown, bool sendDCC)
 
 void TurnoutManager::setByAddress(uint16_t address, bool thrown, bool sendDCC)
 {
-  AtomicHolder h(&lock_);
+  AtomicHolder h(this);
   for (auto & turnout : turnouts_)
   {
     if (turnout->getAddress() == address)
@@ -163,7 +163,7 @@ void TurnoutManager::setByAddress(uint16_t address, bool thrown, bool sendDCC)
 
 bool TurnoutManager::toggleByID(uint16_t id)
 {
-  AtomicHolder h(&lock_);
+  AtomicHolder h(this);
   for (auto & turnout : turnouts_)
   {
     if (turnout->getID() == id)
@@ -177,7 +177,7 @@ bool TurnoutManager::toggleByID(uint16_t id)
 
 void TurnoutManager::toggleByAddress(uint16_t address)
 {
-  AtomicHolder h(&lock_);
+  AtomicHolder h(this);
   auto const &elem = std::find_if(turnouts_.begin(), turnouts_.end(),
     [address](unique_ptr<Turnout> & turnout) -> bool
     {
@@ -197,7 +197,7 @@ void TurnoutManager::toggleByAddress(uint16_t address)
 
 void TurnoutManager::getState(JsonArray array, bool readableStrings)
 {
-  AtomicHolder h(&lock_);
+  AtomicHolder h(this);
   for (auto& turnout : turnouts_)
   {
     JsonObject json = array.createNestedObject();
@@ -207,7 +207,7 @@ void TurnoutManager::getState(JsonArray array, bool readableStrings)
 
 void TurnoutManager::showStatus()
 {
-  AtomicHolder h(&lock_);
+  AtomicHolder h(this);
   for (auto& turnout : turnouts_)
   {
     turnout->showStatus();
@@ -216,7 +216,7 @@ void TurnoutManager::showStatus()
 
 Turnout *TurnoutManager::createOrUpdate(const uint16_t id, const uint16_t address, const int8_t index, const TurnoutType type)
 {
-  AtomicHolder h(&lock_);
+  AtomicHolder h(this);
   auto const &elem = std::find_if(turnouts_.begin(), turnouts_.end(),
     [id](unique_ptr<Turnout> & turnout) -> bool
     {
@@ -235,7 +235,7 @@ Turnout *TurnoutManager::createOrUpdate(const uint16_t id, const uint16_t addres
 
 bool TurnoutManager::removeByID(const uint16_t id)
 {
-  AtomicHolder h(&lock_);
+  AtomicHolder h(this);
   auto const &elem = std::find_if(turnouts_.begin(), turnouts_.end(),
     [id](unique_ptr<Turnout> & turnout) -> bool
     {
@@ -253,7 +253,7 @@ bool TurnoutManager::removeByID(const uint16_t id)
 
 bool TurnoutManager::removeByAddress(const uint16_t address)
 {
-  AtomicHolder h(&lock_);
+  AtomicHolder h(this);
   auto const &elem = std::find_if(turnouts_.begin(), turnouts_.end(),
     [address](unique_ptr<Turnout> & turnout) -> bool
     {
@@ -271,7 +271,7 @@ bool TurnoutManager::removeByAddress(const uint16_t address)
 
 Turnout *TurnoutManager::getTurnoutByIndex(const uint16_t index)
 {
-  AtomicHolder h(&lock_);
+  AtomicHolder h(this);
   if (index < turnouts_.size())
   {
     return turnouts_[index].get();
@@ -281,7 +281,7 @@ Turnout *TurnoutManager::getTurnoutByIndex(const uint16_t index)
 
 Turnout *TurnoutManager::getTurnoutByID(const uint16_t id)
 {
-  AtomicHolder h(&lock_);
+  AtomicHolder h(this);
   auto const &elem = std::find_if(turnouts_.begin(), turnouts_.end(),
     [id](unique_ptr<Turnout> & turnout) -> bool {
       return (turnout->getID() == id);
@@ -295,7 +295,7 @@ Turnout *TurnoutManager::getTurnoutByID(const uint16_t id)
 
 Turnout *TurnoutManager::getTurnoutByAddress(const uint16_t address)
 {
-  AtomicHolder h(&lock_);
+  AtomicHolder h(this);
   auto const &elem = std::find_if(turnouts_.begin(), turnouts_.end(),
     [address](unique_ptr<Turnout> & turnout) -> bool {
       return (turnout->getAddress() == address);
@@ -310,6 +310,7 @@ Turnout *TurnoutManager::getTurnoutByAddress(const uint16_t address)
 
 uint16_t TurnoutManager::getTurnoutCount()
 {
+  AtomicHolder h(this);
   return turnouts_.size();
 }
 
@@ -333,7 +334,7 @@ void TurnoutManager::send(Buffer<dcc::Packet> *b, unsigned prio)
     uint8_t boardIndex = ((onesComplementByteTwo >> 1) % 4);
     bool state = onesComplementByteTwo & 0x01;
     // Set the turnout to the requested state, don't send a DCC packet.
-    setByAddress(decodeDCCAccessoryAddress(boardAddress, boardIndex), state, false);
+    setByAddress(decodeDCCAccessoryAddress(boardAddress, boardIndex), state);
   }
   b->unref();
 }

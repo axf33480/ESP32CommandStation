@@ -33,16 +33,17 @@ AsyncWebServer webServer(80);
 AsyncDNSServer asyncDNS;
 AsyncWebSocket webSocket("/ws");
 
-enum HTTP_STATUS_CODES {
-  STATUS_OK = 200,
-  STATUS_NOT_MODIFIED = 304,
-  STATUS_BAD_REQUEST = 400,
-  STATUS_NOT_FOUND = 404,
-  STATUS_NOT_ALLOWED = 405,
-  STATUS_NOT_ACCEPTABLE = 406,
-  STATUS_CONFLICT = 409,
-  STATUS_PRECONDITION_FAILED = 412,
-  STATUS_SERVER_ERROR = 500
+enum HTTP_STATUS_CODES
+{
+  STATUS_OK = 200
+, STATUS_NOT_MODIFIED = 304
+, STATUS_BAD_REQUEST = 400
+, STATUS_NOT_FOUND = 404
+, STATUS_NOT_ALLOWED = 405
+, STATUS_NOT_ACCEPTABLE = 406
+, STATUS_CONFLICT = 409
+, STATUS_PRECONDITION_FAILED = 412
+, STATUS_SERVER_ERROR = 500
 };
 
 Atomic webSocketAtomic;
@@ -53,45 +54,48 @@ void handleWsEvent(AsyncWebSocket * server,
                    AwsEventType type,
                    void * arg,
                    uint8_t *data,
-                   size_t len) {
-  if (type == WS_EVT_CONNECT) {
-    {
-      AtomicHolder h(&webSocketAtomic);
-      webSocketClients.push_back(new WebSocketClient(client->id(), ntohl(client->remoteIP())));
-    }
+                   size_t len)
+{
+  AtomicHolder h(&webSocketAtomic);
+  if (type == WS_EVT_CONNECT)
+  {
+    webSocketClients.push_back(new WebSocketClient(client->id(), ntohl(client->remoteIP())));
     client->printf("<iDCC++ ESP32 Command Station: V-%s / %s %s>", ESP32CS_VERSION, __DATE__, __TIME__);
     infoScreen->replaceLine(INFO_SCREEN_CLIENTS_LINE, 
                             "TCP Conn: %02d",
                             webSocketClients.size() + jmriClients.size());
-  } else if (type == WS_EVT_DISCONNECT) {
-    {
-      AtomicHolder h(&webSocketAtomic);
-      auto elem = std::find_if(webSocketClients.begin(), webSocketClients.end(),
-        [client](WebSocketClient *clientNode) -> bool {
-          return (clientNode->getID() == client->id());
-        }
-      );
-      if(elem != webSocketClients.end()) {
-        delete *elem;
-        webSocketClients.erase(elem);
+  }
+  else if (type == WS_EVT_DISCONNECT)
+  {
+    auto elem = std::find_if(webSocketClients.begin(), webSocketClients.end(),
+      [client](WebSocketClient *clientNode) -> bool
+      {
+        return (clientNode->getID() == client->id());
       }
+    );
+    if (elem != webSocketClients.end())
+    {
+      delete *elem;
+      webSocketClients.erase(elem);
     }
     infoScreen->replaceLine(INFO_SCREEN_CLIENTS_LINE,
                             "TCP Conn: %02d",
                             webSocketClients.size() + jmriClients.size());
-  } else if (type == WS_EVT_DATA) {
+  }
+  else if (type == WS_EVT_DATA)
+  {
+    for (auto clientNode : webSocketClients)
     {
-      AtomicHolder h(&webSocketAtomic);
-      for (auto clientNode : webSocketClients) {
-        if(clientNode->getID() == client->id()) {
-          clientNode->feed(data, len);
-        }
+      if (clientNode->getID() == client->id())
+      {
+        clientNode->feed(data, len);
       }
     }
   }
 }
 
-ESP32CSWebServer::ESP32CSWebServer(MDNS *mdns) : mdns_(mdns) {
+ESP32CSWebServer::ESP32CSWebServer(MDNS *mdns) : mdns_(mdns)
+{
 }
 
 #define BUILTIN_URI(uri) \
@@ -186,9 +190,11 @@ ota_failure:
   otaMonitor->report_failure(res);
 }
 
-void ESP32CSWebServer::begin() {
+void ESP32CSWebServer::begin()
+{
   if (configStore->isAPEnabled())
   {
+    LOG(INFO, "[WebSrv] SoftAP mode enabled, starting DNS server");
     tcpip_adapter_ip_info_t ip_info;
     tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_AP, &ip_info);
     // store the IP address for use in the 404 handler
@@ -238,153 +244,198 @@ void ESP32CSWebServer::broadcastToWS(const std::string &buf) {
   webSocket.textAll(buf.c_str());
 }
 
-void ESP32CSWebServer::handleProgrammer(AsyncWebServerRequest *request) {
+void ESP32CSWebServer::handleProgrammer(AsyncWebServerRequest *request)
+{
   auto jsonResponse = new AsyncJsonResponse();
-  // new programmer request
-  #if 0
-  if (request->method() == HTTP_GET) {
-    if (request->arg(JSON_PROG_ON_MAIN).equalsIgnoreCase(JSON_VALUE_TRUE)) {
+  if (request->method() == HTTP_GET)
+  {
+    if (request->arg(JSON_PROG_ON_MAIN).equalsIgnoreCase(JSON_VALUE_TRUE))
+    {
       jsonResponse->setCode(STATUS_NOT_ALLOWED);
-    } else if(request->hasArg(JSON_IDENTIFY_NODE)) {
+    }
+    else if(request->hasArg(JSON_IDENTIFY_NODE))
+    {
       JsonObject node = jsonResponse->getRoot();
-      if(enterProgrammingMode()) {
-        int16_t decoderConfig = readCV(CV_NAMES::DECODER_CONFIG);
-        uint16_t decoderAddress = 0;
-        if(decoderConfig > 0) {
-          if(bitRead(decoderConfig, DECODER_CONFIG_BITS::DECODER_TYPE)) {
-            uint8_t decoderManufacturer = readCV(CV_NAMES::DECODER_MANUFACTURER);
-            int16_t addrMSB = readCV(CV_NAMES::ACCESSORY_DECODER_MSB_ADDRESS);
-            int16_t addrLSB = readCV(CV_NAMES::SHORT_ADDRESS);
-            if(addrMSB >= 0 && addrLSB >= 0) {
-              if(decoderManufacturer == 0xA5) { // MERG uses 7 bit LSB
-                decoderAddress = (uint16_t)(((addrMSB & 0x07) << 7) | (addrLSB & 0x7F));
-              } else if(decoderManufacturer == 0x19) { // Team Digital uses 8 bit LSB and 4 bit MSB
-                decoderAddress = (uint16_t)(((addrMSB & 0x0F) << 8) | addrLSB);
-              } else { // NMRA spec shows 6 bit LSB
-                decoderAddress = (uint16_t)(((addrMSB & 0x07) << 6) | (addrLSB & 0x1F));
-              }
-              node[JSON_ADDRESS_MODE_NODE] = JSON_VALUE_LONG_ADDRESS;
-            } else {
-              LOG(WARNING, "Failed to read address MSB/LSB");
-              jsonResponse->setCode(STATUS_SERVER_ERROR);
+      int16_t decoderConfig = readCV(CV_NAMES::DECODER_CONFIG);
+      uint16_t decoderAddress = 0;
+      if (decoderConfig > 0)
+      {
+        if (bitRead(decoderConfig, DECODER_CONFIG_BITS::DECODER_TYPE))
+        {
+          uint8_t decoderManufacturer = readCV(CV_NAMES::DECODER_MANUFACTURER);
+          int16_t addrMSB = readCV(CV_NAMES::ACCESSORY_DECODER_MSB_ADDRESS);
+          int16_t addrLSB = readCV(CV_NAMES::SHORT_ADDRESS);
+          if (addrMSB >= 0 && addrLSB >= 0)
+          {
+            if (decoderManufacturer == 0xA5)
+            {
+              // MERG uses 7 bit LSB
+              decoderAddress = (uint16_t)(((addrMSB & 0x07) << 7) | (addrLSB & 0x7F));
             }
-          } else {
-            if(bitRead(decoderConfig, DECODER_CONFIG_BITS::SHORT_OR_LONG_ADDRESS)) {
-              int16_t addrMSB = readCV(CV_NAMES::LONG_ADDRESS_MSB_ADDRESS);
-              int16_t addrLSB = readCV(CV_NAMES::LONG_ADDRESS_LSB_ADDRESS);
-              if(addrMSB >= 0 && addrLSB >= 0) {
-                decoderAddress = (uint16_t)(((addrMSB & 0xFF) << 8) | (addrLSB & 0xFF));
-                node[JSON_ADDRESS_MODE_NODE] = JSON_VALUE_LONG_ADDRESS;
-              } else {
-                LOG(WARNING, "Unable to read address MSB/LSB");
-                jsonResponse->setCode(STATUS_SERVER_ERROR);
-              }
-            } else {
-              int16_t shortAddr = readCV(CV_NAMES::SHORT_ADDRESS);
-              if(shortAddr > 0) {
-                decoderAddress = shortAddr;
-                node[JSON_ADDRESS_MODE_NODE] = JSON_VALUE_SHORT_ADDRESS;
-              } else {
-                LOG(WARNING, "Unable to read short address CV");
-                jsonResponse->setCode(STATUS_SERVER_ERROR);
-              }
+            else if(decoderManufacturer == 0x19)
+            {
+              // Team Digital uses 8 bit LSB and 4 bit MSB
+              decoderAddress = (uint16_t)(((addrMSB & 0x0F) << 8) | addrLSB);
             }
-            if(bitRead(decoderConfig, DECODER_CONFIG_BITS::SPEED_TABLE)) {
-              node[JSON_SPEED_TABLE_NODE] = JSON_VALUE_ON;
-            } else {
-              node[JSON_SPEED_TABLE_NODE] = JSON_VALUE_OFF;
+            else
+            {
+              // NMRA spec shows 6 bit LSB
+              decoderAddress = (uint16_t)(((addrMSB & 0x07) << 6) | (addrLSB & 0x1F));
             }
+            node[JSON_ADDRESS_MODE_NODE] = JSON_VALUE_LONG_ADDRESS;
           }
-          if(decoderAddress > 0) {
-            node[JSON_ADDRESS_NODE] = decoderAddress;
-            auto roster = LocomotiveManager::getRosterEntry(decoderAddress, false);
-            if(roster) {
-              node[JSON_LOCO_NODE] = roster;
-            } else if(request->hasArg(JSON_CREATE_NODE) && request->arg(JSON_CREATE_NODE).equalsIgnoreCase(JSON_VALUE_TRUE)) {
-              roster = LocomotiveManager::getRosterEntry(decoderAddress);
-              if(decoderConfig > 0) {
-                if(bitRead(decoderConfig, DECODER_CONFIG_BITS::DECODER_TYPE)) {
-                  roster->setType(JSON_VALUE_STATIONARY_DECODER);
-                } else {
-                  roster->setType(JSON_VALUE_MOBILE_DECODER);
-                }
-              }
-              node[JSON_LOCO_NODE] = roster;
-            }
-          } else {
-            LOG(WARNING, "Failed to read decoder address");
+          else
+          {
+            LOG(WARNING, "Failed to read address MSB/LSB");
             jsonResponse->setCode(STATUS_SERVER_ERROR);
           }
-        } else {
-          LOG(WARNING, "Failed to read decoder configuration");
+        }
+        else
+        {
+          if (bitRead(decoderConfig, DECODER_CONFIG_BITS::SHORT_OR_LONG_ADDRESS))
+          {
+            int16_t addrMSB = readCV(CV_NAMES::LONG_ADDRESS_MSB_ADDRESS);
+            int16_t addrLSB = readCV(CV_NAMES::LONG_ADDRESS_LSB_ADDRESS);
+            if (addrMSB >= 0 && addrLSB >= 0)
+            {
+              decoderAddress = (uint16_t)(((addrMSB & 0xFF) << 8) | (addrLSB & 0xFF));
+              node[JSON_ADDRESS_MODE_NODE] = JSON_VALUE_LONG_ADDRESS;
+            }
+            else
+            {
+              LOG(WARNING, "Unable to read address MSB/LSB");
+              jsonResponse->setCode(STATUS_SERVER_ERROR);
+            }
+          }
+          else
+          {
+            int16_t shortAddr = readCV(CV_NAMES::SHORT_ADDRESS);
+            if (shortAddr > 0)
+            {
+              decoderAddress = shortAddr;
+              node[JSON_ADDRESS_MODE_NODE] = JSON_VALUE_SHORT_ADDRESS;
+            }
+            else
+            {
+              LOG(WARNING, "Unable to read short address CV");
+              jsonResponse->setCode(STATUS_SERVER_ERROR);
+            }
+          }
+          if (bitRead(decoderConfig, DECODER_CONFIG_BITS::SPEED_TABLE))
+          {
+            node[JSON_SPEED_TABLE_NODE] = JSON_VALUE_ON;
+          }
+          else
+          {
+            node[JSON_SPEED_TABLE_NODE] = JSON_VALUE_OFF;
+          }
+        }
+        if (decoderAddress > 0)
+        {
+          node[JSON_ADDRESS_NODE] = decoderAddress;
+          auto roster = LocomotiveManager::getRosterEntry(decoderAddress, false);
+          if (roster)
+          {
+            node[JSON_LOCO_NODE] = roster;
+          }
+          else if(request->hasArg(JSON_CREATE_NODE) && request->arg(JSON_CREATE_NODE).equalsIgnoreCase(JSON_VALUE_TRUE))
+          {
+            roster = LocomotiveManager::getRosterEntry(decoderAddress);
+            if (decoderConfig > 0)
+            {
+              if (bitRead(decoderConfig, DECODER_CONFIG_BITS::DECODER_TYPE))
+              {
+                roster->setType(JSON_VALUE_STATIONARY_DECODER);
+              }
+              else
+              {
+                roster->setType(JSON_VALUE_MOBILE_DECODER);
+              }
+            }
+            node[JSON_LOCO_NODE] = roster;
+          }
+        }
+        else
+        {
+          LOG(WARNING, "Failed to read decoder address");
           jsonResponse->setCode(STATUS_SERVER_ERROR);
         }
-        leaveProgrammingMode();
-      } else {
-        LOG(WARNING, "Programmer already in use");
-        jsonResponse->setCode(STATUS_SERVER_ERROR);
       }
-    } else {
-      uint16_t cvNumber = request->arg(JSON_CV_NODE).toInt();
-      if(enterProgrammingMode()) {
-        int16_t cvValue = readCV(cvNumber);
-        JsonObject node = jsonResponse->getRoot();
-        node[JSON_CV_NODE] = cvNumber;
-        node[JSON_VALUE_NODE] = cvValue;
-        if(cvValue < 0) {
-          jsonResponse->setCode(STATUS_SERVER_ERROR);
-        } else {
-          jsonResponse->setCode(STATUS_OK);
-        }
-        leaveProgrammingMode();
-      } else {
-        LOG(WARNING, "Programmer already in use");
+      else
+      {
+        LOG(WARNING, "Failed to read decoder configuration");
         jsonResponse->setCode(STATUS_SERVER_ERROR);
       }
     }
-  } else if(request->method() == HTTP_POST && request->hasArg(JSON_PROG_ON_MAIN)) {
-    if (request->arg(JSON_PROG_ON_MAIN).equalsIgnoreCase(JSON_VALUE_TRUE)) {
-      if(request->hasArg(JSON_CV_BIT_NODE)) {
+    else
+    {
+      uint16_t cvNumber = request->arg(JSON_CV_NODE).toInt();
+      int16_t cvValue = readCV(cvNumber);
+      JsonObject node = jsonResponse->getRoot();
+      node[JSON_CV_NODE] = cvNumber;
+      node[JSON_VALUE_NODE] = cvValue;
+      if (cvValue < 0)
+      {
+        jsonResponse->setCode(STATUS_SERVER_ERROR);
+      }
+      else
+      {
+        jsonResponse->setCode(STATUS_OK);
+      }
+    }
+  }
+  else if (request->method() == HTTP_POST && request->hasArg(JSON_PROG_ON_MAIN))
+  {
+    if (request->arg(JSON_PROG_ON_MAIN).equalsIgnoreCase(JSON_VALUE_TRUE))
+    {
+      if (request->hasArg(JSON_CV_BIT_NODE))
+      {
         writeOpsCVBit(request->arg(JSON_ADDRESS_NODE).toInt(), request->arg(JSON_CV_NODE).toInt(),
           request->arg(JSON_CV_BIT_NODE).toInt(), request->arg(JSON_VALUE_NODE).equalsIgnoreCase(JSON_VALUE_TRUE));
-      } else {
+      }
+      else
+      {
         writeOpsCVByte(request->arg(JSON_ADDRESS_NODE).toInt(), request->arg(JSON_CV_NODE).toInt(),
           request->arg(JSON_VALUE_NODE).toInt());
       }
       jsonResponse->setCode(STATUS_OK);
-    } else {
+    }
+    else
+    {
       bool writeSuccess = false;
-      if(enterProgrammingMode()) {
-        if(request->hasArg(JSON_CV_BIT_NODE)) {
-          writeSuccess = writeProgCVBit(request->arg(JSON_CV_NODE).toInt(), request->arg(JSON_CV_BIT_NODE).toInt(),
-            request->arg(JSON_VALUE_NODE).equalsIgnoreCase(JSON_VALUE_TRUE));
-        } else {
-          writeSuccess = writeProgCVByte(request->arg(JSON_CV_NODE).toInt(), request->arg(JSON_VALUE_NODE).toInt());
-        }
-        leaveProgrammingMode();
+      if (request->hasArg(JSON_CV_BIT_NODE))
+      {
+        writeSuccess = writeProgCVBit(request->arg(JSON_CV_NODE).toInt(), request->arg(JSON_CV_BIT_NODE).toInt(),
+          request->arg(JSON_VALUE_NODE).equalsIgnoreCase(JSON_VALUE_TRUE));
       }
-      if(writeSuccess) {
+      else
+      {
+        writeSuccess = writeProgCVByte(request->arg(JSON_CV_NODE).toInt(), request->arg(JSON_VALUE_NODE).toInt());
+      }
+      if (writeSuccess)
+      {
         jsonResponse->setCode(STATUS_OK);
-      } else {
+      }
+      else
+      {
         jsonResponse->setCode(STATUS_SERVER_ERROR);
       }
     }
-  } else {
-    #endif
-    jsonResponse->setCode(STATUS_BAD_REQUEST);
-    #if 0
   }
-  #endif
+  else
+  {
+    jsonResponse->setCode(STATUS_BAD_REQUEST);
+  }
   jsonResponse->setLength();
   request->send(jsonResponse);
  }
 
 void ESP32CSWebServer::handlePower(AsyncWebServerRequest *request)
 {
-  if(request->method() == HTTP_GET)
+  if (request->method() == HTTP_GET)
   {
     AsyncJsonResponse *jsonResponse = nullptr;
-    if(request->params())
+    if (request->params())
     {
       jsonResponse = new AsyncJsonResponse();
       jsonResponse->getRoot()[JSON_STATE_NODE] =
@@ -401,7 +452,7 @@ void ESP32CSWebServer::handlePower(AsyncWebServerRequest *request)
   }
   else if (request->method() == HTTP_PUT && request->hasArg(JSON_STATE_NODE))
   {
-    if(request->arg(JSON_STATE_NODE).equalsIgnoreCase(JSON_VALUE_TRUE))
+    if (request->arg(JSON_STATE_NODE).equalsIgnoreCase(JSON_VALUE_TRUE))
     {
       trackSignal->enable_ops_output();
     }
@@ -416,43 +467,61 @@ void ESP32CSWebServer::handlePower(AsyncWebServerRequest *request)
   request->send(STATUS_BAD_REQUEST);
  }
 
-void ESP32CSWebServer::handleOutputs(AsyncWebServerRequest *request) {
+void ESP32CSWebServer::handleOutputs(AsyncWebServerRequest *request)
+{
 #if ENABLE_OUTPUTS
   auto jsonResponse = new AsyncJsonResponse(request->method() == HTTP_GET && !request->params());
-  if (request->method() == HTTP_GET && !request->hasArg(JSON_ID_NODE)) {
+  if (request->method() == HTTP_GET && !request->hasArg(JSON_ID_NODE))
+  {
     JsonArray array = jsonResponse->getRoot();
     OutputManager::getState(array);
-  } else if (request->method() == HTTP_GET) {
+  }
+  else if (request->method() == HTTP_GET)
+  {
     auto output = OutputManager::getOutput(request->arg(JSON_ID_NODE).toInt());
-    if(output) {
+    if (output)
+    {
       output->toJson(jsonResponse->getRoot(), true);
-    } else {
+    }
+    else
+    {
       jsonResponse->setCode(STATUS_NOT_FOUND);
     }
-  } else if(request->method() == HTTP_POST) {
+  }
+  else if (request->method() == HTTP_POST)
+  {
     uint16_t outputID = request->arg(JSON_ID_NODE).toInt();
     uint8_t pin = request->arg(JSON_PIN_NODE).toInt();
     bool inverted = request->arg(JSON_INVERTED_NODE).equalsIgnoreCase(JSON_VALUE_TRUE);
     bool forceState = request->arg(JSON_FORCE_STATE_NODE).equalsIgnoreCase(JSON_VALUE_TRUE);
     bool defaultState = request->arg(JSON_DEFAULT_STATE_NODE).equalsIgnoreCase(JSON_VALUE_TRUE);
     uint8_t outputFlags = 0;
-    if(inverted) {
+    if (inverted)
+    {
       bitSet(outputFlags, OUTPUT_IFLAG_INVERT);
     }
-    if(forceState) {
+    if (forceState)
+    {
       bitSet(outputFlags, OUTPUT_IFLAG_RESTORE_STATE);
-      if(defaultState) {
+      if (defaultState)
+      {
         bitSet(outputFlags, OUTPUT_IFLAG_FORCE_STATE);
       }
     }
-    if(!OutputManager::createOrUpdate(outputID, pin, outputFlags)) {
+    if (!OutputManager::createOrUpdate(outputID, pin, outputFlags))
+    {
       jsonResponse->setCode(STATUS_NOT_ALLOWED);
     }
-  } else if(request->method() == HTTP_DELETE) {
-    if(!OutputManager::remove(request->arg(JSON_ID_NODE).toInt())) {
+  }
+  else if (request->method() == HTTP_DELETE)
+  {
+    if (!OutputManager::remove(request->arg(JSON_ID_NODE).toInt()))
+    {
       jsonResponse->setCode(STATUS_NOT_FOUND);
     }
-  } else if(request->method() == HTTP_PUT) {
+  }
+  else if(request->method() == HTTP_PUT)
+  {
    OutputManager::toggle(request->arg(JSON_ID_NODE).toInt());
   }
   jsonResponse->setLength();
@@ -460,7 +529,8 @@ void ESP32CSWebServer::handleOutputs(AsyncWebServerRequest *request) {
 #endif // ENABLE_OUTPUTS
 }
 
-void ESP32CSWebServer::handleTurnouts(AsyncWebServerRequest *request) {
+void ESP32CSWebServer::handleTurnouts(AsyncWebServerRequest *request)
+{
   // GET /turnouts - full list of turnouts, note that turnout state is STRING type for display
   // GET /turnouts?readbleStrings=[0,1] - full list of turnouts, turnout state will be returned as true/false (boolean) when readableStrings=0.
   // GET /turnouts?address=<address> - retrieve turnout by DCC address
@@ -483,60 +553,95 @@ void ESP32CSWebServer::handleTurnouts(AsyncWebServerRequest *request) {
     !request->hasArg(JSON_ID_NODE) &&
     !request->hasArg(JSON_ADDRESS_NODE));
   auto jsonResponse = new AsyncJsonResponse(needArrayResponse);
-  if (request->method() == HTTP_GET && !request->hasArg(JSON_ID_NODE)) {
+  if (request->method() == HTTP_GET && !request->hasArg(JSON_ID_NODE))
+  {
     bool readableStrings = true;
-    if(request->hasArg(JSON_TURNOUTS_READABLE_STRINGS_NODE)) {
+    if (request->hasArg(JSON_TURNOUTS_READABLE_STRINGS_NODE))
+    {
       readableStrings = request->arg(JSON_TURNOUTS_READABLE_STRINGS_NODE).toInt();
     }
     JsonArray array = jsonResponse->getRoot();
     turnoutManager->getState(array, readableStrings);
-  } else if (request->method() == HTTP_GET) {
-    if(request->hasArg(JSON_ID_NODE)) {
+  }
+  else if (request->method() == HTTP_GET)
+  {
+    if(request->hasArg(JSON_ID_NODE))
+    {
       auto turnout = turnoutManager->getTurnoutByID(request->arg(JSON_ID_NODE).toInt());
-      if(turnout) {
+      if (turnout)
+      {
         turnout->toJson(jsonResponse->getRoot());
-      } else {
+      }
+      else
+      {
         jsonResponse->setCode(STATUS_NOT_FOUND);
       }
-    } else if (request->hasArg(JSON_ADDRESS_NODE)) {
+    }
+    else if (request->hasArg(JSON_ADDRESS_NODE))
+    {
       auto turnout = turnoutManager->getTurnoutByID(request->arg(JSON_ADDRESS_NODE).toInt());
-      if(turnout) {
+      if (turnout)
+      {
         turnout->toJson(jsonResponse->getRoot());
-      } else {
+      }
+      else
+      {
         jsonResponse->setCode(STATUS_NOT_FOUND);
       }
-    } else {
+    }
+    else
+    {
       jsonResponse->setCode(STATUS_BAD_REQUEST);
     }
-  } else if(request->method() == HTTP_POST) {
+  }
+  else if (request->method() == HTTP_POST)
+  {
     int32_t turnoutID = request->arg(JSON_ID_NODE).toInt();
     uint16_t turnoutAddress = request->arg(JSON_ADDRESS_NODE).toInt();
     int8_t turnoutSubAddress = request->arg(JSON_SUB_ADDRESS_NODE).toInt();
     TurnoutType type = (TurnoutType)request->arg(JSON_TYPE_NODE).toInt();
     // auto generate ID
-    if(turnoutID == -1) {
+    if (turnoutID == -1)
+    {
       turnoutID = turnoutManager->getTurnoutCount() + 1;
     }
     auto turnout = turnoutManager->createOrUpdate((uint16_t)turnoutID, turnoutAddress, turnoutSubAddress, type);
-    if(turnout) {
+    if (turnout)
+    {
       turnout->toJson(jsonResponse->getRoot());
-    } else {
+    }
+    else
+    {
       jsonResponse->setCode(STATUS_SERVER_ERROR);
     }
-  } else if(request->method() == HTTP_DELETE) {
-    if(request->hasArg(JSON_ID_NODE)) {
+  }
+  else if (request->method() == HTTP_DELETE)
+  {
+    if (request->hasArg(JSON_ID_NODE))
+    {
       turnoutManager->removeByID(request->arg(JSON_ID_NODE).toInt());
-    } else if (request->hasArg(JSON_ADDRESS_NODE)) {
+    }
+    else if (request->hasArg(JSON_ADDRESS_NODE))
+    {
       turnoutManager->removeByAddress(request->arg(JSON_ADDRESS_NODE).toInt());
-    } else {
+    }
+    else
+    {
       jsonResponse->setCode(STATUS_BAD_REQUEST);
     }
-  } else if(request->method() == HTTP_PUT) {
-    if(request->hasArg(JSON_ID_NODE)) {
+  }
+  else if (request->method() == HTTP_PUT)
+  {
+    if (request->hasArg(JSON_ID_NODE))
+    {
       turnoutManager->toggleByID(request->arg(JSON_ID_NODE).toInt());
-    } else if (request->hasArg(JSON_ADDRESS_NODE)) {
+    }
+    else if (request->hasArg(JSON_ADDRESS_NODE))
+    {
       turnoutManager->toggleByAddress(request->arg(JSON_ADDRESS_NODE).toInt());
-    } else {
+    }
+    else
+    {
       jsonResponse->setCode(STATUS_BAD_REQUEST);
     }
   }
@@ -547,29 +652,42 @@ void ESP32CSWebServer::handleTurnouts(AsyncWebServerRequest *request) {
 void ESP32CSWebServer::handleSensors(AsyncWebServerRequest *request) {
 #if ENABLE_SENSORS
   auto jsonResponse = new AsyncJsonResponse(request->method() == HTTP_GET && !request->params());
-  if (request->method() == HTTP_GET && !request->hasArg(JSON_ID_NODE)) {
+  if (request->method() == HTTP_GET && !request->hasArg(JSON_ID_NODE))
+  {
     JsonArray array = jsonResponse->getRoot();
     SensorManager::getState(array);
-  } else if (request->method() == HTTP_GET) {
+  }
+  else if (request->method() == HTTP_GET)
+  {
     auto sensor = SensorManager::getSensor(request->arg(JSON_ID_NODE).toInt());
-    if(sensor) {
+    if(sensor)
+    {
       sensor->toJson(jsonResponse->getRoot());
-    } else {
+    }
+    else
+    {
       jsonResponse->setCode(STATUS_NOT_FOUND);
     }
-  } else if(request->method() == HTTP_POST) {
+  }
+  else if(request->method() == HTTP_POST)
+  {
     uint16_t sensorID = request->arg(JSON_ID_NODE).toInt();
     uint8_t sensorPin = request->arg(JSON_PIN_NODE).toInt();
     bool sensorPullUp = request->arg(JSON_PULLUP_NODE).equalsIgnoreCase(JSON_VALUE_TRUE);
     if(!SensorManager::createOrUpdate(sensorID, sensorPin, sensorPullUp)) {
       jsonResponse->setCode(STATUS_NOT_ALLOWED);
     }
-  } else if(request->method() == HTTP_DELETE) {
+  }
+  else if(request->method() == HTTP_DELETE)
+  {
     uint16_t sensorID = request->arg(JSON_ID_NODE).toInt();
-    if(SensorManager::getSensorPin(sensorID) < 0) {
+    if(SensorManager::getSensorPin(sensorID) < 0)
+    {
       // attempt to delete S88/RemoteSensor
       jsonResponse->setCode(STATUS_NOT_ALLOWED);
-    } else if(!SensorManager::remove(sensorID)) {
+    }
+    else if(!SensorManager::remove(sensorID))
+    {
       jsonResponse->setCode(STATUS_NOT_FOUND);
     }
   }
@@ -590,20 +708,26 @@ void ESP32CSWebServer::handleConfig(AsyncWebServerRequest *request) {
 }
 
 #if S88_ENABLED && ENABLE_SENSORS
-void ESP32CSWebServer::handleS88Sensors(AsyncWebServerRequest *request) {
+void ESP32CSWebServer::handleS88Sensors(AsyncWebServerRequest *request)
+{
   auto jsonResponse = new AsyncJsonResponse(true);
   if(request->method() == HTTP_GET) {
     JsonArray &array = jsonResponse->getRoot();
     S88BusManager::getState(array);
-  } else if(request->method() == HTTP_POST) {
+  }
+  else if(request->method() == HTTP_POST)
+  {
     if(!S88BusManager::createOrUpdateBus(
       request->arg(JSON_ID_NODE).toInt(),
       request->arg(JSON_PIN_NODE).toInt(),
-      request->arg(JSON_COUNT_NODE).toInt())) {
+      request->arg(JSON_COUNT_NODE).toInt()))
+    {
       // duplicate pin/id
       jsonResponse->setCode(STATUS_NOT_ALLOWED);
     }
-  } else if(request->method() == HTTP_DELETE) {
+  }
+  else if(request->method() == HTTP_DELETE)
+  {
     S88BusManager::removeBus(request->arg(JSON_ID_NODE).toInt());
   }
   jsonResponse->setLength();
@@ -614,13 +738,18 @@ void ESP32CSWebServer::handleS88Sensors(AsyncWebServerRequest *request) {
 void ESP32CSWebServer::handleRemoteSensors(AsyncWebServerRequest *request) {
 #if ENABLE_SENSORS
   auto jsonResponse = new AsyncJsonResponse(true);
-  if(request->method() == HTTP_GET) {
+  if(request->method() == HTTP_GET)
+  {
     JsonArray array = jsonResponse->getRoot();
     RemoteSensorManager::getState(array);
-  } else if(request->method() == HTTP_POST) {
+  }
+  else if(request->method() == HTTP_POST)
+  {
     RemoteSensorManager::createOrUpdate(request->arg(JSON_ID_NODE).toInt(),
       request->arg(JSON_VALUE_NODE).toInt());
-  } else if(request->method() == HTTP_DELETE) {
+  }
+  else if(request->method() == HTTP_DELETE)
+  {
     RemoteSensorManager::remove(request->arg(JSON_ID_NODE).toInt());
   }
   jsonResponse->setLength();
@@ -628,7 +757,8 @@ void ESP32CSWebServer::handleRemoteSensors(AsyncWebServerRequest *request) {
 #endif // ENABLE_SENSORS
 }
 
-void ESP32CSWebServer::handleLocomotive(AsyncWebServerRequest *request) {
+void ESP32CSWebServer::handleLocomotive(AsyncWebServerRequest *request)
+{
   // method - url pattern - meaning
   // ANY /locomotive/estop - send emergency stop to all locomotives
   // GET /locomotive/roster - roster
@@ -646,62 +776,89 @@ void ESP32CSWebServer::handleLocomotive(AsyncWebServerRequest *request) {
   jsonResponse->setCode(STATUS_OK);
   // check if we have an eStop command, we don't care how this gets sent to the
   // command station (method) so check it first
-  if(url.endsWith("/estop")) {
+  if(url.endsWith("/estop"))
+  {
     LocomotiveManager::emergencyStop();
-  } else if(url.indexOf("/roster") > 0) {
-    if(request->method() == HTTP_GET && !request->hasArg(JSON_ADDRESS_NODE)) {
+  }
+  else if(url.indexOf("/roster") > 0)
+  {
+    if(request->method() == HTTP_GET && !request->hasArg(JSON_ADDRESS_NODE))
+    {
       LocomotiveManager::getRosterEntries(jsonResponse->getRoot());
-    } else if (request->hasArg(JSON_ADDRESS_NODE)) {
-      if(request->method() == HTTP_DELETE) {
+    }
+    else if (request->hasArg(JSON_ADDRESS_NODE))
+    {
+      if(request->method() == HTTP_DELETE)
+      {
         LocomotiveManager::removeRosterEntry(request->arg(JSON_ADDRESS_NODE).toInt());
-      } else {
+      }
+      else
+      {
         RosterEntry *entry = LocomotiveManager::getRosterEntry(request->arg(JSON_ADDRESS_NODE).toInt());
-        if(request->method() == HTTP_PUT || request->method() == HTTP_POST) {
-          if(request->hasArg(JSON_DESCRIPTION_NODE)) {
+        if(request->method() == HTTP_PUT || request->method() == HTTP_POST)
+        {
+          if(request->hasArg(JSON_DESCRIPTION_NODE))
+          {
             entry->setDescription(request->arg(JSON_DESCRIPTION_NODE).c_str());
           }
-          if(request->hasArg(JSON_TYPE_NODE)) {
+          if(request->hasArg(JSON_TYPE_NODE))
+          {
             entry->setType(request->arg(JSON_TYPE_NODE).c_str());
           }
-          if(request->hasArg(JSON_IDLE_ON_STARTUP_NODE)) {
+          if(request->hasArg(JSON_IDLE_ON_STARTUP_NODE))
+          {
             entry->setIdleOnStartup(request->arg(JSON_IDLE_ON_STARTUP_NODE).equalsIgnoreCase(JSON_VALUE_TRUE));
           }
-          if(request->hasArg(JSON_DEFAULT_ON_THROTTLE_NODE)) {
+          if(request->hasArg(JSON_DEFAULT_ON_THROTTLE_NODE))
+          {
             entry->setDefaultOnThrottles(request->arg(JSON_DEFAULT_ON_THROTTLE_NODE).equalsIgnoreCase(JSON_VALUE_TRUE));
           }
         }
         entry->toJson(jsonResponse->getRoot());
       }
     }
-  } else {
+  }
+  else
+  {
     // Since it is not an eStop or roster command we need to check the request
     // method and ensure it contains the required arguments otherwise the
     // request should be rejected
-    if(request->method() == HTTP_GET && !request->hasArg(JSON_ADDRESS_NODE)) {
+    if(request->method() == HTTP_GET && !request->hasArg(JSON_ADDRESS_NODE))
+    {
       // get all active locomotives
       LocomotiveManager::getActiveLocos(jsonResponse->getRoot()); 
-    } else if (request->hasArg(JSON_ADDRESS_NODE)) {
+    }
+    else if (request->hasArg(JSON_ADDRESS_NODE))
+    {
       auto loco = LocomotiveManager::getLocomotive(request->arg(JSON_ADDRESS_NODE).toInt());
-      if(request->method() == HTTP_PUT || request->method() == HTTP_POST) {
+      if(request->method() == HTTP_PUT || request->method() == HTTP_POST)
+      {
         auto upd_speed = loco->get_speed();
         // Creation / Update of active locomotive
-        if(request->hasArg(JSON_IDLE_NODE) && request->arg(JSON_IDLE_NODE).equalsIgnoreCase(JSON_VALUE_TRUE)) {
+        if(request->hasArg(JSON_IDLE_NODE) && request->arg(JSON_IDLE_NODE).equalsIgnoreCase(JSON_VALUE_TRUE))
+        {
           upd_speed.set_dcc_128(0);
         }
-        if(request->hasArg(JSON_SPEED_NODE)) {
+        if(request->hasArg(JSON_SPEED_NODE))
+        {
           upd_speed.set_dcc_128(request->arg(JSON_SPEED_NODE).toInt());
         }
-        if(request->hasArg(JSON_DIRECTION_NODE)) {
+        if(request->hasArg(JSON_DIRECTION_NODE))
+        {
           upd_speed.set_direction(request->arg(JSON_DIRECTION_NODE).equalsIgnoreCase(JSON_VALUE_FORWARD) ? dcc::SpeedType::FORWARD : dcc::SpeedType::REVERSE);
         }
         loco->set_speed(upd_speed);
-        for(uint8_t funcID = 0; funcID <=28 ; funcID++) {
+        for(uint8_t funcID = 0; funcID <=28 ; funcID++)
+        {
           String fArg = "f" + String(funcID);
-          if(request->hasArg(fArg.c_str())) {
+          if(request->hasArg(fArg.c_str()))
+          {
             loco->set_fn(funcID, request->arg(fArg.c_str()).equalsIgnoreCase(JSON_VALUE_TRUE));
           }
         }
-      } else if(request->method() == HTTP_DELETE) {
+      }
+      else if(request->method() == HTTP_DELETE)
+      {
         // Removal of an active locomotive
         LocomotiveManager::removeLocomotive(request->arg(JSON_ADDRESS_NODE).toInt());
 #if NEXTION_ENABLED
@@ -709,7 +866,9 @@ void ESP32CSWebServer::handleLocomotive(AsyncWebServerRequest *request) {
 #endif
       }
       loco->toJson(jsonResponse->getRoot());
-    } else {
+    }
+    else
+    {
       // missing arg or unknown request
       jsonResponse->setCode(STATUS_BAD_REQUEST);
     }
@@ -718,11 +877,13 @@ void ESP32CSWebServer::handleLocomotive(AsyncWebServerRequest *request) {
   request->send(jsonResponse);
 }
 
-void ESP32CSWebServer::handleOTA(AsyncWebServerRequest *request) {
+void ESP32CSWebServer::handleOTA(AsyncWebServerRequest *request)
+{
   request->send(STATUS_OK, "text/plain", "OTA Upload Complete");
 }
 
-void ESP32CSWebServer::handleFeatures(AsyncWebServerRequest *request) {
+void ESP32CSWebServer::handleFeatures(AsyncWebServerRequest *request)
+{
   auto jsonResponse = new AsyncJsonResponse();
   JsonObject root = jsonResponse->getRoot();
   root[JSON_S88_SENSOR_BASE_NODE] = S88_FIRST_SENSOR;
@@ -734,40 +895,39 @@ void ESP32CSWebServer::handleFeatures(AsyncWebServerRequest *request) {
   request->send(jsonResponse);
 }
 
+#define IP_TO_STR(request) \
+  ipv4_to_string(ntohl(request->client()->getRemoteAddress())).c_str()
+
 #define STREAM_RESOURCE_NO_REDIRECT(request, uri, mimeType, totalSize, resource) \
   if (request->url() == uri) { \
-    LOG(INFO, "[WebSrv %s] Sending %s from MEMORY (%d, %s)", ipv4_to_string(request->client()->getRemoteAddress()).c_str(), uri, totalSize, mimeType); \
+    LOG(INFO, "[WebSrv %s] Sending %s from MEMORY (%d, %s)", IP_TO_STR(request), uri, totalSize, mimeType); \
     response = request->beginResponse_P(STATUS_OK, mimeType, resource, totalSize); \
     if(String(mimeType).startsWith("text/")) { \
       response->addHeader("Content-Encoding", "gzip"); \
     } \
   }
 
-#if WIFI_ENABLE_SOFT_AP
 #define STREAM_RESOURCE(request, uri, fallback, mimeType, totalSize, resource) \
-  if (request->url() == uri && softAPAddress_.compare(request->host().c_str()) == 0) { \
-    LOG(INFO, "[WebSrv %s] Sending %s from MEMORY (%d, %s)", ipv4_to_string(request->client()->getRemoteAddress()).c_str(), uri, totalSize, mimeType); \
+  if (request->url() == uri && configStore->isAPEnabled() && softAPAddress_.compare(request->host().c_str()) == 0) { \
+    LOG(INFO, "[WebSrv %s] Sending %s from MEMORY (%d, %s)", IP_TO_STR(request), uri, totalSize, mimeType); \
     response = request->beginResponse_P(STATUS_OK, mimeType, resource, totalSize); \
     if(String(mimeType).startsWith("text/")) { \
       response->addHeader("Content-Encoding", "gzip"); \
     } \
   } else if (request->url() == uri) { \
-    LOG(INFO, "[WebSrv %s] Requested %s => CDN %s", ipv4_to_string(request->client()->getRemoteAddress()).c_str(), uri, fallback); \
+    LOG(INFO, "[WebSrv %s] Requested %s => CDN %s", IP_TO_STR(request), uri, fallback); \
     request->redirect(fallback); \
   }
-#else
-#define STREAM_RESOURCE(request, uri, fallback, mimeType, totalSize, resource) \
-  if (request->url() == uri) { \
-    LOG(INFO, "[WebSrv %s] Requested %s => CDN %s", ipv4_to_string(request->client()->getRemoteAddress()).c_str(), uri, fallback); \
-    request->redirect(fallback); \
-  }
-#endif
 
-void ESP32CSWebServer::streamResource(AsyncWebServerRequest *request) {
+void ESP32CSWebServer::streamResource(AsyncWebServerRequest *request)
+{
   const char * htmlBuildTime = __DATE__ " " __TIME__;
-  if (request->header("If-Modified-Since").equals(htmlBuildTime)) {
+  if (request->header("If-Modified-Since").equals(htmlBuildTime))
+  {
     request->send(STATUS_NOT_MODIFIED);
-  } else {
+  }
+  else
+  {
     AsyncWebServerResponse *response = nullptr;
     STREAM_RESOURCE_NO_REDIRECT(request, "/index.html", "text/html", indexHtmlGz_size, indexHtmlGz)
     STREAM_RESOURCE(request, "/jquery.min.js", "https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js", "text/javascript", jqueryJsGz_size, jqueryJsGz)
@@ -776,17 +936,21 @@ void ESP32CSWebServer::streamResource(AsyncWebServerRequest *request) {
     STREAM_RESOURCE(request, "/jquery.simple.websocket.min.js", "https://cdn.rawgit.com/jbloemendal/jquery-simple-websocket/master/dist/jquery.simple.websocket.min.js", "text/javascript", jquerySimpleWebSocketGz_size, jquerySimpleWebSocketGz)
     STREAM_RESOURCE(request, "/jqClock-lite.min.js", "https://cdn.rawgit.com/JohnRDOrazio/jQuery-Clock-Plugin/master/jqClock-lite.min.js", "text/javascript", jqClockGz_size, jqClockGz)
     STREAM_RESOURCE(request, "/images/ajax-loader.gif", "https://code.jquery.com/mobile/1.5.0-rc1/images/ajax-loader.gif", "image/gif", ajaxLoader_size, ajaxLoader)
-    if(response) {
+    if(response)
+    {
       response->addHeader("Last-Modified", htmlBuildTime);
       request->send(response);
-    } else {
+    }
+    else
+    {
       request->send(STATUS_NOT_FOUND, "text/plain", "URI Not Found");
     }
   }
 }
 
 // Known captive portal checks to respond with http 200 and redirect link
-String portalCheckRedirect[] = {
+String portalCheckRedirect[] =
+{
   "/generate_204",                  // Android
   "/gen_204",                       // Android 9.0
   "/mobile/status.php",             // Android 8.0 (Samsung s9+)
@@ -810,30 +974,32 @@ static constexpr const char * const REDIRECT_HTML =
   "</body>"
   "</html>";
 
-void ESP32CSWebServer::notFoundHandler(AsyncWebServerRequest *request) {
-#if WIFI_ENABLE_SOFT_AP
-  for(auto uri : portalCheckRedirect) {
-    if(request->url() == uri) {
-      LOG(INFO,
-          "[WebSrv %s] Requested %s%s: Appears to be a captive portal check, redirecting to http://%s/index.html",
-          request->client()->remoteIP().toString().c_str(),
-          request->host().c_str(),
-          request->url().c_str(),
-          softAPAddress_.c_str());
-      request->send(STATUS_OK,
-                    "text/html",
-                    StringPrintf(REDIRECT_HTML,
-                                 ESP32CS_VERSION,
-                                 softAPAddress_.c_str(),
-                                 softAPAddress_.c_str()).c_str());
-      return;
+void ESP32CSWebServer::notFoundHandler(AsyncWebServerRequest *request)
+{
+  if (configStore->isAPEnabled())
+  {
+    for(auto uri : portalCheckRedirect)
+    {
+      if(request->url() == uri)
+      {
+        LOG(INFO,
+            "[WebSrv %s] Requested %s%s: Appears to be a captive portal check, "
+            "redirecting to http://%s/index.html",
+            IP_TO_STR(request),
+            request->host().c_str(),
+            request->url().c_str(),
+            softAPAddress_.c_str());
+        request->send(STATUS_OK,
+                      "text/html",
+                      StringPrintf(REDIRECT_HTML,
+                                  ESP32CS_VERSION,
+                                  softAPAddress_.c_str(),
+                                  softAPAddress_.c_str()).c_str());
+        return;
+      }
     }
   }
-#endif
-  LOG(INFO,
-      "[WebSrv %s] 404: %s%s",
-      ipv4_to_string(request->client()->getRemoteAddress()).c_str(),
-      request->host().c_str(),
-      request->url().c_str());
+  LOG(INFO, "[WebSrv %s] 404: %s%s", IP_TO_STR(request)
+    , request->host().c_str(), request->url().c_str());
   request->send(STATUS_NOT_FOUND, "", "");
 }

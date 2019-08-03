@@ -68,7 +68,7 @@ public:
   static int8_t getSensorPin(const uint16_t);
 private:
   static TaskHandle_t _taskHandle;
-  static xSemaphoreHandle _lock;
+  static OSMutex _lock;
 };
 
 class SensorCommandAdapter : public DCCPPProtocolCommand {

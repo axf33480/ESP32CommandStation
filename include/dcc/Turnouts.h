@@ -86,7 +86,7 @@ private:
   TurnoutType _type;
 };
 
-class TurnoutManager : public PacketFlowInterface
+class TurnoutManager : public PacketFlowInterface, private Atomic
 {
 public:
   TurnoutManager(openlcb::Node *);
@@ -107,7 +107,6 @@ public:
   uint16_t getTurnoutCount();
   void send(Buffer<dcc::Packet> *, unsigned);
 private:
-  Atomic lock_;
   std::vector<std::unique_ptr<Turnout>> turnouts_;
   std::unique_ptr<openlcb::DccAccyConsumer> turnoutEventConsumer_;
 };

@@ -60,13 +60,15 @@ class StatusLED : public StateFlowBase
 public:
   enum COLOR : uint8_t
   {
-    OFF,
-    RED,
-    GREEN,
-    YELLOW,
-    RED_BLINK,
-    GREEN_BLINK,
-    YELLOW_BLINK,
+    OFF
+  , RED
+  , GREEN
+  , YELLOW
+  , BLUE
+  , RED_BLINK
+  , GREEN_BLINK
+  , BLUE_BLINK
+  , YELLOW_BLINK
   };
 
   enum LED : uint8_t
@@ -102,6 +104,7 @@ private:
   NEO_COLOR_TYPE RGB_RED_{NEO_COLOR_TYPE(255, 0, 0)};
   NEO_COLOR_TYPE RGB_GREEN_{NEO_COLOR_TYPE(0, 255, 0)};
   NEO_COLOR_TYPE RGB_YELLOW_{NEO_COLOR_TYPE(255, 255, 0)};
+  NEO_COLOR_TYPE RGB_BLUE_{NEO_COLOR_TYPE(0, 0, 255)};
   NEO_COLOR_TYPE RGB_OFF_{NEO_COLOR_TYPE(0)};
 
   STATE_FLOW_STATE(init);

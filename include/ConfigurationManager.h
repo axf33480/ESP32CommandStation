@@ -35,11 +35,15 @@ public:
   JsonObject load(const char *);
   JsonObject load(const char *, DynamicJsonDocument &);
   void store(const char *, const JsonObject);
-  JsonObject createRootNode(bool=true);
+  JsonObject createRootNode();
   openlcb::NodeID getNodeId();
   void configureCAN(OpenMRN *openmrn);
   void configureWiFi(openlcb::SimpleCanStack *, const WiFiConfiguration &);
   std::string getCSConfig();
+  std::string getSSID()
+  {
+    return wifiSSID_;
+  }
   bool isAPEnabled()
   {
     return wifiMode_ == WIFI_MODE_AP || wifiMode_ == WIFI_MODE_APSTA;

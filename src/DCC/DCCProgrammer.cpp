@@ -16,179 +16,183 @@ COPYRIGHT (c) 2019 Mike Dunston
 **********************************************************************/
 
 #include "ESP32CommandStation.h"
-#if 0
-#include "DCCSignalGenerator.h"
-
-// number of samples to take when monitoring current after a CV verify
-// (bit or byte) has been sent
-static constexpr DRAM_ATTR uint8_t CVSampleCount = 150;
 
 // number of attempts the programming track will make to read/write a CV
 static constexpr uint8_t PROG_TRACK_CV_ATTEMPTS = 3;
 
-// flag for when programming track is actively being used
-bool progTrackBusy = false;
-
-bool enterProgrammingMode() {
-  const uint16_t milliAmpStartupLimit = (4096 * 100 / get_hbridge_max_amps(PROG_HBRIDGE_NAME));
-
-  // check if the programming track is already in use
-  if(progTrackBusy) {
-    return false;
-  }
-
-  // flag that we are currently using the programming track
-  progTrackBusy = true;
-
-  // energize the programming track
-  enable_named_hbridge(PROG_HBRIDGE_NAME);
-  dccSignal[DCC_SIGNAL_PROGRAMMING]->waitForQueueEmpty();
-  // give decoder time to start up and stabilize to under 100mA draw
-  LOG(VERBOSE, "[PROG] waiting for power draw to stabilize");
-  vTaskDelay(pdMS_TO_TICKS(100));
-
-  // check that the current is under 100mA limit, this will take ~50ms
-  if(get_hbridge_sample(PROG_HBRIDGE_NAME) > milliAmpStartupLimit) {
-    LOG_ERROR("[PROG] current draw is over 100mA, aborting");
-    statusLED->setStatusLED(StatusLED::LED::PROG_TRACK, StatusLED::COLOR::RED);
-    leaveProgrammingMode();
-    return false;
-  }
-
-  // delay for a short bit before entering programming mode
-  vTaskDelay(pdMS_TO_TICKS(40));
-
-  return true;
+static bool enterServiceMode()
+{
+  BufferPtr<ProgrammingTrackRequest> req =
+    invoke_flow(Singleton<ProgrammingTrackBackend>::instance()
+              , ProgrammingTrackRequest::ENTER_SERVICE_MODE);
+  return req->data()->resultCode == 0;
 }
 
-void leaveProgrammingMode() {
-  if(!progTrackBusy) {
-    return;
-  }
-
-  // deenergize the programming track
-  disable_named_hbridge(PROG_HBRIDGE_NAME);
-
-  // reset flag to indicate the programming track is free
-  progTrackBusy = false;
+static void leaveServiceMode()
+{
+  invoke_flow(Singleton<ProgrammingTrackBackend>::instance()
+            , ProgrammingTrackRequest::EXIT_SERVICE_MODE);
 }
 
-int16_t readCV(const uint16_t cv) {
-  const uint16_t milliAmpAck = (4096 * 60 / get_hbridge_max_amps(PROG_HBRIDGE_NAME));
-  uint8_t readCVBitPacket[4] = { (uint8_t)(0x78 + (highByte(cv - 1) & 0x03)), lowByte(cv - 1), 0x00, 0x00};
-  uint8_t verifyCVPacket[4] = { (uint8_t)(0x74 + (highByte(cv - 1) & 0x03)), lowByte(cv - 1), 0x00, 0x00};
-  int16_t cvValue = -1;
-  auto& signalGenerator = dccSignal[DCC_SIGNAL_PROGRAMMING];
+static bool sendServiceModeDecoderReset()
+{
+  BufferPtr<ProgrammingTrackRequest> req =
+    invoke_flow(Singleton<ProgrammingTrackBackend>::instance()
+              , ProgrammingTrackRequest::SEND_RESET, 15);
+  return (req->data()->resultCode == 0);
+}
 
-  for(int attempt = 0; attempt < PROG_TRACK_CV_ATTEMPTS && cvValue == -1; attempt++) {
-    LOG(INFO, "[PROG %d/%d] Attempting to read CV %d", attempt+1, PROG_TRACK_CV_ATTEMPTS, cv);
-    if(attempt) {
-      LOG(VERBOSE, "[PROG] Resetting DCC Decoder");
-      signalGenerator->loadBytePacket(resetPacket, 2, 25);
-      signalGenerator->waitForQueueEmpty();
+static bool sendServiceModePacketWithAck(Packet pkt)
+{
+  BufferPtr<ProgrammingTrackRequest> req =
+   invoke_flow(Singleton<ProgrammingTrackBackend>::instance()
+             , ProgrammingTrackRequest::SEND_PROGRAMMING_PACKET, pkt
+             , 15);
+  return req->data()->hasAck_;
+}
+
+static bool executeProgTrackWriteRequest(Packet pkt)
+{
+  if (enterServiceMode())
+  {
+    LOG(VERBOSE, "[PROG] Resetting DCC Decoder");
+    if (!sendServiceModeDecoderReset())
+    {
+      leaveServiceMode();
+      return false;
     }
+    LOG(VERBOSE, "[PROG] Sending DCC packet: %s", dcc::packet_to_string(pkt).c_str());
+    if (!sendServiceModePacketWithAck(pkt))
+    {
+      leaveServiceMode();
+      return false;
+    }
+    LOG(VERBOSE, "[PROG] Resetting DCC Decoder (after PROG)");
+    if (!sendServiceModeDecoderReset())
+    {
+      leaveServiceMode();
+      return false;
+    }
+    leaveServiceMode();
+    return true;
+  }
+  return false;
+}
 
-    // reset cvValue to all bits OFF
-    cvValue = 0;
-    for(uint8_t bit = 0; bit < 8; bit++) {
-      LOG(VERBOSE, "[PROG] CV %d, bit [%d/7]", cv, bit);
-      readCVBitPacket[2] = 0xE8 + bit;
-      signalGenerator->loadBytePacket(resetPacket, 2, 3);
-      signalGenerator->loadBytePacket(readCVBitPacket, 3, 5);
-      signalGenerator->waitForQueueEmpty();
-      if(get_hbridge_sample(PROG_HBRIDGE_NAME) > milliAmpAck) {
-        LOG(VERBOSE, "[PROG] CV %d, bit [%d/7] ON", cv, bit);
-        bitWrite(cvValue, bit, 1);
-      } else {
-        LOG(VERBOSE, "[PROG] CV %d, bit [%d/7] OFF", cv, bit);
+int16_t readCV(const uint16_t cv)
+{
+  int16_t value = -1;
+  if (enterServiceMode())
+  {
+    for(int attempt = 0; attempt < PROG_TRACK_CV_ATTEMPTS && value == -1; attempt++) {
+      LOG(INFO, "[PROG %d/%d] Attempting to read CV %d", attempt+1, PROG_TRACK_CV_ATTEMPTS, cv);
+      // reset cvValue to all bits OFF
+      value = 0;
+      for(uint8_t bit = 0; bit < 8; bit++) {
+        LOG(VERBOSE, "[PROG %d/%d] CV %d, bit [%d/7]", attempt+1, PROG_TRACK_CV_ATTEMPTS, cv, bit);
+        Packet pkt;
+        pkt.start_dcc_svc_packet();
+        pkt.add_dcc_prog_command(0x78, cv, 0xE8 + bit);
+        if (sendServiceModePacketWithAck(pkt))
+        {
+          LOG(VERBOSE, "[PROG %d/%d] CV %d, bit [%d/7] ON", attempt+1, PROG_TRACK_CV_ATTEMPTS, cv, bit);
+          bitWrite(value, bit, 1);
+        } else {
+          LOG(VERBOSE, "[PROG %d/%d] CV %d, bit [%d/7] OFF", attempt+1, PROG_TRACK_CV_ATTEMPTS, cv, bit);
+        }
+      }
+      Packet pkt;
+      pkt.set_dcc_svc_verify_byte(cv, value);
+      if (sendServiceModePacketWithAck(pkt))
+      {
+        LOG(INFO, "[PROG %d/%d] CV %d, verified as %d", attempt+1, PROG_TRACK_CV_ATTEMPTS, cv, value);
+      }
+      else
+      {
+        LOG(WARNING, "[PROG %d/%d] CV %d, could not be verified", attempt+1, PROG_TRACK_CV_ATTEMPTS, cv);
+        value = -1;
       }
     }
-
-    // verify the byte we received
-    verifyCVPacket[2] = cvValue & 0xFF;
-    LOG(INFO, "[PROG %d/%d] Attempting to verify read of CV %d as %d", attempt+1, PROG_TRACK_CV_ATTEMPTS, cv, cvValue);
-    signalGenerator->loadBytePacket(resetPacket, 2, 3);
-    signalGenerator->loadBytePacket(verifyCVPacket, 3, 5);
-    signalGenerator->waitForQueueEmpty();
-    if(get_hbridge_sample(PROG_HBRIDGE_NAME) > milliAmpAck) {
-      LOG(INFO, "[PROG] CV %d, verified as %d", cv, cvValue);
-    } else {
-      LOG(WARNING, "[PROG] CV %d, could not be verified", cv);
-      cvValue = -1;
-    }
+    LOG(INFO, "[PROG] CV %d value is %d", cv, value);
+    leaveServiceMode();
   }
-  LOG(INFO, "[PROG] CV %d value is %d", cv, cvValue);
-  return cvValue;
+  else
+  {
+    LOG_ERROR("[PROG] Failed to enter programming mode!");
+  }
+  return value;
 }
 
-bool writeProgCVByte(const uint16_t cv, const uint8_t cvValue) {
-  const uint16_t milliAmpAck = (4096 * 60 / get_hbridge_max_amps(PROG_HBRIDGE_NAME));
-  uint8_t writeCVBytePacket[4] = { (uint8_t)(0x7C + (highByte(cv - 1) & 0x03)), lowByte(cv - 1), cvValue, 0x00};
-  uint8_t verifyCVBytePacket[4] = { (uint8_t)(0x74 + (highByte(cv - 1) & 0x03)), lowByte(cv - 1), cvValue, 0x00};
+bool writeProgCVByte(const uint16_t cv, const uint8_t value)
+{
   bool writeVerified = false;
-  auto& signalGenerator = dccSignal[DCC_SIGNAL_PROGRAMMING];
+  Packet pkt, verifyPkt;
+  pkt.set_dcc_svc_write_byte(cv, value);
+  verifyPkt.set_dcc_svc_verify_byte(cv, value);
+  
+  for(uint8_t attempt = 1;
+      attempt <= PROG_TRACK_CV_ATTEMPTS && !writeVerified;
+      attempt++)
+  {
+    LOG(INFO, "[PROG %d/%d] Attempting to write CV %d as %d", attempt
+      , PROG_TRACK_CV_ATTEMPTS, cv, value);
 
-  for(uint8_t attempt = 1; attempt <= PROG_TRACK_CV_ATTEMPTS && !writeVerified; attempt++) {
-    LOG(INFO, "[PROG %d/%d] Attempting to write CV %d as %d", attempt, PROG_TRACK_CV_ATTEMPTS, cv, cvValue);
-    if(attempt) {
-      LOG(VERBOSE, "[PROG] Resetting DCC Decoder");
-      signalGenerator->loadBytePacket(resetPacket, 2, 25);
+    if (executeProgTrackWriteRequest(pkt) &&
+        executeProgTrackWriteRequest(verifyPkt))
+    {
+      // write byte and verify byte were successful
+      writeVerified = true;
     }
-    signalGenerator->loadBytePacket(resetPacket, 2, 3);
-    signalGenerator->loadBytePacket(writeCVBytePacket, 3, 4);
-    signalGenerator->waitForQueueEmpty();
 
-    // verify that the decoder received the write byte packet and sent an ACK
-    if(get_hbridge_sample(PROG_HBRIDGE_NAME) > milliAmpAck) {
-      signalGenerator->loadBytePacket(verifyCVBytePacket, 3, 5);
-      signalGenerator->waitForQueueEmpty();
-      // check that decoder sends an ACK for the verify operation
-      if(get_hbridge_sample(PROG_HBRIDGE_NAME)> milliAmpAck) {
-        writeVerified = true;
-        LOG(INFO, "[PROG] CV %d write value %d verified.", cv, cvValue);
-      }
-    } else {
-      LOG(WARNING, "[PROG] CV %d write value %d could not be verified.", cv, cvValue);
+    if (!writeVerified)
+    {
+      LOG(WARNING, "[PROG %d/%d] CV %d write value %d could not be verified."
+        , attempt, PROG_TRACK_CV_ATTEMPTS, cv, value);
+    }
+    else
+    {
+      LOG(INFO, "[PROG %d/%d] CV %d write value %d verified.", attempt
+        , PROG_TRACK_CV_ATTEMPTS, cv, value);
     }
   }
   return writeVerified;
 }
 
-bool writeProgCVBit(const uint16_t cv, const uint8_t bit, const bool value) {
-  const uint16_t milliAmpAck = (4096 * 60 / get_hbridge_max_amps(PROG_HBRIDGE_NAME));
-  uint8_t writeCVBitPacket[4] = { (uint8_t)(0x78 + (highByte(cv - 1) & 0x03)), lowByte(cv - 1), (uint8_t)(0xF0 + bit + value * 8), 0x00};
-  uint8_t verifyCVBitPacket[4] = { (uint8_t)(0x74 + (highByte(cv - 1) & 0x03)), lowByte(cv - 1), (uint8_t)(0xB0 + bit + value * 8), 0x00};
+bool writeProgCVBit(const uint16_t cv, const uint8_t bit, const bool value)
+{
   bool writeVerified = false;
-  auto& signalGenerator = dccSignal[DCC_SIGNAL_PROGRAMMING];
+  Packet pkt, verifyPkt;
+  pkt.set_dcc_svc_write_bit(cv, bit, value);
+  verifyPkt.set_dcc_svc_verify_bit(cv, bit, value);
 
-  for(uint8_t attempt = 1; attempt <= PROG_TRACK_CV_ATTEMPTS && !writeVerified; attempt++) {
-    LOG(INFO, "[PROG %d/%d] Attempting to write CV %d bit %d as %d", attempt, PROG_TRACK_CV_ATTEMPTS, cv, bit, value);
-    if(attempt) {
-      LOG(VERBOSE, "[PROG] Resetting DCC Decoder");
-      signalGenerator->loadBytePacket(resetPacket, 2, 3);
+  for(uint8_t attempt = 1;
+      attempt <= PROG_TRACK_CV_ATTEMPTS && !writeVerified;
+      attempt++) {
+    LOG(INFO, "[PROG %d/%d] Attempting to write CV %d bit %d as %d", attempt
+      , PROG_TRACK_CV_ATTEMPTS, cv, bit, value);
+    if (executeProgTrackWriteRequest(pkt) &&
+        executeProgTrackWriteRequest(verifyPkt))
+    {
+      // write byte and verify byte were successful
+      writeVerified = true;
     }
-    signalGenerator->loadBytePacket(writeCVBitPacket, 3, 4);
-    signalGenerator->waitForQueueEmpty();
 
-    // verify that the decoder received the write byte packet and sent an ACK
-    if(get_hbridge_sample(PROG_HBRIDGE_NAME) > milliAmpAck) {
-      signalGenerator->loadBytePacket(resetPacket, 2, 3);
-      signalGenerator->loadBytePacket(verifyCVBitPacket, 3, 5);
-      signalGenerator->waitForQueueEmpty();
-      // check that decoder sends an ACK for the verify operation
-      if(get_hbridge_sample(PROG_HBRIDGE_NAME) > milliAmpAck) {
-        writeVerified = true;
-        LOG(INFO, "[PROG %d/%d] CV %d write bit %d verified.", attempt, PROG_TRACK_CV_ATTEMPTS, cv, bit);
-      }
-    } else {
-      LOG(WARNING, "[PROG %d/%d] CV %d write bit %d could not be verified.", attempt, PROG_TRACK_CV_ATTEMPTS, cv, bit);
+    if (!writeVerified)
+    {
+      LOG(WARNING, "[PROG %d/%d] CV %d write bit %d could not be verified."
+        , attempt, PROG_TRACK_CV_ATTEMPTS, cv, bit);
+    }
+    else
+    {
+      LOG(INFO, "[PROG %d/%d] CV %d write bit %d verified.", attempt
+        , PROG_TRACK_CV_ATTEMPTS, cv, bit);
     }
   }
   return writeVerified;
 }
-#endif
 
-void writeOpsCVByte(const uint16_t locoAddress, const uint16_t cv, const uint8_t cvValue) {
+void writeOpsCVByte(const uint16_t locoAddress, const uint16_t cv, const uint8_t cvValue)
+{
   LOG(VERBOSE, "[OPS] Updating CV %d to %d for loco %d", cv, cvValue, locoAddress);
   auto *b = trackInterface->alloc();
   b->data()->start_dcc_packet();
@@ -205,7 +209,8 @@ void writeOpsCVByte(const uint16_t locoAddress, const uint16_t cv, const uint8_t
   trackInterface->send(b);
 }
 
-void writeOpsCVBit(const uint16_t locoAddress, const uint16_t cv, const uint8_t bit, const bool value) {
+void writeOpsCVBit(const uint16_t locoAddress, const uint16_t cv, const uint8_t bit, const bool value)
+{
   LOG(VERBOSE, "[OPS] Updating CV %d bit %d to %d for loco %d", cv, bit, value, locoAddress);
   auto *b = trackInterface->alloc();
   b->data()->start_dcc_packet();

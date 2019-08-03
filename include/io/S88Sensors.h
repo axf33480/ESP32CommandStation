@@ -87,7 +87,7 @@ public:
   static void getState(JsonArray);
 private:
   static TaskHandle_t _taskHandle;
-  static xSemaphoreHandle _s88SensorLock;
+  static OSMutex _s88SensorLock;
 };
 
 class S88BusCommandAdapter : public DCCPPProtocolCommand {

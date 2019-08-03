@@ -32,37 +32,43 @@ StateFlowBase::Action StatusLED::init() {
   return exit();
 }
 
-StateFlowBase::Action StatusLED::update() {
-  for(int led = 0; led < LED::MAX_LED; led++) {
+#define SET_LED_COLOR_BLINK(led, val, color) \
+  else if(colors_[led] == val) \
+  { \
+    bus_->SetPixelColor(led, color); \
+  } \
+
+#define SET_LED_STATE(led, val, color) \
+  else if (colors_[led] == val && bus_->GetPixelColor(led) != color) \
+  { \
+    bus_->SetPixelColor(led, color); \
+  } \
+
+StateFlowBase::Action StatusLED::update()
+{
+  for(int led = 0; led < LED::MAX_LED; led++)
+  {
     // if the LED is set to blink, toggle it
-    if(colors_[led] == RED_BLINK || colors_[led] == GREEN_BLINK || colors_[led] == YELLOW_BLINK) {
-      if(state_[led]) {
+    if(colors_[led] == RED_BLINK ||
+       colors_[led] == GREEN_BLINK ||
+       colors_[led] == BLUE_BLINK ||
+       colors_[led] == YELLOW_BLINK)
+    {
+      if(state_[led])
+      {
         bus_->SetPixelColor(led, RGB_OFF_);
-      } else if(colors_[led] == RED_BLINK) {
-        bus_->SetPixelColor(led, RGB_RED_);
-      } else if(colors_[led] == GREEN_BLINK) {
-        bus_->SetPixelColor(led, RGB_GREEN_);
-      } else if(colors_[led] == YELLOW_BLINK) {
-        bus_->SetPixelColor(led, RGB_YELLOW_);
       }
+      SET_LED_COLOR_BLINK(led, RED_BLINK, RGB_RED_)
+      SET_LED_COLOR_BLINK(led, GREEN_BLINK, RGB_GREEN_)
+      SET_LED_COLOR_BLINK(led, BLUE_BLINK, RGB_BLUE_)
+      SET_LED_COLOR_BLINK(led, YELLOW_BLINK, RGB_YELLOW_)
       state_[led] = !state_[led];
     }
-    else if (colors_[led] == RED && bus_->GetPixelColor(led) != RGB_RED_)
-    {
-      bus_->SetPixelColor(led, RGB_RED_);
-    }
-    else if (colors_[led] == GREEN && bus_->GetPixelColor(led) != RGB_GREEN_)
-    {
-      bus_->SetPixelColor(led, RGB_GREEN_);
-    }
-    else if (colors_[led] == YELLOW && bus_->GetPixelColor(led) != RGB_YELLOW_)
-    {
-      bus_->SetPixelColor(led, RGB_YELLOW_);
-    }
-    else if (colors_[led] == OFF && bus_->GetPixelColor(led) != RGB_OFF_)
-    {
-      bus_->SetPixelColor(led, RGB_OFF_);
-    }
+    SET_LED_STATE(led, RED, RGB_RED_)
+    SET_LED_STATE(led, GREEN, RGB_GREEN_)
+    SET_LED_STATE(led, BLUE, RGB_BLUE_)
+    SET_LED_STATE(led, YELLOW, RGB_YELLOW_)
+    SET_LED_STATE(led, OFF, RGB_OFF_)
   }
   bus_->Show();
   return sleep_and_call(&timer_, updateInterval_, STATE(update));

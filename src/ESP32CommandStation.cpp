@@ -16,28 +16,34 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 **********************************************************************/
 
 #include "ESP32CommandStation.h"
-#include "stateflows/FreeRTOSTaskMonitor.h"
-
 #include "cdi/CSConfigDescriptor.h"
 
 using openlcb::ConfigDef;
 
 const char * buildTime = __DATE__ " " __TIME__;
 
-#ifndef ALLOW_USAGE_OF_RESTRICTED_GPIO_PINS
-vector<uint8_t> restrictedPins
-{
-  0, // Bootstrap / Firmware Flash Download
-  1, // UART0 TX
-  2, // Bootstrap / Firmware Flash Download
-  3, // UART0 RX
-  5, // Bootstrap
-  6, 7, 8, 9, 10, 11, // on-chip flash pins
-  12, 15 // Bootstrap / SD pins
-};
-#else
-vector<uint8_t> restrictedPins;
-#endif
+// Allow usage of ::select() for TCP connections
+OVERRIDE_CONST_TRUE(gridconnect_tcp_use_select);
+
+// Increased GridConnect buffer size (improves performance)
+OVERRIDE_CONST(gridconnect_buffer_size, 3512);
+
+// Increased delay in flushing the GridConnect TCP data
+OVERRIDE_CONST(gridconnect_buffer_delay_usec, 1000);
+
+// Generate newlines after GridConnect packets on TCP 
+//OVERRIDE_CONST_TRUE(gc_generate_newlines);
+
+// Increased number of state flows to invoke before checking for ::select
+// timeouts
+OVERRIDE_CONST(executor_select_prescaler, 30);
+
+// Increased number of outbound GridConnect packets to queue
+//OVERRIDE_CONST(gridconnect_bridge_max_outgoing_packets, 5);
+
+// Increased number of local nodes to account for TrainNode proxy nodes
+OVERRIDE_CONST(local_nodes_count, 30);
+OVERRIDE_CONST(local_alias_cache_size, 30);
 
 std::unique_ptr<OpenMRN> openmrn;
 // note the dummy string below is required due to a bug in the GCC compiler
@@ -62,31 +68,11 @@ namespace openlcb {
   };
 }
 
-OVERRIDE_CONST_TRUE(gridconnect_tcp_use_select);
-OVERRIDE_CONST(gridconnect_buffer_size, 3512);
-OVERRIDE_CONST(gridconnect_buffer_delay_usec, 1000);
-OVERRIDE_CONST_TRUE(gc_generate_newlines);
-OVERRIDE_CONST(executor_select_prescaler, 60);
-//OVERRIDE_CONST(gridconnect_bridge_max_outgoing_packets, );
-
-// increase the local node count so that we can have a few train nodes active
-OVERRIDE_CONST(local_nodes_count, 30);
-OVERRIDE_CONST(local_alias_cache_size, 30);
-
-// state flows that are not defined elsewhere
-unique_ptr<FreeRTOSTaskMonitor> taskMonitor;
-unique_ptr<LCCStatCollector> lccStatCollector;
 unique_ptr<OTAMonitorFlow> otaMonitor;
-
 unique_ptr<RMTTrackDevice> trackSignal;
 unique_ptr<LocalTrackIf> trackInterface;
-unique_ptr<SimpleUpdateLoop> dccUpdateLoop;
-unique_ptr<PoolToQueueFlow<Buffer<dcc::Packet>>> dccPacketFlow;
 unique_ptr<RailcomHubFlow> railComHub;
-unique_ptr<RailcomPrintfFlow> railComDataDumper;
 unique_ptr<ProgrammingTrackBackend> progTrackBackend;
-unique_ptr<DccAccyConsumer> accessoryConsumer;
-unique_ptr<TractionCvSpace> cvMemorySpace;
 
 #if CONFIG_USE_SD
 #define CDI_CONFIG_PREFIX "/sdcard"
@@ -131,43 +117,40 @@ public:
         LOG(VERBOSE, "Factory Reset Helper invoked");
         cfg.userinfo().name().write(fd, "ESP32 Command Station");
         cfg.userinfo().description().write(fd, "");
+        fsync(fd);
     }
 };
 
-std::unique_ptr<FactoryResetHelper> resetHelper;
-
-bool otaComplete = false;
-esp_ota_handle_t otaInProgress = 0;
-
 #if CPULOAD_REPORTING
 #include <freertos_drivers/arduino/CpuLoad.hxx>
-
-#include <esp_spi_flash.h>
 #include <esp32-hal-timer.h>
 CpuLoad cpuLogTracker;
-hw_timer_t *cpuTickTimer = nullptr;
-CpuLoadLog cpuLoadLogger(openmrn.stack()->service());
+hw_timer_t *cpuTickTimer{nullptr};
+unique_ptr<CpuLoadLog> cpuLoadLogger;
 
 constexpr uint8_t CPULOAD_TIMER_NUMBER = 3;
 constexpr uint8_t CPULOAD_TIMER_DIVIDER = 80;
 
 os_thread_t cpuTickTaskHandle;
 
-void *cpuTickTask(void *param) {
-    while(true) {
-        // go to sleep until next interval
-        ulTaskNotifyTake(true, portMAX_DELAY);
-        // Retrieves the vtable pointer from the currently running executable.
-        unsigned *pp = (unsigned *)openmrn->stack()->executor()->current();
-        cpuload_tick(pp ? pp[0] | 1 : 0);
-    }
-    return nullptr;
+void *cpuTickTask(void *param)
+{
+  while(true)
+  {
+    // go to sleep until next interval
+    ulTaskNotifyTake(true, portMAX_DELAY);
+    // Retrieves the vtable pointer from the currently running executable.
+    unsigned *pp = (unsigned *)openmrn->stack()->executor()->current();
+    cpuload_tick(pp ? pp[0] | 1 : 0);
+  }
+  return nullptr;
 }
 
-void IRAM_ATTR cpuTickTimerCallback() {
-    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-    vTaskNotifyGiveFromISR(cpuTickTaskHandle, &xHigherPriorityTaskWoken);
-    portYIELD_FROM_ISR();
+void IRAM_ATTR cpuTickTimerCallback()
+{
+  BaseType_t xHigherPriorityTaskWoken{pdFALSE};
+  vTaskNotifyGiveFromISR(cpuTickTaskHandle, &xHigherPriorityTaskWoken);
+  portYIELD_FROM_ISR();
 }
 #endif // CPULOAD_REPORTING
 
@@ -234,11 +217,27 @@ extern "C" void app_main()
   // Pre-create LCC configuration directory.
   mkdir(openlcb::CONFIG_DIR, ACCESSPERMS);
 
-#if LCC_FORCE_FACTORY_RESET_ON_STARTUP
-  LOG(WARNING, "[LCC] Forcing factory reset");
-  unlink(openlcb::CDI_FILENAME);
-  unlink(openlcb::CONFIG_FILENAME);
-#endif
+  bool factoryResetNeeded = LCC_FORCE_FACTORY_RESET_ON_STARTUP ||
+                            ESP32_FORCE_FACTORY_RESET_ON_STARTUP;
+  struct stat statbuf;
+  // check the LCC config file to ensure it is the expected size. If not
+  // force a factory reset.
+  if (stat(openlcb::CONFIG_FILENAME, &statbuf) >= 0 &&
+      statbuf.st_size < openlcb::CONFIG_FILE_SIZE)
+  {
+    LOG(WARNING
+      , "[LCC] Corrupt configuration file detected, %s is too small: %ld bytes"
+        ", expected: %d bytes"
+      , openlcb::CONFIG_FILENAME, statbuf.st_size, openlcb::CONFIG_FILE_SIZE);
+    factoryResetNeeded = true;
+  }
+
+  if (factoryResetNeeded)
+  {
+    LOG(WARNING, "[LCC] Forcing factory reset!");
+    unlink(openlcb::CDI_FILENAME);
+    unlink(openlcb::CONFIG_FILENAME);
+  }
 
   // Initialize the OpenMRN stack.
   openmrn.reset(new OpenMRN(configStore->getNodeId()));
@@ -246,13 +245,14 @@ extern "C" void app_main()
   // Initialize global state flows.
   hc12.reset(new HC12Radio(openmrn->stack()));
   infoScreen.reset(new InfoScreen(openmrn->stack()));
-  lccStatCollector.reset(new LCCStatCollector(openmrn->stack()));
   otaMonitor.reset(new OTAMonitorFlow(openmrn->stack()));
   statusLED.reset(new StatusLED(openmrn->stack()));
-  taskMonitor.reset(new FreeRTOSTaskMonitor(openmrn->stack()));
+
+  // Task Monitor, periodically dumps runtime state to STDOUT.
+  FreeRTOSTaskMonitor taskMonitor(openmrn->stack());
 
   // Initialize the factory reset helper for the CS.
-  resetHelper.reset(new FactoryResetHelper());
+  FactoryResetHelper resetHelper;
 
   // Initialize the WiFi Manager.
   configStore->configureWiFi(openmrn->stack(), cfg.seg().wifi());
@@ -277,17 +277,14 @@ extern "C" void app_main()
                                      , cfg.seg().hbridge().entry(0)
                                      , cfg.seg().hbridge().entry(1)));
 
-  // Initialize Local Track inteface
+  // Initialize Local Track inteface.
   trackInterface.reset(new LocalTrackIf(openmrn->stack()->service(), 10));
 
-  // Initialize DCC Accessory consumer
-  accessoryConsumer.reset(new DccAccyConsumer(openmrn->stack()->node()
-                                            , trackInterface.get()));
-
-  cvMemorySpace.reset(new TractionCvSpace(openmrn->stack()->memory_config_handler()
-                                        , trackInterface.get()
-                                        , railComHub.get()
-                                        , MemoryConfigDefs::SPACE_DCC_CV));
+  // Initialize the MemorySpace handler for CV read/write.
+  TractionCvSpace cvMemorySpace(openmrn->stack()->memory_config_handler()
+                              , trackInterface.get()
+                              , railComHub.get()
+                              , MemoryConfigDefs::SPACE_DCC_CV);
 
   // Open a handle to the track device driver
   int track = ::open("/dev/track", O_RDWR);
@@ -296,17 +293,16 @@ extern "C" void app_main()
   trackInterface->set_fd(track);
 
   // Initialize the DCC Update Loop.
-  dccUpdateLoop.reset(
-    new SimpleUpdateLoop(openmrn->stack()->service(), trackInterface.get()));
+  SimpleUpdateLoop dccUpdateLoop(openmrn->stack()->service()
+                               , trackInterface.get());
 
   // Attach the DCC update loop to the track interface
-  dccPacketFlow.reset(
-    new PoolToQueueFlow<Buffer<dcc::Packet>>(openmrn->stack()->service()
-                                           , trackInterface->pool()
-                                           , dccUpdateLoop.get()));
+  PoolToQueueFlow<Buffer<Packet>> dccPacketFlow(openmrn->stack()->service()
+                                              , trackInterface->pool()
+                                              , &dccUpdateLoop);
 
   // Add a data dumper for the RailCom Hub
-  railComDataDumper.reset(new RailcomPrintfFlow(railComHub.get()));
+  RailcomPrintfFlow railComDataDumper(railComHub.get());
 
   // Initialize the Programming Track backend handler
   progTrackBackend.reset(
@@ -333,6 +329,7 @@ extern "C" void app_main()
   openmrn->begin();
 
 #if CPULOAD_REPORTING
+  cpuLoadLogger.reset(new CpuLoadLog(openmrn.stack()->service()));
   os_thread_create(&cpuTickTaskHandle, "loadtick", 1, 0, &cpuTickTask, nullptr);
   cpuTickTimer = timerBegin(CPULOAD_TIMER_NUMBER, CPULOAD_TIMER_DIVIDER, true);
   timerAttachInterrupt(cpuTickTimer, &cpuTickTimerCallback, true);
@@ -374,4 +371,72 @@ extern "C" void app_main()
 
   // put the ESP32 CS main task thread to sleep
   vTaskDelay(portMAX_DELAY);
+}
+
+bool is_restricted_pin(int8_t pin)
+{
+  vector<uint8_t> restrictedPins
+  {
+#if !ALLOW_USAGE_OF_RESTRICTED_GPIO_PINS
+    0,                        // Bootstrap / Firmware Flash Download
+    1,                        // UART0 TX
+    2,                        // Bootstrap / Firmware Flash Download
+    3,                        // UART0 RX
+    5,                        // Bootstrap
+    6, 7, 8, 9, 10, 11,       // on-chip flash pins
+    12, 15,                   // Bootstrap / SD pins
+#endif
+    OPS_ENABLE_PIN            // OPS h-bridge enable
+  , OPS_SIGNAL_PIN            // OPS signal
+  , PROG_ENABLE_PIN           // PROG h-bridge enable
+  , PROG_SIGNAL_PIN           // PROG signal
+#if RAILCOM_BRAKE_ENABLE_PIN != NOT_A_PIN
+  , RAILCOM_BRAKE_ENABLE_PIN  // RailCom brake
+#endif
+#if RAILCOM_ENABLE_PIN != NOT_A_PIN
+  , RAILCOM_ENABLE_PIN        // RailCom enable
+#endif
+#if RAILCOM_SHORT_PIN != NOT_A_PIN
+  , RAILCOM_SHORT_PIN         // RailCom short detection
+#endif
+#if RAILCOM_UART_RX_PIN != NOT_A_PIN
+  , RAILCOM_UART_RX_PIN       // RailCom UART RX
+#endif
+#if LCC_CAN_RX_PIN != NOT_A_PIN
+  , LCC_CAN_RX_PIN            // LCC CAN RX
+#endif
+#if LCC_CAN_TX_PIN != NOT_A_PIN
+  , LCC_CAN_TX_PIN            // LCC CAN TX
+#endif
+#if STATUS_LED_ENABLED
+  , STATUS_LED_DATA_PIN       // LED Data Pin
+#endif
+#if HC12_RADIO_ENABLED
+  , HC12_RX_PIN               // HC12 RX
+  , HC12_TX_PIN               // HC12 TX
+#endif
+#if NEXTION_ENABLED
+  , NEXTION_UART_RX_PIN       // Nextion RX
+  , NEXTION_UART_TX_PIN       // Nextion TX
+#endif
+#if INFO_SCREEN_ENABLED
+  , INFO_SCREEN_SDA_PIN       // SDA
+  , INFO_SCREEN_SCL_PIN       // SCL
+#ifdef INFO_SCREEN_RESET_PIN
+  , INFO_SCREEN_RESET_PIN     // Reset pin
+#endif
+#endif
+#if LOCONET_ENABLED
+  , LOCONET_RX_PIN            // LocoNet RX
+  , LOCONET_TX_PIN            // LocoNet TX
+#endif
+#if S88_ENABLED
+  , S88_CLOCK_PIN             // S88 Clock
+  , S88_RESET_PIN             // S88 Reset
+  , S88_LOAD_PIN              // S88 Load
+#endif
+  };
+  return std::find(restrictedPins.begin()
+                 , restrictedPins.end()
+                 , pin) != restrictedPins.end();
 }

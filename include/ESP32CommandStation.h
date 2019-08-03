@@ -22,6 +22,11 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 // INTERNAL FLAGS
 /////////////////////////////////////////////////////////////////////////////////////
 
+// This flag will clear the stored configuration data causing the command
+// station to regenerate the configuration from scratch. This is usually
+// not necessary
+// #define ESP32_FORCE_FACTORY_RESET_ON_STARTUP true
+
 // This flag will print a list of FreeRTOS tasks every ~5min. This is not recommended
 // to be enabled except during debugging sessions as it will cause the FreeRTOS
 // scheduler to remain in a "locked" state for an extended period.
@@ -38,18 +43,30 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #include <string>
 #include <sstream>
 #include <vector>
+#include <memory>
 
+using std::unique_ptr;
+using std::vector;
+using std::string;
+
+// ESP-IDF includes
 #include <driver/uart.h>
+#include <esp_ota_ops.h>
 
 // disable Arduino-esp32 binary.h inclusion as it conflicts with
 // esp_vfs.h/termios.h
 #define Binary_h
 #include <Arduino.h>
+
+// Arduino libraries
 #include <ArduinoJson.h>
 #include <StringArray.h>
+#include <ESPAsyncWebServer.h>
 
+// OpenMRN library components
 #include <OpenMRNLite.h>
 
+#include <dcc/DccDebug.hxx>
 #include <dcc/LocalTrackIf.hxx>
 #include <dcc/Loco.hxx>
 #include <dcc/Packet.hxx>
@@ -75,22 +92,34 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #include <utils/macros.h>
 #include <utils/StringPrintf.hxx>
 
-#include <ESPAsyncWebServer.h>
-
-#include <esp_ota_ops.h>
-
+// Define NOT_A_PIN in case it hasn't been defined already, this should be
+// defined inside Arduino.h
 #ifndef NOT_A_PIN
 #define NOT_A_PIN -1
 #endif
 
+// Define NOT_A_PORT in case it hasn't been defined already, this should be
+// defined inside Arduino.h
 #ifndef NOT_A_PORT
 #define NOT_A_PORT -1
 #endif
 
+// include user supplied configuration settings if we are not building using
+// an externally supplied configuration set (ie: pcb build settings)
 #ifndef ESP32CS_EXTERNAL_CONFIGURATION
 #include "Config.h"
 #endif
 
+// After including the user supplied configuration or externally supplied
+// configuration we need to set defaults for anything that was not explicitly
+// configured.
+#include "DefaultConfigs.h"
+
+// Sanity check the configuration and generate a compilation failure if any of
+// the settings overlap or are invalid.
+#include "ConfigValidation.h"
+
+// Declare namespace uses for OpenMRN components that are used
 using dcc::Dcc128Train;
 using dcc::DccLongAddress;
 using dcc::LocalTrackIf;
@@ -108,6 +137,7 @@ using openlcb::EventId;
 using openlcb::EventRegistry;
 using openlcb::EventRegistryEntry;
 using openlcb::EventReport;
+using openlcb::EventState;
 using openlcb::MemoryBit;
 using openlcb::MemoryConfigDefs;
 using openlcb::Node;
@@ -116,139 +146,7 @@ using openlcb::SimpleCanStack;
 using openlcb::TractionCvSpace;
 using openlcb::WriteHelper;
 
-using std::unique_ptr;
-using std::vector;
-using std::string;
-
-/////////////////////////////////////////////////////////////////////////////////////
-// Configuration defaults
-/////////////////////////////////////////////////////////////////////////////////////
-
-// This defines where on the filesystem LCC configuration data will be persisted.
-#define LCC_CONFIG_DIR "/LCC"
-
-// This is where the CDI will be persisted on the filesystem and sent from on-demand
-// when the NODE CDI information is requested.
-#define LCC_CDI_FILE "/LCC/cdi.xml"
-
-// This is where the NODE persistent configuration will be stored on the filesystem.
-#define LCC_CONFIG_FILE "/LCC/config"
-
-#ifndef LCC_NODE_ID
-#define LCC_NODE_ID 0x050101013F00
-#endif
-
-#ifndef ENABLE_OUTPUTS
-#define ENABLE_OUTPUTS true
-#endif
-
-#ifndef ENABLE_SENSORS
-#define ENABLE_SENSORS true
-#endif
-
-#ifndef STATUS_LED_ENABLED
-#define STATUS_LED_ENABLED false
-#endif
-
-#ifndef OPS_TRACK_PREAMBLE_BITS
-#define OPS_TRACK_PREAMBLE_BITS 16
-#endif
-
-#ifndef PROG_TRACK_PREAMBLE_BITS
-#define PROG_TRACK_PREAMBLE_BITS 22
-#endif
-
-#if (defined(INFO_SCREEN_LCD) && INFO_SCREEN_LCD) || (defined(INFO_SCREEN_OLED) && INFO_SCREEN_OLED)
-#define INFO_SCREEN_ENABLED true
-#if (defined(INFO_SCREEN_LCD) && INFO_SCREEN_LCD)
-#define INFO_SCREEN_OLED false
-#endif
-#if (defined(INFO_SCREEN_OLED) && INFO_SCREEN_OLED)
-#define INFO_SCREEN_LCD false
-#endif
-#else
-#define INFO_SCREEN_ENABLED false
-#define INFO_SCREEN_LCD false
-#define INFO_SCREEN_OLED false
-#endif
-
-#ifndef NEXTION_ENABLED
-#define NEXTION_ENABLED false
-#endif
-
-#ifndef HC12_RADIO_ENABLED
-#define HC12_RADIO_ENABLED false
-#endif
-
-#ifndef LCC_FORCE_FACTORY_RESET_ON_STARTUP 
-#define LCC_FORCE_FACTORY_RESET_ON_STARTUP false
-#endif
-
-#ifndef LOCONET_ENABLED
-#define LOCONET_ENABLED false
-#endif
-
-#ifndef S88_ENABLED
-#define S88_ENABLED false
-#endif
-
-#ifndef ENERGIZE_OPS_TRACK_ON_STARTUP
-#define ENERGIZE_OPS_TRACK_ON_STARTUP false
-#endif
-
-#ifndef LOCONET_INVERTED_LOGIC
-#define LOCONET_INVERTED_LOGIC false
-#endif
-
-#ifndef LOCONET_ENABLE_RX_PIN_PULLUP
-#define LOCONET_ENABLE_RX_PIN_PULLUP false
-#endif
-
-#ifndef WIFI_ENABLE_SOFT_AP
-#define WIFI_ENABLE_SOFT_AP false
-#endif
-
-#ifndef WIFI_SOFT_AP_CHANNEL
-#define WIFI_SOFT_AP_CHANNEL 6
-#endif
-
-#ifndef WIFI_SOFT_AP_MAX_CLIENTS
-#define WIFI_SOFT_AP_MAX_CLIENTS 4
-#endif
-
-#ifndef STATUS_LED_ENABLED
-#define STATUS_LED_TYPE WS281X_800
-#define STATUS_LED_COLOR_ORDER RGB
-#endif
-
-#ifndef STATUS_LED_COLOR_ORDER
-#define STATUS_LED_COLOR_ORDER RGB
-#endif
-
-#ifndef STATUS_LED_TYPE
-#define STATUS_LED_TYPE WS281X
-#endif
-
-#ifndef STATUS_LED_BRIGHTNESS
-#define STATUS_LED_BRIGHTNESS 128
-#endif
-
-#ifndef ENABLE_TASK_MONITOR
-#define ENABLE_TASK_MONITOR false
-#endif
-
-#ifndef CPULOAD_REPORTING
-#define CPULOAD_REPORTING false
-#endif
-
-/////////////////////////////////////////////////////////////////////////////////////
-// S88 Maximum sensors per bus.
-/////////////////////////////////////////////////////////////////////////////////////
-constexpr uint16_t S88_MAX_SENSORS_PER_BUS = 512;
-#ifndef S88_FIRST_SENSOR
-#define S88_FIRST_SENSOR S88_MAX_SENSORS_PER_BUS
-#endif
-
+// Include ESP32 Command Station component declarations
 #include "JsonConstants.h"
 #include "ConfigurationManager.h"
 
@@ -274,11 +172,8 @@ constexpr uint16_t S88_MAX_SENSORS_PER_BUS = 512;
 #include "io/S88Sensors.h"
 #include "io/RemoteSensors.h"
 
-extern vector<uint8_t> restrictedPins;
 extern unique_ptr<RMTTrackDevice> trackSignal;
 extern unique_ptr<LocalTrackIf> trackInterface;
-extern unique_ptr<RailcomHubFlow> railComHub;
-extern unique_ptr<RailcomPrintfFlow> railComDataDumper;
 
 #if LOCONET_ENABLED
 #include <LocoNetESP32UART.h>
@@ -287,291 +182,9 @@ extern LocoNetESP32Uart locoNet;
 
 void initializeLocoNet();
 
-#define MUTEX_LOCK(mutex)    do {} while (xSemaphoreTake(mutex, portMAX_DELAY) != pdPASS)
-#define MUTEX_UNLOCK(mutex)  xSemaphoreGive(mutex)
-
-/////////////////////////////////////////////////////////////////////////////////////
-// Ensure SSID and PASSWORD are provided.
-/////////////////////////////////////////////////////////////////////////////////////
-#if !defined(SSID_NAME) || !defined(SSID_PASSWORD)
-#error "Invalid Configuration detected, Config_WiFi.h is a mandatory module."
-#endif
-
-#ifndef HOSTNAME_PREFIX
-#define HOSTNAME_PREFIX "esp32cs_"
-#endif
-
-/////////////////////////////////////////////////////////////////////////////////////
-// Ensure the required h-bridge parameters are specified and not overlapping.
-/////////////////////////////////////////////////////////////////////////////////////
-
-#if !defined(OPS_ENABLE_PIN) || \
-    !defined(OPS_THERMAL_PIN) || \
-    !defined(OPS_CURRENT_SENSE_ADC) || \
-    !defined(OPS_HBRIDGE_TYPE) || \
-    !defined(PROG_ENABLE_PIN) || \
-    !defined(PROG_CURRENT_SENSE_ADC) || \
-    !defined(PROG_HBRIDGE_TYPE) || \
-    !defined(OPS_SIGNAL_PIN) || \
-    !defined(PROG_SIGNAL_PIN)
-#error "Invalid Configuration detected, Config_HBridge.h is a mandatory module."
-#endif
-
-/////////////////////////////////////////////////////////////////////////////////////
-// Compile time validation of configuration settings
-/////////////////////////////////////////////////////////////////////////////////////
-
-#if OPS_PREAMBLE_BITS < 11
-#error "OPS_PREAMBLE_BITS is too low, a minimum of 11 bits must be transmitted for the DCC decoder to accept the packets."
-#endif
-
-#if OPS_PREAMBLE_BITS > 20
-#error "OPS_PREAMBLE_BITS is too high. The OPS track only supports up to 20 preamble bits."
-#endif
-
-#if PROG_PREAMBLE_BITS < 22
-#error "PROG_PREAMBLE_BITS is too low, a minimum of 22 bits must be transmitted for reliability on the PROG track."
-#endif
-
-#if PROG_PREAMBLE_BITS > 50
-#error "PROG_PREAMBLE_BITS is too high. The PROG track only supports up to 50 preamble bits."
-#endif
-
-#if OPS_ENABLE_PIN == PROG_ENABLE_PIN
-#error "Invalid Configuration detected, OPS_ENABLE_PIN and PROG_ENABLE_PIN must be unique."
-#endif
-
-#if OPS_SIGNAL_PIN == PROG_SIGNAL_PIN
-#error "Invalid Configuration detected, OPS_SIGNAL_PIN and PROG_SIGNAL_PIN must be unique."
-#endif
-
-#if STATUS_LED_ENABLED && STATUS_LED_DATA_PIN == OPS_ENABLE_PIN
-#error "Invalid Configuration detected, STATUS_LED_DATA_PIN and OPS_ENABLE_PIN must be unique."
-#endif
-
-#if STATUS_LED_ENABLED && STATUS_LED_DATA_PIN == PROG_ENABLE_PIN
-#error "Invalid Configuration detected, STATUS_LED_DATA_PIN and PROG_ENABLE_PIN must be unique."
-#endif
-
-#if STATUS_LED_ENABLED && STATUS_LED_DATA_PIN == OPS_SIGNAL_PIN
-#error "Invalid Configuration detected, STATUS_LED_DATA_PIN and OPS_SIGNAL_PIN must be unique."
-#endif
-
-#if STATUS_LED_ENABLED && STATUS_LED_DATA_PIN == PROG_SIGNAL_PIN
-#error "Invalid Configuration detected, STATUS_LED_DATA_PIN and PROG_SIGNAL_PIN must be unique."
-#endif
-
-/////////////////////////////////////////////////////////////////////////////////////
-// Ensure either OLED or LCD display is active and not both.
-/////////////////////////////////////////////////////////////////////////////////////
-#if defined(INFO_SCREEN_OLED) && INFO_SCREEN_OLED && defined(INFO_SCREEN_LCD) && INFO_SCREEN_LCD
-#error "Invalid Configuration detected, it is not supported to include both OLED and LCD support."
-#endif
-
-/////////////////////////////////////////////////////////////////////////////////////
-// Nextion interface configuration validations
-/////////////////////////////////////////////////////////////////////////////////////
-#if NEXTION_ENABLED
-  #if NEXTION_UART_RX_PIN == NEXTION_UART_TX_PIN
-  #error "Invalid Configuration detected, NEXTION_UART_RX_PIN and NEXTION_UART_TX_PIN must be unique."
-  #endif
-  #if STATUS_LED_ENABLED && STATUS_LED_DATA_PIN == NEXTION_UART_RX_PIN
-  #error "Invalid Configuration detected, STATUS_LED_DATA_PIN and NEXTION_UART_RX_PIN must be unique."
-  #endif
-  #if STATUS_LED_ENABLED && STATUS_LED_DATA_PIN == NEXTION_UART_TX_PIN
-  #error "Invalid Configuration detected, STATUS_LED_DATA_PIN and NEXTION_UART_TX_PIN must be unique."
-  #endif
-  #if HC12_RADIO_ENABLED
-    #if NEXTION_UART_NUM == HC12_UART_NUM
-    #error "Invalid Configuration detected, the Nextion and HC12 can not share the UART interface."
-    #endif
-    #if NEXTION_UART_RX_PIN == HC12_RX_PIN
-    #error "Invalid Configuration detected, the Nextion and HC12 can not share the same RX Pin."
-    #endif
-    #if NEXTION_UART_TX_PIN == HC12_TX_PIN
-    #error "Invalid Configuration detected, the Nextion and HC12 can not share the same TX Pin."
-    #endif
-  #endif
-  #if LOCONET_ENABLED
-    #if NEXTION_UART_NUM == LOCONET_UART
-    #error "Invalid Configuration detected, the Nextion and LocoNet can not share the UART interface."
-    #endif
-    #if NEXTION_UART_RX_PIN == LOCONET_RX_PIN
-    #error "Invalid Configuration detected, the Nextion and LocoNet can not share the same RX Pin."
-    #endif
-    #if NEXTION_UART_TX_PIN == LOCONET_TX_PIN
-    #error "Invalid Configuration detected, the Nextion and LocoNet can not share the same TX Pin."
-    #endif
-  #endif
-  #if S88_ENABLED
-    #if S88_CLOCK_PIN == NEXTION_UART_RX_PIN
-    #error "Invalid Configuration detected, the Nextion RX Pin and S88_CLOCK_PIN must be unique."
-    #endif
-    #if S88_CLOCK_PIN == NEXTION_UART_TX_PIN
-    #error "Invalid Configuration detected, the NEXTION_TX_PIN and S88_CLOCK_PIN must be unique."
-    #endif
-    #if S88_RESET_PIN == NEXTION_UART_RX_PIN
-    #error "Invalid Configuration detected, the Nextion RX Pin and S88_RESET_PIN must be unique."
-    #endif
-    #if S88_RESET_PIN == NEXTION_UART_TX_PIN
-    #error "Invalid Configuration detected, the NEXTION_TX_PIN and S88_RESET_PIN must be unique."
-    #endif
-    #if S88_LOAD_PIN == NEXTION_UART_RX_PIN
-    #error "Invalid Configuration detected, the Nextion RX Pin and S88_LOAD_PIN must be unique."
-    #endif
-    #if S88_LOAD_PIN == NEXTION_UART_TX_PIN
-    #error "Invalid Configuration detected, the NEXTION_TX_PIN and S88_LOAD_PIN must be unique."
-    #endif
-  #endif
-#endif
-
-/////////////////////////////////////////////////////////////////////////////////////
-// HC12 Radio interface configuration validations
-/////////////////////////////////////////////////////////////////////////////////////
-#if HC12_RADIO_ENABLED
-  #if HC12_RX_PIN == HC12_TX_PIN
-  #error "Invalid Configuration detected, HC12_RX_PIN and HC12_TX_PIN must be unique."
-  #endif
-  #if STATUS_LED_ENABLED && STATUS_LED_DATA_PIN == HC12_RX_PIN
-  #error "Invalid Configuration detected, STATUS_LED_DATA_PIN and NEXTION_TX_PIN must be unique."
-  #endif
-  #if STATUS_LED_ENABLED && STATUS_LED_DATA_PIN == HC12_TX_PIN
-  #error "Invalid Configuration detected, STATUS_LED_DATA_PIN and HC12_TX_PIN must be unique."
-  #endif
-  #if S88_ENABLED
-    #if S88_CLOCK_PIN == HC12_RX_PIN
-    #error "Invalid Configuration detected, the HC12_RX_PIN and S88_CLOCK_PIN must be unique."
-    #endif
-    #if S88_CLOCK_PIN == HC12_TX_PIN
-    #error "Invalid Configuration detected, the HC12_TX_PIN and S88_CLOCK_PIN must be unique."
-    #endif
-    #if S88_RESET_PIN == HC12_RX_PIN
-    #error "Invalid Configuration detected, the HC12_RX_PIN and S88_RESET_PIN must be unique."
-    #endif
-    #if S88_RESET_PIN == HC12_TX_PIN
-    #error "Invalid Configuration detected, the HC12_TX_PIN and S88_RESET_PIN must be unique."
-    #endif
-    #if S88_LOAD_PIN == HC12_RX_PIN
-    #error "Invalid Configuration detected, the HC12_RX_PIN and S88_LOAD_PIN must be unique."
-    #endif
-    #if S88_LOAD_PIN == HC12_TX_PIN
-    #error "Invalid Configuration detected, the HC12_TX_PIN and S88_LOAD_PIN must be unique."
-    #endif
-  #endif
-  #if LOCONET_ENABLED
-    #if LOCONET_UART == HC12_UART_NUM
-    #error "Invalid Configuration detected, the LocoNet and HC12 can not share the UART interface."
-    #endif
-    #if LOCONET_RX_PIN == HC12_RX_PIN
-    #error "Invalid Configuration detected, the LOCONET_RX_PIN and HC12_RX_PIN must be unique."
-    #endif
-    #if LOCONET_TX_PIN == HC12_TX_PIN
-    #error "Invalid Configuration detected, the LOCONET_TX_PIN and HC12_TX_PIN must be unique."
-    #endif
-  #endif
-#endif
-
-/////////////////////////////////////////////////////////////////////////////////////
-// LocoNet interface configuration validations
-/////////////////////////////////////////////////////////////////////////////////////
-#if LOCONET_ENABLED
-  #if STATUS_LED_ENABLED && STATUS_LED_DATA_PIN == LOCONET_RX_PIN
-  #error "Invalid Configuration detected, STATUS_LED_DATA_PIN and LOCONET_RX_PIN must be unique."
-  #endif
-  #if STATUS_LED_ENABLED && STATUS_LED_DATA_PIN == LOCONET_TX_PIN
-  #error "Invalid Configuration detected, STATUS_LED_DATA_PIN and LOCONET_TX_PIN must be unique."
-  #endif
-  #if S88_ENABLED
-    #if S88_CLOCK_PIN == LOCONET_RX_PIN
-    #error "Invalid Configuration detected, the LOCONET_RX_PIN and S88_CLOCK_PIN must be unique."
-    #endif
-    #if S88_CLOCK_PIN == LOCONET_TX_PIN
-    #error "Invalid Configuration detected, the LOCONET_TX_PIN and S88_CLOCK_PIN must be unique."
-    #endif
-    #if S88_RESET_PIN == LOCONET_RX_PIN
-    #error "Invalid Configuration detected, the LOCONET_RX_PIN and S88_RESET_PIN must be unique."
-    #endif
-    #if S88_RESET_PIN == LOCONET_TX_PIN
-    #error "Invalid Configuration detected, the LOCONET_TX_PIN and S88_RESET_PIN must be unique."
-    #endif
-    #if S88_LOAD_PIN == LOCONET_RX_PIN
-    #error "Invalid Configuration detected, the LOCONET_RX_PIN and S88_LOAD_PIN must be unique."
-    #endif
-    #if S88_LOAD_PIN == LOCONET_TX_PIN
-    #error "Invalid Configuration detected, the LOCONET_TX_PIN and S88_LOAD_PIN must be unique."
-    #endif
-  #endif
-#endif
-
-/////////////////////////////////////////////////////////////////////////////////////
-// LCC interface configuration validations
-/////////////////////////////////////////////////////////////////////////////////////
-#if LCC_CAN_RX_PIN != NOT_A_PIN
-  #if STATUS_LED_ENABLED && STATUS_LED_DATA_PIN == LCC_CAN_RX_PIN
-  #error "Invalid Configuration detected, STATUS_LED_DATA_PIN and LCC_CAN_RX_PIN must be unique."
-  #endif
-  #if S88_ENABLED
-    #if S88_CLOCK_PIN == LCC_CAN_RX_PIN
-    #error "Invalid Configuration detected, LCC_CAN_RX_PIN and S88_CLOCK_PIN must be unique."
-    #endif
-    #if S88_CLOCK_PIN == LCC_CAN_RX_PIN
-    #error "Invalid Configuration detected, LCC_CAN_RX_PIN and S88_CLOCK_PIN must be unique."
-    #endif
-    #if S88_RESET_PIN == LCC_CAN_RX_PIN
-    #error "Invalid Configuration detected, LCC_CAN_RX_PIN and S88_CLOCK_PIN must be unique."
-    #endif
-  #endif
-  #if LOCONET_ENABLED
-    #if LCC_CAN_RX_PIN == LOCONET_RX_PIN
-    #error "Invalid Configuration detected, LCC_CAN_RX_PIN and LOCONET_RX_PIN must be unique."
-    #endif
-    #if LCC_CAN_RX_PIN == LOCONET_TX_PIN
-    #error "Invalid Configuration detected, LCC_CAN_RX_PIN and LOCONET_TX_PIN must be unique."
-    #endif
-  #endif
-  #if NEXTION_ENABLED
-    #if LCC_CAN_RX_PIN == NEXTION_RX_PIN
-    #error "Invalid Configuration detected, LCC_CAN_RX_PIN and NEXTION_RX_PIN must be unique."
-    #endif
-    #if LCC_CAN_RX_PIN == NEXTION_TX_PIN
-    #error "Invalid Configuration detected, LCC_CAN_RX_PIN and NEXTION_TX_PIN must be unique."
-    #endif
-  #endif
-#endif
-#if LCC_CAN_TX_PIN != NOT_A_PIN
-  #if STATUS_LED_ENABLED && STATUS_LED_DATA_PIN == LCC_CAN_TX_PIN
-  #error "Invalid Configuration detected, STATUS_LED_DATA_PIN and LCC_CAN_TX_PIN must be unique."
-  #endif
-  #if S88_ENABLED
-    #if S88_CLOCK_PIN == LCC_CAN_TX_PIN
-    #error "Invalid Configuration detected, LCC_CAN_TX_PIN and S88_CLOCK_PIN must be unique."
-    #endif
-    #if S88_CLOCK_PIN == LCC_CAN_TX_PIN
-    #error "Invalid Configuration detected, LCC_CAN_TX_PIN and S88_CLOCK_PIN must be unique."
-    #endif
-    #if S88_RESET_PIN == LCC_CAN_TX_PIN
-    #error "Invalid Configuration detected, LCC_CAN_TX_PIN and S88_CLOCK_PIN must be unique."
-    #endif
-  #endif
-  #if LOCONET_ENABLED
-    #if LCC_CAN_TX_PIN == LOCONET_RX_PIN
-    #error "Invalid Configuration detected, LCC_CAN_TX_PIN and LOCONET_RX_PIN must be unique."
-    #endif
-    #if LCC_CAN_TX_PIN == LOCONET_TX_PIN
-    #error "Invalid Configuration detected, LCC_CAN_TX_PIN and LOCONET_TX_PIN must be unique."
-    #endif
-  #endif
-  #if NEXTION_ENABLED
-    #if LCC_CAN_TX_PIN == NEXTION_RX_PIN
-    #error "Invalid Configuration detected, LCC_CAN_TX_PIN and NEXTION_RX_PIN must be unique."
-    #endif
-    #if LCC_CAN_TX_PIN == NEXTION_TX_PIN
-    #error "Invalid Configuration detected, LCC_CAN_TX_PIN and NEXTION_TX_PIN must be unique."
-    #endif
-  #endif
-#endif
-#if LCC_CAN_RX_PIN == LCC_CAN_TX_PIN && LCC_CAN_RX_PIN != NOT_A_PIN && LCC_CAN_TX_PIN != NOT_A_PIN
-  #error "Invalid Configuration detected, LCC_CAN_RX_PIN and LCC_CAN_TX_PIN must be unique."
-#endif
+// Returns true if the provided pin is one of the ESP32 pins that has usage
+// restrictions. This will always return false if the configuration flag
+// ALLOW_USAGE_OF_RESTRICTED_GPIO_PINS is enabled.
+bool is_restricted_pin(int8_t);
 
 #endif // ESP32_CS_H_

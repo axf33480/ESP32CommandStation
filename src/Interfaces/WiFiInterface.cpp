@@ -26,7 +26,7 @@ void *jmriClientHandler(void *arg);
 
 MDNS mDNS;
 ESP32CSWebServer esp32csWebServer(&mDNS);
-Atomic jmriClientsAtomic;
+OSMutex jmriClientsMux;
 vector<int> jmriClients;
 unique_ptr<SocketListener> JMRIListener;
 WiFiInterface wifiInterface;
@@ -48,23 +48,36 @@ void WiFiInterface::init() {
 
   wifiManager->add_event_callback([](system_event_t *event) {
 #if NEXTION_ENABLED
-    auto nextionTitlePage = static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE]);
+    auto nextionTitlePage =
+      static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE]);
 #endif
-    if(event->event_id == SYSTEM_EVENT_STA_GOT_IP) {
-      statusLED->setStatusLED(StatusLED::LED::WIFI, StatusLED::COLOR::GREEN);
-      tcpip_adapter_ip_info_t ip_info;
-      tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_STA, &ip_info);
-      wifiInterface.setIP(ip_info);
-      infoScreen->replaceLine(INFO_SCREEN_IP_ADDR_LINE,
+    if(event->event_id == SYSTEM_EVENT_STA_GOT_IP ||
+       event->event_id == SYSTEM_EVENT_AP_START)
+    {
+      if (event->event_id == SYSTEM_EVENT_STA_GOT_IP)
+      {
+        statusLED->setStatusLED(StatusLED::LED::WIFI, StatusLED::COLOR::GREEN);
+        tcpip_adapter_ip_info_t ip_info;
+        tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_STA, &ip_info);
+        wifiInterface.setIP(ip_info);
+        infoScreen->replaceLine(INFO_SCREEN_IP_ADDR_LINE,
 #if (INFO_SCREEN_LCD && INFO_SCREEN_LCD_COLUMNS >= 20) || INFO_SCREEN_OLED
-                              "IP: "
+                                "IP: "
 #endif
-                              IPSTR, IP2STR(&ip_info.ip)
-      );
+                                IPSTR, IP2STR(&ip_info.ip)
+        );
+      }
+      else
+      {
+        statusLED->setStatusLED(StatusLED::LED::WIFI
+                              , StatusLED::COLOR::BLUE);
+        infoScreen->replaceLine(INFO_SCREEN_IP_ADDR_LINE, "SSID: %s"
+                              , configStore->getSSID().c_str());
+      }
       LOG(INFO, "[WiFi] Starting JMRI listener");
       JMRIListener.reset(new SocketListener(JMRI_LISTENER_PORT, [](int fd) {
         {
-          AtomicHolder h(&jmriClientsAtomic);
+          OSMutexLock h(&jmriClientsMux);
           jmriClients.push_back(fd);
         }
         os_thread_create(nullptr, StringPrintf("jmri-%d", fd).c_str(),
@@ -81,14 +94,20 @@ void WiFiInterface::init() {
       // transition to next screen since WiFi connection is complete
       nextionPages[THROTTLE_PAGE]->display();
 #endif
-    } else if (event->event_id == SYSTEM_EVENT_STA_LOST_IP) {
+    } else if (event->event_id == SYSTEM_EVENT_STA_LOST_IP ||
+               event->event_id == SYSTEM_EVENT_AP_STOP)
+    {
       statusLED->setStatusLED(StatusLED::LED::WIFI, StatusLED::COLOR::RED);
       LOG(INFO, "[WiFi] Shutting down JMRI listener");
       JMRIListener.reset(nullptr);
       infoScreen->replaceLine(INFO_SCREEN_IP_ADDR_LINE, "Disconnected");
-    } else if (event->event_id == SYSTEM_EVENT_STA_DISCONNECTED) {
+    }
+    else if (event->event_id == SYSTEM_EVENT_STA_DISCONNECTED)
+    {
       statusLED->setStatusLED(StatusLED::LED::WIFI, StatusLED::COLOR::GREEN_BLINK);
-    } else if (event->event_id == SYSTEM_EVENT_STA_START) {
+    }
+    else if (event->event_id == SYSTEM_EVENT_STA_START)
+    {
       statusLED->setStatusLED(StatusLED::LED::WIFI, StatusLED::COLOR::GREEN_BLINK);
 #if NEXTION_ENABLED
       nextionTitlePage->setStatusText(0, "Connecting to WiFi");
@@ -98,12 +117,12 @@ void WiFiInterface::init() {
 }
 
 void WiFiInterface::showInitInfo() {
-  broadcast(StringPrintf("<N1: " IPSTR " >", IP2STR(&_ip_info.ip)));
+  broadcast(StringPrintf("<N1: " IPSTR " >", IP2STR(&ip_.ip)));
 }
 
 void WiFiInterface::broadcast(const std::string &buf) {
   {
-    AtomicHolder h(&jmriClientsAtomic);
+    OSMutexLock h(&jmriClientsMux);
     for (const int client : jmriClients) {
       ::write(client, buf.c_str(), buf.length());
     }
@@ -139,7 +158,7 @@ void *jmriClientHandler(void *arg) {
   }
   // remove client FD
   {
-    AtomicHolder h(&jmriClientsAtomic);
+    OSMutexLock h(&jmriClientsMux);
     jmriClients.erase(std::remove(jmriClients.begin(), jmriClients.end(), fd));
   }
   infoScreen->replaceLine(INFO_SCREEN_CLIENTS_LINE,

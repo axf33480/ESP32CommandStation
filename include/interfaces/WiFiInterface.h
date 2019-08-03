@@ -26,10 +26,10 @@ public:
   void showInitInfo();
   void broadcast(const std::string &);
   void setIP(tcpip_adapter_ip_info_t ip) {
-    _ip_info.ip = ip.ip;
+    ip_.ip = ip.ip;
   }
 private:
-  tcpip_adapter_ip_info_t _ip_info;
+  tcpip_adapter_ip_info_t ip_;
 };
 
 extern WiFiInterface wifiInterface;

@@ -23,7 +23,9 @@ COPYRIGHT (c) 2019 Mike Dunston
 #include <esp_vfs.h>
 
 #include <dcc/Packet.hxx>
+#include <dcc/PacketFlowInterface.hxx>
 #include <dcc/RailCom.hxx>
+#include <openlcb/EventHandlerTemplates.hxx>
 #include <os/OS.hxx>
 #include <utils/macros.h>
 #include <utils/StringPrintf.hxx>
@@ -31,7 +33,8 @@ COPYRIGHT (c) 2019 Mike Dunston
 #include "dcc/can_ioctl.h"
 #include "dcc/MonitoredHBridge.h"
 
-class RMTTrackDevice : public PacketFlowInterface
+class RMTTrackDevice : public dcc::PacketFlowInterface
+                     , public openlcb::BitEventInterface
 {
 public:
   RMTTrackDevice(openlcb::SimpleCanStack *
@@ -78,27 +81,53 @@ public:
   // needed for Turnouts (temporary)
   void send(Buffer<dcc::Packet> *, unsigned);
 
-  // enables the transmission of packets to the OPS track
+  // enables the transmission of packets to the OPS track.
   void enable_ops_output();
 
-  // disables the transmission of packets to the OPS track
+  // disables the transmission of packets to the OPS track.
   void disable_ops_output();
 
-  // enables the transmission of packets to the PROG track
+  // enables the transmission of packets to the PROG track.
   void enable_prog_output();
 
-  // disables the transmission of packets to the PROG track
+  // disables the transmission of packets to the PROG track.
   void disable_prog_output();
 
-  // generates a json payload for the current hbridge status
+  // generates a json payload for the current hbridge status.
   void generate_status_json(JsonArray);
 
+  // BitEventInterface method to return current track output status.
+  openlcb::EventState get_current_state() override
+  {
+    return is_enabled() ? EventState::VALID : EventState::INVALID;
+  }
+
+  // BitEventInterface method to enable/disable track output.
+  void set_state(bool new_value) override
+  {
+    if (new_value)
+    {
+      enable_ops_output();
+    }
+    else
+    {
+      disable_ops_output();
+    }
+  }
+
+  // BitEventInterface method
+  Node *node() override
+  {
+    return stack_->node();
+  }
+
+  // returns true if either of the track outputs are active.
   bool is_enabled()
   {
     return opsSignalActive_ || progSignalActive_;
   }
 
-  // displays status of the track signal and current usage
+  // displays status of the track signal and current usage.
   void broadcast_status();
 
   std::string get_info_screen_data();
@@ -136,6 +165,8 @@ private:
   // before returning to normal operations. The h-bridge output will be ENABLED
   // prior to the BRAKE pin being disabled.
   static constexpr uint8_t RAILCOM_BRAKE_DISABLE_DELAY_USEC = 10;
+
+  openlcb::SimpleCanStack *stack_{nullptr};
 
   const gpio_num_t opsSignalPin_;
   const rmt_channel_t opsRMTChannel_;
@@ -177,9 +208,6 @@ private:
   uint32_t packetQueueOverrunCount_{0};
   bool devOpened_{false};
   bool infoDataFirst_{false};
-
-  std::unique_ptr<SimplifiedCallbackEventHandler> powerOff_;
-  std::unique_ptr<SimplifiedCallbackEventHandler> powerOn_;
 
   void initRMTDevice(const char *, rmt_channel_t, gpio_num_t, uint8_t);
   void encode_next_ops_packet();

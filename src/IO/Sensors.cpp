@@ -78,14 +78,13 @@ Depending on whether the physical sensor is acting as an "event-trigger" or a
 LinkedList<Sensor *> sensors([](Sensor *sensor) {delete sensor; });
 
 TaskHandle_t SensorManager::_taskHandle;
-xSemaphoreHandle SensorManager::_lock;
+OSMutex SensorManager::_lock;
 static constexpr UBaseType_t SENSOR_TASK_PRIORITY = 1;
 static constexpr uint32_t SENSOR_TASK_STACK_SIZE = 2048;
 
 static constexpr const char * SENSORS_JSON_FILE = "sensors.json";
 
 void SensorManager::init() {
-  _lock = xSemaphoreCreateMutex();
   LOG(INFO, "[Sensors] Initializing sensors");
   if(configStore->exists(SENSORS_JSON_FILE)) {
     JsonObject root = configStore->load(SENSORS_JSON_FILE);
@@ -122,11 +121,12 @@ uint16_t SensorManager::store() {
 
 void SensorManager::sensorTask(void *param) {
   while(true) {
-    MUTEX_LOCK(_lock);
-    for (const auto& sensor : sensors) {
-      sensor->check();
+    {
+      OSMutexLock l(&_lock);
+      for (const auto& sensor : sensors) {
+        sensor->check();
+      }
     }
-    MUTEX_UNLOCK(_lock);
     vTaskDelay(pdMS_TO_TICKS(50));
   }
 }
@@ -148,26 +148,23 @@ Sensor *SensorManager::getSensor(uint16_t id) {
 }
 
 bool SensorManager::createOrUpdate(const uint16_t id, const uint8_t pin, const bool pullUp) {
-  MUTEX_LOCK(_lock);
+  OSMutexLock l(&_lock);
   // check for duplicate ID or PIN
   for (const auto& sensor : sensors) {
     if(sensor->getID() == id) {
       sensor->update(pin, pullUp);
-      MUTEX_UNLOCK(_lock);
       return true;
     }
   }
-  if(std::find(restrictedPins.begin(), restrictedPins.end(), pin) != restrictedPins.end()) {
-    MUTEX_UNLOCK(_lock);
+  if(is_restricted_pin(pin)) {
     return false;
   }
   sensors.add(new Sensor(id, pin, pullUp));
-  MUTEX_UNLOCK(_lock);
   return true;
 }
 
 bool SensorManager::remove(const uint16_t id) {
-  MUTEX_LOCK(_lock);
+  OSMutexLock l(&_lock);
   Sensor *sensorToRemove = nullptr;
   // check for duplicate ID or PIN
   for (const auto& sensor : sensors) {
@@ -178,10 +175,8 @@ bool SensorManager::remove(const uint16_t id) {
   if(sensorToRemove != nullptr) {
     LOG(INFO, "[Sensors] Removing Sensor(%d)", sensorToRemove->getID());
     sensors.remove(sensorToRemove);
-    MUTEX_UNLOCK(_lock);
     return true;
   }
-  MUTEX_UNLOCK(_lock);
   return false;
 }
 
@@ -249,7 +244,7 @@ void Sensor::set(bool state) {
   if(_lastState != state) {
     _lastState = state;
     LOG(INFO, "Sensor: %d :: %s", _sensorID, _lastState ? "ACTIVE" : "INACTIVE");
-    wifiInterface.broadcast(StringPrintf("<%c %d>", state ? "Q" : "q", _sensorID));
+    wifiInterface.broadcast(StringPrintf("<%c %d>", state ? 'Q' : 'q', _sensorID));
   }
 }
 
