@@ -321,6 +321,7 @@ JsonObject ConfigurationManager::load(const char *name, DynamicJsonDocument &buf
   {
     LOG_ERROR("[Config] Failed to load: %s", configFilePath.c_str());
   }
+  configFile.close();
   return buffer.as<JsonObject>();
 }
 
@@ -331,6 +332,7 @@ void ConfigurationManager::store(const char *name, const JsonObject json)
   ofstream configFile(configFilePath);
   LOG(VERBOSE, "[Config] wrote %u bytes", serializeJson(jsonBuffer, configFile));
   configFile.flush();
+  configFile.close();
 }
 
 JsonObject ConfigurationManager::createRootNode()
