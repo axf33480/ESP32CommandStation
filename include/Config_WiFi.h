@@ -54,6 +54,5 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 //#define WIFI_ENABLE_SOFT_AP true
 //#define WIFI_SOFT_AP_CHANNEL 6
-//#define WIFI_SOFT_AP_MAX_CLIENTS 4
 
 /////////////////////////////////////////////////////////////////////////////////////
