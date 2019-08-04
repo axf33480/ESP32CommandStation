@@ -169,6 +169,7 @@ StateFlowBase::Action MonitoredHBridge::init()
                  , uint64_to_string_hex(thermalBit_.event_on()).c_str()
                  , uint64_to_string_hex(thermalBit_.event_off()).c_str());
   }
+
   if (isProgTrack_)
   {
     progAckLine = StringPrintf("\nProg ACK: %u/4096 (%.2f mA)", progAckLimit_
@@ -209,11 +210,11 @@ StateFlowBase::Action MonitoredHBridge::init()
     ESP_ERROR_CHECK(gpio_pullup_en(thermalWarningPin_));
   }
 
-#if ENERGIZE_OPS_TRACK_ON_STARTUP
-  return call_immediately(STATE(sleep_and_check_state));
-#else
+  if (!isProgTrack_ && ENERGIZE_OPS_TRACK_ON_STARTUP)
+  {
+    return call_immediately(STATE(sleep_and_check_state));
+  }
   return wait();
-#endif
 }
 
 StateFlowBase::Action MonitoredHBridge::check()
