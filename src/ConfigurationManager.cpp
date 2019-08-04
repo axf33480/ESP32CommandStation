@@ -63,7 +63,6 @@ unique_ptr<Esp32WiFiManager> wifiManager;
 
 void recursiveWalkTree(const string &path, bool remove=false)
 {
-  LOG(INFO, "[Config] Reading directory: %s", path.c_str());
   DIR *dir = opendir(path.c_str());
   if (dir)
   {
@@ -73,16 +72,13 @@ void recursiveWalkTree(const string &path, bool remove=false)
       string fullPath = path + "/" + ent->d_name;
       if (ent->d_type == DT_REG)
       {
+        struct stat statbuf;
+        stat(fullPath.c_str(), &statbuf);
+        LOG(INFO, "[Config] %s (%d bytes)", fullPath.c_str()
+          , (int)statbuf.st_size);
         if (remove)
         {
-          LOG(VERBOSE, "[Config] Removing: %s", fullPath.c_str());
           unlink(fullPath.c_str());
-        }
-        else
-        {
-          struct stat statbuf;
-          stat(fullPath.c_str(), &statbuf);
-          LOG(INFO, "[Config] %s (%d bytes)", fullPath.c_str(), (int)statbuf.st_size);
         }
       }
       else if (ent->d_type == DT_DIR)
@@ -93,7 +89,6 @@ void recursiveWalkTree(const string &path, bool remove=false)
     closedir(dir);
     if (remove)
     {
-      LOG(VERBOSE, "[Config] Removing directory: %s", path.c_str());
       rmdir(path.c_str());
     }
   }
@@ -157,6 +152,7 @@ ConfigurationManager::ConfigurationManager()
   }
 #endif
   string configRoot{FILESYSTEM_PREFIX};
+  LOG(INFO, "[Config] Persistent storage contents:");
   recursiveWalkTree(configRoot, ESP32_FORCE_FACTORY_RESET_ON_STARTUP);
   mkdir(ESP32CS_CONFIG_DIR, ACCESSPERMS);
 
