@@ -18,35 +18,9 @@ COPYRIGHT (c) 2019 Mike Dunston
 #ifndef _DEFAULT_CONFIGS_H_
 #define _DEFAULT_CONFIGS_H_
 
-/////////////////////////////////////////////////////////////////////////////////////
-// Configuration defaults
-/////////////////////////////////////////////////////////////////////////////////////
-
-// This defines where on the filesystem LCC configuration data will be persisted.
-#define LCC_CONFIG_DIR "/LCC"
-
-// This is where the CDI will be persisted on the filesystem and sent from on-demand
-// when the NODE CDI information is requested.
-#define LCC_CDI_FILE "/LCC/cdi.xml"
-
-// This is where the NODE persistent configuration will be stored on the filesystem.
-#define LCC_CONFIG_FILE "/LCC/config"
-
-#ifndef LCC_NODE_ID
-#define LCC_NODE_ID 0x050101013F00
-#endif
-
-#ifndef ESP32_FORCE_FACTORY_RESET_ON_STARTUP
-#define ESP32_FORCE_FACTORY_RESET_ON_STARTUP false
-#endif
-
-#ifndef ENABLE_TASK_LIST_REPORTING
-#define ENABLE_TASK_LIST_REPORTING false
-#endif
-
-#ifndef CPULOAD_REPORTING
-#define CPULOAD_REPORTING false
-#endif
+///////////////////////////////////////////////////////////////////////////////
+// Command Station Feature configuration
+///////////////////////////////////////////////////////////////////////////////
 
 #ifndef ALLOW_USAGE_OF_RESTRICTED_GPIO_PINS
 #define ALLOW_USAGE_OF_RESTRICTED_GPIO_PINS false
@@ -60,9 +34,25 @@ COPYRIGHT (c) 2019 Mike Dunston
 #define ENABLE_SENSORS true
 #endif
 
-#ifndef STATUS_LED_ENABLED
-#define STATUS_LED_ENABLED false
+#ifndef ENABLE_TASK_MONITOR
+#define ENABLE_TASK_MONITOR false
 #endif
+
+#ifndef CPULOAD_REPORTING
+#define CPULOAD_REPORTING false
+#endif
+
+#ifndef NEXTION_ENABLED
+#define NEXTION_ENABLED false
+#endif
+
+#ifndef HC12_RADIO_ENABLED
+#define HC12_RADIO_ENABLED false
+#endif
+
+///////////////////////////////////////////////////////////////////////////////
+// H-Bridge default configuration
+///////////////////////////////////////////////////////////////////////////////
 
 #ifndef OPS_TRACK_PREAMBLE_BITS
 #define OPS_TRACK_PREAMBLE_BITS 16
@@ -71,6 +61,55 @@ COPYRIGHT (c) 2019 Mike Dunston
 #ifndef PROG_TRACK_PREAMBLE_BITS
 #define PROG_TRACK_PREAMBLE_BITS 22
 #endif
+
+#ifndef ENERGIZE_OPS_TRACK_ON_STARTUP
+#define ENERGIZE_OPS_TRACK_ON_STARTUP false
+#endif
+
+///////////////////////////////////////////////////////////////////////////////
+// WiFi default configuration
+///////////////////////////////////////////////////////////////////////////////
+
+#ifndef HOSTNAME_PREFIX
+#define HOSTNAME_PREFIX "esp32cs_"
+#endif
+
+#ifndef WIFI_ENABLE_SOFT_AP
+#define WIFI_ENABLE_SOFT_AP false
+#endif
+
+#ifndef WIFI_SOFT_AP_CHANNEL
+#define WIFI_SOFT_AP_CHANNEL 6
+#endif
+
+///////////////////////////////////////////////////////////////////////////////
+// LCC default configuration
+///////////////////////////////////////////////////////////////////////////////
+
+// This defines where on the filesystem LCC configuration data will be
+// persisted.
+#define LCC_CONFIG_DIR "/LCC"
+
+// This is where the CDI will be persisted on the filesystem and sent from
+// on-demand when the NODE CDI information is requested.
+#define LCC_CDI_FILE "/LCC/cdi.xml"
+
+// This is where the NODE persistent configuration will be stored on the
+// filesystem.
+#define LCC_CONFIG_FILE "/LCC/config"
+
+// This is the default node ID assigned to the CS.
+#ifndef LCC_NODE_ID
+#define LCC_NODE_ID 0x050101013F00
+#endif
+
+#ifndef LCC_FORCE_FACTORY_RESET_ON_STARTUP 
+#define LCC_FORCE_FACTORY_RESET_ON_STARTUP false
+#endif
+
+///////////////////////////////////////////////////////////////////////////////
+// InfoScreen default configuration
+///////////////////////////////////////////////////////////////////////////////
 
 #if (defined(INFO_SCREEN_LCD) && INFO_SCREEN_LCD) || (defined(INFO_SCREEN_OLED) && INFO_SCREEN_OLED)
 #define INFO_SCREEN_ENABLED true
@@ -86,28 +125,24 @@ COPYRIGHT (c) 2019 Mike Dunston
 #define INFO_SCREEN_OLED false
 #endif
 
-#ifndef NEXTION_ENABLED
-#define NEXTION_ENABLED false
+#ifndef INFO_SCREEN_SDA_PIN
+#define INFO_SCREEN_SDA_PIN SDA
 #endif
 
-#ifndef HC12_RADIO_ENABLED
-#define HC12_RADIO_ENABLED false
+#ifndef INFO_SCREEN_SCL_PIN
+#define INFO_SCREEN_SCL_PIN SCL
 #endif
 
-#ifndef LCC_FORCE_FACTORY_RESET_ON_STARTUP 
-#define LCC_FORCE_FACTORY_RESET_ON_STARTUP false
+#ifndef INFO_SCREEN_OLED_LINES
+#define INFO_SCREEN_OLED_LINES 5
 #endif
+
+///////////////////////////////////////////////////////////////////////////////
+// LocoNet default configuration
+///////////////////////////////////////////////////////////////////////////////
 
 #ifndef LOCONET_ENABLED
 #define LOCONET_ENABLED false
-#endif
-
-#ifndef S88_ENABLED
-#define S88_ENABLED false
-#endif
-
-#ifndef ENERGIZE_OPS_TRACK_ON_STARTUP
-#define ENERGIZE_OPS_TRACK_ON_STARTUP false
 #endif
 
 #ifndef LOCONET_INVERTED_LOGIC
@@ -118,17 +153,14 @@ COPYRIGHT (c) 2019 Mike Dunston
 #define LOCONET_ENABLE_RX_PIN_PULLUP false
 #endif
 
-#ifndef WIFI_ENABLE_SOFT_AP
-#define WIFI_ENABLE_SOFT_AP false
-#endif
-
-#ifndef WIFI_SOFT_AP_CHANNEL
-#define WIFI_SOFT_AP_CHANNEL 6
-#endif
+///////////////////////////////////////////////////////////////////////////////
+// Status LED default configuration
+///////////////////////////////////////////////////////////////////////////////
 
 #ifndef STATUS_LED_ENABLED
 #define STATUS_LED_TYPE WS281X_800
 #define STATUS_LED_COLOR_ORDER RGB
+#define STATUS_LED_ENABLED false
 #endif
 
 #ifndef STATUS_LED_COLOR_ORDER
@@ -143,32 +175,33 @@ COPYRIGHT (c) 2019 Mike Dunston
 #define STATUS_LED_BRIGHTNESS 128
 #endif
 
-#ifndef ENABLE_TASK_MONITOR
-#define ENABLE_TASK_MONITOR false
-#endif
-
-#ifndef CPULOAD_REPORTING
-#define CPULOAD_REPORTING false
-#endif
-
-/////////////////////////////////////////////////////////////////////////////////////
-// S88 Maximum sensors per bus.
-/////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+// S88 default configuration
+///////////////////////////////////////////////////////////////////////////////
 constexpr uint16_t S88_MAX_SENSORS_PER_BUS = 512;
+
+#ifndef S88_ENABLED
+#define S88_ENABLED false
+#endif
+
 #ifndef S88_FIRST_SENSOR
 #define S88_FIRST_SENSOR S88_MAX_SENSORS_PER_BUS
 #endif
 
+/////////////////////////////////////////////////////////////////////////////////////
+// ESP32 CS Internal flags default configuration
+/////////////////////////////////////////////////////////////////////////////////////
 
-#ifndef INFO_SCREEN_SDA_PIN
-#define INFO_SCREEN_SDA_PIN SDA
-#endif
-#ifndef INFO_SCREEN_SCL_PIN
-#define INFO_SCREEN_SCL_PIN SCL
+#ifndef ESP32_FORCE_FACTORY_RESET_ON_STARTUP
+#define ESP32_FORCE_FACTORY_RESET_ON_STARTUP false
 #endif
 
-#ifndef INFO_SCREEN_OLED_LINES
-#define INFO_SCREEN_OLED_LINES 5
+#ifndef ENABLE_TASK_LIST_REPORTING
+#define ENABLE_TASK_LIST_REPORTING false
+#endif
+
+#ifndef CPULOAD_REPORTING
+#define CPULOAD_REPORTING false
 #endif
 
 #endif // _DEFAULT_CONFIGS_H_

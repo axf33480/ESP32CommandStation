@@ -83,7 +83,7 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 // of the DCC packet to the track. For some older sound decodes it may be necessary
 // to increase from 22 bits on the PROG track to 30 or even 40.
 //
-// The maximum number of preamble bits is 50. For OPS the minimum to send is 11 but
+// The maximum number of preamble bits is 75. For OPS the minimum to send is 11 but
 // 16 is required for RailCom support.
 
 #define OPS_PREAMBLE_BITS 16
