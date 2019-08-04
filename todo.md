@@ -36,6 +36,7 @@ The primary focus of v1.4.0 will be improvements to the DCC signal code and addi
 - [x] Refresh OpenMRNLite lib to latest openmrn code.
 - [-] adjust InfoScreen LCC details so they are useful, right now it is a placeholder.
 - [x] implement CV memory space.
+- [-] Traction proxy impl.
 
 ### InfoScreen
 
@@ -66,7 +67,6 @@ The entries below are not tracked to a specific release or in any particular pri
 
 ### LCC Integration
 
-- [ ] Traction proxy impl.
 - [ ] Broadcast events for turnout state change.
 - [ ] Discard turnout events when turnout already in expected state (drop duplicate events).
 

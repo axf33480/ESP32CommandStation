@@ -84,6 +84,8 @@ using std::string;
 #include <openlcb/MemoryConfig.hxx>
 #include <openlcb/TcpDefs.hxx>
 #include <openlcb/TractionCvSpace.hxx>
+#include <openlcb/TractionProxy.hxx>
+#include <openlcb/TractionTrain.hxx>
 
 #include <os/MDNS.hxx>
 
@@ -145,6 +147,10 @@ using openlcb::Node;
 using openlcb::NodeID;
 using openlcb::SimpleCanStack;
 using openlcb::TractionCvSpace;
+using openlcb::TractionDefs;
+using openlcb::TrainNodeForProxy;
+using openlcb::TractionProxyService;
+using openlcb::TrainService;
 using openlcb::WriteHelper;
 
 // Include ESP32 Command Station component declarations

@@ -181,6 +181,23 @@ void openmrn_loop_task(void *unused)
   }
 }
 
+// helper method for allocating the locomotive nodes for the Traction protocol
+// using the LocomotiveManager as a proxy to the track.
+Node *allocate_train_node(uint8_t system
+                        , uint8_t addr_hi
+                        , uint8_t addr_lo
+                        , TrainService* traction_service)
+{
+  // Currently only DCC types are supported
+  if (system == TractionDefs::PROXYTYPE_DCC)
+  {
+    auto train =
+      locoManager->getLocomotive((static_cast<uint16_t>(addr_hi) << 8) | addr_lo);
+    return new TrainNodeForProxy(traction_service, train);
+  }
+  return nullptr;
+}
+
 extern "C" void app_main()
 {
   // Setup UART0 115200 8N1 TX: 1, RX: 3, 2k buffer (1k rx, 1k tx)
@@ -332,6 +349,10 @@ extern "C" void app_main()
   // process accessories packets.
   turnoutManager.reset(new TurnoutManager(openmrn->stack()->node()));
 
+  // Initialize the Traction Protocol support
+  TrainService trainService(openmrn->stack()->iface());
+  TractionProxyService tractionProxy(&trainService, openmrn->stack()->node());
+
   // Start the OpenMRN stack.
   openmrn->begin();
 
@@ -368,10 +389,12 @@ extern "C" void app_main()
                         , openmrn_arduino::OPENMRN_STACK_SIZE, nullptr, 1
                         , nullptr, APP_CPU_NUM);
 
-  LOG(INFO, "ESP32 Command Station Started!");
+  LOG(INFO, "\n\nESP32 Command Station Startup complete!\n");
   infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "ESP32-CS Started");
 
-  // put the ESP32 CS main task thread to sleep
+  // put the app_main task thread to sleep forever, it must remain ALIVE due to
+  // local allocations for LCC objects and for LCC to prevent random crash
+  // after stopping this task with all allocations being globally declared.
   vTaskDelay(portMAX_DELAY);
 }
 
