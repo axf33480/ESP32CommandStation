@@ -51,6 +51,7 @@ void reboot()
     ESP.restart();
 }
 #endif // OPENMRN_EXCLUDE_REBOOT_IMPL
+
 #ifndef OPENMRN_EXCLUDE_FREE_HEAP_IMPL
 ssize_t os_get_free_heap()
 {

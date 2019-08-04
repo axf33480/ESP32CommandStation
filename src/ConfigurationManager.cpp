@@ -389,10 +389,11 @@ void ConfigurationManager::configureWiFi(openlcb::SimpleCanStack *stack, const W
   wifiManager.reset(new Esp32WiFiManager(wifiSSID_.c_str(),
                                          wifiPassword_.c_str(),
                                          stack, cfg,
-                                         HOSTNAME_PREFIX, wifiMode_,
-                                         stationStaticIP_.get(), stationDNSServer_,
-                                         WIFI_SOFT_AP_CHANNEL, WIFI_SOFT_AP_MAX_CLIENTS,
-                                         WIFI_AUTH_OPEN));
+                                         HOSTNAME_PREFIX,
+                                         wifiMode_,
+                                         stationStaticIP_.get(),
+                                         stationDNSServer_,
+                                         WIFI_SOFT_AP_CHANNEL));
 }
 
 string ConfigurationManager::getFilePath(const char *name, bool oldPath)

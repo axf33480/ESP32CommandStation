@@ -267,8 +267,12 @@ extern "C" void app_main()
                                                  , ESP32CS_NUMERIC_VERSION
                                                  , openlcb::CONFIG_FILE_SIZE);
 
-  // Configure automatic sync of the LCC configuration file to disk.
+#if CONFIG_USE_SD
+  // ESP32 FFat library uses a 512b cache in memory by default for the SD VFS
+  // adding a periodic fsync call for the LCC configuration file ensures that
+  // config changes are saved since the LCC config file is less than 512b.
   AutoSyncFileFlow configFileSync(openmrn->stack()->service(), config_fd);
+#endif // CONFIG_USE_SD
 
   // Initialize the RailCom Hub
   railComHub.reset(new RailcomHubFlow(openmrn->stack()->service()));

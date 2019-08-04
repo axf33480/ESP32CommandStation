@@ -87,6 +87,7 @@ using std::string;
 
 #include <os/MDNS.hxx>
 
+#include <utils/AutoSyncFileFlow.hxx>
 #include <utils/format_utils.hxx>
 #include <utils/logging.h>
 #include <utils/macros.h>
@@ -160,7 +161,6 @@ using openlcb::WriteHelper;
 #include "interfaces/NextionInterface.h"
 #include "interfaces/WiFiInterface.h"
 
-#include "stateflows/AutoSyncFileFlow.h"
 #include "stateflows/FreeRTOSTaskMonitor.h"
 #include "stateflows/InfoScreen.h"
 #include "stateflows/LCCStatCollector.h"
