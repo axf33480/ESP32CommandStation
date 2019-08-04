@@ -98,6 +98,7 @@ public:
     _idleOnStartup(false), _defaultOnThrottles(false) {}
   RosterEntry(JsonObject);
   RosterEntry(const char *);
+  virtual ~RosterEntry();
   void toJson(JsonObject);
   void setDescription(std::string description) {
     _description = description;
@@ -138,45 +139,74 @@ private:
   bool _defaultOnThrottles;
 };
 
-class LocomotiveManager {
+class LocomotiveManager : public openlcb::BitEventInterface
+                        , private Atomic
+{
 public:
+  LocomotiveManager(openlcb::Node *);
   // gets or creates a new locomotive to be managed
-  static Locomotive *getLocomotive(const uint16_t, const bool=true);
-  static Locomotive *getLocomotiveByRegister(const uint8_t);
+  Locomotive *getLocomotive(const uint16_t, const bool=true);
+  Locomotive *getLocomotiveByRegister(const uint8_t);
   // removes a locomotive from management, sends speed zero before removal
-  static void removeLocomotive(const uint16_t);
-  static bool removeLocomotiveConsist(const uint16_t);
-  static void processThrottle(const std::vector<std::string>);
-  static void processThrottleEx(const std::vector<std::string>);
-  static void processFunction(const std::vector<std::string>);
-  static void processFunctionEx(const std::vector<std::string>);
-  static void processConsistThrottle(const std::vector<std::string>);
-  static void showStatus();
-  static void showConsistStatus();
-  static void emergencyStop();
-  static uint8_t getActiveLocoCount() {
-    return _locos.length();
+  void removeLocomotive(const uint16_t);
+  bool removeLocomotiveConsist(const uint16_t);
+  void processThrottle(const std::vector<std::string>);
+  void processThrottleEx(const std::vector<std::string>);
+  void processFunction(const std::vector<std::string>);
+  void processFunctionEx(const std::vector<std::string>);
+  void processConsistThrottle(const std::vector<std::string>);
+  void showStatus();
+  void showConsistStatus();
+  uint8_t getActiveLocoCount() {
+    return locos_.size();
   }
-  static void init(openlcb::Node *node);
-  static void clear();
-  static uint16_t store();
-  static std::vector<RosterEntry *> getDefaultLocos(const int8_t=-1);
-  static void getDefaultLocos(JsonArray);
-  static void getActiveLocos(JsonArray);
-  static void getRosterEntries(JsonArray);
-  static bool isConsistAddress(uint16_t);
-  static bool isAddressInConsist(uint16_t);
-  static LocomotiveConsist *getConsistByID(uint8_t);
-  static LocomotiveConsist *getConsistForLoco(uint16_t);
-  static LocomotiveConsist *createLocomotiveConsist(int8_t);
-  static RosterEntry *getRosterEntry(uint16_t, bool=true);
-  static void removeRosterEntry(uint16_t);
+  void clear();
+  uint16_t store();
+  std::vector<RosterEntry *> getDefaultLocos(const int8_t=-1);
+  void getDefaultLocos(JsonArray);
+  void getActiveLocos(JsonArray);
+  void getRosterEntries(JsonArray);
+  bool isConsistAddress(uint16_t);
+  bool isAddressInConsist(uint16_t);
+  LocomotiveConsist *getConsistByID(uint8_t);
+  LocomotiveConsist *getConsistForLoco(uint16_t);
+  LocomotiveConsist *createLocomotiveConsist(int8_t);
+  RosterEntry *getRosterEntry(uint16_t, bool=true);
+  void removeRosterEntry(uint16_t);
+  // BitEventInterface method to return current track output status.
+  openlcb::EventState get_current_state() override
+  {
+    return EventState::INVALID; // is_enabled() ? EventState::VALID : EventState::INVALID;
+  }
+
+  // BitEventInterface method to enable/disable track output.
+  void set_state(bool new_value) override
+  {
+    if (new_value)
+    {
+      for (const auto& loco : locos_) {
+        loco->set_emergencystop();
+      }
+    }
+    else
+    {
+      // TBD
+    }
+  }
+
+  // BitEventInterface method
+  Node *node() override
+  {
+    return node_;
+  }
 private:
-  static LinkedList<RosterEntry *> _roster;
-  static LinkedList<Locomotive *> _locos;
-  static LinkedList<LocomotiveConsist *> _consists;
-  static unique_ptr<SimplifiedCallbackEventHandler> _eStopCallback;
+  std::vector<std::unique_ptr<Locomotive>> locos_;
+  std::vector<std::unique_ptr<LocomotiveConsist>> consists_;
+  std::vector<std::unique_ptr<RosterEntry>> roster_;
+  openlcb::Node *node_;
 };
+
+extern std::unique_ptr<LocomotiveManager> locoManager;
 
 // <t {REGISTER} {LOCO} {SPEED} {DIRECTION}> command handler, this command
 // converts the provided locomotive control command into a compatible DCC
@@ -184,7 +214,7 @@ private:
 class ThrottleCommandAdapter : public DCCPPProtocolCommand {
 public:
   void process(const std::vector<std::string> arguments) {
-    LocomotiveManager::processThrottle(arguments);
+    locoManager->processThrottle(arguments);
   }
   std::string getID() {
     return "t";
@@ -197,7 +227,7 @@ public:
 class ThrottleExCommandAdapter : public DCCPPProtocolCommand {
 public:
   void process(const std::vector<std::string> arguments) {
-    LocomotiveManager::processThrottleEx(arguments);
+    locoManager->processThrottleEx(arguments);
   }
   std::string getID() {
     return "tex";
@@ -209,7 +239,7 @@ public:
 class FunctionCommandAdapter : public DCCPPProtocolCommand {
 public:
   void process(const std::vector<std::string> arguments) {
-    LocomotiveManager::processFunction(arguments);
+    locoManager->processFunction(arguments);
   }
   std::string getID() {
     return "f";
@@ -221,7 +251,7 @@ public:
 class FunctionExCommandAdapter : public DCCPPProtocolCommand {
 public:
   void process(const std::vector<std::string> arguments) {
-    LocomotiveManager::processFunctionEx(arguments);
+    locoManager->processFunctionEx(arguments);
   }
   std::string getID() {
     return "fex";

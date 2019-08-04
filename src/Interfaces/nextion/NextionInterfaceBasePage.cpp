@@ -74,7 +74,7 @@ void BaseNextionPage::setTrackPower(bool on) {
 }
 
 void BaseNextionPage::sendEStop() {
-  LocomotiveManager::emergencyStop();
+  locoManager->set_state(true);
   refresh();
 }
 

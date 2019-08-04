@@ -325,7 +325,8 @@ extern "C" void app_main()
 
   nextionInterfaceInit();
 
-  LocomotiveManager::init(openmrn->stack()->node());
+  // Initialize the locomotive manager
+  locoManager.reset(new LocomotiveManager(openmrn->stack()->node()));
 
   // Initialize the turnout manager and register it with the LCC stack to
   // process accessories packets.

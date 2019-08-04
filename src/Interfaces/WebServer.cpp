@@ -333,14 +333,14 @@ void ESP32CSWebServer::handleProgrammer(AsyncWebServerRequest *request)
         if (decoderAddress > 0)
         {
           node[JSON_ADDRESS_NODE] = decoderAddress;
-          auto roster = LocomotiveManager::getRosterEntry(decoderAddress, false);
+          auto roster = locoManager->getRosterEntry(decoderAddress, false);
           if (roster)
           {
             node[JSON_LOCO_NODE] = roster;
           }
           else if(request->hasArg(JSON_CREATE_NODE) && request->arg(JSON_CREATE_NODE).equalsIgnoreCase(JSON_VALUE_TRUE))
           {
-            roster = LocomotiveManager::getRosterEntry(decoderAddress);
+            roster = locoManager->getRosterEntry(decoderAddress);
             if (decoderConfig > 0)
             {
               if (bitRead(decoderConfig, DECODER_CONFIG_BITS::DECODER_TYPE))
@@ -785,23 +785,23 @@ void ESP32CSWebServer::handleLocomotive(AsyncWebServerRequest *request)
   // command station (method) so check it first
   if(url.endsWith("/estop"))
   {
-    LocomotiveManager::emergencyStop();
+    locoManager->set_state(true);
   }
   else if(url.indexOf("/roster") > 0)
   {
     if(request->method() == HTTP_GET && !request->hasArg(JSON_ADDRESS_NODE))
     {
-      LocomotiveManager::getRosterEntries(jsonResponse->getRoot());
+      locoManager->getRosterEntries(jsonResponse->getRoot());
     }
     else if (request->hasArg(JSON_ADDRESS_NODE))
     {
       if(request->method() == HTTP_DELETE)
       {
-        LocomotiveManager::removeRosterEntry(request->arg(JSON_ADDRESS_NODE).toInt());
+        locoManager->removeRosterEntry(request->arg(JSON_ADDRESS_NODE).toInt());
       }
       else
       {
-        RosterEntry *entry = LocomotiveManager::getRosterEntry(request->arg(JSON_ADDRESS_NODE).toInt());
+        RosterEntry *entry = locoManager->getRosterEntry(request->arg(JSON_ADDRESS_NODE).toInt());
         if(request->method() == HTTP_PUT || request->method() == HTTP_POST)
         {
           if(request->hasArg(JSON_DESCRIPTION_NODE))
@@ -833,11 +833,11 @@ void ESP32CSWebServer::handleLocomotive(AsyncWebServerRequest *request)
     if(request->method() == HTTP_GET && !request->hasArg(JSON_ADDRESS_NODE))
     {
       // get all active locomotives
-      LocomotiveManager::getActiveLocos(jsonResponse->getRoot()); 
+      locoManager->getActiveLocos(jsonResponse->getRoot()); 
     }
     else if (request->hasArg(JSON_ADDRESS_NODE))
     {
-      auto loco = LocomotiveManager::getLocomotive(request->arg(JSON_ADDRESS_NODE).toInt());
+      auto loco = locoManager->getLocomotive(request->arg(JSON_ADDRESS_NODE).toInt());
       if(request->method() == HTTP_PUT || request->method() == HTTP_POST)
       {
         auto upd_speed = loco->get_speed();
@@ -867,7 +867,7 @@ void ESP32CSWebServer::handleLocomotive(AsyncWebServerRequest *request)
       else if(request->method() == HTTP_DELETE)
       {
         // Removal of an active locomotive
-        LocomotiveManager::removeLocomotive(request->arg(JSON_ADDRESS_NODE).toInt());
+        locoManager->removeLocomotive(request->arg(JSON_ADDRESS_NODE).toInt());
 #if NEXTION_ENABLED
         static_cast<NextionThrottlePage *>(nextionPages[THROTTLE_PAGE])->invalidateLocomotive(request->arg(JSON_ADDRESS_NODE).toInt());
 #endif

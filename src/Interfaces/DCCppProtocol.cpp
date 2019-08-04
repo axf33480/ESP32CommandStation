@@ -41,7 +41,7 @@ public:
 #if ENABLE_OUTPUTS
     OutputManager::clear();
 #endif
-    LocomotiveManager::clear();
+    locoManager->clear();
     wifiInterface.broadcast(COMMAND_SUCCESSFUL_RESPONSE);
   }
 
@@ -76,7 +76,7 @@ public:
 #else
       0,
 #endif
-      LocomotiveManager::store()));
+      locoManager->store()));
 #endif
   }
 
@@ -207,7 +207,7 @@ public:
                  , __DATE__
                  , __TIME__));
     trackSignal->broadcast_status();
-    LocomotiveManager::showStatus();
+    locoManager->showStatus();
     turnoutManager->showStatus();
 #if ENABLE_OUTPUTS
     OutputManager::showStatus();
@@ -236,7 +236,7 @@ public:
 class EStopCommand : public DCCPPProtocolCommand {
 public:
   void process(const vector<string> arguments) {
-    LocomotiveManager::emergencyStop();
+    locoManager->set_state(true);
   }
 
   string getID() {

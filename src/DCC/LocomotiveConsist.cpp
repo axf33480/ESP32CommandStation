@@ -76,8 +76,16 @@ NO CV changes, when consist is addressed (either by LEAD or TRAIL loco), all
 locomotives in consist will be updated concurrently via multiple packet queuing.
 **********************************************************************/
 
-LocomotiveConsist::~LocomotiveConsist() {
+// TODO remove this constant
+static constexpr const char * CONSIST_ENTRY_JSON_FILE = "consist-%d.json";
+
+LocomotiveConsist::~LocomotiveConsist()
+{
   releaseLocomotives();
+  string filename = StringPrintf(CONSIST_ENTRY_JSON_FILE, legacy_address());
+  if(configStore->exists(filename.c_str())) {
+    configStore->remove(filename.c_str());
+  }
 }
 
 void LocomotiveConsist::showStatus() {
@@ -163,9 +171,11 @@ void LocomotiveConsist::updateThrottle(uint16_t locoAddress, int8_t speed, bool 
   }
 }
 
-void LocomotiveConsist::addLocomotive(uint16_t locoAddress, bool forward,
-  uint8_t position) {
-  Locomotive *loco = LocomotiveManager::getLocomotive(locoAddress, false);
+void LocomotiveConsist::addLocomotive(uint16_t locoAddress
+                                    , bool forward
+                                    , uint8_t position)
+{
+  Locomotive *loco = locoManager->getLocomotive(locoAddress, false);
   loco->setOrientationForward(forward);
   _locos.push_back(loco);
   if(_decoderAssisstedConsist) {
@@ -233,16 +243,16 @@ void LocomotiveConsist::releaseLocomotives() {
 
 void ConsistCommandAdapter::process(const vector<string> arguments) {
   if (arguments.empty()) {
-    LocomotiveManager::showConsistStatus();
+    locoManager->showConsistStatus();
   } else if (arguments.size() == 1 &&
-    LocomotiveManager::removeLocomotiveConsist(std::stoi(arguments[1]))) {
+    locoManager->removeLocomotiveConsist(std::stoi(arguments[1]))) {
     wifiInterface.broadcast(COMMAND_SUCCESSFUL_RESPONSE);
   } else if (arguments.size() == 2) {
     int8_t consistAddress = std::stoi(arguments[0]);
     uint16_t locomotiveAddress = std::stoi(arguments[1]);
     if (consistAddress == 0) {
       // query which consist loco is in
-      auto consist = LocomotiveManager::getConsistForLoco(locomotiveAddress);
+      auto consist = locoManager->getConsistForLoco(locomotiveAddress);
       if (consist != nullptr) {
         wifiInterface.broadcast(StringPrintf("<V %d %d>",
           consist->legacy_address() * consist->isDecoderAssistedConsist() ? -1 : 1,
@@ -251,7 +261,7 @@ void ConsistCommandAdapter::process(const vector<string> arguments) {
       }
     } else {
       // remove loco from consist
-      auto consist = LocomotiveManager::getConsistByID(consistAddress);
+      auto consist = locoManager->getConsistByID(consistAddress);
       if (consist->isAddressInConsist(locomotiveAddress)) {
         consist->removeLocomotive(locomotiveAddress);
         wifiInterface.broadcast(COMMAND_SUCCESSFUL_RESPONSE);
@@ -263,7 +273,7 @@ void ConsistCommandAdapter::process(const vector<string> arguments) {
   } else if (arguments.size() >= 3) {
     // create or update consist
     uint16_t consistAddress = std::stoi(arguments[0]);
-    auto consist = LocomotiveManager::getConsistByID(consistAddress);
+    auto consist = locoManager->getConsistByID(consistAddress);
     if (consist != nullptr) {
       // existing consist, need to update
       consist->releaseLocomotives();
@@ -271,13 +281,13 @@ void ConsistCommandAdapter::process(const vector<string> arguments) {
       // verify if all provided locos are not already in a consist
       for(int index = 1; index < arguments.size(); index++) {
         int32_t locomotiveAddress = std::stoi(arguments[index]);
-        if(LocomotiveManager::isAddressInConsist(abs(locomotiveAddress))) {
+        if(locoManager->isAddressInConsist(abs(locomotiveAddress))) {
           LOG_ERROR("[Consist] Locomotive %d is already in a consist.", abs(locomotiveAddress));
           wifiInterface.broadcast(COMMAND_FAILED_RESPONSE);
           return;
         }
       }
-      consist = LocomotiveManager::createLocomotiveConsist(consistAddress);
+      consist = locoManager->createLocomotiveConsist(consistAddress);
       if(consist == nullptr) {
         LOG_ERROR("[Consist] Unable to create new Consist");
         wifiInterface.broadcast(COMMAND_FAILED_RESPONSE);

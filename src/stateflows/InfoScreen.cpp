@@ -229,7 +229,7 @@ StateFlowBase::Action InfoScreen::update()
     else if (_rotatingStatusIndex == 2)
     {
       replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Active Locos:%3d"
-                , LocomotiveManager::getActiveLocoCount()
+                , locoManager->getActiveLocoCount()
       );
     }
     else if (_rotatingStatusIndex == 3)
