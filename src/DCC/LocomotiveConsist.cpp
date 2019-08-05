@@ -129,11 +129,11 @@ LocomotiveConsist *LocomotiveConsist::fromJson(JsonObject json, TrainService *tr
   {
     if (member.getMember(JSON_FILE_NODE).isNull())
     {
-      consist->_locos.push_back(Locomotive::fromJson(member, false));
+      consist->_locos.push_back(Locomotive::fromJson(member, trainService));
     }
     else
     {
-      consist->_locos.push_back(Locomotive::fromJsonFile(member.getMember(JSON_FILE_NODE).as<char *>(), false));
+      consist->_locos.push_back(Locomotive::fromJsonFile(member.getMember(JSON_FILE_NODE).as<char *>(), trainService));
     }
   }
   return consist;

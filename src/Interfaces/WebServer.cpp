@@ -333,14 +333,11 @@ void ESP32CSWebServer::handleProgrammer(AsyncWebServerRequest *request)
         if (decoderAddress > 0)
         {
           node[JSON_ADDRESS_NODE] = decoderAddress;
-          auto roster = locoManager->getRosterEntry(decoderAddress, false);
+          bool create = request->arg(JSON_CREATE_NODE).equalsIgnoreCase(JSON_VALUE_TRUE);
+          auto roster{locoManager->getRosterEntry(decoderAddress, create)};
           if (roster)
           {
-            node[JSON_LOCO_NODE] = roster;
-          }
-          else if(request->hasArg(JSON_CREATE_NODE) && request->arg(JSON_CREATE_NODE).equalsIgnoreCase(JSON_VALUE_TRUE))
-          {
-            roster = locoManager->getRosterEntry(decoderAddress);
+            roster->toJson(node[JSON_LOCO_NODE]);
             if (decoderConfig > 0)
             {
               if (bitRead(decoderConfig, DECODER_CONFIG_BITS::DECODER_TYPE))
@@ -352,7 +349,6 @@ void ESP32CSWebServer::handleProgrammer(AsyncWebServerRequest *request)
                 roster->setType(JSON_VALUE_MOBILE_DECODER);
               }
             }
-            node[JSON_LOCO_NODE] = roster;
           }
         }
         else
@@ -450,7 +446,7 @@ void ESP32CSWebServer::handlePower(AsyncWebServerRequest *request)
     request->send(jsonResponse);
     return;
   }
-  else if (request->method() == HTTP_PUT && request->hasArg(JSON_STATE_NODE))
+  else if (request->method() == HTTP_PUT)
   {
     if (request->arg(JSON_STATE_NODE).equalsIgnoreCase(JSON_VALUE_TRUE))
     {
@@ -801,7 +797,7 @@ void ESP32CSWebServer::handleLocomotive(AsyncWebServerRequest *request)
       }
       else
       {
-        RosterEntry *entry = locoManager->getRosterEntry(request->arg(JSON_ADDRESS_NODE).toInt());
+        auto entry{locoManager->getRosterEntry(request->arg(JSON_ADDRESS_NODE).toInt())};
         if(request->method() == HTTP_PUT || request->method() == HTTP_POST)
         {
           if(request->hasArg(JSON_DESCRIPTION_NODE))
@@ -837,7 +833,7 @@ void ESP32CSWebServer::handleLocomotive(AsyncWebServerRequest *request)
     }
     else if (request->hasArg(JSON_ADDRESS_NODE))
     {
-      auto loco = locoManager->getLocomotive(request->arg(JSON_ADDRESS_NODE).toInt());
+      auto loco{locoManager->getLocomotive(request->arg(JSON_ADDRESS_NODE).toInt())};
       if(request->method() == HTTP_PUT || request->method() == HTTP_POST)
       {
         auto upd_speed = loco->get_speed();
