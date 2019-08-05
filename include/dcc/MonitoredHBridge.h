@@ -190,6 +190,9 @@ private:
   uint64_t lastReport_{0};
   uint32_t lastReading_{0};
   uint8_t state_{STATE_OFF};
+  Atomic requestedStateAtomic_;
+  uint8_t requestedState_{STATE_OFF};
+  uint8_t lastRequestedState_{STATE_OFF};
   uint8_t overCurrentCheckCount_{0};
   uint8_t thermalWarningCheckCount_{0};
 

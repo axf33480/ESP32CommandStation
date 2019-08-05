@@ -71,7 +71,7 @@ MonitoredHBridge::MonitoredHBridge(SimpleCanStack *stack
   , bridgeType_(bridgeType)
   , isProgTrack_(true)
   , overCurrentLimit_((250 << 12) / maxMilliAmps_) // ~250mA
-  , shutdownLimit_(4090)
+  , shutdownLimit_((500 << 12) / maxMilliAmps_)
   , progAckLimit_((60 << 12) / maxMilliAmps_)      // ~60mA
   , cfg_(cfg)
   , targetLED_(StatusLED::LED::PROG_TRACK)
@@ -82,7 +82,6 @@ MonitoredHBridge::MonitoredHBridge(SimpleCanStack *stack
   , shutdownProducer_(&shortBit_)
   , thermalProducer_(&shortBit_)
 {
-  shutdownLimit_ = overCurrentLimit_ << 1;
   // set warning limit to ~75% of overcurrent limit
   warnLimit_ = ((overCurrentLimit_ << 1) + overCurrentLimit_) >> 2;
 }
@@ -135,15 +134,17 @@ void MonitoredHBridge::disable()
 {
   if(state_ != STATE_OFF)
   {
-    state_ = STATE_OFF;
-    yield_and_call(STATE(check));
+    AtomicHolder l(&requestedStateAtomic_);
+    requestedState_ = STATE_OFF;
+    timer_.ensure_triggered();
   }
 }
 
 void MonitoredHBridge::enable()
 {
-  state_ = STATE_ON;
-  yield_and_call(STATE(check));
+  AtomicHolder l(&requestedStateAtomic_);
+  requestedState_ = STATE_ON;
+  timer_.ensure_triggered();
 }
 
 StateFlowBase::Action MonitoredHBridge::init()
@@ -151,7 +152,7 @@ StateFlowBase::Action MonitoredHBridge::init()
   adc1_config_channel_atten(channel_, ADC_CURRENT_ATTENUATION);
   string thermalPinLine = "";
   string progAckLine = "";
-  if (thermalWarningPin_ >= 0)
+  if (thermalWarningPin_ != NOT_A_PIN)
   {
     thermalPinLine =
       StringPrintf("\nThermal warning pin %d, events (on: %s, off: %s)"
@@ -193,7 +194,7 @@ StateFlowBase::Action MonitoredHBridge::init()
   ESP_ERROR_CHECK(gpio_pulldown_en(enablePin_));
   ESP_ERROR_CHECK(gpio_set_level(enablePin_, 0));
 
-  if (thermalWarningPin_ >= 0)
+  if (thermalWarningPin_ != NOT_A_PIN)
   {
     gpio_pad_select_gpio(thermalWarningPin_);
     ESP_ERROR_CHECK(gpio_set_direction(thermalWarningPin_, GPIO_MODE_INPUT));
@@ -202,32 +203,57 @@ StateFlowBase::Action MonitoredHBridge::init()
 
   if (!isProgTrack_ && ENERGIZE_OPS_TRACK_ON_STARTUP)
   {
-    return call_immediately(STATE(sleep_and_check_state));
+    AtomicHolder l(&requestedStateAtomic_);
+    requestedState_ = STATE_ON;
   }
-  return wait();
+  return call_immediately(STATE(sleep_and_check_state));
 }
 
 StateFlowBase::Action MonitoredHBridge::check()
 {
-  if (state_ == STATE_OFF)
-  {
-    LOG(INFO, "[%s] Disabling track output", name_.c_str());
-    ESP_ERROR_CHECK(gpio_set_level(enablePin_, 0));
-    statusLED->setStatusLED((StatusLED::LED)targetLED_, StatusLED::COLOR::OFF);
-    return wait();
-  }
-
   uint8_t initialState = state_;
   StatusLED::COLOR statusLEDColor = StatusLED::COLOR::GREEN;
   vector<int> samples;
+
+  {
+    AtomicHolder l(&requestedStateAtomic_);
+    if (lastRequestedState_ != requestedState_)
+    {
+      lastRequestedState_ = requestedState_;
+      if (requestedState_ == STATE_OFF)
+      {
+        state_ = STATE_OFF;
+        LOG(INFO, "[%s] Disabling track output", name_.c_str());
+        statusLED->setStatusLED((StatusLED::LED)targetLED_, StatusLED::COLOR::OFF);
+        ESP_ERROR_CHECK(gpio_set_level(enablePin_, 0));
+        return call_immediately(STATE(sleep_and_check_state));
+      }
+      else if (requestedState_ == STATE_ON)
+      {
+        state_ = STATE_ON;
+        initialState = STATE_OFF;
+        // fall through to check for status etc immediately.
+      }
+    }
+    else if (state_ == STATE_OFF)
+    {
+      // go back to sleep immediately since we are in an OFF state
+      return call_immediately(STATE(sleep_and_check_state));
+    }
+  }
+
+  // collect samples from ADC
   while(samples.size() < adcSampleCount_) {
     samples.push_back(adc1_get_raw(channel_));
     usleep(1);
   }
+  // average the collected samples
   lastReading_ = (std::accumulate(samples.begin(), samples.end(), 0) / samples.size());
 
   if (lastReading_ >= shutdownLimit_)
   {
+    // If the average sample exceeds the shutdown limit (~90% typically)
+    // trigger an immediate shutdown.
     LOG_ERROR("[%s] Shutdown threshold breached %6.2f mA (raw: %d / %d)"
             , name_.c_str()
             , getUsage() / 1000.0f
@@ -235,13 +261,11 @@ StateFlowBase::Action MonitoredHBridge::check()
             , shutdownLimit_);
     state_ = STATE_SHUTDOWN;
     statusLEDColor = StatusLED::COLOR::RED_BLINK;
-    if (isProgTrack_)
-    {
-      Singleton<ProgrammingTrackBackend>::instance()->notify_service_mode_short();
-    }
   }
   else if (lastReading_ >= overCurrentLimit_)
   {
+    // If we have at least a couple averages that are over the soft limit
+    // trigger an immediate shutdown as a short is likely to have occurred.
     if(overCurrentCheckCount_++ >= overCurrentRetryCount_)
     {
       // disable the h-bridge output
@@ -253,10 +277,6 @@ StateFlowBase::Action MonitoredHBridge::check()
               , overCurrentLimit_);
       state_ = STATE_OVERCURRENT;
       statusLEDColor = StatusLED::COLOR::RED;
-      if (isProgTrack_)
-      {
-        Singleton<ProgrammingTrackBackend>::instance()->notify_service_mode_short();
-      }
     }
     else
     {
@@ -265,6 +285,8 @@ StateFlowBase::Action MonitoredHBridge::check()
   }
   else if (thermalWarningPin_ >= 0 && gpio_get_level(thermalWarningPin_) == 0)
   {
+    // If we have at least a couple thermal warnings raised by the h-bridge
+    // trigger an immediate shutdown.
     if (thermalWarningCheckCount_++ > thermalWarningRetryCount_ &&
         initialState != STATE_THERMAL_SHUTDOWN)
     {
@@ -279,6 +301,9 @@ StateFlowBase::Action MonitoredHBridge::check()
   }
   else if(initialState != STATE_ON)
   {
+    // If the initial state was not ON (over current, shutdown, thermal, etc)
+    // and we have reached this point in the checks we are below the configured
+    // limits so enable the track output again.
     LOG(INFO, "[%s] Enabling track output", name_.c_str());
     state_ = STATE_ON;
     overCurrentCheckCount_ = 0;
@@ -289,6 +314,9 @@ StateFlowBase::Action MonitoredHBridge::check()
     }
   }
 
+  // If this is the programming track and the average reading is at least the
+  // configured ack level, send a notification to the ProgrammingTrackBackend
+  // to wake it up.
   if (isProgTrack_ && state_ == STATE_ON && lastReading_ >= progAckLimit_)
   {
     Singleton<ProgrammingTrackBackend>::instance()->notify_service_mode_ack();
@@ -303,7 +331,16 @@ StateFlowBase::Action MonitoredHBridge::check()
 
   if (initialState != state_)
   {
+    // If this is the programming track notify the ProgrammingTrackBackend of
+    // a possible short condition if our state is NOT ON.
+    if (isProgTrack_ && state_ != STATE_ON)
+    {
+      Singleton<ProgrammingTrackBackend>::instance()->notify_service_mode_short();
+    }
+
+    // Enable or disable the h-bridge at this point based on the updated state.
     ESP_ERROR_CHECK(gpio_set_level(enablePin_, state_ == STATE_ON));
+
     // if we were in OVERCURRENT and we aren't now, or we are now
     // in OVERCURRENT, send the event.
     if ((initialState == STATE_OVERCURRENT && state_ != STATE_OVERCURRENT)
@@ -325,6 +362,8 @@ StateFlowBase::Action MonitoredHBridge::check()
     {
       thermalProducer_.SendEventReport(&helper_, n_.reset(this));
     }
+
+    // Set our LED to the updated state color value.
     statusLED->setStatusLED((StatusLED::LED)targetLED_, statusLEDColor);
 #if LOCONET_ENABLED
     if (!isProgTrack_)
@@ -334,5 +373,6 @@ StateFlowBase::Action MonitoredHBridge::check()
 #endif
   }
 
+  // go back to sleep until next interval.
   return call_immediately(STATE(sleep_and_check_state));
 }
