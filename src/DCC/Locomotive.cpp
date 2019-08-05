@@ -58,7 +58,7 @@ void Locomotive::toJson(JsonObject jsonObject, bool includeFunctions)
     {
       JsonObject node = functions.createNestedObject();
       node[JSON_ID_NODE] = funcID;
-      node[JSON_STATE_NODE] = get_fn(funcID) ? JSON_VALUE_TRUE : JSON_VALUE_FALSE;
+      node[JSON_STATE_NODE] = get_fn(funcID);
     }
   }
 }
@@ -82,7 +82,8 @@ Locomotive *Locomotive::fromJson(JsonObject json, TrainService *trainService)
   {
     for(JsonObject func : json.getMember(JSON_FUNCTIONS_NODE).as<JsonArray>())
     {
-      loco->set_fn(func[JSON_ID_NODE], func[JSON_STATE_NODE] == JSON_VALUE_TRUE);
+      loco->set_fn(func[JSON_ID_NODE]
+                , !func[JSON_STATE_NODE].as<string>().compare(JSON_VALUE_TRUE));
     }
   }
   return loco;

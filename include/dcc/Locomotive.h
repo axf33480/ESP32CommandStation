@@ -32,6 +32,13 @@ class Locomotive : public dcc::Dcc128Train
 {
 public:
   Locomotive(uint16_t, openlcb::TrainService *);
+
+  virtual ~Locomotive()
+  {
+    service_->unregister_train(this);
+    LOG(INFO, "[Loco %d] Deleted", legacy_address());
+  }
+
   void setRegister(int8_t registerNumber)
   {
     _registerNumber = registerNumber;
@@ -47,6 +54,7 @@ public:
     dcc::Dcc128Train::set_speed(speed);
     showStatus();
   }
+
   void set_fn(uint32_t address, uint16_t value) override
   {
     dcc::Dcc128Train::set_fn(address, value);
@@ -54,13 +62,16 @@ public:
       , value ? JSON_VALUE_ON : JSON_VALUE_OFF);
   }
 
-  void setOrientationForward(bool forward) {
+  void setOrientationForward(bool forward)
+  {
     _orientation = forward;
   }
 
-  bool isOrientationForward() {
+  bool isOrientationForward()
+  {
     return _orientation;
   }
+
   void showStatus();
   void toJson(JsonObject, bool=true);
   static Locomotive *fromJson(JsonObject, openlcb::TrainService *);

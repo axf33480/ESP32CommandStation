@@ -52,13 +52,15 @@ TrainNode::TrainNode(TrainService *service, TrainImpl *train)
 
 TrainNode::~TrainNode()
 {
-    while (!consistSlaves_.empty()) {
+    while (!consistSlaves_.empty())
+    {
         delete consistSlaves_.pop_front();
     }
 }
 
 TrainNodeForProxy::TrainNodeForProxy(TrainService *service, TrainImpl *train)
-    : TrainNode(service, train) {
+    : TrainNode(service, train)
+{
     service_->register_train(this);
 }
 
@@ -626,6 +628,15 @@ void TrainService::register_train(TrainNode *node)
     nodes_.insert(node);
     LOG(VERBOSE, "Registered node %p for traction.", node);
     HASSERT(nodes_.find(node) != nodes_.end());
+}
+
+void TrainService::unregister_train(TrainNode *node)
+{
+    iface_->delete_local_node(node);
+    AtomicHolder h(this);
+    nodes_.erase(node);
+    LOG(VERBOSE, "Unregistered node %p for traction.", node);
+    HASSERT(nodes_.find(node) == nodes_.end());
 }
 
 } // namespace openlcb
