@@ -176,6 +176,8 @@ private:
   const uint8_t overCurrentRetryCount_{3};
   const uint64_t overCurrentRetryInterval_{MSEC_TO_NSEC(25)};
   const uint64_t currentReportInterval_{SEC_TO_USEC(30)};
+  const uint8_t thermalWarningRetryCount_{3};
+  const uint64_t thermalWarningRetryInterval_{MSEC_TO_NSEC(25)};
   StateFlowTimer timer_{this};
   MemoryBit<uint8_t> shortBit_;
   MemoryBit<uint8_t> shutdownBit_;
@@ -189,16 +191,24 @@ private:
   uint32_t lastReading_{0};
   uint8_t state_{STATE_OFF};
   uint8_t overCurrentCheckCount_{0};
+  uint8_t thermalWarningCheckCount_{0};
 
   STATE_FLOW_STATE(init);
   STATE_FLOW_STATE(check);
 
-  Action sleep_and_check_state() {
+  Action sleep_and_check_state()
+  {
     return sleep_and_call(&timer_, checkInterval_, STATE(check));
   }
 
-  Action sleep_and_check_overcurrent() {
+  Action sleep_and_check_overcurrent()
+  {
     return sleep_and_call(&timer_, overCurrentRetryInterval_, STATE(check));
+  }
+
+  Action sleep_and_check_thermal_warning()
+  {
+    return sleep_and_call(&timer_, thermalWarningRetryInterval_, STATE(check));
   }
 };
 

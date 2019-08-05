@@ -137,23 +137,13 @@ void MonitoredHBridge::disable()
   {
     state_ = STATE_OFF;
     yield_and_call(STATE(check));
-    LOG(INFO, "[%s] Disabling h-bridge", name_.c_str());
   }
-  statusLED->setStatusLED((StatusLED::LED)targetLED_, StatusLED::COLOR::OFF);
 }
 
 void MonitoredHBridge::enable()
 {
   state_ = STATE_ON;
   yield_and_call(STATE(check));
-  LOG(INFO, "[%s] Enabling h-bridge", name_.c_str());
-  statusLED->setStatusLED((StatusLED::LED)targetLED_, StatusLED::COLOR::GREEN);
-#if LOCONET_ENABLED
-  if (!isProgTrack_)
-  {
-    locoNet.reportPower(true);
-  }
-#endif
 }
 
 StateFlowBase::Action MonitoredHBridge::init()
@@ -221,6 +211,7 @@ StateFlowBase::Action MonitoredHBridge::check()
 {
   if (state_ == STATE_OFF)
   {
+    LOG(INFO, "[%s] Disabling track output", name_.c_str());
     ESP_ERROR_CHECK(gpio_set_level(enablePin_, 0));
     statusLED->setStatusLED((StatusLED::LED)targetLED_, StatusLED::COLOR::OFF);
     return wait();
@@ -234,12 +225,14 @@ StateFlowBase::Action MonitoredHBridge::check()
     usleep(1);
   }
   lastReading_ = (std::accumulate(samples.begin(), samples.end(), 0) / samples.size());
+
   if (lastReading_ >= shutdownLimit_)
   {
-    LOG_ERROR("[%s] Shutdown Threshold breached %6.2f mA (raw: %d)"
+    LOG_ERROR("[%s] Shutdown threshold breached %6.2f mA (raw: %d / %d)"
             , name_.c_str()
             , getUsage() / 1000.0f
-            , lastReading_);
+            , lastReading_
+            , shutdownLimit_);
     state_ = STATE_SHUTDOWN;
     statusLEDColor = StatusLED::COLOR::RED_BLINK;
     if (isProgTrack_)
@@ -253,10 +246,11 @@ StateFlowBase::Action MonitoredHBridge::check()
     {
       // disable the h-bridge output
       ESP_ERROR_CHECK(gpio_set_level(enablePin_, 0));
-      LOG_ERROR("[%s] Overcurrent detected %6.2f mA (raw: %d)"
+      LOG_ERROR("[%s] Overcurrent detected %6.2f mA (raw: %d / %d)"
               , name_.c_str()
               , getUsage() / 1000.0f
-              , lastReading_);
+              , lastReading_
+              , overCurrentLimit_);
       state_ = STATE_OVERCURRENT;
       statusLEDColor = StatusLED::COLOR::RED;
       if (isProgTrack_)
@@ -269,15 +263,23 @@ StateFlowBase::Action MonitoredHBridge::check()
       return call_immediately(STATE(sleep_and_check_overcurrent));
     }
   }
-  else if (thermalWarningPin_ >= 0 && gpio_get_level(thermalWarningPin_))
+  else if (thermalWarningPin_ >= 0 && gpio_get_level(thermalWarningPin_) == 0)
   {
-    LOG_ERROR("[%s] Thermal shutdown detected", name_.c_str());
-    state_ = STATE_THERMAL_SHUTDOWN;
-    statusLEDColor = StatusLED::COLOR::YELLOW_BLINK;
+    if (thermalWarningCheckCount_++ > thermalWarningRetryCount_ &&
+        initialState != STATE_THERMAL_SHUTDOWN)
+    {
+      LOG_ERROR("[%s] Thermal shutdown detected", name_.c_str());
+      state_ = STATE_THERMAL_SHUTDOWN;
+      statusLEDColor = StatusLED::COLOR::YELLOW_BLINK;
+    }
+    else
+    {
+      return call_immediately(STATE(sleep_and_check_thermal_warning));
+    }
   }
   else if(initialState != STATE_ON)
   {
-    LOG(INFO, "[%s] Enabling to normal operations", name_.c_str());
+    LOG(INFO, "[%s] Enabling track output", name_.c_str());
     state_ = STATE_ON;
     overCurrentCheckCount_ = 0;
     statusLEDColor = StatusLED::COLOR::GREEN;
@@ -286,14 +288,17 @@ StateFlowBase::Action MonitoredHBridge::check()
       statusLEDColor = StatusLED::COLOR::YELLOW;
     }
   }
+
   if (isProgTrack_ && state_ == STATE_ON && lastReading_ >= progAckLimit_)
   {
     Singleton<ProgrammingTrackBackend>::instance()->notify_service_mode_ack();
   }
-  if(esp_timer_get_time() - lastReport_ > currentReportInterval_)
+
+  if (esp_timer_get_time() - lastReport_ > currentReportInterval_)
   {
     lastReport_ = esp_timer_get_time();
-    LOG(INFO, "[%s] %6.0f mA / %d mA", name_.c_str(), getUsage() / 1000.0f, maxMilliAmps_);
+    LOG(INFO, "[%s] %6.0f mA / %d mA", name_.c_str(), getUsage() / 1000.0f
+      , maxMilliAmps_);
   }
 
   if (initialState != state_)
