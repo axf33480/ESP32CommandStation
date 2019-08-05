@@ -284,7 +284,9 @@ extern "C" void app_main()
   openmrn->create_config_descriptor_xml(cfg, openlcb::CDI_FILENAME);
 
   // Create the default internal configuration file if it doesn't already exist.
+#if CONFIG_USE_SD
   int config_fd =
+#endif // CONFIG_USE_SD
     openmrn->stack()->create_config_file_if_needed(cfg.seg().internal_config()
                                                  , ESP32CS_NUMERIC_VERSION
                                                  , openlcb::CONFIG_FILE_SIZE);
@@ -357,10 +359,16 @@ extern "C" void app_main()
   // process accessories packets.
   turnoutManager.reset(new TurnoutManager(openmrn->stack()->node()));
 
-  OpenMRNLoopStarter loopStarter(openmrn->stack()->service());
-
   // Start the OpenMRN stack.
   openmrn->begin();
+
+  openmrn->stack()->executor()->add(new CallbackExecutable([]()
+  {
+    LOG(INFO, "[OpenMRN] Starting loop task on core:%d", APP_CPU_NUM);
+    xTaskCreatePinnedToCore(openmrn_loop_task, "OpenMRN"
+                          , openmrn_arduino::OPENMRN_STACK_SIZE, nullptr, 1
+                          , nullptr, APP_CPU_NUM);
+  }));
 
 #if CPULOAD_REPORTING
   cpuLoadLogger.reset(new CpuLoadLog(openmrn.stack()->service()));
