@@ -105,24 +105,25 @@ void LocomotiveConsist::showStatus() {
   wifiInterface.broadcast(statusCmd);
 }
 
-void LocomotiveConsist::toJson(JsonObject jsonObject, bool includeSpeedDir, bool includeFunctions) {
-  Locomotive::toJson(jsonObject, includeSpeedDir, includeFunctions);
+void LocomotiveConsist::toJson(JsonObject jsonObject, bool includeFunctions) {
+  Locomotive::toJson(jsonObject, includeFunctions);
   jsonObject[JSON_CONSIST_NODE] = JSON_VALUE_TRUE;
   jsonObject[JSON_DECODER_ASSISTED_NODE] = _decoderAssisstedConsist ? JSON_VALUE_TRUE : JSON_VALUE_FALSE;
   JsonArray locoArray = jsonObject.createNestedArray(JSON_LOCOS_NODE);
   for (const auto& loco : _locos) {
-    loco->toJson(locoArray.createNestedObject(), includeSpeedDir, includeFunctions);
+    loco->toJson(locoArray.createNestedObject(), includeFunctions);
   }
 }
-LocomotiveConsist *LocomotiveConsist::fromJsonFile(const char *filename) {
+LocomotiveConsist *LocomotiveConsist::fromJsonFile(const char *filename, TrainService *trainService) {
   DynamicJsonDocument jsonBuffer{1024};
   JsonObject entry = configStore->load(filename, jsonBuffer);
-  return fromJson(entry);
+  return fromJson(entry, trainService);
 }
 
-LocomotiveConsist *LocomotiveConsist::fromJson(JsonObject json) {
+LocomotiveConsist *LocomotiveConsist::fromJson(JsonObject json, TrainService *trainService) {
   LocomotiveConsist * consist =
     new LocomotiveConsist(json[JSON_ADDRESS_NODE].as<uint16_t>()
+                        , trainService
                         , json[JSON_DECODER_ASSISTED_NODE] == JSON_VALUE_TRUE);
   for(JsonObject member : json.getMember(JSON_LOCOS_NODE).as<JsonArray>())
   {

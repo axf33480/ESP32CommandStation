@@ -181,22 +181,27 @@ void openmrn_loop_task(void *unused)
   }
 }
 
-// helper method for allocating the locomotive nodes for the Traction protocol
-// using the LocomotiveManager as a proxy to the track.
-Node *allocate_train_node(uint8_t system
-                        , uint8_t addr_hi
-                        , uint8_t addr_lo
-                        , TrainService* traction_service)
+class OpenMRNLoopStarter : private StateFlowBase
 {
-  // Currently only DCC types are supported
-  if (system == TractionDefs::PROXYTYPE_DCC)
+public:
+  OpenMRNLoopStarter(Service *service) : StateFlowBase(service)
   {
-    auto train =
-      locoManager->getLocomotive((static_cast<uint16_t>(addr_hi) << 8) | addr_lo);
-    return new TrainNodeForProxy(traction_service, train);
+    start_flow(STATE(start_openmrn_task));
   }
-  return nullptr;
-}
+
+  Action start_openmrn_task()
+  {
+    LOG(INFO, "[OpenMRN] Starting loop task on core:%d", APP_CPU_NUM);
+    xTaskCreatePinnedToCore(openmrn_loop_task
+                          , "OpenMRN:loop"
+                          , openmrn_arduino::OPENMRN_STACK_SIZE
+                          , nullptr
+                          , 1
+                          , nullptr
+                          , APP_CPU_NUM);
+    return exit();
+  }
+};
 
 extern "C" void app_main()
 {
@@ -342,16 +347,17 @@ extern "C" void app_main()
 
   nextionInterfaceInit();
 
+  // Initialize the Traction Protocol support
+  TrainService trainService(openmrn->stack()->iface());
+
   // Initialize the locomotive manager
-  locoManager.reset(new LocomotiveManager(openmrn->stack()->node()));
+  locoManager.reset(new LocomotiveManager(openmrn->stack()->node(), &trainService));
 
   // Initialize the turnout manager and register it with the LCC stack to
   // process accessories packets.
   turnoutManager.reset(new TurnoutManager(openmrn->stack()->node()));
 
-  // Initialize the Traction Protocol support
-  TrainService trainService(openmrn->stack()->iface());
-  TractionProxyService tractionProxy(&trainService, openmrn->stack()->node());
+  OpenMRNLoopStarter loopStarter(openmrn->stack()->service());
 
   // Start the OpenMRN stack.
   openmrn->begin();
@@ -380,22 +386,12 @@ extern "C" void app_main()
   initializeLocoNet();
 #endif
 
-  // create OpenMRN executor thread, this can consume near 100% of core 0
-  // all tasks must use core 1!
-  openmrn->start_executor_thread();
-
-  LOG(INFO, "[OpenMRN] Starting loop task on core:%d", APP_CPU_NUM);
-  xTaskCreatePinnedToCore(openmrn_loop_task, "OpenMRN:loop"
-                        , openmrn_arduino::OPENMRN_STACK_SIZE, nullptr, 1
-                        , nullptr, APP_CPU_NUM);
-
   LOG(INFO, "\n\nESP32 Command Station Startup complete!\n");
-  infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "ESP32-CS Started");
+  infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE
+                        , "ESP32-CS Started");
 
-  // put the app_main task thread to sleep forever, it must remain ALIVE due to
-  // local allocations for LCC objects and for LCC to prevent random crash
-  // after stopping this task with all allocations being globally declared.
-  vTaskDelay(portMAX_DELAY);
+  // donate our task thread to OpenMRN executor.
+  openmrn->loop_executor();
 }
 
 bool is_restricted_pin(int8_t pin)

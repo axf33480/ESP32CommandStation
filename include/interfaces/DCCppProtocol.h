@@ -22,7 +22,8 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #include <string>
 
 // Class definition for a single protocol command
-class DCCPPProtocolCommand {
+class DCCPPProtocolCommand
+{
 public:
   virtual ~DCCPPProtocolCommand() {}
   virtual void process(const std::vector<std::string>) = 0;
@@ -30,7 +31,8 @@ public:
 };
 
 // Class definition for the Protocol Interpreter
-class DCCPPProtocolHandler {
+class DCCPPProtocolHandler
+{
 public:
   static void init();
   static void process(const std::string &);
@@ -38,7 +40,8 @@ public:
   static DCCPPProtocolCommand *getCommandHandler(const std::string &);
 };
 
-class DCCPPProtocolConsumer {
+class DCCPPProtocolConsumer
+{
 public:
   DCCPPProtocolConsumer();
   void feed(uint8_t *, size_t);
@@ -50,5 +53,16 @@ private:
 
 const std::string COMMAND_FAILED_RESPONSE = "<X>";
 const std::string COMMAND_SUCCESSFUL_RESPONSE = "<O>";
+
+#define DECLARE_DCC_PROTOCOL_COMMAND_CLASS(name, id)  \
+class name : public DCCPPProtocolCommand              \
+{                                                     \
+public:                                               \
+  void process(const std::vector<std::string>);       \
+  std::string getID()                                 \
+  {                                                   \
+    return id;                                        \
+  }                                                   \
+};
 
 #endif // DCC_PROTOCOL_H_

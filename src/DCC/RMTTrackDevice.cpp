@@ -17,15 +17,15 @@ COPYRIGHT (c) 2019 Mike Dunston
 
 #include "ESP32CommandStation.h"
 
-/////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 // DCC packet queue sizes for the RMT driver
-/////////////////////////////////////////////////////////////////////////////////////
-static constexpr uint8_t OPS_QUEUE_LEN = 25;
-static constexpr uint8_t PROG_QUEUE_LEN = 10;
+///////////////////////////////////////////////////////////////////////////////
+static constexpr uint8_t OPS_QUEUE_LEN = 10;
+static constexpr uint8_t PROG_QUEUE_LEN = 5;
 
-/////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 // OPS track h-bridge settings
-/////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 #define L298          0
 #define LMD18200      1
 #define POLOLU        2
@@ -56,9 +56,9 @@ static constexpr uint8_t PROG_QUEUE_LEN = 10;
 #error "Unrecognized OPS_HBRIDGE_TYPE"
 #endif
 
-/////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 // PROG track h-bridge settings
-/////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 #if PROG_HBRIDGE_TYPE == L298
 #define PROG_HBRIDGE_MAX_MILIAMPS 2000
 #define PROG_HBRIDGE_TYPE_NAME "L298"
@@ -106,6 +106,9 @@ static constexpr rmt_item32_t DCC_RMT_ONE_BIT =
 }}};
 
 // Declare ISR flags for the RMT driver ISR and feeder ISR
+// NOTE: ESP_INTR_FLAG_IRAM is *NOT* included in this bitmask so that we do not
+// have a dependency on execution from IRAM and the related software
+// limitations of execution from there.
 static constexpr uint32_t RMT_ISR_FLAGS = (
     ESP_INTR_FLAG_LEVEL2              // ISR is implemented in C code
   | ESP_INTR_FLAG_SHARED              // ISR is shared across multiple handlers
@@ -171,56 +174,57 @@ static void rmt_tx_complete_isr_callback(void *ctx)
         packetQueueOverrunCount_++;                     \
       }
 
-#define ENCODE_PACKET(queue, preambleCount, encodedPacket                       \
-                    , encodedLength, repeatCount, notifiable)                   \
+#define ENCODE_PACKET(queue, preambleCount, encodedPacket                   \
+                    , encodedLength, repeatCount, notifiable)               \
     /* decrement the repeat count and if we still have at least one repeat
-       remaining skip reencoding the packet */                                  \
-    if (--repeatCount >= 0)                                                     \
-    {                                                                           \
-      return;                                                                   \
-    }                                                                           \
-    /* attempt to fetch a packet from the queue or use an idle packet */        \
-    Packet *packet = nullptr;                                                   \
-    {                                                                           \
-      AtomicHolder l(&packetQueueLock_);                                        \
-      if ((opsPacketQueue_->pending() &&                                        \
-          !opsPacketQueue_->get(packet, 1)) ||                                  \
-          !packet)                                                              \
-      {                                                                         \
-        /* no packet retrieved, default to the IDLE packet. */                  \
-        packet = &idlePacket_;                                                  \
-      }                                                                         \
-      /* Check if we have a pending writer and notify it if needed. */          \
-      Notifiable* n = nullptr;                                                  \
-      std::swap(n, notifiable);                                                 \
-      if (n)                                                                    \
-      {                                                                         \
-        n->notify_from_isr();                                                   \
-      }                                                                         \
-    }                                                                           \
-    /* encode the preamble bits */                                              \
-    for (encodedLength = 0; encodedLength < preambleCount; encodedLength++)     \
-    {                                                                           \
-      encodedPacket[encodedLength].val = DCC_RMT_ONE_BIT.val;                   \
-    }                                                                           \
-    /* encode the packet bits */                                                \
-    for (uint8_t dlc = 0; dlc < packet->dlc; dlc++)                             \
-    {                                                                           \
-      for(uint8_t bit = 0; bit < 8; bit++)                                      \
-      {                                                                         \
-        encodedPacket[encodedLength++].val =                                    \
-          packet->payload[dlc] & PACKET_BIT_MASK[bit] ?                         \
-            DCC_RMT_ONE_BIT.val : DCC_RMT_ZERO_BIT.val;                         \
-      }                                                                         \
-      /* end of byte marker */                                                  \
-      encodedPacket[encodedLength++].val = DCC_RMT_ZERO_BIT.val;                \
-    }                                                                           \
-    /* set the last bit of the encoded payload to be an end of packet marker */ \
-    encodedPacket[encodedLength - 1].val = DCC_RMT_ONE_BIT.val;                 \
-    /* add an extra ONE bit to the end to prevent mangling of the last bit by
-       the RMT */                                                               \
-    encodedPacket[encodedLength++].val = DCC_RMT_ONE_BIT.val;                   \
-    /* record the repeat count */                                               \
+       remaining skip reencoding the packet */                              \
+    if (--repeatCount >= 0)                                                 \
+    {                                                                       \
+      return;                                                               \
+    }                                                                       \
+    /* attempt to fetch a packet from the queue or use an idle packet */    \
+    Packet *packet = nullptr;                                               \
+    {                                                                       \
+      AtomicHolder l(&packetQueueLock_);                                    \
+      if ((opsPacketQueue_->pending() &&                                    \
+          !opsPacketQueue_->get(packet, 1)) ||                              \
+          !packet)                                                          \
+      {                                                                     \
+        /* no packet retrieved, default to the IDLE packet. */              \
+        packet = &idlePacket_;                                              \
+      }                                                                     \
+      /* Check if we have a pending writer and notify it if needed. */      \
+      Notifiable* n = nullptr;                                              \
+      std::swap(n, notifiable);                                             \
+      if (n)                                                                \
+      {                                                                     \
+        n->notify_from_isr();                                               \
+      }                                                                     \
+    }                                                                       \
+    /* encode the preamble bits */                                          \
+    for (encodedLength = 0; encodedLength < preambleCount; encodedLength++) \
+    {                                                                       \
+      encodedPacket[encodedLength].val = DCC_RMT_ONE_BIT.val;               \
+    }                                                                       \
+    /* encode the packet bits */                                            \
+    for (uint8_t dlc = 0; dlc < packet->dlc; dlc++)                         \
+    {                                                                       \
+      for(uint8_t bit = 0; bit < 8; bit++)                                  \
+      {                                                                     \
+        encodedPacket[encodedLength++].val =                                \
+          packet->payload[dlc] & PACKET_BIT_MASK[bit] ?                     \
+            DCC_RMT_ONE_BIT.val : DCC_RMT_ZERO_BIT.val;                     \
+      }                                                                     \
+      /* end of byte marker */                                              \
+      encodedPacket[encodedLength++].val = DCC_RMT_ZERO_BIT.val;            \
+    }                                                                       \
+    /* set the last bit of the encoded payload to be an end of packet 
+       marker */                                                            \
+    encodedPacket[encodedLength - 1].val = DCC_RMT_ONE_BIT.val;             \
+    /* add an extra ONE bit to the end to prevent mangling of the last bit
+       by the RMT */                                                        \
+    encodedPacket[encodedLength++].val = DCC_RMT_ONE_BIT.val;               \
+    /* record the repeat count */                                           \
     repeatCount = packet->packet_header.rept_count + 1;
 
 RMTTrackDevice::RMTTrackDevice(SimpleCanStack *stack
@@ -285,11 +289,8 @@ RMTTrackDevice::RMTTrackDevice(SimpleCanStack *stack
   {
     LOG(INFO
     , "Initializing RailCom detector (hb-en:%d,rc-en:%d,br-en:%d,rc:%d,uart:%d)"
-    , opsOutputEnablePin_
-    , railComEnablePin_
-    , railComBrakeEnablePin_
-    , railComReceivePin
-    , railComUartPort_);
+    , opsOutputEnablePin_, railComEnablePin_, railComBrakeEnablePin_
+    , railComReceivePin, railComUartPort_);
     gpio_pad_select_gpio(railComEnablePin_);
     ESP_ERROR_CHECK(gpio_set_direction(railComEnablePin_, GPIO_MODE_OUTPUT));
     ESP_ERROR_CHECK(gpio_pulldown_en(railComEnablePin_));
@@ -309,7 +310,13 @@ RMTTrackDevice::RMTTrackDevice(SimpleCanStack *stack
       .use_ref_tick        = false                     // unused
     };
     ESP_ERROR_CHECK(uart_param_config(railComUartPort_, &uart));
-    ESP_ERROR_CHECK(uart_driver_install(railComUartPort_, UART_FIFO_LEN + 1, 0, 0, NULL, 0));
+    ESP_ERROR_CHECK(
+      uart_driver_install(railComUartPort_    // hardware UART index
+                        , UART_FIFO_LEN + 1   // RX buffer size
+                        , 0                   // TX buffer size (disabled)
+                        , 0                   // event queue size (disabled)
+                        , NULL                // event queue handle (unused)
+                        , 0));                // ISR flags (defaults)
     ESP_ERROR_CHECK(uart_disable_rx_intr(railComUartPort_));
     ESP_ERROR_CHECK(uart_disable_tx_intr(railComUartPort_));
     railcomReader_ = std::bind(&RMTTrackDevice::read_railcom_response, this);

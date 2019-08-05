@@ -19,6 +19,7 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #define LOCOMOTIVE_H_
 
 #include <dcc/Loco.hxx>
+#include <openlcb/TractionTrain.hxx>
 
 #include "interfaces/DCCppProtocol.h"
 #include "SimplifiedCallbackEventHandler.h"
@@ -27,9 +28,10 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #define MAX_LOCOMOTIVE_FUNCTION_PACKETS 5
 
 class Locomotive : public dcc::Dcc128Train
+                 , public openlcb::TrainNodeForProxy
 {
 public:
-  Locomotive(uint16_t, const bool=true);
+  Locomotive(uint16_t, openlcb::TrainService *);
   void setRegister(int8_t registerNumber)
   {
     _registerNumber = registerNumber;
@@ -60,9 +62,9 @@ public:
     return _orientation;
   }
   void showStatus();
-  void toJson(JsonObject, bool=true, bool=true);
-  static Locomotive *fromJson(JsonObject, bool=true);
-  static Locomotive *fromJsonFile(const char *, bool=true);
+  void toJson(JsonObject, bool=true);
+  static Locomotive *fromJson(JsonObject, openlcb::TrainService *);
+  static Locomotive *fromJsonFile(const char *, openlcb::TrainService *);
 private:
   int8_t _registerNumber{-1};
   bool _orientation{true};
@@ -71,8 +73,12 @@ private:
 class LocomotiveConsist : public Locomotive
 {
 public:
-  LocomotiveConsist(uint8_t address, bool decoderAssistedConsist=false) :
-    Locomotive(address), _decoderAssisstedConsist(decoderAssistedConsist) {
+  LocomotiveConsist(uint8_t address
+                  , openlcb::TrainService *trainService
+                  , bool decoderAssistedConsist=false)
+                  : Locomotive(address, trainService)
+                  , _decoderAssisstedConsist(decoderAssistedConsist)
+  {
   }
   virtual ~LocomotiveConsist();
   void showStatus();
@@ -81,12 +87,13 @@ public:
   void addLocomotive(uint16_t, bool, uint8_t);
   bool removeLocomotive(uint16_t);
   void releaseLocomotives();
-  bool isDecoderAssistedConsist() {
+  bool isDecoderAssistedConsist()
+  {
     return _decoderAssisstedConsist;
   }
-  void toJson(JsonObject, bool=true, const bool=true);
-  static LocomotiveConsist *fromJson(JsonObject);
-  static LocomotiveConsist *fromJsonFile(const char *);
+  void toJson(JsonObject, const bool=true);
+  static LocomotiveConsist *fromJson(JsonObject, openlcb::TrainService *);
+  static LocomotiveConsist *fromJsonFile(const char *, openlcb::TrainService *);
 private:
   bool _decoderAssisstedConsist;
   std::vector<Locomotive *> _locos;
@@ -94,40 +101,54 @@ private:
 
 class RosterEntry {
 public:
-  RosterEntry(uint16_t address) : _description(""), _address(address), _type(""),
-    _idleOnStartup(false), _defaultOnThrottles(false) {}
+  RosterEntry(uint16_t address)
+    : _description("")
+    , _address(address)
+    , _type("")
+    , _idleOnStartup(false)
+    , _defaultOnThrottles(false)
+  {
+  }
   RosterEntry(JsonObject);
   RosterEntry(const char *);
   virtual ~RosterEntry();
   void toJson(JsonObject);
-  void setDescription(std::string description) {
+  void setDescription(std::string description)
+  {
     _description = description;
   }
-  std::string getDescription() {
+  std::string getDescription()
+  {
     return _description;
   }
-  void setAddress(const uint16_t address) {
+  void setAddress(const uint16_t address)
+  {
     _address = address;
   }
   uint16_t getAddress() {
     return _address;
   }
-  void setType(std::string type) {
+  void setType(std::string type)
+  {
     _type = type;
   }
   std::string getType() {
     return _type;
   }
-  void setIdleOnStartup(bool value=false) {
+  void setIdleOnStartup(bool value=false)
+  {
     _idleOnStartup = value;
   }
-  bool isIdleOnStartup() {
+  bool isIdleOnStartup()
+  {
     return _idleOnStartup;
   }
-  void setDefaultOnThrottles(bool value=false) {
+  void setDefaultOnThrottles(bool value=false)
+  {
     _defaultOnThrottles = value;
   }
-  bool isDefaultOnThrottles() {
+  bool isDefaultOnThrottles()
+  {
     return _defaultOnThrottles;
   }
 
@@ -143,7 +164,7 @@ class LocomotiveManager : public openlcb::BitEventInterface
                         , private Atomic
 {
 public:
-  LocomotiveManager(openlcb::Node *);
+  LocomotiveManager(openlcb::Node *, openlcb::TrainService *);
   // gets or creates a new locomotive to be managed
   Locomotive *getLocomotive(const uint16_t, const bool=true);
   Locomotive *getLocomotiveByRegister(const uint8_t);
@@ -157,7 +178,8 @@ public:
   void processConsistThrottle(const std::vector<std::string>);
   void showStatus();
   void showConsistStatus();
-  uint8_t getActiveLocoCount() {
+  uint8_t getActiveLocoCount()
+  {
     return locos_.size();
   }
   void clear();
@@ -184,7 +206,8 @@ public:
   {
     if (new_value)
     {
-      for (const auto& loco : locos_) {
+      for (const auto& loco : locos_)
+      {
         loco->set_emergencystop();
       }
     }
@@ -204,6 +227,7 @@ private:
   std::vector<std::unique_ptr<LocomotiveConsist>> consists_;
   std::vector<std::unique_ptr<RosterEntry>> roster_;
   openlcb::Node *node_;
+  openlcb::TrainService *trainService_;
 };
 
 extern std::unique_ptr<LocomotiveManager> locoManager;
@@ -211,52 +235,20 @@ extern std::unique_ptr<LocomotiveManager> locoManager;
 // <t {REGISTER} {LOCO} {SPEED} {DIRECTION}> command handler, this command
 // converts the provided locomotive control command into a compatible DCC
 // locomotive control packet.
-class ThrottleCommandAdapter : public DCCPPProtocolCommand {
-public:
-  void process(const std::vector<std::string> arguments) {
-    locoManager->processThrottle(arguments);
-  }
-  std::string getID() {
-    return "t";
-  }
-};
+DECLARE_DCC_PROTOCOL_COMMAND_CLASS(ThrottleCommandAdapter, "t")
 
 // <tex {LOCO} {SPEED} {DIRECTION}> command handler, this command
 // converts the provided locomotive control command into a compatible DCC
 // locomotive control packet.
-class ThrottleExCommandAdapter : public DCCPPProtocolCommand {
-public:
-  void process(const std::vector<std::string> arguments) {
-    locoManager->processThrottleEx(arguments);
-  }
-  std::string getID() {
-    return "tex";
-  }
-};
+DECLARE_DCC_PROTOCOL_COMMAND_CLASS(ThrottleExCommandAdapter, "tex")
 
 // <f {LOCO} {BYTE} [{BYTE2}]> command handler, this command converts a
 // locomotive function update into a compatible DCC function control packet.
-class FunctionCommandAdapter : public DCCPPProtocolCommand {
-public:
-  void process(const std::vector<std::string> arguments) {
-    locoManager->processFunction(arguments);
-  }
-  std::string getID() {
-    return "f";
-  }
-};
+DECLARE_DCC_PROTOCOL_COMMAND_CLASS(FunctionCommandAdapter, "f")
 
 // <fex {LOCO} {FUNC} {STATE}]> command handler, this command converts a
 // locomotive function update into a compatible DCC function control packet.
-class FunctionExCommandAdapter : public DCCPPProtocolCommand {
-public:
-  void process(const std::vector<std::string> arguments) {
-    locoManager->processFunctionEx(arguments);
-  }
-  std::string getID() {
-    return "fex";
-  }
-};
+DECLARE_DCC_PROTOCOL_COMMAND_CLASS(FunctionExCommandAdapter, "fex")
 
 // wrapper to handle the following command structures:
 // CREATE: <C {ID} {LEAD LOCO} {TRAIL LOCO}  [{OTHER LOCO}]>
@@ -264,12 +256,6 @@ public:
 // DELETE: <C {ID}>
 // QUERY : <C 0 {LOCO}>
 // SHOW  : <C>
-class ConsistCommandAdapter : public DCCPPProtocolCommand {
-public:
-  void process(const std::vector<std::string>);
-  std::string getID() {
-    return "C";
-  }
-};
+DECLARE_DCC_PROTOCOL_COMMAND_CLASS(ConsistCommandAdapter, "C")
 
 #endif // LOCOMOTIVE_H_

@@ -22,30 +22,36 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 const int8_t NON_STORED_SENSOR_PIN=-1;
 
-class Sensor {
+class Sensor
+{
 public:
   Sensor(uint16_t, int8_t, bool=false, bool=true);
   Sensor(JsonObject);
   virtual ~Sensor() {}
   void update(uint8_t, bool=false);
   virtual void toJson(JsonObject, bool=false);
-  uint16_t getID() {
+  uint16_t getID()
+  {
     return _sensorID;
   }
-  int8_t getPin() {
+  int8_t getPin()
+  {
     return _pin;
   }
-  bool isPullUp() {
+  bool isPullUp()
+  {
     return _pullUp;
   }
-  bool isActive() {
+  bool isActive()
+  {
     return _lastState;
   }
   virtual void check();
   void show();
 protected:
   void set(bool);
-  void setID(uint16_t id) {
+  void setID(uint16_t id)
+  {
     _sensorID = id;
   }
 private:
@@ -55,7 +61,8 @@ private:
   bool _lastState;
 };
 
-class SensorManager {
+class SensorManager
+{
 public:
   static void init();
   static void clear();
@@ -71,12 +78,6 @@ private:
   static OSMutex _lock;
 };
 
-class SensorCommandAdapter : public DCCPPProtocolCommand {
-public:
-  void process(const std::vector<std::string>);
-  std::string getID() {
-    return "S";
-  }
-};
+DECLARE_DCC_PROTOCOL_COMMAND_CLASS(SensorCommandAdapter, "S")
 
 #endif // SENSORS_H_

@@ -135,15 +135,7 @@ where
   INDEX:      the subaddress of the decoder controlling this turnout (0-3)
   THROW:      0 (unthrown) or 1 (thrown)
 */
-class TurnoutCommandAdapter : public DCCPPProtocolCommand
-{
-public:
-  void process(const std::vector<std::string>);
-  std::string getID()
-  {
-    return "T";
-  }
-};
+DECLARE_DCC_PROTOCOL_COMMAND_CLASS(TurnoutCommandAdapter, "T")
 
 /*
   <Tex ID>:              Toggle turnout by ID.
@@ -161,15 +153,7 @@ where
               2 : WYE
               3 : MULTI
 */
-class TurnoutExCommandAdapter : public DCCPPProtocolCommand
-{
-public:
-  void process(const std::vector<std::string>);
-  std::string getID()
-  {
-    return "Tex";
-  }
-};
+DECLARE_DCC_PROTOCOL_COMMAND_CLASS(TurnoutExCommandAdapter, "Tex")
 
 /*
  <a BOARD INDEX THROW>: Throws a turnout (accessory decoder)
@@ -183,14 +167,6 @@ where
   INDEX:      the subaddress of the decoder controlling this turnout (0-3)
   THROW:      0 (unthrown) or 1 (thrown)
 */
-class AccessoryCommand : public DCCPPProtocolCommand
-{
-public:
-  void process(const std::vector<std::string>);
-  std::string getID()
-  {
-    return "a";
-  }
-};
+DECLARE_DCC_PROTOCOL_COMMAND_CLASS(AccessoryCommand, "a")
 
 #endif // TURNOUTS_H_

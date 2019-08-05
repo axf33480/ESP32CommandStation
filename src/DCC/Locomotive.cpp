@@ -28,12 +28,12 @@ constexpr uint64_t LOCO_FUNCTION_PACKET_INTERVAL = SEC_TO_USEC(60);
 
 static int8_t LOCO_REGISTER_ID = 1;
 
-Locomotive::Locomotive(uint16_t address, bool managed) : Dcc128Train(DccLongAddress(address)), _registerNumber(LOCO_REGISTER_ID++)
+Locomotive::Locomotive(uint16_t address, TrainService *trainService)
+  : Dcc128Train(DccLongAddress(address))
+  , TrainNodeForProxy(trainService, this)
+  , _registerNumber(LOCO_REGISTER_ID++)
 {
-  if (!managed)
-  {
-    packet_processor_remove_refresh_source(this);
-  }
+  LOG(INFO, "[Loco %d] Created", address);
 }
 
 void Locomotive::showStatus()
@@ -44,15 +44,12 @@ void Locomotive::showStatus()
   wifiInterface.broadcast(StringPrintf("<T %d %d %d>", _registerNumber, speed.get_dcc_128(), speed.direction()));
 }
 
-void Locomotive::toJson(JsonObject jsonObject, bool includeSpeedDir, bool includeFunctions)
+void Locomotive::toJson(JsonObject jsonObject, bool includeFunctions)
 {
   jsonObject[JSON_ADDRESS_NODE] = legacy_address();
-  if(includeSpeedDir)
-  {
-    dcc::SpeedType speed(get_speed());
-    jsonObject[JSON_SPEED_NODE] = (speed.get_dcc_128() & 0x7F);
-    jsonObject[JSON_DIRECTION_NODE] = speed.direction() ? JSON_VALUE_REVERSE : JSON_VALUE_FORWARD;
-  }
+  dcc::SpeedType speed(get_speed());
+  jsonObject[JSON_SPEED_NODE] = (speed.get_dcc_128() & 0x7F);
+  jsonObject[JSON_DIRECTION_NODE] = speed.direction() ? JSON_VALUE_REVERSE : JSON_VALUE_FORWARD;
   jsonObject[JSON_ORIENTATION_NODE] = _orientation ? JSON_VALUE_FORWARD : JSON_VALUE_REVERSE;
   if(includeFunctions)
   {
@@ -66,16 +63,16 @@ void Locomotive::toJson(JsonObject jsonObject, bool includeSpeedDir, bool includ
   }
 }
 
-Locomotive *Locomotive::fromJsonFile(const char *filename, bool managed)
+Locomotive *Locomotive::fromJsonFile(const char *filename, TrainService *trainService)
 {
   DynamicJsonDocument jsonBuffer{1024};
   JsonObject entry = configStore->load(filename, jsonBuffer);
-  return fromJson(entry, managed);
+  return fromJson(entry, trainService);
 }
 
-Locomotive *Locomotive::fromJson(JsonObject json, bool managed)
+Locomotive *Locomotive::fromJson(JsonObject json, TrainService *trainService)
 {
-  Locomotive *loco = new Locomotive(json[JSON_ADDRESS_NODE].is<uint16_t>(), managed);
+  Locomotive *loco = new Locomotive(json[JSON_ADDRESS_NODE].is<uint16_t>(), trainService);
   dcc::SpeedType speed(0);
   speed.set_dcc_128(json[JSON_SPEED_NODE].as<uint8_t>());
   speed.set_direction(json[JSON_DIRECTION_NODE] == JSON_VALUE_FORWARD);

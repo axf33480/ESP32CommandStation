@@ -27,6 +27,27 @@ static constexpr const char * CONSIST_ENTRY_JSON_FILE = "consist-%d.json";
 
 std::unique_ptr<LocomotiveManager> locoManager;
 
+void ThrottleCommandAdapter::process(const std::vector<std::string> arguments)
+{
+  locoManager->processThrottle(arguments);
+}
+
+void ThrottleExCommandAdapter::process(const std::vector<std::string> arguments)
+{
+  locoManager->processThrottleEx(arguments);
+}
+
+void FunctionCommandAdapter::process(const std::vector<std::string> arguments)
+{
+  locoManager->processFunction(arguments);
+}
+
+void FunctionExCommandAdapter::process(const std::vector<std::string> arguments)
+{
+  locoManager->processFunctionEx(arguments);
+}
+
+
 void LocomotiveManager::processThrottle(const vector<string> arguments)
 {
   int registerNumber = std::stoi(arguments[0]);
@@ -39,7 +60,7 @@ void LocomotiveManager::processThrottle(const vector<string> arguments)
   Locomotive *instance = getLocomotiveByRegister(registerNumber);
   if(instance == nullptr)
   {
-    instance = new Locomotive(locoAddress);
+    instance = new Locomotive(locoAddress, trainService_);
     locos_.emplace_back(instance);
   }
   dcc::SpeedType speed;
@@ -185,11 +206,7 @@ Locomotive *LocomotiveManager::getLocomotive(const uint16_t address, const bool 
   {
     return elem->get();
   }
-  if (!managed)
-  {
-    return new Locomotive(address, managed);
-  }
-  locos_.emplace_back(new Locomotive(address, managed));
+  locos_.emplace_back(new Locomotive(address, trainService_));
   return getLocomotive(address, managed);
 }
 
@@ -241,10 +258,11 @@ bool LocomotiveManager::removeLocomotiveConsist(const uint16_t address)
   return false;
 }
 
-LocomotiveManager::LocomotiveManager(Node *node) :
+LocomotiveManager::LocomotiveManager(Node *node, TrainService *trainService) :
   BitEventInterface(Defs::CLEAR_EMERGENCY_STOP_EVENT
                   , Defs::EMERGENCY_STOP_EVENT)
 , node_(node)
+, trainService_(trainService)
 {
   bool persistNeeded = false;
   LOG(INFO, "[Roster] Initializing Locomotive Roster");
@@ -306,7 +324,7 @@ LocomotiveManager::LocomotiveManager(Node *node) :
         std::string file = consistEntry[JSON_FILE_NODE].as<std::string>();
         if (configStore->exists(file.c_str()))
         {
-          consists_.emplace_back(LocomotiveConsist::fromJsonFile(file.c_str()));
+          consists_.emplace_back(LocomotiveConsist::fromJsonFile(file.c_str(), trainService_));
         }
         else
         {
@@ -326,7 +344,7 @@ LocomotiveManager::LocomotiveManager(Node *node) :
       infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Load %02d Consists", consistCount);
       for (auto entry : consistRoot[JSON_CONSISTS_NODE].as<JsonArray>())
       {
-        consists_.emplace_back(LocomotiveConsist::fromJson(entry.as<JsonObject>()));
+        consists_.emplace_back(LocomotiveConsist::fromJson(entry.as<JsonObject>(), trainService_));
       }
     }
     configStore->remove(OLD_CONSISTS_JSON_FILE);
@@ -430,11 +448,11 @@ void LocomotiveManager::getActiveLocos(JsonArray array)
   AtomicHolder h(this);
   for (const auto& loco : locos_)
   {
-    loco->toJson(array.createNestedObject());
+    loco->toJson(array.createNestedObject(), false);
   }
   for (const auto& consist : consists_)
   {
-    consist->toJson(array.createNestedObject());
+    consist->toJson(array.createNestedObject(), false);
   }
 }
 
@@ -520,7 +538,7 @@ LocomotiveConsist *LocomotiveManager::createLocomotiveConsist(int8_t consistAddr
     if(newConsistAddress > 0)
     {
       LOG(INFO, "[Consist] Adding new Loco Consist %d", newConsistAddress);
-      consists_.emplace_back(new LocomotiveConsist(newConsistAddress, true));
+      consists_.emplace_back(new LocomotiveConsist(newConsistAddress, trainService_, true));
       return getConsistByID(newConsistAddress);
     }
     else
@@ -534,6 +552,7 @@ LocomotiveConsist *LocomotiveManager::createLocomotiveConsist(int8_t consistAddr
   {
     LOG(INFO, "[Consist] Adding new Loco Consist %d", consistAddress);
     consists_.emplace_back(new LocomotiveConsist(abs(consistAddress)
+                                               , trainService_
                                                , consistAddress < 0));
     return getConsistByID(abs(consistAddress));
   }

@@ -38,7 +38,8 @@ private:
   uint16_t _index;
 };
 
-class S88SensorBus {
+class S88SensorBus
+{
 public:
   S88SensorBus(const uint8_t, const uint8_t, const uint16_t);
   S88SensorBus(JsonObject &);
@@ -47,22 +48,28 @@ public:
   void addSensors(int16_t);
   void removeSensors(int16_t);
   std::string getStateString();
-  uint8_t getID() {
+  uint8_t getID()
+  {
     return _id;
   }
-  uint8_t getDataPin() {
+  uint8_t getDataPin()
+  {
     return _dataPin;
   }
-  uint16_t getSensorIDBase() {
+  uint16_t getSensorIDBase()
+  {
     return _sensorIDBase;
   }
-  uint16_t getSensorCount() {
+  uint16_t getSensorCount()
+  {
     return _sensors.size();
   }
-  void prepForRead() {
+  void prepForRead()
+  {
     _nextSensorToRead = 0;
   }
-  bool hasMore() {
+  bool hasMore()
+  {
     return _nextSensorToRead < _sensors.size();
   }
   void readNext();
@@ -76,7 +83,8 @@ private:
   std::vector<S88Sensor *> _sensors;
 };
 
-class S88BusManager {
+class S88BusManager
+{
 public:
   static void init();
   static void clear();
@@ -90,12 +98,6 @@ private:
   static OSMutex _s88SensorLock;
 };
 
-class S88BusCommandAdapter : public DCCPPProtocolCommand {
-public:
-  void process(const std::vector<std::string>);
-  std::string getID() {
-    return "S88";
-  }
-};
+DECLARE_DCC_PROTOCOL_COMMAND_CLASS(S88BusCommandAdapter, "S88")
 
 #endif // S88_SENSORS_H_

@@ -21,22 +21,26 @@ COPYRIGHT (c) 2018 Dan Worth
 
 #include "io/Sensors.h"
 
-class RemoteSensor : public Sensor {
+class RemoteSensor : public Sensor
+{
 public:
   RemoteSensor(uint16_t, uint16_t=0);
   virtual ~RemoteSensor() {}
   uint16_t getRawID() {
     return _rawID;
   }
-  uint16_t getSensorValue() {
+  uint16_t getSensorValue()
+  {
     return _value;
   }
-  void setSensorValue(const uint16_t value) {
+  void setSensorValue(const uint16_t value)
+  {
     _value = value;
     _lastUpdate = millis();
     set(_value != 0);
   }
-  uint32_t getLastUpdate() {
+  uint32_t getLastUpdate()
+  {
     return _lastUpdate;
   }
   virtual void check();
@@ -48,7 +52,8 @@ private:
   uint32_t _lastUpdate;
 };
 
-class RemoteSensorManager {
+class RemoteSensorManager
+{
 public:
   static void init();
   static void show();
@@ -57,12 +62,6 @@ public:
   static void getState(JsonArray);
 };
 
-class RemoteSensorsCommandAdapter : public DCCPPProtocolCommand {
-public:
-  void process(const std::vector<std::string>);
-  std::string getID() {
-    return "RS";
-  }
-};
+DECLARE_DCC_PROTOCOL_COMMAND_CLASS(RemoteSensorsCommandAdapter, "RS")
 
 #endif // REMOTE_SENSORS_H_

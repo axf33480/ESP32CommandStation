@@ -24,40 +24,55 @@ const uint8_t OUTPUT_IFLAG_INVERT = BIT0;
 const uint8_t OUTPUT_IFLAG_RESTORE_STATE = BIT1;
 const uint8_t OUTPUT_IFLAG_FORCE_STATE = BIT2;
 
-class Output {
+class Output
+{
 public:
   Output(uint16_t, uint8_t, uint8_t);
   Output(JsonObject);
   void set(bool=false, bool=true);
   void update(uint8_t, uint8_t);
   void toJson(JsonObject, bool=false);
-  uint16_t getID() {
+  uint16_t getID()
+  {
     return _id;
   }
-  uint8_t getPin() {
+  uint8_t getPin()
+  {
     return _pin;
   }
-  uint8_t getFlags() {
+  uint8_t getFlags()
+  {
     return _flags;
   }
-  bool isActive() {
+  bool isActive()
+  {
     return _active;
   }
   void showStatus();
-  std::string getFlagsAsString() {
+  std::string getFlagsAsString()
+  {
     std::string flags = "";
-    if((_flags & OUTPUT_IFLAG_INVERT) == OUTPUT_IFLAG_INVERT) {
+    if((_flags & OUTPUT_IFLAG_INVERT) == OUTPUT_IFLAG_INVERT)
+    {
       flags += "activeLow";
-    } else {
+    }
+    else
+    {
       flags += "activeHigh";
     }
-    if((_flags & OUTPUT_IFLAG_RESTORE_STATE) == OUTPUT_IFLAG_RESTORE_STATE) {
-      if((_flags & OUTPUT_IFLAG_FORCE_STATE) == OUTPUT_IFLAG_FORCE_STATE) {
+    if((_flags & OUTPUT_IFLAG_RESTORE_STATE) == OUTPUT_IFLAG_RESTORE_STATE)
+    {
+      if((_flags & OUTPUT_IFLAG_FORCE_STATE) == OUTPUT_IFLAG_FORCE_STATE)
+      {
         flags += ",force(on)";
-      } else {
+      }
+      else
+      {
         flags += ",force(off)";
       }
-    } else {
+    }
+    else
+    {
       flags += ",restoreState";
     }
     return flags;
@@ -69,7 +84,8 @@ private:
   bool _active;
 };
 
-class OutputManager {
+class OutputManager
+{
   public:
     static void init();
     static void clear();
@@ -83,20 +99,8 @@ class OutputManager {
     static bool remove(const uint16_t);
 };
 
-class OutputCommandAdapter : public DCCPPProtocolCommand {
-public:
-  void process(const std::vector<std::string> arguments);
-  std::string getID() {
-    return "Z";
-  }
-};
+DECLARE_DCC_PROTOCOL_COMMAND_CLASS(OutputCommandAdapter, "Z")
 
-class OutputExCommandAdapter : public DCCPPProtocolCommand {
-public:
-  void process(const std::vector<std::string> arguments);
-  std::string getID() {
-    return "Zex";
-  }
-};
+DECLARE_DCC_PROTOCOL_COMMAND_CLASS(OutputExCommandAdapter, "Zex")
 
 #endif // OUTPUTS_H_
