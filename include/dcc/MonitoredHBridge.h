@@ -19,6 +19,7 @@ COPYRIGHT (c) 2018-2019 Mike Dunston
 #define MONITORED_H_BRIDGE_
 
 #include "cdi/TrackOutputDescriptor.h"
+
 #include <executor/StateFlow.hxx>
 #include <openlcb/SimpleStack.hxx>
 #include <utils/ConfigUpdateListener.hxx>
@@ -35,16 +36,16 @@ public:
                  , const gpio_num_t
                  , const uint32_t
                  , const uint32_t
-                 , const string &
-                 , const string &
+                 , const std::string &
+                 , const std::string &
                  , const TrackOutputConfig &);
 
   MonitoredHBridge(openlcb::SimpleCanStack *
                  , const adc1_channel_t
                  , const gpio_num_t
                  , const uint32_t
-                 , const string &
-                 , const string &
+                 , const std::string &
+                 , const std::string &
                  , const TrackOutputConfig &);
 
   enum STATE
@@ -56,7 +57,7 @@ public:
   , STATE_OFF               = 16
   };
 
-  string getName()
+  std::string getName()
   {
     return name_;
   }
@@ -76,21 +77,6 @@ public:
     return isProgTrack_;
   }
 
-  string getState()
-  {
-    switch (state_)
-    {
-      case STATE_ON:
-        return JSON_VALUE_NORMAL;
-      case STATE_OVERCURRENT:
-        return JSON_VALUE_FAULT;
-      case STATE_OFF:
-      default:
-        return JSON_VALUE_OFF;
-    }
-    return JSON_VALUE_ERROR;
-  }
-
   bool isEnabled()
   {
     return state_ != STATE_OFF;
@@ -105,9 +91,11 @@ public:
     return 0.0f;
   }
 
-  string getStateAsJson();
+  std::string getState();
 
-  string getInfoScreenData();
+  std::string getStateAsJson();
+
+  std::string getInfoScreenData();
 
   void broadcastStatus();
 
@@ -162,8 +150,8 @@ private:
   const gpio_num_t enablePin_;
   const gpio_num_t thermalWarningPin_;
   const uint32_t maxMilliAmps_;
-  const string name_;
-  const string bridgeType_;
+  const std::string name_;
+  const std::string bridgeType_;
   const bool isProgTrack_;
   uint32_t overCurrentLimit_{0};
   uint32_t shutdownLimit_{0};

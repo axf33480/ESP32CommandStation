@@ -86,6 +86,21 @@ MonitoredHBridge::MonitoredHBridge(SimpleCanStack *stack
   warnLimit_ = ((overCurrentLimit_ << 1) + overCurrentLimit_) >> 2;
 }
 
+string MonitoredHBridge::getState()
+{
+  switch (state_)
+  {
+    case STATE_ON:
+      return JSON_VALUE_NORMAL;
+    case STATE_OVERCURRENT:
+      return JSON_VALUE_FAULT;
+    case STATE_OFF:
+    default:
+      return JSON_VALUE_OFF;
+  }
+  return JSON_VALUE_ERROR;
+}
+
 string MonitoredHBridge::getStateAsJson()
 {
   return StringPrintf("{"
