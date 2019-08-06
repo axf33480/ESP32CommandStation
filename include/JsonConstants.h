@@ -80,6 +80,8 @@ constexpr const char * JSON_LAST_UPDATE_NODE = "lastUpdate";
 
 constexpr const char * JSON_WIFI_NODE = "wifi";
 constexpr const char * JSON_WIFI_MODE_NODE = "mode";
+constexpr const char * JSON_WIFI_SSID_NODE = "ssid";
+constexpr const char * JSON_WIFI_PASSWORD_NODE = "password";
 constexpr const char * JSON_WIFI_STATION_NODE = "station";
 constexpr const char * JSON_WIFI_STATION_IP_NODE = "ip";
 constexpr const char * JSON_WIFI_STATION_GATEWAY_NODE = "gateway";

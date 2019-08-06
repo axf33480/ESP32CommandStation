@@ -185,6 +185,8 @@ ConfigurationManager::ConfigurationManager()
       JsonObject stationConfig = wifiConfig[JSON_WIFI_STATION_NODE];
       if (!stationConfig.isNull())
       {
+        wifiSSID_.assign(stationConfig[JSON_WIFI_SSID_NODE].as<char *>());
+        wifiPassword_.assign(stationConfig[JSON_WIFI_PASSWORD_NODE].as<char *>());
         string stationMode = stationConfig[JSON_WIFI_MODE_NODE];
         LOG(VERBOSE, "[Config] Station IP mode: %s", stationMode.c_str());
         if (!stationMode.compare(JSON_VALUE_STATION_IP_MODE_STATIC))
@@ -224,11 +226,14 @@ ConfigurationManager::ConfigurationManager()
     LOG(INFO, "[Config] Station mode enabled.");
     root[JSON_WIFI_NODE][JSON_WIFI_MODE_NODE] = JSON_VALUE_WIFI_MODE_STATION_ONLY;
 #endif
+
 #ifdef WIFI_STATIC_IP_DNS
     LOG(INFO, "[Config] Station DNS IP: %s", WIFI_STATIC_IP_DNS);
     stationDNSServer_.u_addr.ip4.addr = ipaddr_addr(WIFI_STATIC_IP_DNS);
     root[JSON_WIFI_NODE][JSON_WIFI_DNS_NODE] = WIFI_STATIC_IP_DNS;
 #endif
+
+#if !WIFI_ENABLE_SOFT_AP_ONLY
 #if defined(WIFI_STATIC_IP_ADDRESS) && defined(WIFI_STATIC_IP_GATEWAY) && defined(WIFI_STATIC_IP_SUBNET)
     root[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_MODE_NODE] = JSON_VALUE_STATION_IP_MODE_STATIC;
     LOG(INFO, "[Config] Station IP: %s", WIFI_STATIC_IP_ADDRESS);
@@ -241,9 +246,12 @@ ConfigurationManager::ConfigurationManager()
     stationStaticIP_->ip.addr = ipaddr_addr(WIFI_STATIC_IP_ADDRESS);
     stationStaticIP_->gw.addr = ipaddr_addr(WIFI_STATIC_IP_GATEWAY);
     stationStaticIP_->netmask.addr = ipaddr_addr(WIFI_STATIC_IP_SUBNET);
-#elif !WIFI_ENABLE_SOFT_AP_ONLY
+#else
     LOG(INFO, "[Config] Station IP: DHCP assigned");
     root[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_STATION_NODE] = JSON_VALUE_STATION_IP_MODE_DHCP;
+#endif
+    root[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_SSID_NODE] = wifiSSID_;
+    root[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_PASSWORD_NODE] = wifiPassword_;
 #endif
     store(ESP32_CS_CONFIG_JSON, root);
     serializeJson(root, csConfig_);
