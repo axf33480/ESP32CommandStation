@@ -313,9 +313,9 @@
          <option value="softap">SoftAP Only</option>
         </select>
        </div>
-       <div class="ui-field-contain">
-        <label for="cs-config-sta-ip-mode">IP Assignment:</label>
-        <input type="checkbox" id="cs-config-sta-ip-mode" data-role="flipswitch" data-off-text="DHCP" data-on-text="Static">
+       <div class="ui-field-contain" id="cs-config-ip-div">
+        <label for="cs-config-ip-mode">IP Assignment:</label>
+        <input type="checkbox" id="cs-config-ip-mode" data-role="flipswitch" data-off-text="DHCP" data-on-text="Static">
        </div>
        <div class="ui-field-contain" id="cs-config-static-div">
         <label for="cs-config-sta-ip">IP:</label>
@@ -1183,13 +1183,15 @@ function setupConfig() {
    },
    success : function (data, status, xhr) {
     $("#cs-config-wifi-mode").val(data.wifi.mode).change();
-    $("#cs-config-sta-ip-mode").prop("checked", data.wifi.station.mode === 'static').flipswitch("refresh");
-    if(data.wifi.station.mode === 'static') {
+    if(data.wifi.mode !== 'softap') {
+     $("#cs-config-sta-ip-mode").prop("checked", data.wifi.station.mode === 'static').flipswitch("refresh");
+     if(data.wifi.station.mode === 'static') {
       $("#cs-config-static-div").show();
       $("#cs-config-sta-ip").val(data.wifi.station.ip);
       $("#cs-config-sta-gateway").val(data.wifi.station.gateway);
       $("#cs-config-sta-netmask").val(data.wifi.station.netmask);
       $("#cs-config-sta-dns").val(data.wifi.dns);
+     }
     }
    },
    error : function(xhr, status, error) {
@@ -1199,7 +1201,19 @@ function setupConfig() {
   });
  });
  $("#cs-clear-config").on("vclick", function() {
-  $.ajax({url: '/config', method: 'DELETE'});
+  $.ajax({url: '/config',
+   method: 'DELETE',
+   beforeSend: function() {
+    $.mobile.loading('show', {
+     text: 'Clearing Configuration...',
+     textVisible: true,
+     textonly: false});
+   },
+   complete: function() {
+    setTimeout(function () {
+     $.mobile.loading('hide');
+    }, 1);
+   },});
  });
  $('#cs-config-sta-ip-mode').on('change', function() {
   if(this.checked) {
@@ -1508,8 +1522,9 @@ function BSTabRefresh(section) {
    }
   });
  } else if(section === 'Configuration') {
-  $.get({
-   url: '/config',
+  $.ajax({url: '/config',
+   timeout: 5000,
+   type: 'GET',
    beforeSend: function() {
     $.mobile.loading('show', {
      text: 'Loading Configuration...',
@@ -1522,14 +1537,18 @@ function BSTabRefresh(section) {
     }, 1);
    },
    success : function (data, status, xhr) {
+    $('#cs-config-ip-div').hide();
     $("#cs-config-wifi-mode").val(data.wifi.mode).change();
-    $("#cs-config-sta-ip-mode").prop("checked", data.wifi.station.mode === 'static').flipswitch("refresh");
-    if(data.wifi.station.mode === 'static') {
+    if(data.wifi.mode !== 'softap') {
+     $('#cs-config-ip-div').show();
+     $("#cs-config-ip-mode").prop("checked", data.wifi.station.mode === 'static').flipswitch("refresh");
+     if(data.wifi.station.mode === 'static') {
       $("#cs-config-static-div").show();
       $("#cs-config-sta-ip").val(data.wifi.station.ip);
       $("#cs-config-sta-gateway").val(data.wifi.station.gateway);
       $("#cs-config-sta-netmask").val(data.wifi.station.netmask);
       $("#cs-config-sta-dns").val(data.wifi.dns);
+     }
     }
    },
    error : function(xhr, status, error) {
