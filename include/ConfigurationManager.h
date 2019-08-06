@@ -48,6 +48,10 @@ public:
   {
     return wifiMode_ == WIFI_MODE_AP || wifiMode_ == WIFI_MODE_APSTA;
   }
+  bool isStationEnabled()
+  {
+    return wifiMode_ == WIFI_MODE_APSTA || wifiMode_ == WIFI_MODE_APSTA;
+  }
 private:
   DynamicJsonDocument jsonBuffer{20480};
   std::string getFilePath(const char *, bool=false);

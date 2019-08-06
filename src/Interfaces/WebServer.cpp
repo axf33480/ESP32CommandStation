@@ -36,6 +36,7 @@ AsyncWebSocket webSocket("/ws");
 enum HTTP_STATUS_CODES
 {
   STATUS_OK = 200
+, STATUS_NO_CONTENT = 204
 , STATUS_NOT_MODIFIED = 304
 , STATUS_BAD_REQUEST = 400
 , STATUS_NOT_FOUND = 404
@@ -203,6 +204,14 @@ void ESP32CSWebServer::begin()
     asyncDNS.start(53, "*", ip_info.ip);
   }
 
+  if (configStore->isStationEnabled())
+  {
+    tcpip_adapter_ip_info_t ip_info;
+    tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_STA, &ip_info);
+    // store the IP address for use in the 404 handler
+    stationAddress_ = StringPrintf(IPSTR, IP2STR(&ip_info.ip));
+  }
+
   BUILTIN_URI("/jquery.min.js")
   BUILTIN_URI("/jquery.mobile-1.5.0-rc1.min.js")
   BUILTIN_URI("/jquery.mobile-1.5.0-rc1.min.css")
@@ -229,7 +238,6 @@ void ESP32CSWebServer::begin()
 #endif
 #endif
 
-  webServer.rewrite("/", "/index.html");
   webServer.onNotFound(std::bind(&ESP32CSWebServer::notFoundHandler
                                , this
                                , std::placeholders::_1));
@@ -707,6 +715,14 @@ void ESP32CSWebServer::handleConfig(AsyncWebServerRequest *request)
   {
     request->send(STATUS_BAD_REQUEST);
   }
+/*
+  if (request->arg("scan").equalsIgnoreCase("true"))
+  {
+    wifi_scan_config_t cfg;
+    bzero(&cfg, sizeof(wifi_scan_config_t)); // active scan all channels, 120ms per channel
+    ESP_ERROR_CHECK(esp_wifi_scan_start(&cfg, false));
+  }
+*/
   request->send(STATUS_OK, "application/json", configStore->getCSConfig().c_str());
 }
 
@@ -774,16 +790,16 @@ void ESP32CSWebServer::handleLocomotive(AsyncWebServerRequest *request)
   // GET /locomotive?address=<address> - get locomotive state
   // PUT /locomotive?address=<address>&speed=<speed>&dir=[FWD|REV]&fX=[true|false] - Update locomotive state, fX is short for function X where X is 0-28.
   // DELETE /locomotive?address=<address> - removes locomotive from active management
-  const String url = request->url();
+  string url(request->url().c_str());
   auto jsonResponse = new AsyncJsonResponse(request->method() == HTTP_GET && !request->params(), 2048);
   jsonResponse->setCode(STATUS_OK);
   // check if we have an eStop command, we don't care how this gets sent to the
   // command station (method) so check it first
-  if(url.endsWith("/estop"))
+  if(url.find("/estop") != string::npos)
   {
     locoManager->set_state(true);
   }
-  else if(url.indexOf("/roster") > 0)
+  else if(url.find("/roster")  != string::npos)
   {
     if(request->method() == HTTP_GET && !request->hasArg(JSON_ADDRESS_NODE))
     {
@@ -853,7 +869,7 @@ void ESP32CSWebServer::handleLocomotive(AsyncWebServerRequest *request)
         loco->set_speed(upd_speed);
         for(uint8_t funcID = 0; funcID <=28 ; funcID++)
         {
-          String fArg = "f" + String(funcID);
+          string fArg = StringPrintf("f%d", funcID);
           if(request->hasArg(fArg.c_str()))
           {
             loco->set_fn(funcID, request->arg(fArg.c_str()).equalsIgnoreCase(JSON_VALUE_TRUE));
@@ -902,22 +918,28 @@ void ESP32CSWebServer::handleFeatures(AsyncWebServerRequest *request)
   ipv4_to_string(ntohl(request->client()->getRemoteAddress())).c_str()
 
 #define STREAM_RESOURCE_NO_REDIRECT(request, uri, mimeType, totalSize, resource) \
-  if (request->url() == uri) { \
+  if (request->url() == uri) \
+  { \
     LOG(INFO, "[WebSrv %s] Sending %s from MEMORY (%d, %s)", IP_TO_STR(request), uri, totalSize, mimeType); \
     response = request->beginResponse_P(STATUS_OK, mimeType, resource, totalSize); \
-    if(String(mimeType).startsWith("text/")) { \
+    if(!string(mimeType).compare(0, 5, "text/")) \
+    { \
       response->addHeader("Content-Encoding", "gzip"); \
     } \
   }
 
 #define STREAM_RESOURCE(request, uri, fallback, mimeType, totalSize, resource) \
-  if (request->url() == uri && configStore->isAPEnabled() && softAPAddress_.compare(request->host().c_str()) == 0) { \
+  if (request->url() == uri && configStore->isAPEnabled() && softAPAddress_.compare(request->host().c_str()) == 0) \
+  { \
     LOG(INFO, "[WebSrv %s] Sending %s from MEMORY (%d, %s)", IP_TO_STR(request), uri, totalSize, mimeType); \
     response = request->beginResponse_P(STATUS_OK, mimeType, resource, totalSize); \
-    if(String(mimeType).startsWith("text/")) { \
+    if(!string(mimeType).compare(0, 5, "text/")) \
+    { \
       response->addHeader("Content-Encoding", "gzip"); \
     } \
-  } else if (request->url() == uri) { \
+  } \
+  else if (request->url() == uri) \
+  { \
     LOG(INFO, "[WebSrv %s] Requested %s => CDN %s", IP_TO_STR(request), uri, fallback); \
     request->redirect(fallback); \
   }
@@ -932,14 +954,27 @@ void ESP32CSWebServer::streamResource(AsyncWebServerRequest *request)
   else
   {
     AsyncWebServerResponse *response = nullptr;
-    STREAM_RESOURCE_NO_REDIRECT(request, "/index.html", "text/html", indexHtmlGz_size, indexHtmlGz)
-    STREAM_RESOURCE(request, "/jquery.min.js", "https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js", "text/javascript", jqueryJsGz_size, jqueryJsGz)
-    STREAM_RESOURCE(request, "/jquery.mobile-1.5.0-rc1.min.js", "https://code.jquery.com/mobile/1.5.0-rc1/jquery.mobile-1.5.0-rc1.min.js", "text/javascript", jqueryMobileJsGz_size, jqueryMobileJsGz)
-    STREAM_RESOURCE(request, "/jquery.mobile-1.5.0-rc1.min.css", "https://code.jquery.com/mobile/1.5.0-rc1/jquery.mobile-1.5.0-rc1.min.css", "text/css", jqueryMobileCssGz_size, jqueryMobileCssGz)
-    STREAM_RESOURCE(request, "/jquery.simple.websocket.min.js", "https://cdn.rawgit.com/jbloemendal/jquery-simple-websocket/master/dist/jquery.simple.websocket.min.js", "text/javascript", jquerySimpleWebSocketGz_size, jquerySimpleWebSocketGz)
-    STREAM_RESOURCE(request, "/jqClock-lite.min.js", "https://cdn.rawgit.com/JohnRDOrazio/jQuery-Clock-Plugin/master/jqClock-lite.min.js", "text/javascript", jqClockGz_size, jqClockGz)
-    STREAM_RESOURCE(request, "/images/ajax-loader.gif", "https://code.jquery.com/mobile/1.5.0-rc1/images/ajax-loader.gif", "image/gif", ajaxLoader_size, ajaxLoader)
-    if(response)
+    STREAM_RESOURCE_NO_REDIRECT(request, "/index.html", "text/html"
+                              , indexHtmlGz_size, indexHtmlGz)
+    STREAM_RESOURCE(request, "/jquery.min.js"
+                  , "https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"
+                  , "text/javascript", jqueryJsGz_size, jqueryJsGz)
+    STREAM_RESOURCE(request, "/jquery.mobile-1.5.0-rc1.min.js"
+                  , "https://code.jquery.com/mobile/1.5.0-rc1/jquery.mobile-1.5.0-rc1.min.js"
+                  , "text/javascript", jqueryMobileJsGz_size, jqueryMobileJsGz)
+    STREAM_RESOURCE(request, "/jquery.mobile-1.5.0-rc1.min.css"
+                  , "https://code.jquery.com/mobile/1.5.0-rc1/jquery.mobile-1.5.0-rc1.min.css"
+                  , "text/css", jqueryMobileCssGz_size, jqueryMobileCssGz)
+    STREAM_RESOURCE(request, "/jquery.simple.websocket.min.js"
+                  , "https://cdn.rawgit.com/jbloemendal/jquery-simple-websocket/master/dist/jquery.simple.websocket.min.js"
+                  , "text/javascript", jquerySimpleWebSocketGz_size, jquerySimpleWebSocketGz)
+    STREAM_RESOURCE(request, "/jqClock-lite.min.js"
+                  , "https://cdn.rawgit.com/JohnRDOrazio/jQuery-Clock-Plugin/master/jqClock-lite.min.js"
+                  , "text/javascript", jqClockGz_size, jqClockGz)
+    STREAM_RESOURCE(request, "/images/ajax-loader.gif"
+                  , "https://code.jquery.com/mobile/1.5.0-rc1/images/ajax-loader.gif"
+                  , "image/gif", ajaxLoader_size, ajaxLoader)
+    if (response)
     {
       response->addHeader("Last-Modified", htmlBuildTime);
       request->send(response);
@@ -952,13 +987,13 @@ void ESP32CSWebServer::streamResource(AsyncWebServerRequest *request)
 }
 
 // Known captive portal checks to respond with http 200 and redirect link
-String portalCheckRedirect[] =
+static string portalCheckRedirect[] =
 {
   "/generate_204",                  // Android
   "/gen_204",                       // Android 9.0
   "/mobile/status.php",             // Android 8.0 (Samsung s9+)
   "/ncsi.txt",                      // Windows
-  "/success.txt",                   // OSX
+  "/success.txt",                   // OSX / FireFox
   "/hotspot-detect.html",           // iOS 8/9
   "/hotspotdetect.html",            // iOS 8/9
   "/library/test/success.html"      // iOS 8/9
@@ -966,41 +1001,100 @@ String portalCheckRedirect[] =
   "/kindle-wifi/wifistub.html"      // Kindle
 };
 
-static constexpr const char * const REDIRECT_HTML =
+// Captive Portal landing page
+static constexpr const char * const CAPTIVE_PORTAL_HTML =
   "<html>"
-  "<title>ESP32 Command Station v%s</title>"                                          // VERSION
-  "<meta http-equiv=\"refresh\" content=\"5;url='http://%s/index.html'\" /> "         // softAPAddress_
+  "<title>ESP32 Command Station v%s</title>"
+  "<meta http-equiv=\"refresh\" content=\"30;url='http://%s/captiveauth'\" /> "
   "<body>"
   "<h1>Welcome to the ESP32 Command Station</h1>"
-  "<p>Click <a href=\"http://%s/index.html\">here</a> for ESP32 Command Station if "  // softAPAddress_
-  "you are not automatically redirected in a few seconds.</p>"
+  "<h2>Open your browser and navigate to any website and it will open the "
+  "ESP32 Command Station</h2>"
+  "<p>Click <a href=\"http://%s/captiveauth\">here</a> to close this portal "
+  "page if it does not automatically close.</p>" 
   "</body>"
   "</html>";
+
+// iOS success page content
+static constexpr const char * const CAPTIVE_SUCCESS_200_HTML = 
+  "<HTML><HEAD><TITLE>Success</TITLE></HEAD><BODY>Success</BODY></HTML>";
+// Windows success page content
+static constexpr const char * const CAPTIVE_SUCCESS_200_NCSI_TXT = 
+  "Microsoft NCSI";
+// Generic success.txt page content
+static constexpr const char * const CAPTIVE_SUCCESS_200_SUCCESS_TXT = 
+  "success";
 
 void ESP32CSWebServer::notFoundHandler(AsyncWebServerRequest *request)
 {
   if (configStore->isAPEnabled())
   {
-    for(auto uri : portalCheckRedirect)
+    uint32_t clientIP = static_cast<uint32_t>(request->client()->remoteIP());
+    for (auto uri : portalCheckRedirect)
     {
-      if(request->url() == uri)
+      if (!uri.compare(request->url().c_str()))
       {
-        LOG(INFO,
-            "[WebSrv %s] Requested %s%s: Appears to be a captive portal check, "
-            "redirecting to http://%s/index.html",
-            IP_TO_STR(request),
-            request->host().c_str(),
-            request->url().c_str(),
-            softAPAddress_.c_str());
-        request->send(STATUS_OK,
-                      "text/html",
-                      StringPrintf(REDIRECT_HTML,
-                                  ESP32CS_VERSION,
-                                  softAPAddress_.c_str(),
-                                  softAPAddress_.c_str()).c_str());
+        if (std::find(captiveIPs_.begin(), captiveIPs_.end()
+                    , clientIP) != captiveIPs_.end())
+        {
+          // we have seen this IP previously and they have clicked through
+          // to the index.html already, send back a 200 or 204 response.
+          if (request->url().endsWith("_204") ||
+              request->url().endsWith("status.php"))
+          {
+            // no payload required for this one, just the status code.
+            request->send(STATUS_NO_CONTENT);
+          }
+          else if (request->url().endsWith("ncsi.txt"))
+          {
+            request->send(STATUS_OK, "text/plain", CAPTIVE_SUCCESS_200_NCSI_TXT);
+          }
+          else if (request->url().endsWith("success.txt"))
+          {
+            request->send(STATUS_OK, "text/plain", CAPTIVE_SUCCESS_200_SUCCESS_TXT);
+          }
+          else
+          {
+            request->send(STATUS_OK, "text/html", CAPTIVE_SUCCESS_200_HTML);
+          }
+        }
+        else
+        {
+          LOG(INFO, "[WebSrv %s] Requested %s%s: Redirecting to captive portal"
+            , IP_TO_STR(request), request->host().c_str()
+            , request->url().c_str());
+          request->send(STATUS_OK, "text/html",
+                        StringPrintf(CAPTIVE_PORTAL_HTML
+                                   , ESP32CS_VERSION
+                                   , softAPAddress_.c_str()
+                                   , softAPAddress_.c_str()
+                        ).c_str());
+        }
         return;
       }
     }
+    if (request->url().equals("/") && softAPAddress_.length())
+    {
+      request->redirect(StringPrintf("http://%s/index.html", softAPAddress_.c_str()).c_str());
+      return;
+    }
+    else if (request->url().equals("/captiveauth"))
+    {
+      // check if we have seen this client IP before (for captive portal check)
+      if (std::find(captiveIPs_.begin(), captiveIPs_.end()
+                  , clientIP) == captiveIPs_.end())
+      {
+        captiveIPs_.push_back(clientIP);
+      }
+      request->send(STATUS_OK);
+      return;
+    }
+
+  }
+  else if (request->url().equals("/") && stationAddress_.length())
+  {
+    request->redirect(StringPrintf("http://%s/index.html", stationAddress_.c_str()).c_str());
+    return;
   }
   LOG(INFO, "[WebSrv %s] 404: %s%s", IP_TO_STR(request)
     , request->host().c_str(), request->url().c_str());
