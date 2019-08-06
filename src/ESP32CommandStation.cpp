@@ -22,28 +22,31 @@ using openlcb::ConfigDef;
 
 const char * buildTime = __DATE__ " " __TIME__;
 
-// Allow usage of ::select() for TCP connections
+// Allow usage of ::select() for GridConnect TCP connections.
 OVERRIDE_CONST_TRUE(gridconnect_tcp_use_select);
 
-// Increased GridConnect buffer size (improves performance)
+// Increased GridConnect buffer size (improves performance).
 OVERRIDE_CONST(gridconnect_buffer_size, 3512);
 
-// Increased delay in flushing the GridConnect TCP data
+// Increased delay in flushing the GridConnect TCP data.
 OVERRIDE_CONST(gridconnect_buffer_delay_usec, 1000);
 
-// Generate newlines after GridConnect packets on TCP 
+// Generate newlines after GridConnect packets on TCP.
 //OVERRIDE_CONST_TRUE(gc_generate_newlines);
 
 // Increased number of state flows to invoke before checking for ::select
 // timeouts
 OVERRIDE_CONST(executor_select_prescaler, 30);
 
-// Increased number of outbound GridConnect packets to queue
+// Increased number of outbound GridConnect packets to queue.
 //OVERRIDE_CONST(gridconnect_bridge_max_outgoing_packets, 5);
 
 // Increased number of local nodes to account for TrainNode proxy nodes
 OVERRIDE_CONST(local_nodes_count, 30);
 OVERRIDE_CONST(local_alias_cache_size, 30);
+
+// Uncomment to have all railcom data printed as it is received.
+//OVERRIDE_CONST_TRUE("enable_railcom_packet_dump");
 
 std::unique_ptr<OpenMRN> openmrn;
 // note the dummy string below is required due to a bug in the GCC compiler
@@ -332,7 +335,11 @@ extern "C" void app_main()
                                               , &dccUpdateLoop);
 
   // Add a data dumper for the RailCom Hub
-  RailcomPrintfFlow railComDataDumper(railComHub.get());
+  unique_ptr<RailcomPrintfFlow> railComDataDumper;
+  if (config_enable_railcom_packet_dump() == CONSTANT_TRUE)
+  {
+    railComDataDumper.reset(new RailcomPrintfFlow(railComHub.get()));
+  }
 
   // Initialize the Programming Track backend handler
   ProgrammingTrackBackend

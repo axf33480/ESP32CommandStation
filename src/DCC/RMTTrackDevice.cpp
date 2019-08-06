@@ -18,13 +18,8 @@ COPYRIGHT (c) 2019 Mike Dunston
 #include "ESP32CommandStation.h"
 
 ///////////////////////////////////////////////////////////////////////////////
-// DCC packet queue sizes for the RMT driver
-///////////////////////////////////////////////////////////////////////////////
-static constexpr uint8_t OPS_QUEUE_LEN = 10;
-static constexpr uint8_t PROG_QUEUE_LEN = 5;
-
-///////////////////////////////////////////////////////////////////////////////
-// OPS track h-bridge settings
+// H-Bridge type declarations, converts the precompiler constant to a numeric
+// for comparison.
 ///////////////////////////////////////////////////////////////////////////////
 #define L298          0
 #define LMD18200      1
@@ -32,6 +27,9 @@ static constexpr uint8_t PROG_QUEUE_LEN = 5;
 #define BTS7960B_5A   3
 #define BTS7960B_10A  4
 
+///////////////////////////////////////////////////////////////////////////////
+// OPS track h-bridge settings
+///////////////////////////////////////////////////////////////////////////////
 #if OPS_HBRIDGE_TYPE == L298
 #define OPS_HBRIDGE_MAX_MILIAMPS 2000
 #define OPS_HBRIDGE_LIMIT_MILIAMPS 2000
@@ -254,12 +252,12 @@ RMTTrackDevice::RMTTrackDevice(SimpleCanStack *stack
                              , opsRMTChannel_(opsChannel)
                              , opsPreambleBits_(opsPreambleBits)
                              , opsOutputEnablePin_(opsOutputEnablePin)
-                             , opsPacketQueue_(DeviceBuffer<Packet>::create(OPS_QUEUE_LEN))
+                             , opsPacketQueue_(DeviceBuffer<Packet>::create(config_rmt_packet_queue_ops()))
                              , progSignalPin_(progSignalPin)
                              , progRMTChannel_(progChannel)
                              , progPreambleBits_(progPreambleBits)
                              , progOutputEnablePin_(progOutputEnablePin)
-                             , progPacketQueue_(DeviceBuffer<Packet>::create(PROG_QUEUE_LEN))
+                             , progPacketQueue_(DeviceBuffer<Packet>::create(config_rmt_packet_queue_prog()))
                              , railComBrakeEnablePin_(railComBrakeEnablePin)
                              , railComEnablePin_(railComEnablePin)
                              , railComShortPin_(railComShortPin)

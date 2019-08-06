@@ -90,6 +90,7 @@ using std::string;
 #include <os/MDNS.hxx>
 
 #include <utils/AutoSyncFileFlow.hxx>
+#include <utils/constants.hxx>
 #include <utils/format_utils.hxx>
 #include <utils/logging.h>
 #include <utils/macros.h>
@@ -154,6 +155,7 @@ using openlcb::TrainService;
 using openlcb::WriteHelper;
 
 // Include ESP32 Command Station component declarations
+#include "ESP32CSConstants.h"
 #include "JsonConstants.h"
 #include "ConfigurationManager.h"
 
