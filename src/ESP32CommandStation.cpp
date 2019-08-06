@@ -155,26 +155,6 @@ void IRAM_ATTR cpuTickTimerCallback()
 }
 #endif // CPULOAD_REPORTING
 
-extern "C" {
-
-/// Reboots the ESP32 via the arduino-esp32 provided restart function.
-void reboot()
-{
-  // shutdown and cleanup the configuration manager
-  configStore.reset(nullptr);
-
-  LOG(INFO, "Restarting ESP32 Command Station");
-  // restart the node
-  esp_restart();
-}
-
-ssize_t os_get_free_heap()
-{
-  return heap_caps_get_free_size(MALLOC_CAP_8BIT);
-}
-
-}
-
 void openmrn_loop_task(void *unused)
 {
   while(true) {
