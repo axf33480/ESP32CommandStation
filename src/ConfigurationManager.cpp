@@ -35,6 +35,8 @@ using std::ios;
 
 unique_ptr<ConfigurationManager> configStore;
 
+static constexpr const char * ESP32_CS_CONFIG_JSON = "esp32cs-config.json";
+
 //#define CONFIG_USE_SD true
 
 #define SPIFFS_FILESYSTEM_PREFIX "/spiffs"

@@ -111,6 +111,4 @@ constexpr const char * JSON_VALUE_SHORT_ADDRESS = "Short Address";
 constexpr const char * JSON_VALUE_MOBILE_DECODER = "Mobile Decoder";
 constexpr const char * JSON_VALUE_STATIONARY_DECODER = "Stationary Decoder";
 
-constexpr const char * ESP32_CS_CONFIG_JSON = "esp32cs-config.json";
-
 #endif // JSON_CONSTS_H_
