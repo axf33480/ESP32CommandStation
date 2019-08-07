@@ -10,8 +10,9 @@ The primary focus of v1.4.0 will be improvements to the DCC signal code and addi
 
 - [ ] CMake and VisualGDB support (https://github.com/atanisoft/ESP32CommandStation/pull/22)
 - [x] Split up build_index_header.py into a common py module and PIO script.
-- [ ] Remove usages of String and __FlashStringHelper.
+- [ ] Remove usages of WString.
 - [x] Add PCB build types (base, OLED, LCD)
+- [x] Replace ArduinoJson with "JSON for Modern C++"
 
 ### Config
 
@@ -37,6 +38,7 @@ The primary focus of v1.4.0 will be improvements to the DCC signal code and addi
 - [-] adjust InfoScreen LCC details so they are useful, right now it is a placeholder.
 - [x] implement CV memory space.
 - [-] Traction proxy impl.
+- [ ] TrainSearch protocol.
 
 ### InfoScreen
 
@@ -56,8 +58,7 @@ The entries below are not tracked to a specific release or in any particular pri
 
 ### Config
 
-- [ ] Dynamic WiFi configuration support (multiple SSID, strength based selection of SSID, etc)
-- [ ] Dynamic command station feature support (S88, OLED, LCD, LocoNet, Nextion, LCC, etc)
+- [ ] Dynamic command station feature support (S88, OLED, LCD, LocoNet, Nextion, etc)
 
 ### Web Interface
 

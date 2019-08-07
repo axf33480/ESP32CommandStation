@@ -34,14 +34,15 @@ TurnoutManager::TurnoutManager(openlcb::Node *node)
   LOG(INFO, "[Turnout] Initializing...");
   if (configStore->exists(TURNOUTS_JSON_FILE))
   {
-    JsonObject root = configStore->load(TURNOUTS_JSON_FILE);
-    if (root.containsKey(JSON_COUNT_NODE) > 0 && root[JSON_COUNT_NODE].as<int>() > 0)
+    json root = json::parse(configStore->load(TURNOUTS_JSON_FILE));
+    if (root.contains(JSON_COUNT_NODE) && root[JSON_COUNT_NODE].get<uint16_t>() > 0)
     {
-      uint16_t turnoutCount = root[JSON_COUNT_NODE].as<int>();
+      uint16_t turnoutCount = root[JSON_COUNT_NODE].get<uint16_t>();
       infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Found %02d Turnouts", turnoutCount);
-      for (auto turnout : root[JSON_TURNOUTS_NODE].as<JsonArray>())
+      for (auto turnout : root[JSON_TURNOUTS_NODE])
       {
-        turnouts_.emplace_back(new Turnout(turnout.as<JsonObject>()));
+        string data = turnout.dump();
+        turnouts_.emplace_back(new Turnout(data));
       }
     }
   }
@@ -63,12 +64,11 @@ void TurnoutManager::clear()
 
 uint16_t TurnoutManager::store()
 {
-  JsonObject root = configStore->createRootNode();
-  JsonArray array = root.createNestedArray(JSON_TURNOUTS_NODE);
+  json root;
   uint16_t turnoutStoredCount = 0;
   for (const auto& turnout : turnouts_)
   {
-    turnout->toJson(array.createNestedObject());
+    root.push_back(turnout->toJson());
     turnoutStoredCount++;
   }
   root[JSON_COUNT_NODE] = turnoutStoredCount;
@@ -141,14 +141,15 @@ void TurnoutManager::toggleByAddress(uint16_t address)
   getTurnoutByAddress(address)->toggle();
 }
 
-void TurnoutManager::getState(JsonArray array, bool readableStrings)
+string TurnoutManager::getStateAsJson(bool readableStrings)
 {
+  json root;
   AtomicHolder h(this);
   for (auto& turnout : turnouts_)
   {
-    JsonObject json = array.createNestedObject();
-    turnout->toJson(json, readableStrings);
+    root.push_back(turnout->toJson(readableStrings));
   }
+  return root.dump();
 }
 
 void TurnoutManager::showStatus()
@@ -331,13 +332,14 @@ Turnout::Turnout(uint16_t turnoutID
   }
 }
 
-Turnout::Turnout(JsonObject json)
+Turnout::Turnout(string &data)
 {
-  _turnoutID = json[JSON_ID_NODE].as<int>();
-  _address = json[JSON_ADDRESS_NODE].as<int>();
-  _index = json[JSON_SUB_ADDRESS_NODE].as<int>();
-  _thrown = json[JSON_STATE_NODE].as<bool>();
-  _type = (TurnoutType)json[JSON_TYPE_NODE].as<int>();
+  json object = json::parse(data);
+  _turnoutID = object[JSON_ID_NODE].get<int>();
+  _address = object[JSON_ADDRESS_NODE].get<int>();
+  _index = object[JSON_SUB_ADDRESS_NODE].get<int>();
+  _thrown = object[JSON_STATE_NODE].get<bool>();
+  _type = (TurnoutType)object[JSON_TYPE_NODE].get<int>();
   _boardAddress = 0;
   if (_index == -1)
   {
@@ -386,28 +388,30 @@ void Turnout::update(uint16_t address, int8_t index, TurnoutType type)
   }
 }
 
-void Turnout::toJson(JsonObject json, bool readableStrings)
+std::string Turnout::toJson(bool readableStrings)
 {
-  json[JSON_ID_NODE] = _turnoutID;
-  json[JSON_ADDRESS_NODE] = _address;
-  json[JSON_BOARD_ADDRESS_NODE] = _boardAddress;
+  json object;
+  object[JSON_ID_NODE] = _turnoutID;
+  object[JSON_ADDRESS_NODE] = _address;
+  object[JSON_BOARD_ADDRESS_NODE] = _boardAddress;
   if (_boardAddress)
   {
-    json[JSON_SUB_ADDRESS_NODE] = -1;
+    object[JSON_SUB_ADDRESS_NODE] = -1;
   }
   else
   {
-    json[JSON_SUB_ADDRESS_NODE] = _index;
+    object[JSON_SUB_ADDRESS_NODE] = _index;
   }
   if (readableStrings)
   {
-    json[JSON_STATE_NODE] = _thrown ? JSON_VALUE_THROWN : JSON_VALUE_CLOSED;
+    object[JSON_STATE_NODE] = _thrown ? JSON_VALUE_THROWN : JSON_VALUE_CLOSED;
   }
   else
   {
-    json[JSON_STATE_NODE] = _thrown;
+    object[JSON_STATE_NODE] = _thrown;
   }
-  json[JSON_TYPE_NODE] = (int)_type;
+  object[JSON_TYPE_NODE] = (int)_type;
+  return object.dump();
 }
 
 void Turnout::set(bool thrown, bool sendDCCPacket)

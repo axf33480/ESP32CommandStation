@@ -42,9 +42,9 @@ class S88SensorBus
 {
 public:
   S88SensorBus(const uint8_t, const uint8_t, const uint16_t);
-  S88SensorBus(JsonObject &);
+  S88SensorBus(std::string &);
   void update(const uint8_t, const uint16_t);
-  void toJson(JsonObject, bool=false);
+  std::string toJson(bool=false);
   void addSensors(int16_t);
   void removeSensors(int16_t);
   std::string getStateString();
@@ -92,7 +92,7 @@ public:
   static void s88SensorTask(void *param);
   static bool createOrUpdateBus(const uint8_t, const uint8_t, const uint16_t);
   static bool removeBus(const uint8_t);
-  static void getState(JsonArray);
+  static std::string getStateAsJson();
 private:
   static TaskHandle_t _taskHandle;
   static OSMutex _s88SensorLock;

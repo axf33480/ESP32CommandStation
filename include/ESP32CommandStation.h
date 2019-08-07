@@ -59,9 +59,14 @@ using std::string;
 #include <Arduino.h>
 
 // Arduino libraries
-#include <ArduinoJson.h>
-#include <StringArray.h>
 #include <ESPAsyncWebServer.h>
+
+// get rid of the arduino-esp32 abs override
+#undef abs
+// include json library
+#include "json.hpp"
+
+using nlohmann::json;
 
 // OpenMRN library components
 #include <OpenMRNLite.h>

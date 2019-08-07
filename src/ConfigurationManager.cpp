@@ -161,10 +161,10 @@ ConfigurationManager::ConfigurationManager()
   if (exists(ESP32_CS_CONFIG_JSON))
   {
     LOG(INFO, "[Config] Found existing CS config file.");
-    JsonObject config = load(ESP32_CS_CONFIG_JSON);
-    JsonObject wifiConfig = config[JSON_WIFI_NODE];
-    if (!wifiConfig.isNull())
+    json config = json::parse(load(ESP32_CS_CONFIG_JSON));
+    if (config.contains(JSON_WIFI_NODE))
     {
+      auto wifiConfig = config[JSON_WIFI_NODE];
       string wifiMode = wifiConfig[JSON_WIFI_MODE_NODE];
       LOG(VERBOSE, "[Config] WiFi Mode: %s", wifiMode.c_str());
       if (!wifiMode.compare(JSON_VALUE_WIFI_MODE_SOFTAP_ONLY))
@@ -184,26 +184,26 @@ ConfigurationManager::ConfigurationManager()
         LOG_ERROR("[Config] Unknown operating mode: %s", wifiMode.c_str());
         initialize_default_config = true;
       }
-      JsonObject stationConfig = wifiConfig[JSON_WIFI_STATION_NODE];
-      if (!stationConfig.isNull())
+      if (wifiConfig.contains(JSON_WIFI_STATION_NODE))
       {
-        wifiSSID_.assign(stationConfig[JSON_WIFI_SSID_NODE].as<char *>());
-        wifiPassword_.assign(stationConfig[JSON_WIFI_PASSWORD_NODE].as<char *>());
+        auto stationConfig = wifiConfig[JSON_WIFI_STATION_NODE];
+        wifiSSID_.assign(stationConfig[JSON_WIFI_SSID_NODE].get<string>().c_str());
+        wifiPassword_.assign(stationConfig[JSON_WIFI_PASSWORD_NODE].get<string>().c_str());
         string stationMode = stationConfig[JSON_WIFI_MODE_NODE];
         LOG(VERBOSE, "[Config] Station IP mode: %s", stationMode.c_str());
         if (!stationMode.compare(JSON_VALUE_STATION_IP_MODE_STATIC))
         {
           stationStaticIP_.reset(new tcpip_adapter_ip_info_t());
-          stationStaticIP_->ip.addr = ipaddr_addr(stationConfig[JSON_WIFI_STATION_IP_NODE]);
-          stationStaticIP_->gw.addr = ipaddr_addr(stationConfig[JSON_WIFI_STATION_GATEWAY_NODE]);
-          stationStaticIP_->netmask.addr = ipaddr_addr(stationConfig[JSON_WIFI_STATION_NETMASK_NODE]);
+          stationStaticIP_->ip.addr = ipaddr_addr(stationConfig[JSON_WIFI_STATION_IP_NODE].get<string>().c_str());
+          stationStaticIP_->gw.addr = ipaddr_addr(stationConfig[JSON_WIFI_STATION_GATEWAY_NODE].get<string>().c_str());
+          stationStaticIP_->netmask.addr = ipaddr_addr(stationConfig[JSON_WIFI_STATION_NETMASK_NODE].get<string>().c_str());
         }
       }
-      if (!wifiConfig[JSON_WIFI_DNS_NODE].isNull())
+      if (wifiConfig.contains(JSON_WIFI_DNS_NODE))
       {
-        stationDNSServer_.u_addr.ip4.addr = ipaddr_addr(wifiConfig[JSON_WIFI_DNS_NODE]);
+        stationDNSServer_.u_addr.ip4.addr = ipaddr_addr(wifiConfig[JSON_WIFI_DNS_NODE].get<string>().c_str());
       }
-      serializeJson(config, csConfig_);
+      csConfig_ = config.dump();
       initialize_default_config = false;
     }
     else
@@ -215,48 +215,48 @@ ConfigurationManager::ConfigurationManager()
   if (initialize_default_config)
   {
     LOG(INFO, "[Config] Generating default configuration...");
-    JsonObject root = createRootNode();
+    json config;
 #if WIFI_ENABLE_SOFT_AP_ONLY
     LOG(INFO, "[Config] Soft AP mode enabled.");
     wifiMode_ = WIFI_MODE_AP;
-    root[JSON_WIFI_NODE][JSON_WIFI_MODE_NODE] = JSON_VALUE_WIFI_MODE_SOFTAP_ONLY;
+    config[JSON_WIFI_NODE][JSON_WIFI_MODE_NODE] = JSON_VALUE_WIFI_MODE_SOFTAP_ONLY;
 #elif WIFI_ENABLE_SOFT_AP
     LOG(INFO, "[Config] Soft AP and Station mode enabled.");
     wifiMode_ = WIFI_MODE_APSTA;
-    root[JSON_WIFI_NODE][JSON_WIFI_MODE_NODE] = JSON_VALUE_WIFI_MODE_SOFTAP_STATION;
+    config[JSON_WIFI_NODE][JSON_WIFI_MODE_NODE] = JSON_VALUE_WIFI_MODE_SOFTAP_STATION;
 #else
     LOG(INFO, "[Config] Station mode enabled.");
-    root[JSON_WIFI_NODE][JSON_WIFI_MODE_NODE] = JSON_VALUE_WIFI_MODE_STATION_ONLY;
+    config[JSON_WIFI_NODE][JSON_WIFI_MODE_NODE] = JSON_VALUE_WIFI_MODE_STATION_ONLY;
 #endif
 
 #ifdef WIFI_STATIC_IP_DNS
     LOG(INFO, "[Config] Station DNS IP: %s", WIFI_STATIC_IP_DNS);
     stationDNSServer_.u_addr.ip4.addr = ipaddr_addr(WIFI_STATIC_IP_DNS);
-    root[JSON_WIFI_NODE][JSON_WIFI_DNS_NODE] = WIFI_STATIC_IP_DNS;
+    config[JSON_WIFI_NODE][JSON_WIFI_DNS_NODE] = WIFI_STATIC_IP_DNS;
 #endif
 
 #if !WIFI_ENABLE_SOFT_AP_ONLY
 #if defined(WIFI_STATIC_IP_ADDRESS) && defined(WIFI_STATIC_IP_GATEWAY) && defined(WIFI_STATIC_IP_SUBNET)
-    root[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_MODE_NODE] = JSON_VALUE_STATION_IP_MODE_STATIC;
+    config[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_MODE_NODE] = JSON_VALUE_STATION_IP_MODE_STATIC;
     LOG(INFO, "[Config] Station IP: %s", WIFI_STATIC_IP_ADDRESS);
-    root[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_STATION_IP_NODE] = WIFI_STATIC_IP_ADDRESS;
+    config[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_STATION_IP_NODE] = WIFI_STATIC_IP_ADDRESS;
     LOG(INFO, "[Config] Station Gateway: %s", WIFI_STATIC_IP_GATEWAY);
-    root[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_STATION_GATEWAY_NODE] = WIFI_STATIC_IP_GATEWAY;
+    config[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_STATION_GATEWAY_NODE] = WIFI_STATIC_IP_GATEWAY;
     LOG(INFO, "[Config] Station Netmask: %s", WIFI_STATIC_IP_SUBNET);
-    root[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_STATION_NETMASK_NODE] = WIFI_STATIC_IP_SUBNET;
+    config[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_STATION_NETMASK_NODE] = WIFI_STATIC_IP_SUBNET;
     stationStaticIP_.reset(new tcpip_adapter_ip_info_t());
     stationStaticIP_->ip.addr = ipaddr_addr(WIFI_STATIC_IP_ADDRESS);
     stationStaticIP_->gw.addr = ipaddr_addr(WIFI_STATIC_IP_GATEWAY);
     stationStaticIP_->netmask.addr = ipaddr_addr(WIFI_STATIC_IP_SUBNET);
 #else
     LOG(INFO, "[Config] Station IP: DHCP assigned");
-    root[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_STATION_NODE] = JSON_VALUE_STATION_IP_MODE_DHCP;
+    config[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_STATION_NODE] = JSON_VALUE_STATION_IP_MODE_DHCP;
 #endif
-    root[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_SSID_NODE] = wifiSSID_;
-    root[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_PASSWORD_NODE] = wifiPassword_;
+    config[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_SSID_NODE] = wifiSSID_;
+    config[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_PASSWORD_NODE] = wifiPassword_;
 #endif
-    store(ESP32_CS_CONFIG_JSON, root);
-    serializeJson(root, csConfig_);
+    csConfig_ = config.dump();
+    store(ESP32_CS_CONFIG_JSON, csConfig_);
   }
   LOG(VERBOSE, "[Config] Configuration:\n%s", csConfig_.c_str());
 }
@@ -284,7 +284,7 @@ void ConfigurationManager::clear()
   mkdir(configRoot.c_str(), ACCESSPERMS);
 }
 
-bool ConfigurationManager::exists(const char *name)
+bool ConfigurationManager::exists(const std::string &name)
 {
   string oldConfigFilePath = getFilePath(name, true);
   string configFilePath = getFilePath(name);
@@ -301,49 +301,35 @@ bool ConfigurationManager::exists(const char *name)
   return ifstream(configFilePath).good();
 }
 
-void ConfigurationManager::remove(const char *name)
+void ConfigurationManager::remove(const std::string &name)
 {
   string configFilePath = getFilePath(name);
   LOG(VERBOSE, "[Config] Removing %s", configFilePath.c_str());
   unlink(configFilePath.c_str());
 }
 
-JsonObject ConfigurationManager::load(const char *name)
-{
-  jsonBuffer.clear();
-  return load(name, jsonBuffer);
-}
-
-JsonObject ConfigurationManager::load(const char *name, DynamicJsonDocument &buffer)
+string ConfigurationManager::load(const std::string &name)
 {
   string configFilePath = getFilePath(name);
-  LOG(VERBOSE, "[Config] Loading %s", configFilePath.c_str());
   ifstream configFile(configFilePath);
-  if (configFile.good() && deserializeJson(jsonBuffer, configFile) == DeserializationError::Ok)
+  LOG(VERBOSE, "[Config] Loading %s", configFilePath.c_str());
+  if (configFile.good())
   {
-    LOG(VERBOSE, "[Config] loaded %d bytes", jsonBuffer.memoryUsage());
+    configFile.close();
+    return read_file_to_string(configFilePath);
   }
   else
   {
     LOG_ERROR("[Config] Failed to load: %s", configFilePath.c_str());
   }
-  configFile.close();
-  return buffer.as<JsonObject>();
+  return "";
 }
 
-void ConfigurationManager::store(const char *name, const JsonObject json)
+void ConfigurationManager::store(const char *name, const string &content)
 {
   string configFilePath = getFilePath(name);
-  LOG(VERBOSE, "[Config] Storing %s, %d bytes", configFilePath.c_str(), measureJson(json));
-  ofstream configFile(configFilePath);
-  LOG(VERBOSE, "[Config] wrote %u bytes", serializeJson(jsonBuffer, configFile));
-  configFile.flush();
-  configFile.close();
-}
-
-JsonObject ConfigurationManager::createRootNode()
-{
-  return jsonBuffer.to<JsonObject>();
+  LOG(VERBOSE, "[Config] Storing %s, %d bytes", configFilePath.c_str(), content.length());
+  write_string_to_file(configFilePath, content);
 }
 
 openlcb::NodeID ConfigurationManager::getNodeId() {
@@ -402,13 +388,13 @@ void ConfigurationManager::configureWiFi(openlcb::SimpleCanStack *stack, const W
                                          WIFI_SOFT_AP_CHANNEL));
 }
 
-string ConfigurationManager::getFilePath(const char *name, bool oldPath)
+string ConfigurationManager::getFilePath(const std::string &name, bool oldPath)
 {
   if (oldPath)
   {
-    return StringPrintf("%s/%s", OLD_CONFIG_DIR, name);
+    return StringPrintf("%s/%s", OLD_CONFIG_DIR, name.c_str());
   }
-  return StringPrintf("%s/%s", ESP32CS_CONFIG_DIR, name);
+  return StringPrintf("%s/%s", ESP32CS_CONFIG_DIR, name.c_str());
 }
 
 string ConfigurationManager::getCSConfig()

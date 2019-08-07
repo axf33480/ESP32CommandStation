@@ -68,27 +68,32 @@ where
 #endif
 
 extern LinkedList<Sensor *> sensors;
-LinkedList<RemoteSensor *> remoteSensors([](RemoteSensor *sensor) {
+LinkedList<RemoteSensor *> remoteSensors([](RemoteSensor *sensor)
+{
   LOG(VERBOSE, "[RemoteSensors] RemoteSensor(%d) removed", sensor->getID());
   // NOTE: No delete is being done here as the sensors cleanup handler will
   // handle the actual delete.
 });
 
-void RemoteSensorManager::init() {
+void RemoteSensorManager::init()
+{
 #if SCAN_REMOTE_SENSORS_ON_STARTUP
   infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "WiFiScan started");
   int8_t networksFound;
 
   LOG(VERBOSE, "[RemoteSensors] Scanning for RemoteSensors");
   WiFi.scanNetworks(true);
-  while((networksFound = WiFi.scanComplete()) < 0) {
+  while((networksFound = WiFi.scanComplete()) < 0)
+  {
     delay(100);
     LOG(INFO, ".");
     infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "WiFiScan pending");
   }
   const uint8_t REMOTE_SENSOR_PREFIX_LEN = String(REMOTE_SENSORS_PREFIX).length();
-  for (int8_t i = 0; i < networksFound; i++) {
-    if(WiFi.SSID(i).startsWith(REMOTE_SENSORS_PREFIX)) {
+  for (int8_t i = 0; i < networksFound; i++)
+  {
+    if(WiFi.SSID(i).startsWith(REMOTE_SENSORS_PREFIX))
+    {
       const uint16_t sensorID = String(WiFi.SSID(i)).substring(REMOTE_SENSOR_PREFIX_LEN).toInt();
       LOG(VERBOSE, "[RemoteSensors] Found %s, assigning as sensor %d", WiFi.SSID(i).c_str(), sensorID);
       infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, F("RS %d: %s"), sensorID, WiFi.SSID(i).c_str());
@@ -102,8 +107,10 @@ void RemoteSensorManager::init() {
 
 void RemoteSensorManager::createOrUpdate(const uint16_t id, const uint16_t value) {
   // check for duplicate ID
-  for (const auto& sensor : remoteSensors) {
-    if(sensor->getRawID() == id) {
+  for (const auto& sensor : remoteSensors)
+  {
+    if(sensor->getRawID() == id)
+    {
       sensor->setSensorValue(value);
       return;
     }
@@ -113,15 +120,19 @@ void RemoteSensorManager::createOrUpdate(const uint16_t id, const uint16_t value
   sensors.add(newSensor);
 }
 
-bool RemoteSensorManager::remove(const uint16_t id) {
+bool RemoteSensorManager::remove(const uint16_t id)
+{
   RemoteSensor *sensorToRemove = nullptr;
   // check for duplicate ID or PIN
-  for (const auto& sensor : remoteSensors) {
-    if(sensor->getRawID() == id) {
+  for (const auto& sensor : remoteSensors)
+  {
+    if(sensor->getRawID() == id)
+    {
       sensorToRemove = sensor;
     }
   }
-  if(sensorToRemove != nullptr) {
+  if(sensorToRemove != nullptr)
+  {
     remoteSensors.remove(sensorToRemove);
     sensors.remove(sensorToRemove);
     return true;
@@ -129,65 +140,89 @@ bool RemoteSensorManager::remove(const uint16_t id) {
   return false;
 }
 
-void RemoteSensorManager::getState(JsonArray array) {
-  for (const auto& sensor : remoteSensors) {
-    JsonObject json = array.createNestedObject();
-    sensor->toJson(json);
+string RemoteSensorManager::getStateAsJson()
+{
+  json root;
+  for (const auto& sensor : remoteSensors)
+  {
+    root.push_back(sensor->toJson());
   }
+  return root.dump();
 }
 
-void RemoteSensorManager::show() {
-  if(remoteSensors.isEmpty()) {
+void RemoteSensorManager::show()
+{
+  if (remoteSensors.isEmpty())
+  {
     wifiInterface.broadcast(COMMAND_FAILED_RESPONSE);
-  } else {
-    for (const auto& sensor : remoteSensors) {
+  }
+  else
+  {
+    for (const auto& sensor : remoteSensors)
+    {
       sensor->showSensor();
     }
   }
 }
 
 RemoteSensor::RemoteSensor(uint16_t id, uint16_t value) :
-  Sensor(id + REMOTE_SENSORS_FIRST_SENSOR, NON_STORED_SENSOR_PIN, false, false), _rawID(id) {
+  Sensor(id + REMOTE_SENSORS_FIRST_SENSOR, NON_STORED_SENSOR_PIN, false, false), _rawID(id)
+{
   setSensorValue(value);
   LOG(VERBOSE, "[RemoteSensors] RemoteSensor(%d) created with Sensor(%d), active: %s, value: %d",
     getRawID(), getID(), isActive() ? JSON_VALUE_TRUE : JSON_VALUE_FALSE, value);
 }
 
-void RemoteSensor::check() {
-  if(isActive() && millis() > _lastUpdate + REMOTE_SENSORS_DECAY) {
+void RemoteSensor::check()
+{
+  if(isActive() && millis() > _lastUpdate + REMOTE_SENSORS_DECAY)
+  {
     LOG(INFO, "[RemoteSensors] RemoteSensor(%d) expired, deactivating", getRawID());
     setSensorValue(0);
   }
 }
 
-void RemoteSensor::showSensor() {
+void RemoteSensor::showSensor()
+{
   wifiInterface.broadcast(StringPrintf("<RS %d %d>", getRawID(), _value));
 }
 
-void RemoteSensor::toJson(JsonObject json, bool includeState) {
-  json[JSON_ID_NODE] = getRawID();
-  json[JSON_VALUE_NODE] = getSensorValue();
-  json[JSON_STATE_NODE] = isActive();
-  json[JSON_LAST_UPDATE_NODE] = getLastUpdate();
+string RemoteSensor::toJson(bool includeState)
+{
+  json object;
+  object[JSON_ID_NODE] = getRawID();
+  object[JSON_VALUE_NODE] = getSensorValue();
+  object[JSON_STATE_NODE] = isActive();
+  object[JSON_LAST_UPDATE_NODE] = getLastUpdate();
   // for compatibility with sensors table
-  json[JSON_PIN_NODE] = getPin();
-  json[JSON_PULLUP_NODE] = isPullUp();
+  object[JSON_PIN_NODE] = getPin();
+  object[JSON_PULLUP_NODE] = isPullUp();
+  return object.dump();
 }
 
-void RemoteSensorsCommandAdapter::process(const vector<string> arguments) {
-  if(arguments.empty()) {
+void RemoteSensorsCommandAdapter::process(const vector<string> arguments)
+{
+  if(arguments.empty())
+  {
     // list all sensors
     RemoteSensorManager::show();
-  } else {
+  }
+  else
+  {
     uint16_t sensorID = std::stoi(arguments[0]);
-    if (arguments.size() == 1 && RemoteSensorManager::remove(sensorID)) {
+    if (arguments.size() == 1 && RemoteSensorManager::remove(sensorID))
+    {
       // delete remote sensor
       wifiInterface.broadcast(COMMAND_SUCCESSFUL_RESPONSE);
-    } else if (arguments.size() == 2) {
+    }
+    else if (arguments.size() == 2)
+    {
       // create/update remote sensor
       RemoteSensorManager::createOrUpdate(sensorID, std::stoi(arguments[1]));
       wifiInterface.broadcast(COMMAND_SUCCESSFUL_RESPONSE);
-    } else {
+    }
+    else
+    {
       wifiInterface.broadcast(COMMAND_FAILED_RESPONSE);
     }
   }

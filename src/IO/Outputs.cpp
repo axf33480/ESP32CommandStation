@@ -98,31 +98,38 @@ LinkedList<Output *> outputs([](Output *output) {delete output; });
 
 static constexpr const char * OUTPUTS_JSON_FILE = "outputs.json";
 
-void OutputManager::init() {
+void OutputManager::init()
+{
   LOG(INFO, "[Output] Initializing outputs");
-  if(configStore->exists(OUTPUTS_JSON_FILE)) {
-    JsonObject root = configStore->load(OUTPUTS_JSON_FILE);
-    if(root.containsKey(OUTPUTS_JSON_FILE) && root[OUTPUTS_JSON_FILE].as<int>() > 0) {
-      uint16_t outputCount = root[OUTPUTS_JSON_FILE].as<int>();
+  if(configStore->exists(OUTPUTS_JSON_FILE))
+  {
+    json root = json::parse(configStore->load(OUTPUTS_JSON_FILE));
+    if(root.contains(JSON_COUNT_NODE))
+    {
+      uint16_t outputCount = root[JSON_COUNT_NODE].get<uint16_t>();
       infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Found %02d Outputs", outputCount);
-      for(JsonVariant output : root[JSON_OUTPUTS_NODE].as<JsonArray>()) {
-        outputs.add(new Output(output.as<JsonObject>()));
+      for(auto output : root[JSON_OUTPUTS_NODE])
+      {
+        string data = output.dump();
+        outputs.add(new Output(data));
       }
     }
   }
   LOG(INFO, "[Output] Loaded %d outputs", outputs.length());
 }
 
-void OutputManager::clear() {
+void OutputManager::clear()
+{
   outputs.free();
 }
 
-uint16_t OutputManager::store() {
-  JsonObject root = configStore->createRootNode();
-  JsonArray array = root.createNestedArray(JSON_OUTPUTS_NODE);
+uint16_t OutputManager::store()
+{
+  json root;
   uint16_t outputStoredCount = 0;
-  for (const auto& output : outputs) {
-    output->toJson(array.createNestedObject());
+  for (const auto& output : outputs)
+  {
+    root[JSON_OUTPUTS_NODE].push_back(output->toJson());
     outputStoredCount++;
   }
   root[JSON_COUNT_NODE] = outputStoredCount;
@@ -130,9 +137,12 @@ uint16_t OutputManager::store() {
   return outputStoredCount;
 }
 
-bool OutputManager::set(uint16_t id, bool active) {
-  for (const auto& output : outputs) {
-    if(output->getID() == id) {
+bool OutputManager::set(uint16_t id, bool active)
+{
+  for (const auto& output : outputs)
+  {
+    if(output->getID() == id)
+    {
       output->set(active);
       return true;
     }
@@ -140,18 +150,24 @@ bool OutputManager::set(uint16_t id, bool active) {
   return false;
 }
 
-Output *OutputManager::getOutput(uint16_t id) {
-  for (const auto& output : outputs) {
-    if(output->getID() == id) {
+Output *OutputManager::getOutput(uint16_t id)
+{
+  for (const auto& output : outputs)
+  {
+    if(output->getID() == id)
+    {
       return output;
     }
   }
   return nullptr;
 }
 
-bool OutputManager::toggle(uint16_t id) {
-  for (const auto& output : outputs) {
-    if(output->getID() == id) {
+bool OutputManager::toggle(uint16_t id)
+{
+  for (const auto& output : outputs)
+  {
+    if(output->getID() == id)
+    {
       output->set(!output->isActive());
       return true;
     }
@@ -159,41 +175,54 @@ bool OutputManager::toggle(uint16_t id) {
   return false;
 }
 
-void OutputManager::getState(JsonArray array) {
-  for (const auto& output : outputs) {
-    JsonObject outputJson = array.createNestedObject();
-    output->toJson(outputJson, true);
+std::string OutputManager::getStateAsJson()
+{
+  json root;
+  for (const auto& output : outputs)
+  {
+    root.push_back(output->toJson(true));
   }
+  return root.dump();
 }
 
-void OutputManager::showStatus() {
-  for (const auto& output : outputs) {
+void OutputManager::showStatus()
+{
+  for (const auto& output : outputs)
+  {
     output->showStatus();
   }
 }
 
-bool OutputManager::createOrUpdate(const uint16_t id, const uint8_t pin, const uint8_t flags) {
-  for (const auto& output : outputs) {
-    if(output->getID() == id) {
+bool OutputManager::createOrUpdate(const uint16_t id, const uint8_t pin, const uint8_t flags)
+{
+  for (const auto& output : outputs)
+  {
+    if(output->getID() == id)
+    {
       output->update(pin, flags);
       return true;
     }
   }
-  if(is_restricted_pin(pin)) {
+  if(is_restricted_pin(pin))
+  {
     return false;
   }
   outputs.add(new Output(id, pin, flags));
   return true;
 }
 
-bool OutputManager::remove(const uint16_t id) {
+bool OutputManager::remove(const uint16_t id)
+{
   Output *outputToRemove = nullptr;
-  for (const auto& output : outputs) {
-    if(output->getID() == id) {
+  for (const auto& output : outputs)
+  {
+    if(output->getID() == id)
+    {
       outputToRemove = output;
     }
   }
-  if(outputToRemove != nullptr) {
+  if(outputToRemove != nullptr)
+  {
     LOG(INFO, "[Output] Removing Output(%d)", outputToRemove->getID());
     outputs.remove(outputToRemove);
     return true;
@@ -201,117 +230,143 @@ bool OutputManager::remove(const uint16_t id) {
   return false;
 }
 
-Output::Output(uint16_t id, uint8_t pin, uint8_t flags) : _id(id), _pin(pin), _flags(flags), _active(false) {
-  if(bitRead(_flags, OUTPUT_IFLAG_RESTORE_STATE)) {
-    if(bitRead(_flags, OUTPUT_IFLAG_FORCE_STATE)) {
+Output::Output(uint16_t id, uint8_t pin, uint8_t flags) : _id(id), _pin(pin), _flags(flags), _active(false)
+{
+  if(bitRead(_flags, OUTPUT_IFLAG_RESTORE_STATE))
+  {
+    if(bitRead(_flags, OUTPUT_IFLAG_FORCE_STATE))
+    {
       set(true, false);
-    } else {
+    }
+    else
+    {
       set(false, false);
     }
-  } else {
+  }
+  else
+  {
     set(false, false);
   }
   LOG(VERBOSE, "[Output] Output(%d) on pin %d created, flags: %s", _id, _pin, getFlagsAsString().c_str());
   pinMode(_pin, OUTPUT);
 }
 
-Output::Output(JsonObject json) {
-  _id = json[JSON_ID_NODE];
-  _pin = json[JSON_PIN_NODE];
-  _flags = json[JSON_FLAGS_NODE];
-  if(bitRead(_flags, OUTPUT_IFLAG_RESTORE_STATE)) {
-    if(bitRead(_flags, OUTPUT_IFLAG_FORCE_STATE)) {
-      set(true, false);
-    } else {
-      set(false, false);
-    }
-  } else {
-    if(json[JSON_STATE_NODE].as<bool>()) {
-      set(true, false);
-    } else {
-      set(false, false);
-    }
+Output::Output(string &data)
+{
+  json object = json::parse(data);
+  _id = object[JSON_ID_NODE].get<uint16_t>();
+  _pin = object[JSON_PIN_NODE].get<uint8_t>();
+  _flags = object[JSON_FLAGS_NODE].get<uint8_t>();
+  if(bitRead(_flags, OUTPUT_IFLAG_RESTORE_STATE))
+  {
+    set(bitRead(_flags, OUTPUT_IFLAG_FORCE_STATE), false);
+  }
+  else
+  {
+    set(object[JSON_STATE_NODE].get<bool>(), false);
   }
   LOG(VERBOSE, "[Output] Output(%d) on pin %d loaded, flags: %s", _id, _pin, getFlagsAsString().c_str());
   pinMode(_pin, OUTPUT);
 }
 
-void Output::set(bool active, bool announce) {
+void Output::set(bool active, bool announce)
+{
   _active = active;
   digitalWrite(_pin, _active);
   LOG(INFO, "[Output] Output(%d) set to %s", _id, _active ? JSON_VALUE_ON : JSON_VALUE_OFF);
-  if(announce) {
+  if(announce)
+  {
     wifiInterface.broadcast(StringPrintf("<Y %d %d>", _id, !_active));
   }
 }
 
-void Output::update(uint8_t pin, uint8_t flags) {
+void Output::update(uint8_t pin, uint8_t flags)
+{
   _pin = pin;
   _flags = flags;
-  if(!bitRead(_flags, OUTPUT_IFLAG_RESTORE_STATE)) {
+  if(!bitRead(_flags, OUTPUT_IFLAG_RESTORE_STATE))
+  {
     set(false, false);
-  } else {
-    if(bitRead(_flags, OUTPUT_IFLAG_FORCE_STATE)) {
-      set(true, false);
-    } else {
-      set(false, false);
-    }
+  }
+  else
+  {
+    set(bitRead(_flags, OUTPUT_IFLAG_FORCE_STATE), false);
   }
   LOG(VERBOSE, "[Output] Output(%d) on pin %d updated, flags: %s", _id, _pin, getFlagsAsString().c_str());
   pinMode(_pin, OUTPUT);
 }
 
-void Output::toJson(JsonObject json, bool readableStrings) {
-  json[JSON_ID_NODE] = _id;
-  json[JSON_PIN_NODE] = _pin;
-  if(readableStrings) {
-    json[JSON_FLAGS_NODE] = getFlagsAsString();
-    if(isActive()) {
-      json[JSON_STATE_NODE] = JSON_VALUE_ON;
-    } else {
-      json[JSON_STATE_NODE] = JSON_VALUE_OFF;
-    }
-  } else {
-    json[JSON_FLAGS_NODE] = _flags;
-    json[JSON_STATE_NODE] = _active;
+std::string Output::toJson(bool readableStrings)
+{
+  json object;
+  object[JSON_ID_NODE] = _id;
+  object[JSON_PIN_NODE] = _pin;
+  if(readableStrings)
+  {
+    object[JSON_FLAGS_NODE] = getFlagsAsString();
+    object[JSON_STATE_NODE] = isActive() ? JSON_VALUE_ON : JSON_VALUE_OFF;
   }
-
+  else
+  {
+    object[JSON_FLAGS_NODE] = _flags;
+    object[JSON_STATE_NODE] = _active;
+  }
+  return object.dump();
 }
 
-void Output::showStatus() {
+void Output::showStatus()
+{
   wifiInterface.broadcast(StringPrintf("<Y %d %d %d %d>", _id, _pin, _flags, !_active));
 }
 
-void OutputCommandAdapter::process(const vector<string> arguments) {
-  if(arguments.empty()) {
+void OutputCommandAdapter::process(const vector<string> arguments)
+{
+  if(arguments.empty())
+  {
     // list all outputs
     OutputManager::showStatus();
-  } else {
+  }
+  else
+  {
     uint16_t outputID = std::stoi(arguments[0]);
-    if (arguments.size() == 1 && OutputManager::remove(outputID)) {
+    if (arguments.size() == 1 && OutputManager::remove(outputID))
+    {
       // delete output
       wifiInterface.broadcast(COMMAND_SUCCESSFUL_RESPONSE);
-    } else if (arguments.size() == 2 && OutputManager::set(outputID, arguments[1][0] == 1)) {
+    }
+    else if (arguments.size() == 2 && OutputManager::set(outputID, arguments[1][0] == 1))
+    {
       // set output state
-    } else if (arguments.size() == 3) {
+    }
+    else if (arguments.size() == 3)
+    {
       // create output
       OutputManager::createOrUpdate(outputID, std::stoi(arguments[1]), std::stoi(arguments[2]));
       wifiInterface.broadcast(COMMAND_SUCCESSFUL_RESPONSE);
-    } else {
+    }
+    else
+    {
       wifiInterface.broadcast(COMMAND_FAILED_RESPONSE);
     }
   }
 }
 
-void OutputExCommandAdapter::process(const vector<string> arguments) {
-  if(arguments.empty()) {
+void OutputExCommandAdapter::process(const vector<string> arguments)
+{
+  if(arguments.empty())
+  {
     wifiInterface.broadcast(COMMAND_FAILED_RESPONSE);
-  } else {
+  }
+  else
+  {
     uint16_t outputID = std::stoi(arguments[0]);
     auto output = OutputManager::getOutput(outputID);
-    if(output) {
+    if (output)
+    {
       output->set(!output->isActive());
-    } else {
+    }
+    else
+    {
       wifiInterface.broadcast(COMMAND_FAILED_RESPONSE);
     }
   }

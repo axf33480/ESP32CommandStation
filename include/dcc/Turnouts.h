@@ -38,11 +38,11 @@ class Turnout : public dcc::NonTrainPacketSource
 {
 public:
   Turnout(uint16_t, uint16_t, int8_t, bool=false, TurnoutType=TurnoutType::LEFT);
-  Turnout(JsonObject);
+  Turnout(std::string &);
   virtual ~Turnout() {}
   void update(uint16_t, int8_t, TurnoutType);
   void set(bool=false, bool=true);
-  void toJson(JsonObject, bool=false);
+  std::string toJson(bool=false);
   uint16_t getID()
   {
     return _turnoutID;
@@ -96,7 +96,7 @@ public:
   void setByAddress(uint16_t, bool=false, bool=true);
   bool toggleByID(uint16_t);
   void toggleByAddress(uint16_t);
-  void getState(JsonArray, bool=true);
+  std::string getStateAsJson(bool=true);
   void showStatus();
   Turnout *createOrUpdate(const uint16_t, const uint16_t, const int8_t, const TurnoutType=TurnoutType::LEFT);
   bool removeByID(const uint16_t);

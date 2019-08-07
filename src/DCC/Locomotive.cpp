@@ -44,46 +44,42 @@ void Locomotive::showStatus()
   wifiInterface.broadcast(StringPrintf("<T %d %d %d>", _registerNumber, speed.get_dcc_128(), speed.direction()));
 }
 
-void Locomotive::toJson(JsonObject jsonObject, bool includeFunctions)
+string Locomotive::toJson(bool includeFunctions)
 {
-  jsonObject[JSON_ADDRESS_NODE] = legacy_address();
+  json object;
+  object[JSON_ADDRESS_NODE] = legacy_address();
   dcc::SpeedType speed(get_speed());
-  jsonObject[JSON_SPEED_NODE] = (speed.get_dcc_128() & 0x7F);
-  jsonObject[JSON_DIRECTION_NODE] = speed.direction() ? JSON_VALUE_REVERSE : JSON_VALUE_FORWARD;
-  jsonObject[JSON_ORIENTATION_NODE] = _orientation ? JSON_VALUE_FORWARD : JSON_VALUE_REVERSE;
+  object[JSON_SPEED_NODE] = (speed.get_dcc_128() & 0x7F);
+  object[JSON_DIRECTION_NODE] = speed.direction() ? JSON_VALUE_REVERSE : JSON_VALUE_FORWARD;
+  object[JSON_ORIENTATION_NODE] = _orientation ? JSON_VALUE_FORWARD : JSON_VALUE_REVERSE;
   if(includeFunctions)
   {
-    JsonArray functions = jsonObject.createNestedArray(JSON_FUNCTIONS_NODE);
     for(uint8_t funcID = 0; funcID < p.get_max_fn(); funcID++)
     {
-      JsonObject node = functions.createNestedObject();
-      node[JSON_ID_NODE] = funcID;
-      node[JSON_STATE_NODE] = get_fn(funcID);
+      json functionNode;
+      functionNode[JSON_ID_NODE] = funcID;
+      functionNode[JSON_STATE_NODE] = get_fn(funcID);
+      object[JSON_FUNCTIONS_NODE].push_back(functionNode);
     }
   }
+  return object.dump();
 }
 
-Locomotive *Locomotive::fromJsonFile(const char *filename, TrainService *trainService)
+Locomotive *Locomotive::fromJson(string &content, TrainService *trainService)
 {
-  DynamicJsonDocument jsonBuffer{1024};
-  JsonObject entry = configStore->load(filename, jsonBuffer);
-  return fromJson(entry, trainService);
-}
-
-Locomotive *Locomotive::fromJson(JsonObject json, TrainService *trainService)
-{
-  Locomotive *loco = new Locomotive(json[JSON_ADDRESS_NODE].is<uint16_t>(), trainService);
+  json object = json::parse(content);
+  Locomotive *loco = new Locomotive(object[JSON_ADDRESS_NODE].get<uint16_t>(), trainService);
   dcc::SpeedType speed(0);
-  speed.set_dcc_128(json[JSON_SPEED_NODE].as<uint8_t>());
-  speed.set_direction(json[JSON_DIRECTION_NODE] == JSON_VALUE_FORWARD);
+  speed.set_dcc_128(object[JSON_SPEED_NODE].get<uint8_t>());
+  speed.set_direction(object[JSON_DIRECTION_NODE] == JSON_VALUE_FORWARD);
   loco->set_speed(speed);
-  loco->setOrientationForward(json[JSON_ORIENTATION_NODE] == JSON_VALUE_FORWARD);
-  if (!json.getMember(JSON_FUNCTIONS_NODE).isNull())
+  loco->setOrientationForward(object[JSON_ORIENTATION_NODE] == JSON_VALUE_FORWARD);
+  if (!object[JSON_FUNCTIONS_NODE].is_null())
   {
-    for(JsonObject func : json.getMember(JSON_FUNCTIONS_NODE).as<JsonArray>())
+    for(auto func : object[JSON_FUNCTIONS_NODE])
     {
-      loco->set_fn(func[JSON_ID_NODE]
-                , !func[JSON_STATE_NODE].as<string>().compare(JSON_VALUE_TRUE));
+      loco->set_fn(func[JSON_ID_NODE].get<int>()
+                , !func[JSON_STATE_NODE].get<string>().compare(JSON_VALUE_TRUE));
     }
   }
   return loco;

@@ -86,13 +86,16 @@ static constexpr const char * SENSORS_JSON_FILE = "sensors.json";
 
 void SensorManager::init() {
   LOG(INFO, "[Sensors] Initializing sensors");
-  if(configStore->exists(SENSORS_JSON_FILE)) {
-    JsonObject root = configStore->load(SENSORS_JSON_FILE);
-    if(root.containsKey(JSON_COUNT_NODE) && root[JSON_COUNT_NODE].as<int>() > 0) {
-      uint16_t sensorCount = root[JSON_COUNT_NODE].as<int>();
+  if(configStore->exists(SENSORS_JSON_FILE))
+  {
+    json root = json::parse(configStore->load(SENSORS_JSON_FILE));
+    if(root.contains(JSON_COUNT_NODE))
+    {
+      uint16_t sensorCount = root[JSON_COUNT_NODE].get<uint16_t>();
       infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Found %02d Sensors", sensorCount);
-      for(JsonVariant sensor : root[JSON_SENSORS_NODE].as<JsonArray>()) {
-        sensors.add(new Sensor(sensor.as<JsonObject>()));
+      for(auto sensor : root[JSON_SENSORS_NODE])
+      {
+        sensors.add(new Sensor(sensor));
       }
     }
   }
@@ -104,13 +107,15 @@ void SensorManager::clear() {
   sensors.free();
 }
 
-uint16_t SensorManager::store() {
-  JsonObject root = configStore->createRootNode();
-  JsonArray array = root.createNestedArray(JSON_SENSORS_NODE);
+uint16_t SensorManager::store()
+{
+  json root;
   uint16_t sensorStoredCount = 0;
-  for (const auto& sensor : sensors) {
-    if(sensor->getPin() != NON_STORED_SENSOR_PIN) {
-      sensor->toJson(array.createNestedObject());
+  for (const auto& sensor : sensors)
+  {
+    if(sensor->getPin() != NON_STORED_SENSOR_PIN)
+    {
+      root[JSON_SENSORS_NODE].push_back(sensor->toJson());
       sensorStoredCount++;
     }
   }
@@ -119,11 +124,14 @@ uint16_t SensorManager::store() {
   return sensorStoredCount;
 }
 
-void SensorManager::sensorTask(void *param) {
-  while(true) {
+void SensorManager::sensorTask(void *param)
+{
+  while(true)
+  {
     {
       OSMutexLock l(&_lock);
-      for (const auto& sensor : sensors) {
+      for (const auto& sensor : sensors)
+      {
         sensor->check();
       }
     }
@@ -131,48 +139,62 @@ void SensorManager::sensorTask(void *param) {
   }
 }
 
-void SensorManager::getState(JsonArray array) {
-  for (const auto& sensor : sensors) {
-    JsonObject sensorJson = array.createNestedObject();
-    sensor->toJson(sensorJson, true);
+string SensorManager::getStateAsJson()
+{
+  json root;
+  for (const auto& sensor : sensors)
+  {
+    root.push_back(sensor->toJson(true));
   }
+  return root.dump();
 }
 
-Sensor *SensorManager::getSensor(uint16_t id) {
-  for (const auto& sensor : sensors) {
-    if(sensor->getID() == id && sensor->getPin() != -1) {
+Sensor *SensorManager::getSensor(uint16_t id)
+{
+  for (const auto& sensor : sensors)
+  {
+    if(sensor->getID() == id && sensor->getPin() != -1)
+    {
       return sensor;
     }
   }
   return nullptr;
 }
 
-bool SensorManager::createOrUpdate(const uint16_t id, const uint8_t pin, const bool pullUp) {
+bool SensorManager::createOrUpdate(const uint16_t id, const uint8_t pin, const bool pullUp)
+{
   OSMutexLock l(&_lock);
   // check for duplicate ID or PIN
-  for (const auto& sensor : sensors) {
-    if(sensor->getID() == id) {
+  for (const auto& sensor : sensors)
+  {
+    if(sensor->getID() == id)
+    {
       sensor->update(pin, pullUp);
       return true;
     }
   }
-  if(is_restricted_pin(pin)) {
+  if(is_restricted_pin(pin))
+  {
     return false;
   }
   sensors.add(new Sensor(id, pin, pullUp));
   return true;
 }
 
-bool SensorManager::remove(const uint16_t id) {
+bool SensorManager::remove(const uint16_t id)
+{
   OSMutexLock l(&_lock);
   Sensor *sensorToRemove = nullptr;
   // check for duplicate ID or PIN
-  for (const auto& sensor : sensors) {
-    if(sensor->getID() == id) {
+  for (const auto& sensor : sensors)
+  {
+    if(sensor->getID() == id)
+    {
       sensorToRemove = sensor;
     }
   }
-  if(sensorToRemove != nullptr) {
+  if(sensorToRemove != nullptr)
+  {
     LOG(INFO, "[Sensors] Removing Sensor(%d)", sensorToRemove->getID());
     sensors.remove(sensorToRemove);
     return true;
@@ -180,90 +202,111 @@ bool SensorManager::remove(const uint16_t id) {
   return false;
 }
 
-int8_t SensorManager::getSensorPin(const uint16_t id) {
-  for (const auto& sensor : sensors) {
-    if(sensor->getID() == id) {
+int8_t SensorManager::getSensorPin(const uint16_t id)
+{
+  for (const auto& sensor : sensors)
+  {
+    if(sensor->getID() == id)
+    {
       return sensor->getPin();
     }
   }
   return -1;
 }
 
-Sensor::Sensor(uint16_t sensorID, int8_t pin, bool pullUp, bool announce) : _sensorID(sensorID), _pin(pin), _pullUp(pullUp), _lastState(false) {
-  if(announce) {
+Sensor::Sensor(uint16_t sensorID, int8_t pin, bool pullUp, bool announce) : _sensorID(sensorID), _pin(pin), _pullUp(pullUp), _lastState(false)
+{
+  if(announce)
+  {
     LOG(VERBOSE, "[Sensors] Sensor(%d) on pin %d created, pullup %s", _sensorID, _pin, _pullUp ? "Enabled" : "Disabled");
-    if(_pullUp) {
+    if(_pullUp)
+    {
       pinMode(_pin, INPUT_PULLUP);
-    } else {
+    }
+    else
+    {
       pinMode(_pin, INPUT);
     }
   }
 }
 
-Sensor::Sensor(JsonObject json) : _lastState(false) {
-  _sensorID = json[JSON_ID_NODE];
-  _pin = json[JSON_PIN_NODE];
-  _pullUp = json[JSON_PULLUP_NODE];
+Sensor::Sensor(string &data) : _lastState(false)
+{
+  json object = json::parse(data);
+  _sensorID = object[JSON_ID_NODE];
+  _pin = object[JSON_PIN_NODE];
+  _pullUp = object[JSON_PULLUP_NODE];
   LOG(VERBOSE, "[Sensors] Sensor(%d) on pin %d loaded, pullup %s", _sensorID, _pin, _pullUp ? "Enabled" : "Disabled");
-  if(_pullUp) {
-    pinMode(_pin, INPUT_PULLUP);
-  } else {
-    pinMode(_pin, INPUT);
-  }
+  pinMode(_pin, _pullUp ? INPUT_PULLUP : INPUT);
 }
 
-void Sensor::toJson(JsonObject json, bool includeState) {
-  json[JSON_ID_NODE] = _sensorID;
-  json[JSON_PIN_NODE] = _pin;
-  json[JSON_PULLUP_NODE] = _pullUp;
-  if(includeState) {
-    json[JSON_STATE_NODE] = _lastState;
+string Sensor::toJson(bool includeState)
+{
+  json object;
+  object[JSON_ID_NODE] = _sensorID;
+  object[JSON_PIN_NODE] = _pin;
+  object[JSON_PULLUP_NODE] = _pullUp;
+  if(includeState)
+  {
+    object[JSON_STATE_NODE] = _lastState;
   }
+  return object.dump();
 }
 
-void Sensor::update(uint8_t pin, bool pullUp) {
+void Sensor::update(uint8_t pin, bool pullUp)
+{
   _pin = pin;
   _pullUp = pullUp;
   LOG(VERBOSE, "[Sensors] Sensor(%d) on pin %d updated, pullup %s", _sensorID, _pin, _pullUp ? "Enabled" : "Disabled");
-  if(_pullUp) {
-    pinMode(_pin, INPUT_PULLUP);
-  } else {
-    pinMode(_pin, INPUT);
-  }
+  pinMode(_pin, _pullUp ? INPUT_PULLUP : INPUT);
 }
 
-void Sensor::check() {
+void Sensor::check()
+{
   set(digitalRead(_pin) == 1);
 }
 
-void Sensor::show() {
+void Sensor::show()
+{
   wifiInterface.broadcast(StringPrintf("<Q %d %d %d>", _sensorID, _pin, _pullUp));
 }
 
-void Sensor::set(bool state) {
-  if(_lastState != state) {
+void Sensor::set(bool state)
+{
+  if(_lastState != state)
+  {
     _lastState = state;
     LOG(INFO, "Sensor: %d :: %s", _sensorID, _lastState ? "ACTIVE" : "INACTIVE");
     wifiInterface.broadcast(StringPrintf("<%c %d>", state ? 'Q' : 'q', _sensorID));
   }
 }
 
-void SensorCommandAdapter::process(const vector<string> arguments) {
-  if(arguments.empty()) {
+void SensorCommandAdapter::process(const vector<string> arguments)
+{
+  if(arguments.empty())
+  {
     // list all sensors
-    for (const auto& sensor : sensors) {
+    for (const auto& sensor : sensors)
+    {
       sensor->show();
     }
-  } else {
+  }
+  else
+  {
     uint16_t sensorID = std::stoi(arguments[0]);
-    if (arguments.size() == 1 && SensorManager::remove(sensorID)) {
+    if (arguments.size() == 1 && SensorManager::remove(sensorID))
+    {
       // delete turnout
       wifiInterface.broadcast(COMMAND_SUCCESSFUL_RESPONSE);
-    } else if (arguments.size() == 3) {
+    }
+    else if (arguments.size() == 3)
+    {
       // create sensor
       SensorManager::createOrUpdate(sensorID, std::stoi(arguments[1]), arguments[2][0] == '1');
       wifiInterface.broadcast(COMMAND_SUCCESSFUL_RESPONSE);
-    } else {
+    }
+    else
+    {
       wifiInterface.broadcast(COMMAND_FAILED_RESPONSE);
     }
   }

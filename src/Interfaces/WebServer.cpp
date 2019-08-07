@@ -18,7 +18,6 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #include "ESP32CommandStation.h"
 
 #include <ESPAsyncDNSServer.h>
-#include <AsyncJson.h>
 
 // generated web content
 #include "generated/index_html.h"
@@ -32,6 +31,8 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 AsyncWebServer webServer(80);
 AsyncDNSServer asyncDNS;
 AsyncWebSocket webSocket("/ws");
+
+static constexpr const char * const APPLICATION_JSON_TYPE = "application/json";
 
 enum HTTP_STATUS_CODES
 {
@@ -135,6 +136,40 @@ ESP32CSWebServer::ESP32CSWebServer(MDNS *mdns) : mdns_(mdns)
              , std::bind(&ESP32CSWebServer::method, this, std::placeholders::_1) \
              , callback);
 
+#define SEND_GENERIC_RESPONSE(request, code) \
+  request->send(code); \
+  return;
+
+#define SEND_TEXT_RESPONSE(request, code, text) \
+  request->send(code, "text/plain", text);
+
+#define SEND_HTML_RESPONSE(request, code, text) \
+  request->send(code, "text/html", text);
+
+#define SEND_JSON_RESPONSE(request, response) \
+  request->send(STATUS_OK, APPLICATION_JSON_TYPE, response.c_str()); \
+  return; \
+
+#define SEND_JSON_IF_OBJECT(request, object) \
+  if (object) \
+  { \
+    SEND_JSON_RESPONSE(request, object->toJson()) \
+  } \
+  else \
+  { \
+    SEND_GENERIC_RESPONSE(request, STATUS_NOT_FOUND) \
+  }
+
+#define SEND_JSON_IF_OBJECT_ARG(request, object, arg) \
+  if (object) \
+  { \
+    SEND_JSON_RESPONSE(request, object->toJson(arg)) \
+  } \
+  else \
+  { \
+    SEND_GENERIC_RESPONSE(request, STATUS_NOT_FOUND) \
+  }
+
 esp_ota_handle_t otaHandle;
 void otaUploadCallback(AsyncWebServerRequest *request
                      , const String& filename
@@ -187,7 +222,7 @@ void otaUploadCallback(AsyncWebServerRequest *request
 ota_failure:
   request->_tempObject = nullptr;
   LOG_ERROR("[WebSrv] OTA Update failure: %s (%d)", esp_err_to_name(res), res);
-  request->send(STATUS_BAD_REQUEST, "text/plain", esp_err_to_name(res));
+  SEND_TEXT_RESPONSE(request, STATUS_BAD_REQUEST, esp_err_to_name(res))
   otaMonitor->report_failure(res);
 }
 
@@ -254,20 +289,19 @@ void ESP32CSWebServer::broadcastToWS(const std::string &buf) {
 
 void ESP32CSWebServer::handleProgrammer(AsyncWebServerRequest *request)
 {
-  auto jsonResponse = new AsyncJsonResponse();
   if (request->method() == HTTP_GET)
   {
     if (request->arg(JSON_PROG_ON_MAIN).equalsIgnoreCase(JSON_VALUE_TRUE))
     {
-      jsonResponse->setCode(STATUS_NOT_ALLOWED);
+      SEND_GENERIC_RESPONSE(request, STATUS_NOT_ALLOWED)
     }
     else if(request->hasArg(JSON_IDENTIFY_NODE))
     {
-      JsonObject node = jsonResponse->getRoot();
       int16_t decoderConfig = readCV(CV_NAMES::DECODER_CONFIG);
       uint16_t decoderAddress = 0;
       if (decoderConfig > 0)
       {
+        json response;
         if (bitRead(decoderConfig, DECODER_CONFIG_BITS::DECODER_TYPE))
         {
           uint8_t decoderManufacturer = readCV(CV_NAMES::DECODER_MANUFACTURER);
@@ -290,12 +324,12 @@ void ESP32CSWebServer::handleProgrammer(AsyncWebServerRequest *request)
               // NMRA spec shows 6 bit LSB
               decoderAddress = (uint16_t)(((addrMSB & 0x07) << 6) | (addrLSB & 0x1F));
             }
-            node[JSON_ADDRESS_MODE_NODE] = JSON_VALUE_LONG_ADDRESS;
+            response[JSON_ADDRESS_MODE_NODE] = JSON_VALUE_LONG_ADDRESS;
           }
           else
           {
             LOG(WARNING, "Failed to read address MSB/LSB");
-            jsonResponse->setCode(STATUS_SERVER_ERROR);
+            SEND_GENERIC_RESPONSE(request, STATUS_SERVER_ERROR)
           }
         }
         else
@@ -307,12 +341,12 @@ void ESP32CSWebServer::handleProgrammer(AsyncWebServerRequest *request)
             if (addrMSB >= 0 && addrLSB >= 0)
             {
               decoderAddress = (uint16_t)(((addrMSB & 0xFF) << 8) | (addrLSB & 0xFF));
-              node[JSON_ADDRESS_MODE_NODE] = JSON_VALUE_LONG_ADDRESS;
+              response[JSON_ADDRESS_MODE_NODE] = JSON_VALUE_LONG_ADDRESS;
             }
             else
             {
               LOG(WARNING, "Unable to read address MSB/LSB");
-              jsonResponse->setCode(STATUS_SERVER_ERROR);
+              SEND_GENERIC_RESPONSE(request, STATUS_SERVER_ERROR)
             }
           }
           else
@@ -321,71 +355,46 @@ void ESP32CSWebServer::handleProgrammer(AsyncWebServerRequest *request)
             if (shortAddr > 0)
             {
               decoderAddress = shortAddr;
-              node[JSON_ADDRESS_MODE_NODE] = JSON_VALUE_SHORT_ADDRESS;
+              response[JSON_ADDRESS_MODE_NODE] = JSON_VALUE_SHORT_ADDRESS;
             }
             else
             {
               LOG(WARNING, "Unable to read short address CV");
-              jsonResponse->setCode(STATUS_SERVER_ERROR);
+              SEND_GENERIC_RESPONSE(request, STATUS_SERVER_ERROR)
             }
           }
-          if (bitRead(decoderConfig, DECODER_CONFIG_BITS::SPEED_TABLE))
-          {
-            node[JSON_SPEED_TABLE_NODE] = JSON_VALUE_ON;
-          }
-          else
-          {
-            node[JSON_SPEED_TABLE_NODE] = JSON_VALUE_OFF;
-          }
+          response[JSON_SPEED_TABLE_NODE] =
+            bitRead(decoderConfig, DECODER_CONFIG_BITS::SPEED_TABLE) ?
+              JSON_VALUE_ON : JSON_VALUE_OFF;
         }
-        if (decoderAddress > 0)
+        response[JSON_ADDRESS_NODE] = decoderAddress;
+        bool create = request->arg(JSON_CREATE_NODE).equalsIgnoreCase(JSON_VALUE_TRUE);
+        auto roster = locoManager->getRosterEntry(decoderAddress, create);
+        if (roster)
         {
-          node[JSON_ADDRESS_NODE] = decoderAddress;
-          bool create = request->arg(JSON_CREATE_NODE).equalsIgnoreCase(JSON_VALUE_TRUE);
-          auto roster{locoManager->getRosterEntry(decoderAddress, create)};
-          if (roster)
-          {
-            roster->toJson(node[JSON_LOCO_NODE]);
-            if (decoderConfig > 0)
-            {
-              if (bitRead(decoderConfig, DECODER_CONFIG_BITS::DECODER_TYPE))
-              {
-                roster->setType(JSON_VALUE_STATIONARY_DECODER);
-              }
-              else
-              {
-                roster->setType(JSON_VALUE_MOBILE_DECODER);
-              }
-            }
-          }
-        }
-        else
-        {
-          LOG(WARNING, "Failed to read decoder address");
-          jsonResponse->setCode(STATUS_SERVER_ERROR);
+          response[JSON_LOCO_NODE] = roster->toJson();
+          roster->setType(bitRead(decoderConfig, DECODER_CONFIG_BITS::DECODER_TYPE) ?
+                                  JSON_VALUE_STATIONARY_DECODER : JSON_VALUE_MOBILE_DECODER);
         }
       }
       else
       {
         LOG(WARNING, "Failed to read decoder configuration");
-        jsonResponse->setCode(STATUS_SERVER_ERROR);
+        SEND_GENERIC_RESPONSE(request, STATUS_SERVER_ERROR)
       }
     }
     else
     {
       uint16_t cvNumber = request->arg(JSON_CV_NODE).toInt();
       int16_t cvValue = readCV(cvNumber);
-      JsonObject node = jsonResponse->getRoot();
-      node[JSON_CV_NODE] = cvNumber;
-      node[JSON_VALUE_NODE] = cvValue;
+      json response;
+      response[JSON_CV_NODE] = cvNumber;
+      response[JSON_VALUE_NODE] = cvValue;
       if (cvValue < 0)
       {
-        jsonResponse->setCode(STATUS_SERVER_ERROR);
+        SEND_GENERIC_RESPONSE(request, STATUS_SERVER_ERROR)
       }
-      else
-      {
-        jsonResponse->setCode(STATUS_OK);
-      }
+      SEND_JSON_RESPONSE(request, response.dump())
     }
   }
   else if (request->method() == HTTP_POST && request->hasArg(JSON_PROG_ON_MAIN))
@@ -402,56 +411,39 @@ void ESP32CSWebServer::handleProgrammer(AsyncWebServerRequest *request)
         writeOpsCVByte(request->arg(JSON_ADDRESS_NODE).toInt(), request->arg(JSON_CV_NODE).toInt(),
           request->arg(JSON_VALUE_NODE).toInt());
       }
-      jsonResponse->setCode(STATUS_OK);
     }
     else
     {
-      bool writeSuccess = false;
-      if (request->hasArg(JSON_CV_BIT_NODE))
+      if (request->hasArg(JSON_CV_BIT_NODE) &&
+          !writeProgCVBit(request->arg(JSON_CV_NODE).toInt(), request->arg(JSON_CV_BIT_NODE).toInt(),
+                          request->arg(JSON_VALUE_NODE).equalsIgnoreCase(JSON_VALUE_TRUE)))
       {
-        writeSuccess = writeProgCVBit(request->arg(JSON_CV_NODE).toInt(), request->arg(JSON_CV_BIT_NODE).toInt(),
-          request->arg(JSON_VALUE_NODE).equalsIgnoreCase(JSON_VALUE_TRUE));
+        SEND_GENERIC_RESPONSE(request, STATUS_SERVER_ERROR)
       }
-      else
+      else if (!writeProgCVByte(request->arg(JSON_CV_NODE).toInt(), request->arg(JSON_VALUE_NODE).toInt()))
       {
-        writeSuccess = writeProgCVByte(request->arg(JSON_CV_NODE).toInt(), request->arg(JSON_VALUE_NODE).toInt());
-      }
-      if (writeSuccess)
-      {
-        jsonResponse->setCode(STATUS_OK);
-      }
-      else
-      {
-        jsonResponse->setCode(STATUS_SERVER_ERROR);
+        SEND_GENERIC_RESPONSE(request, STATUS_SERVER_ERROR)
       }
     }
   }
-  else
-  {
-    jsonResponse->setCode(STATUS_BAD_REQUEST);
-  }
-  jsonResponse->setLength();
-  request->send(jsonResponse);
+  SEND_GENERIC_RESPONSE(request, STATUS_OK)
  }
 
 void ESP32CSWebServer::handlePower(AsyncWebServerRequest *request)
 {
+  json response;
   if (request->method() == HTTP_GET)
   {
-    AsyncJsonResponse *jsonResponse = nullptr;
     if (request->params())
     {
-      jsonResponse = new AsyncJsonResponse();
-      jsonResponse->getRoot()[JSON_STATE_NODE] =
+      response[JSON_STATE_NODE] =
         trackSignal->is_enabled() ? JSON_VALUE_TRUE : JSON_VALUE_FALSE;
     }
     else
     {
-      jsonResponse = new AsyncJsonResponse(true);
-      trackSignal->generate_status_json(jsonResponse->getRoot());
+      response = trackSignal->generate_status_json();
     }
-    jsonResponse->setLength();
-    request->send(jsonResponse);
+    SEND_JSON_RESPONSE(request, response.dump())
     return;
   }
   else if (request->method() == HTTP_PUT)
@@ -465,32 +457,23 @@ void ESP32CSWebServer::handlePower(AsyncWebServerRequest *request)
       trackSignal->disable_ops_output();
       trackSignal->disable_prog_output();
     }
-    request->send(STATUS_OK);
+    SEND_GENERIC_RESPONSE(request, STATUS_OK)
     return;
   }
-  request->send(STATUS_BAD_REQUEST);
+  SEND_GENERIC_RESPONSE(request, STATUS_BAD_REQUEST)
  }
 
 void ESP32CSWebServer::handleOutputs(AsyncWebServerRequest *request)
 {
 #if ENABLE_OUTPUTS
-  auto jsonResponse = new AsyncJsonResponse(request->method() == HTTP_GET && !request->params());
   if (request->method() == HTTP_GET && !request->hasArg(JSON_ID_NODE))
   {
-    JsonArray array = jsonResponse->getRoot();
-    OutputManager::getState(array);
+    SEND_JSON_RESPONSE(request, OutputManager::getStateAsJson())
   }
   else if (request->method() == HTTP_GET)
   {
     auto output = OutputManager::getOutput(request->arg(JSON_ID_NODE).toInt());
-    if (output)
-    {
-      output->toJson(jsonResponse->getRoot(), true);
-    }
-    else
-    {
-      jsonResponse->setCode(STATUS_NOT_FOUND);
-    }
+    SEND_JSON_IF_OBJECT_ARG(request, output, true)
   }
   else if (request->method() == HTTP_POST)
   {
@@ -514,22 +497,19 @@ void ESP32CSWebServer::handleOutputs(AsyncWebServerRequest *request)
     }
     if (!OutputManager::createOrUpdate(outputID, pin, outputFlags))
     {
-      jsonResponse->setCode(STATUS_NOT_ALLOWED);
+      SEND_GENERIC_RESPONSE(request, STATUS_NOT_ALLOWED)
     }
   }
-  else if (request->method() == HTTP_DELETE)
+  else if (request->method() == HTTP_DELETE &&
+          !OutputManager::remove(request->arg(JSON_ID_NODE).toInt()))
   {
-    if (!OutputManager::remove(request->arg(JSON_ID_NODE).toInt()))
-    {
-      jsonResponse->setCode(STATUS_NOT_FOUND);
-    }
+    SEND_GENERIC_RESPONSE(request, STATUS_NOT_FOUND)
   }
   else if(request->method() == HTTP_PUT)
   {
    OutputManager::toggle(request->arg(JSON_ID_NODE).toInt());
   }
-  jsonResponse->setLength();
-  request->send(jsonResponse);
+  SEND_GENERIC_RESPONSE(request, STATUS_OK)
 #endif // ENABLE_OUTPUTS
 }
 
@@ -551,12 +531,6 @@ void ESP32CSWebServer::handleTurnouts(AsyncWebServerRequest *request)
   // For unsuccessful requests the result code will be 400 (bad request, missing args), 401 (not found), 500 (server failure).
   //
 
-  // if the request is GET and we do not have an ID or ADDRESS parameter we need to return an array, otherwise a single entity.
-  bool needArrayResponse = (
-    request->method() == HTTP_GET &&
-    !request->hasArg(JSON_ID_NODE) &&
-    !request->hasArg(JSON_ADDRESS_NODE));
-  auto jsonResponse = new AsyncJsonResponse(needArrayResponse);
   if (request->method() == HTTP_GET && !request->hasArg(JSON_ID_NODE))
   {
     bool readableStrings = true;
@@ -564,38 +538,23 @@ void ESP32CSWebServer::handleTurnouts(AsyncWebServerRequest *request)
     {
       readableStrings = request->arg(JSON_TURNOUTS_READABLE_STRINGS_NODE).toInt();
     }
-    JsonArray array = jsonResponse->getRoot();
-    turnoutManager->getState(array, readableStrings);
+    SEND_JSON_RESPONSE(request, turnoutManager->getStateAsJson(readableStrings))
   }
   else if (request->method() == HTTP_GET)
   {
     if(request->hasArg(JSON_ID_NODE))
     {
       auto turnout = turnoutManager->getTurnoutByID(request->arg(JSON_ID_NODE).toInt());
-      if (turnout)
-      {
-        turnout->toJson(jsonResponse->getRoot());
-      }
-      else
-      {
-        jsonResponse->setCode(STATUS_NOT_FOUND);
-      }
+      SEND_JSON_IF_OBJECT(request, turnout)
     }
     else if (request->hasArg(JSON_ADDRESS_NODE))
     {
       auto turnout = turnoutManager->getTurnoutByID(request->arg(JSON_ADDRESS_NODE).toInt());
-      if (turnout)
-      {
-        turnout->toJson(jsonResponse->getRoot());
-      }
-      else
-      {
-        jsonResponse->setCode(STATUS_NOT_FOUND);
-      }
+      SEND_JSON_IF_OBJECT(request, turnout)
     }
     else
     {
-      jsonResponse->setCode(STATUS_BAD_REQUEST);
+      SEND_GENERIC_RESPONSE(request, STATUS_BAD_REQUEST)
     }
   }
   else if (request->method() == HTTP_POST)
@@ -610,14 +569,7 @@ void ESP32CSWebServer::handleTurnouts(AsyncWebServerRequest *request)
       turnoutID = turnoutManager->getTurnoutCount() + 1;
     }
     auto turnout = turnoutManager->createOrUpdate((uint16_t)turnoutID, turnoutAddress, turnoutSubAddress, type);
-    if (turnout)
-    {
-      turnout->toJson(jsonResponse->getRoot());
-    }
-    else
-    {
-      jsonResponse->setCode(STATUS_SERVER_ERROR);
-    }
+    SEND_JSON_IF_OBJECT(request, turnout)
   }
   else if (request->method() == HTTP_DELETE)
   {
@@ -631,7 +583,7 @@ void ESP32CSWebServer::handleTurnouts(AsyncWebServerRequest *request)
     }
     else
     {
-      jsonResponse->setCode(STATUS_BAD_REQUEST);
+      SEND_GENERIC_RESPONSE(request, STATUS_BAD_REQUEST)
     }
   }
   else if (request->method() == HTTP_PUT)
@@ -646,41 +598,33 @@ void ESP32CSWebServer::handleTurnouts(AsyncWebServerRequest *request)
     }
     else
     {
-      jsonResponse->setCode(STATUS_BAD_REQUEST);
+      SEND_GENERIC_RESPONSE(request, STATUS_BAD_REQUEST)
     }
   }
-  jsonResponse->setLength();
-  request->send(jsonResponse);
+  SEND_GENERIC_RESPONSE(request, STATUS_OK)
 }
 
 void ESP32CSWebServer::handleSensors(AsyncWebServerRequest *request)
 {
 #if ENABLE_SENSORS
-  auto jsonResponse = new AsyncJsonResponse(request->method() == HTTP_GET && !request->params());
   if (request->method() == HTTP_GET && !request->hasArg(JSON_ID_NODE))
   {
-    JsonArray array = jsonResponse->getRoot();
-    SensorManager::getState(array);
+    SEND_JSON_RESPONSE(request, SensorManager::getStateAsJson())
+    return;
   }
   else if (request->method() == HTTP_GET)
   {
     auto sensor = SensorManager::getSensor(request->arg(JSON_ID_NODE).toInt());
-    if(sensor)
-    {
-      sensor->toJson(jsonResponse->getRoot());
-    }
-    else
-    {
-      jsonResponse->setCode(STATUS_NOT_FOUND);
-    }
+    SEND_JSON_IF_OBJECT(request, sensor)
   }
   else if(request->method() == HTTP_POST)
   {
     uint16_t sensorID = request->arg(JSON_ID_NODE).toInt();
     uint8_t sensorPin = request->arg(JSON_PIN_NODE).toInt();
     bool sensorPullUp = request->arg(JSON_PULLUP_NODE).equalsIgnoreCase(JSON_VALUE_TRUE);
-    if(!SensorManager::createOrUpdate(sensorID, sensorPin, sensorPullUp)) {
-      jsonResponse->setCode(STATUS_NOT_ALLOWED);
+    if(!SensorManager::createOrUpdate(sensorID, sensorPin, sensorPullUp))
+    {
+      SEND_GENERIC_RESPONSE(request, STATUS_NOT_ALLOWED)
     }
   }
   else if(request->method() == HTTP_DELETE)
@@ -689,15 +633,14 @@ void ESP32CSWebServer::handleSensors(AsyncWebServerRequest *request)
     if(SensorManager::getSensorPin(sensorID) < 0)
     {
       // attempt to delete S88/RemoteSensor
-      jsonResponse->setCode(STATUS_NOT_ALLOWED);
+      SEND_GENERIC_RESPONSE(request, STATUS_NOT_ALLOWED)
     }
     else if(!SensorManager::remove(sensorID))
     {
-      jsonResponse->setCode(STATUS_NOT_FOUND);
+      SEND_GENERIC_RESPONSE(request, STATUS_NOT_FOUND)
     }
   }
-  jsonResponse->setLength();
-  request->send(jsonResponse);
+  SEND_GENERIC_RESPONSE(request, STATUS_OK)
 #endif // ENABLE_SENSORS
 }
 
@@ -711,28 +654,45 @@ void ESP32CSWebServer::handleConfig(AsyncWebServerRequest *request)
   {
     DCCPPProtocolHandler::getCommandHandler("e")->process(vector<string>());
   }
-  else if (request->method() != HTTP_GET)
+  if (request->hasArg("scan"))
   {
-    request->send(STATUS_BAD_REQUEST);
+    SyncNotifiable n;
+    wifiManager->start_ssid_scan(&n);
+    n.wait_for_notification();
+    size_t num_found = wifiManager->get_ssid_scan_result_count();
+    LOG(VERBOSE, "WiFi scan results: %d", num_found);
+    string response{"["};
+    for (int i = 0; i < num_found; i++)
+    {
+      if (i)
+      {
+        response += ",";
+      }
+      auto result = wifiManager->get_ssid_scan_result(i);
+      LOG(VERBOSE, "SSID: %s, RSSI: %d, channel: %d", result.ssid, result.rssi
+        , result.primary);
+      response += StringPrintf("{\"ssid\":\"%s\",\"rssi\":%d,\"auth\":%d}"
+                             , result.ssid, result.rssi, result.authmode);
+    }
+    wifiManager->clear_ssid_scan_results();
+    response += "]";
+    LOG(INFO, "SSID scan: %s", response.c_str());
+    SEND_JSON_RESPONSE(request, response)
+    return;
   }
-/*
-  if (request->arg("scan").equalsIgnoreCase("true"))
+  else if (request->hasArg("ssid"))
   {
-    wifi_scan_config_t cfg;
-    bzero(&cfg, sizeof(wifi_scan_config_t)); // active scan all channels, 120ms per channel
-    ESP_ERROR_CHECK(esp_wifi_scan_start(&cfg, false));
+    LOG(INFO, "Selected SSID: %s / %s", request->arg("ssid").c_str(), request->arg("password").c_str());
   }
-*/
-  request->send(STATUS_OK, "application/json", configStore->getCSConfig().c_str());
+  SEND_JSON_RESPONSE(request, configStore->getCSConfig())
 }
 
 #if S88_ENABLED && ENABLE_SENSORS
 void ESP32CSWebServer::handleS88Sensors(AsyncWebServerRequest *request)
 {
-  auto jsonResponse = new AsyncJsonResponse(true);
-  if(request->method() == HTTP_GET) {
-    JsonArray &array = jsonResponse->getRoot();
-    S88BusManager::getState(array);
+  if(request->method() == HTTP_GET)
+  {
+    SEND_JSON_RESPONSE(request, S88BusManager::getStateAsJson())
   }
   else if(request->method() == HTTP_POST)
   {
@@ -742,25 +702,22 @@ void ESP32CSWebServer::handleS88Sensors(AsyncWebServerRequest *request)
       request->arg(JSON_COUNT_NODE).toInt()))
     {
       // duplicate pin/id
-      jsonResponse->setCode(STATUS_NOT_ALLOWED);
+      SEND_GENERIC_RESPONSE(request, STATUS_NOT_ALLOWED)
     }
   }
   else if(request->method() == HTTP_DELETE)
   {
     S88BusManager::removeBus(request->arg(JSON_ID_NODE).toInt());
   }
-  jsonResponse->setLength();
-  request->send(jsonResponse);
+  SEND_GENERIC_RESPONSE(request, STATUS_OK)
 }
 #endif
 
 void ESP32CSWebServer::handleRemoteSensors(AsyncWebServerRequest *request) {
 #if ENABLE_SENSORS
-  auto jsonResponse = new AsyncJsonResponse(true);
   if(request->method() == HTTP_GET)
   {
-    JsonArray array = jsonResponse->getRoot();
-    RemoteSensorManager::getState(array);
+    SEND_JSON_RESPONSE(request, RemoteSensorManager::getStateAsJson())
   }
   else if(request->method() == HTTP_POST)
   {
@@ -771,8 +728,7 @@ void ESP32CSWebServer::handleRemoteSensors(AsyncWebServerRequest *request) {
   {
     RemoteSensorManager::remove(request->arg(JSON_ID_NODE).toInt());
   }
-  jsonResponse->setLength();
-  request->send(jsonResponse);
+  SEND_GENERIC_RESPONSE(request, STATUS_OK)
 #endif // ENABLE_SENSORS
 }
 
@@ -791,8 +747,6 @@ void ESP32CSWebServer::handleLocomotive(AsyncWebServerRequest *request)
   // PUT /locomotive?address=<address>&speed=<speed>&dir=[FWD|REV]&fX=[true|false] - Update locomotive state, fX is short for function X where X is 0-28.
   // DELETE /locomotive?address=<address> - removes locomotive from active management
   string url(request->url().c_str());
-  auto jsonResponse = new AsyncJsonResponse(request->method() == HTTP_GET && !request->params(), 2048);
-  jsonResponse->setCode(STATUS_OK);
   // check if we have an eStop command, we don't care how this gets sent to the
   // command station (method) so check it first
   if(url.find("/estop") != string::npos)
@@ -803,17 +757,18 @@ void ESP32CSWebServer::handleLocomotive(AsyncWebServerRequest *request)
   {
     if(request->method() == HTTP_GET && !request->hasArg(JSON_ADDRESS_NODE))
     {
-      locoManager->getRosterEntries(jsonResponse->getRoot());
+      SEND_JSON_RESPONSE(request, locoManager->getRosterEntriesAsJson())
     }
     else if (request->hasArg(JSON_ADDRESS_NODE))
     {
       if(request->method() == HTTP_DELETE)
       {
         locoManager->removeRosterEntry(request->arg(JSON_ADDRESS_NODE).toInt());
+        SEND_GENERIC_RESPONSE(request, STATUS_OK)
       }
       else
       {
-        auto entry{locoManager->getRosterEntry(request->arg(JSON_ADDRESS_NODE).toInt())};
+        RosterEntry *entry = locoManager->getRosterEntry(request->arg(JSON_ADDRESS_NODE).toInt());
         if(request->method() == HTTP_PUT || request->method() == HTTP_POST)
         {
           if(request->hasArg(JSON_DESCRIPTION_NODE))
@@ -833,7 +788,7 @@ void ESP32CSWebServer::handleLocomotive(AsyncWebServerRequest *request)
             entry->setDefaultOnThrottles(request->arg(JSON_DEFAULT_ON_THROTTLE_NODE).equalsIgnoreCase(JSON_VALUE_TRUE));
           }
         }
-        entry->toJson(jsonResponse->getRoot());
+        SEND_JSON_IF_OBJECT(request, entry)
       }
     }
   }
@@ -845,11 +800,11 @@ void ESP32CSWebServer::handleLocomotive(AsyncWebServerRequest *request)
     if(request->method() == HTTP_GET && !request->hasArg(JSON_ADDRESS_NODE))
     {
       // get all active locomotives
-      locoManager->getActiveLocos(jsonResponse->getRoot()); 
+      SEND_JSON_RESPONSE(request, locoManager->getActiveLocosAsJson())
     }
     else if (request->hasArg(JSON_ADDRESS_NODE))
     {
-      auto loco{locoManager->getLocomotive(request->arg(JSON_ADDRESS_NODE).toInt())};
+      auto loco = locoManager->getLocomotive(request->arg(JSON_ADDRESS_NODE).toInt());
       if(request->method() == HTTP_PUT || request->method() == HTTP_POST)
       {
         auto upd_speed = loco->get_speed();
@@ -884,34 +839,26 @@ void ESP32CSWebServer::handleLocomotive(AsyncWebServerRequest *request)
         static_cast<NextionThrottlePage *>(nextionPages[THROTTLE_PAGE])->invalidateLocomotive(request->arg(JSON_ADDRESS_NODE).toInt());
 #endif
       }
-      loco->toJson(jsonResponse->getRoot());
-    }
-    else
-    {
-      // missing arg or unknown request
-      jsonResponse->setCode(STATUS_BAD_REQUEST);
+      SEND_JSON_IF_OBJECT(request, loco)
     }
   }
-  jsonResponse->setLength();
-  request->send(jsonResponse);
+  // missing arg or unknown request
+  SEND_GENERIC_RESPONSE(request, STATUS_BAD_REQUEST)
 }
 
 void ESP32CSWebServer::handleOTA(AsyncWebServerRequest *request)
 {
-  request->send(STATUS_OK, "text/plain", "OTA Upload Complete");
+  SEND_TEXT_RESPONSE(request, STATUS_OK, "OTA Upload Complete")
 }
 
 void ESP32CSWebServer::handleFeatures(AsyncWebServerRequest *request)
 {
-  auto jsonResponse = new AsyncJsonResponse();
-  JsonObject root = jsonResponse->getRoot();
+  json root;
   root[JSON_S88_SENSOR_BASE_NODE] = S88_FIRST_SENSOR;
   root[JSON_S88_NODE] = S88_ENABLED && ENABLE_SENSORS ? JSON_VALUE_TRUE : JSON_VALUE_FALSE;
   root[JSON_OUTPUTS_NODE] = ENABLE_OUTPUTS ? JSON_VALUE_TRUE : JSON_VALUE_FALSE;
   root[JSON_SENSORS_NODE] = ENABLE_SENSORS ? JSON_VALUE_TRUE : JSON_VALUE_FALSE;
-  jsonResponse->setCode(STATUS_OK);
-  jsonResponse->setLength();
-  request->send(jsonResponse);
+  SEND_JSON_RESPONSE(request, root.dump())
 }
 
 #define IP_TO_STR(request) \
@@ -949,7 +896,7 @@ void ESP32CSWebServer::streamResource(AsyncWebServerRequest *request)
   const char * htmlBuildTime = __DATE__ " " __TIME__;
   if (request->header("If-Modified-Since").equals(htmlBuildTime))
   {
-    request->send(STATUS_NOT_MODIFIED);
+    SEND_GENERIC_RESPONSE(request, STATUS_NOT_MODIFIED)
   }
   else
   {
@@ -977,11 +924,11 @@ void ESP32CSWebServer::streamResource(AsyncWebServerRequest *request)
     if (response)
     {
       response->addHeader("Last-Modified", htmlBuildTime);
-      request->send(response);
+      SEND_GENERIC_RESPONSE(request, response)
     }
     else
     {
-      request->send(STATUS_NOT_FOUND, "text/plain", "URI Not Found");
+      SEND_GENERIC_RESPONSE(request, STATUS_NOT_FOUND)
     }
   }
 }
@@ -1043,19 +990,19 @@ void ESP32CSWebServer::notFoundHandler(AsyncWebServerRequest *request)
               request->url().endsWith("status.php"))
           {
             // no payload required for this one, just the status code.
-            request->send(STATUS_NO_CONTENT);
+            SEND_GENERIC_RESPONSE(request, STATUS_NO_CONTENT)
           }
           else if (request->url().endsWith("ncsi.txt"))
           {
-            request->send(STATUS_OK, "text/plain", CAPTIVE_SUCCESS_200_NCSI_TXT);
+            SEND_TEXT_RESPONSE(request, STATUS_OK, CAPTIVE_SUCCESS_200_NCSI_TXT)
           }
           else if (request->url().endsWith("success.txt"))
           {
-            request->send(STATUS_OK, "text/plain", CAPTIVE_SUCCESS_200_SUCCESS_TXT);
+            SEND_TEXT_RESPONSE(request, STATUS_OK, CAPTIVE_SUCCESS_200_SUCCESS_TXT)
           }
           else
           {
-            request->send(STATUS_OK, "text/html", CAPTIVE_SUCCESS_200_HTML);
+            SEND_TEXT_RESPONSE(request, STATUS_OK, CAPTIVE_SUCCESS_200_HTML)
           }
         }
         else
@@ -1063,12 +1010,12 @@ void ESP32CSWebServer::notFoundHandler(AsyncWebServerRequest *request)
           LOG(INFO, "[WebSrv %s] Requested %s%s: Redirecting to captive portal"
             , IP_TO_STR(request), request->host().c_str()
             , request->url().c_str());
-          request->send(STATUS_OK, "text/html",
+          SEND_HTML_RESPONSE(request, STATUS_OK,
                         StringPrintf(CAPTIVE_PORTAL_HTML
                                    , ESP32CS_VERSION
                                    , softAPAddress_.c_str()
                                    , softAPAddress_.c_str()
-                        ).c_str());
+                        ).c_str())
         }
         return;
       }
@@ -1086,8 +1033,7 @@ void ESP32CSWebServer::notFoundHandler(AsyncWebServerRequest *request)
       {
         captiveIPs_.push_back(clientIP);
       }
-      request->send(STATUS_OK);
-      return;
+      SEND_GENERIC_RESPONSE(request, STATUS_OK)
     }
 
   }
@@ -1098,5 +1044,5 @@ void ESP32CSWebServer::notFoundHandler(AsyncWebServerRequest *request)
   }
   LOG(INFO, "[WebSrv %s] 404: %s%s", IP_TO_STR(request)
     , request->host().c_str(), request->url().c_str());
-  request->send(STATUS_NOT_FOUND, "", "");
+  SEND_GENERIC_RESPONSE(request, STATUS_NOT_FOUND)
 }

@@ -18,7 +18,6 @@ COPYRIGHT (c) 2018-2019 Mike Dunston
 #ifndef CONFIG_MGR_H_
 #define CONFIG_MGR_H_
 
-#include <ArduinoJson.h>
 #include <openlcb/Defs.hxx>
 
 // Class definition for the Configuration Management system in ESP32 Command Station
@@ -30,12 +29,10 @@ public:
   void init();
   void clear();
 
-  bool exists(const char *);
-  void remove(const char *);
-  JsonObject load(const char *);
-  JsonObject load(const char *, DynamicJsonDocument &);
-  void store(const char *, const JsonObject);
-  JsonObject createRootNode();
+  bool exists(const std::string &);
+  void remove(const std::string &);
+  std::string load(const std::string &);
+  void store(const char *, const std::string &);
   openlcb::NodeID getNodeId();
   void configureCAN(OpenMRN *openmrn);
   void configureWiFi(openlcb::SimpleCanStack *, const WiFiConfiguration &);
@@ -53,8 +50,7 @@ public:
     return wifiMode_ == WIFI_MODE_APSTA || wifiMode_ == WIFI_MODE_APSTA;
   }
 private:
-  DynamicJsonDocument jsonBuffer{20480};
-  std::string getFilePath(const char *, bool=false);
+  std::string getFilePath(const std::string &, bool=false);
   std::string csConfig_{""};
   std::string wifiSSID_{SSID_NAME};
   std::string wifiPassword_{SSID_PASSWORD};

@@ -94,7 +94,7 @@ public:
   void disable_prog_output();
 
   // generates a json payload for the current hbridge status.
-  void generate_status_json(JsonArray);
+  std::string generate_status_json();
 
   // BitEventInterface method to return current track output status.
   openlcb::EventState get_current_state() override

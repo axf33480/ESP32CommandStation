@@ -586,10 +586,12 @@ void RMTTrackDevice::disable_prog_output()
   }
 }
 
-void RMTTrackDevice::generate_status_json(JsonArray output)
+string RMTTrackDevice::generate_status_json()
 {
-  output.add(serialized(opsHBridge_->getStateAsJson()));
-  output.add(serialized(progHBridge_->getStateAsJson()));
+  json object;
+  object.push_back(opsHBridge_->getStateAsJson());
+  object.push_back(progHBridge_->getStateAsJson());
+  return object.dump();
 }
 
 void RMTTrackDevice::broadcast_status()

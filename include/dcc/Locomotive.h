@@ -73,9 +73,8 @@ public:
   }
 
   void showStatus();
-  void toJson(JsonObject, bool=true);
-  static Locomotive *fromJson(JsonObject, openlcb::TrainService *);
-  static Locomotive *fromJsonFile(const char *, openlcb::TrainService *);
+  std::string toJson(bool=true);
+  static Locomotive *fromJson(std::string &, openlcb::TrainService *);
 private:
   int8_t _registerNumber{-1};
   bool _orientation{true};
@@ -102,9 +101,8 @@ public:
   {
     return _decoderAssisstedConsist;
   }
-  void toJson(JsonObject, const bool=true);
-  static LocomotiveConsist *fromJson(JsonObject, openlcb::TrainService *);
-  static LocomotiveConsist *fromJsonFile(const char *, openlcb::TrainService *);
+  std::string toJson(const bool=true);
+  static LocomotiveConsist *fromJson(std::string &, openlcb::TrainService *);
 private:
   bool _decoderAssisstedConsist;
   std::vector<Locomotive *> _locos;
@@ -120,10 +118,9 @@ public:
     , _defaultOnThrottles(false)
   {
   }
-  RosterEntry(JsonObject);
-  RosterEntry(const char *);
+  RosterEntry(std::string &);
   virtual ~RosterEntry();
-  void toJson(JsonObject);
+  std::string toJson();
   void setDescription(std::string description)
   {
     _description = description;
@@ -196,9 +193,9 @@ public:
   void clear();
   uint16_t store();
   std::vector<RosterEntry *> getDefaultLocos(const int8_t=-1);
-  void getDefaultLocos(JsonArray);
-  void getActiveLocos(JsonArray);
-  void getRosterEntries(JsonArray);
+  std::string getDefaultLocosAsJson();
+  std::string getActiveLocosAsJson();
+  std::string getRosterEntriesAsJson();
   bool isConsistAddress(uint16_t);
   bool isAddressInConsist(uint16_t);
   LocomotiveConsist *getConsistByID(uint8_t);
