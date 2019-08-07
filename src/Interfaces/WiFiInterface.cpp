@@ -74,21 +74,27 @@ void WiFiInterface::init() {
         infoScreen->replaceLine(INFO_SCREEN_IP_ADDR_LINE, "SSID: %s"
                               , configStore->getSSID().c_str());
       }
-      LOG(INFO, "[WiFi] Starting JMRI listener");
-      JMRIListener.reset(new SocketListener(JMRI_LISTENER_PORT, [](int fd) {
+      if (!JMRIListener)
+      {
+        LOG(INFO, "[WiFi] Starting JMRI listener");
+        JMRIListener.reset(new SocketListener(JMRI_LISTENER_PORT, [](int fd)
         {
-          OSMutexLock h(&jmriClientsMux);
-          jmriClients.push_back(fd);
-        }
-        os_thread_create(nullptr, StringPrintf("jmri-%d", fd).c_str(),
-                        JMRI_CLIENT_PRIORITY, JMRI_CLIENT_STACK_SIZE,
-                        jmriClientHandler, (void *)fd);
-        infoScreen->replaceLine(INFO_SCREEN_CLIENTS_LINE,
-                                "TCP Conn: %02d",
-                                webSocketClients.size() + jmriClients.size());
-      }));
-      mDNS.publish("jmri", "_esp32cs._tcp", JMRI_LISTENER_PORT);
-      esp32csWebServer.begin();
+          int clientCount = 0;
+          {
+            OSMutexLock h(&jmriClientsMux);
+            jmriClients.push_back(fd);
+            clientCount = webSocketClients.size() + jmriClients.size();
+          }
+          os_thread_create(nullptr, StringPrintf("jmri-%d", fd).c_str(),
+                          JMRI_CLIENT_PRIORITY, JMRI_CLIENT_STACK_SIZE,
+                          jmriClientHandler, (void *)fd);
+          infoScreen->replaceLine(INFO_SCREEN_CLIENTS_LINE,
+                                  "TCP Conn: %02d",
+                                  clientCount);
+        }));
+        mDNS.publish("jmri", "_esp32cs._tcp", JMRI_LISTENER_PORT);
+        esp32csWebServer.begin();
+      }
 #if NEXTION_ENABLED
       nextionTitlePage->clearStatusText();
       // transition to next screen since WiFi connection is complete
@@ -120,10 +126,12 @@ void WiFiInterface::showInitInfo() {
   broadcast(StringPrintf("<N1: " IPSTR " >", IP2STR(&ip_.ip)));
 }
 
-void WiFiInterface::broadcast(const std::string &buf) {
+void WiFiInterface::broadcast(const std::string &buf)
+{
   {
     OSMutexLock h(&jmriClientsMux);
-    for (const int client : jmriClients) {
+    for (const int client : jmriClients)
+    {
       ::write(client, buf.c_str(), buf.length());
     }
   }
@@ -131,7 +139,8 @@ void WiFiInterface::broadcast(const std::string &buf) {
   hc12->send(buf.c_str());
 }
 
-void *jmriClientHandler(void *arg) {
+void *jmriClientHandler(void *arg)
+{
   int fd = (int)arg;
   DCCPPProtocolConsumer consumer;
   std::unique_ptr<uint8_t> buf(new uint8_t[128]);
@@ -140,30 +149,40 @@ void *jmriClientHandler(void *arg) {
   // tell JMRI about our state
   DCCPPProtocolHandler::process("s");
 
-  while (true) {
+  while (true)
+  {
     int bytesRead = ::read(fd, buf.get(), 128);
-    if (bytesRead < 0 && (errno == EINTR || errno == EAGAIN)) {
+    if (bytesRead < 0 && (errno == EINTR || errno == EAGAIN))
+    {
       // no data to read yet
-    } else if (bytesRead > 0) {
+    }
+    else if (bytesRead > 0)
+    {
       consumer.feed(buf.get(), bytesRead);
-    } else if (bytesRead == 0) {
+    }
+    else if (bytesRead == 0)
+    {
       // EOF, close client
       LOG(INFO, "[JMRI %d] disconnected", fd);
       break;
-    } else {
+    }
+    else
+    {
       // some other error, close client
-      LOG(INFO, "[JMRI %d] error:%d, %s. Disconnecting.", fd, errno, strerror(errno));
+      LOG(INFO, "[JMRI %d] error:%d, %s. Disconnecting.", fd, errno
+        , strerror(errno));
       break;
     }
   }
   // remove client FD
+  int clientCount = 0;
   {
     OSMutexLock h(&jmriClientsMux);
     jmriClients.erase(std::remove(jmriClients.begin(), jmriClients.end(), fd));
+    clientCount = webSocketClients.size() + jmriClients.size();
   }
-  infoScreen->replaceLine(INFO_SCREEN_CLIENTS_LINE,
-                          "TCP Conn: %02d",
-                          webSocketClients.size() + jmriClients.size());
+  infoScreen->replaceLine(INFO_SCREEN_CLIENTS_LINE, "TCP Conn: %02d"
+                        , clientCount);
 
   ::close(fd);
   return nullptr;

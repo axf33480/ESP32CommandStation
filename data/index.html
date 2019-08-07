@@ -309,23 +309,28 @@
         <label for="cs-config-wifi-mode">WiFi Mode:</label>
         <select id="cs-config-wifi-mode">
          <option value="station">Station Only</option>
-         <option value="station-softap">Station and SoftAP</option>
+         <option value="softap-station">Station and SoftAP</option>
          <option value="softap">SoftAP Only</option>
         </select>
        </div>
-       <div class="ui-field-contain" id="cs-config-ip-div">
-        <label for="cs-config-ip-mode">IP Assignment:</label>
-        <input type="checkbox" id="cs-config-ip-mode" data-role="flipswitch" data-off-text="DHCP" data-on-text="Static">
-       </div>
-       <div class="ui-field-contain" id="cs-config-static-div">
-        <label for="cs-config-sta-ip">IP:</label>
-        <input type="text" id="cs-config-sta-ip">
-        <label for="cs-config-sta-gateway">Gateway IP:</label>
-        <input type="text" id="cs-config-sta-gateway">
-        <label for="cs-config-sta-netmask">Subnet Mask:</label>
-        <input type="text" id="cs-config-sta-netmask" value="255.255.255.0">
-        <label for="cs-config-dns">DNS:</label>
-        <input id="cs-config-dns" type="text" value="8.8.8.8">
+       <div class="ui-field-contain" id="cs-config-station-div">
+        <label for="cs-config-ssid">Current SSID:</label>
+        <input type="text" id="cs-config-ssid">
+        <input type="button" id="cs-config-connect" value="Connect to Network" class='ui-button-inline'/>
+        <div class="ui-field-contain" id="cs-config-ip-div">
+         <label for="cs-config-ip-mode">IP Assignment:</label>
+         <input type="checkbox" id="cs-config-ip-mode" data-role="flipswitch" data-off-text="DHCP" data-on-text="Static">
+        </div>
+        <div class="ui-field-contain" id="cs-config-static-div">
+         <label for="cs-config-sta-ip">IP:</label>
+         <input type="text" id="cs-config-sta-ip">
+         <label for="cs-config-sta-gateway">Gateway IP:</label>
+         <input type="text" id="cs-config-sta-gateway">
+         <label for="cs-config-sta-netmask">Subnet Mask:</label>
+         <input type="text" id="cs-config-sta-netmask" value="255.255.255.0">
+         <label for="cs-config-dns">DNS:</label>
+         <input id="cs-config-dns" type="text" value="8.8.8.8">
+        </div>
        </div>
       </div>
       <div class="ui-grid-solo">
@@ -337,6 +342,39 @@
    </div>
   </div>
   <div data-role="footer"><div id="clock"></div></div>
+  <div data-role="popup" data-close-btn="none" data-dismissible="false" id="ssid-connect" class="ui-corner-all">
+   <div data-role="header">Available SSIDs</div>
+   <div data-role="main" class="ui-content">
+    <table id="ssid-list" data-role="table" class="ui-body-d ui-shadow table-stripe ui-responsive">
+     <thead>
+      <tr>
+       <th>SSID</th>
+       <th>Strength</th>
+       <th>Auth?</th>
+       <th>Actions</th>
+      </tr>
+     </thead>
+     <tbody>
+     </tbody>
+    </table>
+    <div id="ssid-manual-entry">
+     <label for="ssid-manual-ssid">SSID:</label>
+     <input type="text" id="ssid-manual-ssid">
+     <label for="ssid-manual-password">Password:</label>
+     <input type="password" id="ssid-manual-password">
+    </div>
+   </div>
+   <div role="footer">
+    <div data-role="navbar">
+    <ul>
+      <li><a href="#baseStationPage" data-rel="back" data-icon="ui-icon-back" class="ui-btn ui-shadow ui-corner-all ui-btn-icon-notext">Cancel</a></li>
+      <li><a href="#" id="ssid-connect-manual" data-icon="ui-icon-plus" class="ui-btn ui-shadow ui-corner-all ui-btn-icon-notext">Manual</a></li>
+      <li><a href="#" id="ssid-connect-rescan" data-icon="ui-icon-plus" class="ui-btn ui-shadow ui-corner-all ui-btn-icon-notext">Rescan</a></li>
+      <li><a href="#baseStationPage" id="ssid-connect-confirm" data-icon="ui-icon-check" class="ui-btn ui-shadow ui-corner-all ui-btn-icon-notext">Confirm</a></li>
+    </ul>
+    </div>
+   </div>
+  </div>
   <div data-role="popup" data-close-btn="none" data-dismissible="false" id="throttle-loco-select" class="ui-corner-all">
    <div data-role="header">Select Locomotive</div>
    <div data-role="main" class="ui-content">
@@ -1166,6 +1204,67 @@ function setupProgrammer() {
  $('#cs-prog-div-bit').hide();
  $('#cs-prog-div-create-roster').hide();
 }
+function csConfigUpdate(data) {
+ $('#cs-config-station-div').hide();
+ $("#cs-config-wifi-mode").val(data.wifi.mode).change();
+ if(data.wifi.mode !== 'softap') {
+   $('#cs-config-station-div').show();
+   $('#cs-config-ssid').val(data.wifi.station.ssid);
+   $('#cs-config-ip-mode').prop('checked', data.wifi.station.mode === 'static').flipswitch('refresh');
+  if(data.wifi.station.mode === 'static') {
+   $('#cs-config-static-div').show();
+   $('#cs-config-sta-ip').val(data.wifi.station.ip);
+   $('#cs-config-sta-gateway').val(data.wifi.station.gateway);
+   $('#cs-config-sta-netmask').val(data.wifi.station.netmask);
+   $('#cs-config-sta-dns').val(data.wifi.dns);
+  }
+ } else {
+  $('#cs-config-station-div').hide();
+ }
+}
+function refreshSSIDList() {
+ refreshTable({table: '#ssid-list', url: '/config?scan=true',
+ fields: ['ssid', 'rssi', function(record) {
+   if(record.auth === 0) {
+    return 'None';
+   } else if(record.auth === 1) {
+    return 'WEP';
+   } else if(record.auth === 2) {
+    return 'WPA';
+   } else if(record.auth === 3) {
+    return 'WPA2';
+   } else if(record.auth === 4) {
+    return 'WPA/WPA2';
+   } else if(record.auth === 5) {
+    return 'WPA2 Enterprise';
+   }
+   return 'Unknown';
+  }, function(record) {
+   return createButton({type:'action', id:String.format("cs-ssid-{0}-{1}", record.ssid, record.auth), title:'Connect'});
+  }],
+  refreshCallback:function() {
+   $('#ssid-list tr td [id^=cs-ssid-]').button();
+   $('#ssid-list tr td [id^=cs-ssid-]').on('vclick', function(event, ui) {
+    var idParts = $(this).attr('id').split('-');
+    if(idParts[3] !== 0) {
+     $('#ssid-manual-ssid').val(idParts[2]);
+     $('#ssid-manual-password').val('');
+     $('#ssid-list').hide();
+     $('#ssid-connect-manual').hide();
+     $('#ssid-connect-confirm').show();
+     $('#ssid-connect').popup('reposition', {positionTo:'window'});
+    } else {
+     $('#ssid-connect').popup('close');
+     $.put({url:String.format('/config?ssid={0}&pass={1}', idParts[3], $('#ssid-manual-password').val())});
+    }
+   });
+   $('#ssid-manual-entry').hide();
+   $('#ssid-connect-manual').show();
+   $('#ssid-list').show();
+   $('#ssid-connect').popup('reposition', {positionTo:'window'});
+  }
+ })
+}
 function setupConfig() {
  $("#cs-persist-config").on("vclick", function() {
   $.ajax({
@@ -1182,17 +1281,7 @@ function setupConfig() {
     }, 1);
    },
    success : function (data, status, xhr) {
-    $("#cs-config-wifi-mode").val(data.wifi.mode).change();
-    if(data.wifi.mode !== 'softap') {
-     $("#cs-config-sta-ip-mode").prop("checked", data.wifi.station.mode === 'static').flipswitch("refresh");
-     if(data.wifi.station.mode === 'static') {
-      $("#cs-config-static-div").show();
-      $("#cs-config-sta-ip").val(data.wifi.station.ip);
-      $("#cs-config-sta-gateway").val(data.wifi.station.gateway);
-      $("#cs-config-sta-netmask").val(data.wifi.station.netmask);
-      $("#cs-config-sta-dns").val(data.wifi.dns);
-     }
-    }
+    csConfigUpdate(data);
    },
    error : function(xhr, status, error) {
     alert("The command station reported a failure saving configuration data");
@@ -1215,7 +1304,14 @@ function setupConfig() {
     }, 1);
    },});
  });
- $('#cs-config-sta-ip-mode').on('change', function() {
+ $('#cs-config-wifi-mode').on('change', function() {
+  if($("#cs-config-wifi-mode").val() === 'station' || $("#cs-config-wifi-mode").val() === 'softap-station') {
+   $('#cs-config-station-div').show();
+  } else {
+   $('#cs-config-station-div').hide();
+  }
+ });
+ $('#cs-config-ip-mode').on('change', function() {
   if(this.checked) {
    $("#cs-config-static-div").show();
   } else {
@@ -1223,6 +1319,26 @@ function setupConfig() {
   }
  });
  $("#cs-config-static-div").hide();
+ $('#cs-config-station-div').hide();
+ $('#ssid-connect-confirm').hide();
+ $('#cs-config-connect').on('vclick', function() {
+  $('#ssid-connect').popup('open', {positionTo:'window'});
+  refreshSSIDList();
+ });
+ $('#ssid-connect-manual').on('vclick', function() {
+  $('#ssid-manual-ssid').val('');
+  $('#ssid-manual-password').val('');
+  $('#ssid-list').hide();
+  $('#ssid-manual-entry').show();
+  $('#ssid-connect-confirm').show();
+ })
+ $('#cs-connect-rescan').on('vclick', function() {
+  refreshSSIDList();
+ })
+ $('#ssid-connect-confirm').on('vclick', function() {
+  $('#ssid-connect').popup('close');
+  $.put({url:String.format('/config?ssid={0}&password={1}', $('#ssid-manual-ssid').val(), $('#ssid-manual-password').val())});
+ })
 }
 function BSTabRefresh(section) {
  console.log("refreshing: " + section);
@@ -1537,19 +1653,7 @@ function BSTabRefresh(section) {
     }, 1);
    },
    success : function (data, status, xhr) {
-    $('#cs-config-ip-div').hide();
-    $("#cs-config-wifi-mode").val(data.wifi.mode).change();
-    if(data.wifi.mode !== 'softap') {
-     $('#cs-config-ip-div').show();
-     $("#cs-config-ip-mode").prop("checked", data.wifi.station.mode === 'static').flipswitch("refresh");
-     if(data.wifi.station.mode === 'static') {
-      $("#cs-config-static-div").show();
-      $("#cs-config-sta-ip").val(data.wifi.station.ip);
-      $("#cs-config-sta-gateway").val(data.wifi.station.gateway);
-      $("#cs-config-sta-netmask").val(data.wifi.station.netmask);
-      $("#cs-config-sta-dns").val(data.wifi.dns);
-     }
-    }
+    csConfigUpdate(data);
    },
    error : function(xhr, status, error) {
     alert("The command station reported a failure retrieving configuration data");
@@ -1620,6 +1724,9 @@ function refreshTable({table, url, fields, filter=function() {return true;}, fai
    });
    $(table).table('refresh');
    refreshCallback();
+  },
+  error: function(xhr, status) {
+   console.log(status);
   }
  });
 }

@@ -239,14 +239,6 @@ void ESP32CSWebServer::begin()
     asyncDNS.start(53, "*", ip_info.ip);
   }
 
-  if (configStore->isStationEnabled())
-  {
-    tcpip_adapter_ip_info_t ip_info;
-    tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_STA, &ip_info);
-    // store the IP address for use in the 404 handler
-    stationAddress_ = StringPrintf(IPSTR, IP2STR(&ip_info.ip));
-  }
-
   BUILTIN_URI("/jquery.min.js")
   BUILTIN_URI("/jquery.mobile-1.5.0-rc1.min.js")
   BUILTIN_URI("/jquery.mobile-1.5.0-rc1.min.css")
@@ -441,7 +433,7 @@ void ESP32CSWebServer::handlePower(AsyncWebServerRequest *request)
     }
     else
     {
-      response = trackSignal->generate_status_json();
+      response = json::parse(trackSignal->generate_status_json());
     }
     SEND_JSON_RESPONSE(request, response.dump())
     return;
@@ -660,25 +652,21 @@ void ESP32CSWebServer::handleConfig(AsyncWebServerRequest *request)
     wifiManager->start_ssid_scan(&n);
     n.wait_for_notification();
     size_t num_found = wifiManager->get_ssid_scan_result_count();
-    LOG(VERBOSE, "WiFi scan results: %d", num_found);
-    string response{"["};
+    json ssid_list;
     for (int i = 0; i < num_found; i++)
     {
-      if (i)
-      {
-        response += ",";
-      }
       auto result = wifiManager->get_ssid_scan_result(i);
-      LOG(VERBOSE, "SSID: %s, RSSI: %d, channel: %d", result.ssid, result.rssi
-        , result.primary);
-      response += StringPrintf("{\"ssid\":\"%s\",\"rssi\":%d,\"auth\":%d}"
-                             , result.ssid, result.rssi, result.authmode);
+      ssid_list.push_back(
+        {
+          {"ssid", string((char *)result.ssid)},
+          {"rssi", result.rssi},
+          {"auth", result.authmode}
+        }
+      );
     }
     wifiManager->clear_ssid_scan_results();
-    response += "]";
-    LOG(INFO, "SSID scan: %s", response.c_str());
+    string response = ssid_list.dump();
     SEND_JSON_RESPONSE(request, response)
-    return;
   }
   else if (request->hasArg("ssid"))
   {
@@ -1020,12 +1008,7 @@ void ESP32CSWebServer::notFoundHandler(AsyncWebServerRequest *request)
         return;
       }
     }
-    if (request->url().equals("/") && softAPAddress_.length())
-    {
-      request->redirect(StringPrintf("http://%s/index.html", softAPAddress_.c_str()).c_str());
-      return;
-    }
-    else if (request->url().equals("/captiveauth"))
+    if (request->url().equals("/captiveauth"))
     {
       // check if we have seen this client IP before (for captive portal check)
       if (std::find(captiveIPs_.begin(), captiveIPs_.end()
@@ -1035,11 +1018,11 @@ void ESP32CSWebServer::notFoundHandler(AsyncWebServerRequest *request)
       }
       SEND_GENERIC_RESPONSE(request, STATUS_OK)
     }
-
   }
-  else if (request->url().equals("/") && stationAddress_.length())
+  if (request->url().equals("/"))
   {
-    request->redirect(StringPrintf("http://%s/index.html", stationAddress_.c_str()).c_str());
+    string interfaceIP(request->client()->localIP().toString().c_str());
+    request->redirect(StringPrintf("http://%s/index.html", interfaceIP.c_str()).c_str());
     return;
   }
   LOG(INFO, "[WebSrv %s] 404: %s%s", IP_TO_STR(request)

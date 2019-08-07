@@ -42,7 +42,6 @@ public:
 private:
   MDNS *mdns_;
   std::string softAPAddress_;
-  std::string stationAddress_;
   std::vector<uint32_t> captiveIPs_;
   void handleESPInfo(AsyncWebServerRequest *);
   void handleProgrammer(AsyncWebServerRequest *);
