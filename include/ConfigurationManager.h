@@ -51,7 +51,9 @@ public:
   }
 private:
   std::string getFilePath(const std::string &, bool=false);
-  std::string csConfig_{""};
+  bool validateWiFiConfig();
+  bool validateLCCConfig();
+
   std::string wifiSSID_{SSID_NAME};
   std::string wifiPassword_{SSID_PASSWORD};
   wifi_mode_t wifiMode_{WIFI_MODE_STA};

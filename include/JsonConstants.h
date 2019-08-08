@@ -78,10 +78,17 @@ constexpr const char * JSON_CREATE_NODE = "create";
 constexpr const char * JSON_OVERALL_STATE_NODE = "overallState";
 constexpr const char * JSON_LAST_UPDATE_NODE = "lastUpdate";
 
+constexpr const char * JSON_LCC_NODE = "lcc";
+constexpr const char * JSON_NODE_ID_NODE = "id";
+constexpr const char * JSON_LCC_CAN_NODE = "can";
+constexpr const char * JSON_LCC_CAN_RX_NODE = "rx";
+constexpr const char * JSON_LCC_CAN_TX_NODE = "tx";
+
 constexpr const char * JSON_WIFI_NODE = "wifi";
 constexpr const char * JSON_WIFI_MODE_NODE = "mode";
 constexpr const char * JSON_WIFI_SSID_NODE = "ssid";
 constexpr const char * JSON_WIFI_PASSWORD_NODE = "password";
+constexpr const char * JSON_WIFI_SOFTAP_NODE = "softap";
 constexpr const char * JSON_WIFI_STATION_NODE = "station";
 constexpr const char * JSON_WIFI_STATION_IP_NODE = "ip";
 constexpr const char * JSON_WIFI_STATION_GATEWAY_NODE = "gateway";

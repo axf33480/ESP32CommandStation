@@ -22,11 +22,6 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 // INTERNAL FLAGS
 /////////////////////////////////////////////////////////////////////////////////////
 
-// This flag will clear the stored configuration data causing the command
-// station to regenerate the configuration from scratch. This is usually
-// not necessary
-// #define ESP32_FORCE_FACTORY_RESET_ON_STARTUP true
-
 // This flag will print a list of FreeRTOS tasks every ~5min. This is not recommended
 // to be enabled except during debugging sessions as it will cause the FreeRTOS
 // scheduler to remain in a "locked" state for an extended period.

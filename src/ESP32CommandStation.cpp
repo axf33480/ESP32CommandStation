@@ -220,8 +220,8 @@ extern "C" void app_main()
   // Pre-create LCC configuration directory.
   mkdir(openlcb::CONFIG_DIR, ACCESSPERMS);
 
-  bool factoryResetNeeded = LCC_FORCE_FACTORY_RESET_ON_STARTUP ||
-                            ESP32_FORCE_FACTORY_RESET_ON_STARTUP;
+  bool factoryResetNeeded = config_cs_force_factory_reset() == CONSTANT_TRUE ||
+                            config_lcc_force_factory_reset() == CONSTANT_TRUE;
   struct stat statbuf;
   // check the LCC config file to ensure it is the expected size. If not
   // force a factory reset.

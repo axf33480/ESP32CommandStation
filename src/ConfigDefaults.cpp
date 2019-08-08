@@ -23,6 +23,30 @@ COPYRIGHT (c) 2019 Mike Dunston
 DEFAULT_CONST_FALSE(enable_railcom_packet_dump);
 
 ///////////////////////////////////////////////////////////////////////////////
+// This flag will clear the stored configuration data causing the command
+// station to regenerate the configuration from scratch. This is usually not
+// necessary.
+///////////////////////////////////////////////////////////////////////////////
+#if !defined(ESP32_FORCE_FACTORY_RESET_ON_STARTUP) || \
+    !ESP32_FORCE_FACTORY_RESET_ON_STARTUP
+DEFAULT_CONST_FALSE(cs_force_factory_reset);
+#else
+DEFAULT_CONST_TRUE(cs_force_factory_reset);
+#endif
+
+///////////////////////////////////////////////////////////////////////////////
+// This flag will force a factory reset by removing the LCC_CDI_FILE and
+// LCC_CONFIG_FILE before starting the OpenMRN stack. This should not normally
+// be required.
+///////////////////////////////////////////////////////////////////////////////
+#if !defined(LCC_FORCE_FACTORY_RESET_ON_STARTUP) || \
+    !LCC_FORCE_FACTORY_RESET_ON_STARTUP
+DEFAULT_CONST_FALSE(lcc_force_factory_reset);
+#else
+DEFAULT_CONST_TRUE(lcc_force_factory_reset);
+#endif
+
+///////////////////////////////////////////////////////////////////////////////
 // This is the number of pending dcc::Packet objects that the RMT driver will
 // allow to be queued for outbound delivery.
 ///////////////////////////////////////////////////////////////////////////////

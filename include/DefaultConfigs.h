@@ -103,10 +103,6 @@ COPYRIGHT (c) 2019 Mike Dunston
 #define LCC_NODE_ID 0x050101013F00
 #endif
 
-#ifndef LCC_FORCE_FACTORY_RESET_ON_STARTUP 
-#define LCC_FORCE_FACTORY_RESET_ON_STARTUP false
-#endif
-
 ///////////////////////////////////////////////////////////////////////////////
 // InfoScreen default configuration
 ///////////////////////////////////////////////////////////////////////////////
@@ -191,10 +187,6 @@ constexpr uint16_t S88_MAX_SENSORS_PER_BUS = 512;
 /////////////////////////////////////////////////////////////////////////////////////
 // ESP32 CS Internal flags default configuration
 /////////////////////////////////////////////////////////////////////////////////////
-
-#ifndef ESP32_FORCE_FACTORY_RESET_ON_STARTUP
-#define ESP32_FORCE_FACTORY_RESET_ON_STARTUP false
-#endif
 
 #ifndef ENABLE_TASK_LIST_REPORTING
 #define ENABLE_TASK_LIST_REPORTING false
