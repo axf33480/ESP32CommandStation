@@ -22,8 +22,14 @@ unique_ptr<StatusLED> statusLED;
 StateFlowBase::Action StatusLED::init()
 {
 #if STATUS_LED_ENABLED
-  LOG(INFO, "[Status] Initializing LEDs");
-  bus_.reset(new NeoPixelBrightnessBus<NEO_COLOR_MODE, NEO_METHOD>(LED::MAX_LED, STATUS_LED_DATA_PIN));
+  LOG(INFO
+    , "[Status] Initializing LEDs (color-mode:%s, protocol:%s, pin: %d, "
+      "brightness: %d)"
+    , NEO_COLOR_MODE_NAME, NEO_METHOD_NAME, STATUS_LED_DATA_PIN
+    , STATUS_LED_BRIGHTNESS);
+  bus_.reset(
+    new NeoPixelBrightnessBus<NEO_COLOR_MODE, NEO_METHOD>(LED::MAX_LED
+                                                        , STATUS_LED_DATA_PIN));
   bus_->Begin();
   bus_->SetBrightness(STATUS_LED_BRIGHTNESS);
   bus_->ClearTo(RGB_OFF_);

@@ -22,35 +22,59 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #include <executor/StateFlow.hxx>
 #include <NeoPixelBrightnessBus.h>
 
+// constants for pre-compiler checks
+#define RGB   1
+#define GRB   2
+#define RGBW  3
+#define GRBW  4
+#define BRG   5
+#define RBG   6
+
 #if STATUS_LED_COLOR_ORDER == RGB
 #define NEO_COLOR_TYPE RgbColor
 #define NEO_COLOR_MODE NeoRgbFeature
+#define NEO_COLOR_MODE_NAME "RGB"
 #elif STATUS_LED_COLOR_ORDER == GRB
 #define NEO_COLOR_MODE NeoGrbFeature
+#define NEO_COLOR_MODE_NAME "GRB"
 #elif STATUS_LED_COLOR_ORDER == RGBW
 #define NEO_COLOR_MODE NeoRgbwFeature
 #define NEO_COLOR_TYPE RgbwColor
+#define NEO_COLOR_MODE_NAME "RGBW"
 #elif STATUS_LED_COLOR_ORDER == GRBW
 #define NEO_COLOR_MODE NeoGrbwFeature
 #define NEO_COLOR_TYPE RgbwColor
+#define NEO_COLOR_MODE_NAME "GRBW"
 #elif STATUS_LED_COLOR_ORDER == BRG
 #define NEO_COLOR_TYPE RgbColor
 #define NEO_COLOR_MODE NeoBrgFeature
+#define NEO_COLOR_MODE_NAME "BRG"
 #elif STATUS_LED_COLOR_ORDER == RBG
 #define NEO_COLOR_TYPE RgbColor
 #define NEO_COLOR_MODE NeoRbgFeature
+#define NEO_COLOR_MODE_NAME "RBG"
 #else
 #error "StatusLED: unknown LED color order"
 #endif
 
+#define WS281X      1
+#define WS281X_800K 2
+#define WS281X_400K 3
+#define SK6812      4
+#define LC6812      5
+
 #if STATUS_LED_TYPE == WS281X
 #define NEO_METHOD NeoEsp32Rmt7Ws2812xMethod
+#define NEO_METHOD_NAME "RMT(7)-Ws2812"
 #elif STATUS_LED_TYPE == WS281X_800K
 #define NEO_METHOD NeoEsp32Rmt7800KbpsMethod
+#define NEO_METHOD_NAME "RMT(7)-Ws2812-800kbps"
 #elif STATUS_LED_TYPE == WS281X_400K
 #define NEO_METHOD NeoEsp32Rmt7400KbpsMethod
+#define NEO_METHOD_NAME "RMT(7)-Ws2812-400kbps"
 #elif STATUS_LED_TYPE == SK6812 || STATUS_LED_TYPE == LC6812
 #define NEO_METHOD NeoEsp32Rmt7Sk6812Method
+#define NEO_METHOD_NAME "RMT(7)-sk6812"
 #else
 #error "StatusLED: unknown LED type"
 #endif
