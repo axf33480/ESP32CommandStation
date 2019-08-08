@@ -8,26 +8,28 @@ The primary focus of v1.4.0 will be improvements to the DCC signal code and addi
 
 ### General (misc)
 
-- [ ] CMake and VisualGDB support (https://github.com/atanisoft/ESP32CommandStation/pull/22)
 - [x] Split up build_index_header.py into a common py module and PIO script.
 - [ ] Remove usages of WString.
 - [x] Add PCB build types (base, OLED, LCD)
 - [x] Replace ArduinoJson with "JSON for Modern C++"
+- [ ] Rework Roster Entry class to contain function id mappings.
+- [ ] Rework Loco Consist to fit with LCC Traction Consist support (and not depend on Locomotive class)
 
 ### Config
 
 - [-] SoftAP support for initial config and "non-home" network. (https://github.com/atanisoft/ESP32CommandStation/issues/4)
+- [x] Dynamic config for LCC and WiFi stored on SD/SPIFFS.
 
 ### DCC System
 
 - [-] continue sending eStop packet until eStop is cleared.
 - [x] refactor signal generation to use: dcc::Packet, UpdateLoop, RailcomHub, ProgrammingTrackBackend, LocalTrackIf.
 - [x] allow adjustment of the DCC preamble bit count, default is 16 (OPS) and 22 (PROG). The OPS value is constrained between 11 and 20 and PROG between 22 and 50.
-- [ ] test and expose OPS RailCom configuration.
+- [ ] test OPS RailCom configuration.
 
 ### Web Interface
 
-- [ ] add dialog for failed CS requests.
+- [-] add dialog for failed CS requests.
 - [ ] Expose Loco Consist creation.
 - [x] Hide power button for prog track when it is off
 
@@ -47,6 +49,10 @@ The primary focus of v1.4.0 will be improvements to the DCC signal code and addi
 ## Future planning:
 The entries below are not tracked to a specific release or in any particular priority order.
 
+### General
+
+- [ ] CMake and VisualGDB support (https://github.com/atanisoft/ESP32CommandStation/pull/22)
+
 ### S88 Sensors
 
 - [ ] Add S88 sensor data to InfoScreen status line, 16 sensor output rotation.
@@ -57,8 +63,7 @@ The entries below are not tracked to a specific release or in any particular pri
 - [ ] Concurrency guards for ProgrammingTrackBackend.
 
 ### Config
-
-- [ ] Dynamic command station feature support (S88, OLED, LCD, LocoNet, Nextion, etc)
+TBD
 
 ### Web Interface
 
