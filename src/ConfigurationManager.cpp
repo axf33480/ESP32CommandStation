@@ -250,7 +250,7 @@ ConfigurationManager::ConfigurationManager()
     stationStaticIP_->netmask.addr = ipaddr_addr(WIFI_STATIC_IP_SUBNET);
 #else
     LOG(INFO, "[Config] Station IP: DHCP assigned");
-    config[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_STATION_NODE] = JSON_VALUE_STATION_IP_MODE_DHCP;
+    config[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_MODE_NODE] = JSON_VALUE_STATION_IP_MODE_DHCP;
 #endif
     config[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_SSID_NODE] = wifiSSID_;
     config[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_PASSWORD_NODE] = wifiPassword_;
