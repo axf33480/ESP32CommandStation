@@ -41,6 +41,7 @@ The primary focus of v1.4.0 will be improvements to the DCC signal code and addi
 - [x] implement CV memory space.
 - [-] Traction proxy impl.
 - [ ] TrainSearch protocol.
+- [ ] Force factory reset when node id changes.
 
 ### InfoScreen
 
