@@ -98,7 +98,8 @@ void S88BusManager::init() {
   {
     for(auto bus : root[JSON_SENSORS_NODE])
     {
-      s88SensorBus.add(new S88SensorBus(bus));
+      string data = bus.dump();
+      s88SensorBus.add(new S88SensorBus(data));
     }
   }
   LOG(INFO, "[S88] Loaded %d Sensor Buses", s88SensorBus.length());
@@ -238,8 +239,9 @@ S88SensorBus::S88SensorBus(const uint8_t id, const uint8_t dataPin, const uint16
   }
 }
 
-S88SensorBus::S88SensorBus(json &object)
+S88SensorBus::S88SensorBus(string data)
 {
+  json object = json::parse(data);
   _id = object[JSON_ID_NODE];
   _dataPin = object[JSON_PIN_NODE];
   _lastSensorID = _sensorIDBase = object[JSON_S88_SENSOR_BASE_NODE];

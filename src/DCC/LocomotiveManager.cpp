@@ -266,90 +266,79 @@ LocomotiveManager::LocomotiveManager(Node *node, TrainService *trainService) :
 {
   bool persistNeeded = false;
   LOG(INFO, "[Roster] Initializing Locomotive Roster");
-  if (configStore->exists(ROSTER_JSON_FILE))
+  json root = json::parse(configStore->load(ROSTER_JSON_FILE));
+  if (root.contains(JSON_COUNT_NODE))
   {
-    json root = json::parse(configStore->load(ROSTER_JSON_FILE));
-    uint16_t locoCount = root.contains(JSON_COUNT_NODE) ? root[JSON_COUNT_NODE].get<uint16_t>() : 0;
-    LOG(INFO, "[Roster] Loading %d Locomotive Roster entries", locoCount);
+    uint16_t locoCount = root[JSON_COUNT_NODE].get<uint16_t>();
     infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Found %02d Locos", locoCount);
-    if (locoCount > 0)
+    LOG(INFO, "[Roster] Loading %d Locomotive Roster entries", locoCount);
+    for (auto entry : root[JSON_LOCOS_NODE])
     {
-      for (auto entry : root[JSON_LOCOS_NODE])
+      std::string file = entry[JSON_FILE_NODE].get<string>();
+      if (configStore->exists(file.c_str()))
       {
-        std::string file = entry[JSON_FILE_NODE].get<string>();
-        if (configStore->exists(file.c_str()))
-        {
-          string entry = read_file_to_string(file);
-          roster_.emplace_back(new RosterEntry(entry));
-        }
-        else
-        {
-          LOG_ERROR("[Roster] Unable to locate Locomotive Roster entry %s!", file.c_str());
-        }
+        string entry = configStore->load(file);
+        roster_.emplace_back(new RosterEntry(entry));
+      }
+      else
+      {
+        LOG_ERROR("[Roster] Unable to locate Locomotive Roster entry %s!", file.c_str());
       }
     }
   }
 
-  if (configStore->exists(OLD_ROSTER_JSON_FILE))
+  root = json::parse(configStore->load(OLD_ROSTER_JSON_FILE));
+  if (root.contains(JSON_COUNT_NODE))
   {
-    json root = json::parse(configStore->load(OLD_ROSTER_JSON_FILE));
-    if (root.contains(JSON_COUNT_NODE))
+    uint16_t locoCount = root[JSON_COUNT_NODE].get<uint16_t>();
+    LOG(INFO, "[Roster] Loading %d older version Locomotive Roster entries", locoCount);
+    infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Load %02d Locos", locoCount);
+    for (auto entry : root[JSON_LOCOS_NODE])
     {
-      uint16_t locoCount = root[JSON_COUNT_NODE].get<uint16_t>();
-      LOG(INFO, "[Roster] Loading %d older version Locomotive Roster entries", locoCount);
-      infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Load %02d Locos", locoCount);
-      for (auto entry : root[JSON_LOCOS_NODE])
-      {
-        string data = entry.dump();
-        roster_.emplace_back(new RosterEntry(data));
-      }
+      string data = entry.dump();
+      roster_.emplace_back(new RosterEntry(data));
     }
     configStore->remove(OLD_ROSTER_JSON_FILE);
     persistNeeded = true;
   }
   LOG(INFO, "[Roster] Loaded %d Locomotive Roster entries", roster_.size());
 
-  if (configStore->exists(CONSISTS_JSON_FILE))
+  root = json::parse(configStore->load(CONSISTS_JSON_FILE));
+  if (root.contains(JSON_COUNT_NODE))
   {
-    json consistRoot = json::parse(configStore->load(CONSISTS_JSON_FILE));
-    if (consistRoot.contains(JSON_COUNT_NODE))
+    uint16_t consistCount = root[JSON_COUNT_NODE].get<uint16_t>();
+    LOG(INFO, "[Consist] Loading %d Locomotive Consists", consistCount);
+    infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Load %02d Consists", consistCount);
+    for(auto entry : root[JSON_CONSISTS_NODE])
     {
-      uint16_t consistCount = consistRoot[JSON_COUNT_NODE].get<uint16_t>();
-      LOG(INFO, "[Consist] Loading %d Locomotive Consists", consistCount);
-      infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Load %02d Consists", consistCount);
-      for(auto entry : consistRoot[JSON_CONSISTS_NODE])
+      string file = entry[JSON_FILE_NODE].get<string>();
+      if (configStore->exists(file.c_str()))
       {
-        string file = entry[JSON_FILE_NODE].get<string>();
-        if (configStore->exists(file.c_str()))
-        {
-          string entry = read_file_to_string(file.c_str());
-          consists_.emplace_back(LocomotiveConsist::fromJson(entry, trainService_));
-        }
-        else
-        {
-          LOG_ERROR("[Consist] Unable to locate Locomotive Consist Entry %s!", file.c_str());
-        }
+        string entry = configStore->load(file);
+        consists_.emplace_back(LocomotiveConsist::fromJson(entry, trainService_));
+      }
+      else
+      {
+        LOG_ERROR("[Consist] Unable to locate Locomotive Consist Entry %s!", file.c_str());
       }
     }
   }
 
-  if(configStore->exists(OLD_CONSISTS_JSON_FILE))
+  root = json::parse(configStore->load(OLD_CONSISTS_JSON_FILE));
+  if (root.contains(JSON_COUNT_NODE))
   {
-    json consistRoot = json::parse(configStore->load(OLD_CONSISTS_JSON_FILE));
-    if (consistRoot.contains(JSON_COUNT_NODE))
+    uint16_t consistCount = root[JSON_COUNT_NODE].get<uint16_t>();
+    LOG(INFO, "[Consist] Loading %d Locomotive Consists", consistCount);
+    infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Load %02d Consists", consistCount);
+    for (auto entry : root[JSON_CONSISTS_NODE])
     {
-      uint16_t consistCount = consistRoot[JSON_COUNT_NODE].get<uint16_t>();
-      LOG(INFO, "[Consist] Loading %d Locomotive Consists", consistCount);
-      infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Load %02d Consists", consistCount);
-      for (auto entry : consistRoot[JSON_CONSISTS_NODE])
-      {
-        string data = entry.dump();
-        consists_.emplace_back(LocomotiveConsist::fromJson(data, trainService_));
-      }
+      string data = entry.dump();
+      consists_.emplace_back(LocomotiveConsist::fromJson(data, trainService_));
     }
     configStore->remove(OLD_CONSISTS_JSON_FILE);
     persistNeeded = true;
   }
+
   LOG(INFO, "[Consist] Loaded %d Locomotive Consists", consists_.size());
   if (persistNeeded)
   {

@@ -86,17 +86,15 @@ static constexpr const char * SENSORS_JSON_FILE = "sensors.json";
 
 void SensorManager::init() {
   LOG(INFO, "[Sensors] Initializing sensors");
-  if(configStore->exists(SENSORS_JSON_FILE))
+  json root = json::parse(configStore->load(SENSORS_JSON_FILE));
+  if(root.contains(JSON_COUNT_NODE))
   {
-    json root = json::parse(configStore->load(SENSORS_JSON_FILE));
-    if(root.contains(JSON_COUNT_NODE))
+    uint16_t sensorCount = root[JSON_COUNT_NODE].get<uint16_t>();
+    infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Found %02d Sensors", sensorCount);
+    for(auto sensor : root[JSON_SENSORS_NODE])
     {
-      uint16_t sensorCount = root[JSON_COUNT_NODE].get<uint16_t>();
-      infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Found %02d Sensors", sensorCount);
-      for(auto sensor : root[JSON_SENSORS_NODE])
-      {
-        sensors.add(new Sensor(sensor));
-      }
+      string data = sensor.dump();
+      sensors.add(new Sensor(data));
     }
   }
   LOG(INFO, "[Sensors] Loaded %d sensors", sensors.length());

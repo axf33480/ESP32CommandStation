@@ -31,22 +31,19 @@ static constexpr const char *TURNOUT_TYPE_STRINGS[] =
 
 TurnoutManager::TurnoutManager(openlcb::Node *node)
 {
-  LOG(INFO, "[Turnout] Initializing...");
-  if (configStore->exists(TURNOUTS_JSON_FILE))
+  LOG(INFO, "[Turnout] Initializing DCC Turnout database");
+  json root = json::parse(configStore->load(TURNOUTS_JSON_FILE));
+  if (root.contains(JSON_COUNT_NODE) && root[JSON_COUNT_NODE].get<uint16_t>() > 0)
   {
-    json root = json::parse(configStore->load(TURNOUTS_JSON_FILE));
-    if (root.contains(JSON_COUNT_NODE) && root[JSON_COUNT_NODE].get<uint16_t>() > 0)
+    uint16_t turnoutCount = root[JSON_COUNT_NODE].get<uint16_t>();
+    infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Found %02d Turnouts", turnoutCount);
+    for (auto turnout : root[JSON_TURNOUTS_NODE])
     {
-      uint16_t turnoutCount = root[JSON_COUNT_NODE].get<uint16_t>();
-      infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Found %02d Turnouts", turnoutCount);
-      for (auto turnout : root[JSON_TURNOUTS_NODE])
-      {
-        string data = turnout.dump();
-        turnouts_.emplace_back(new Turnout(data));
-      }
+      string data = turnout.dump();
+      turnouts_.emplace_back(new Turnout(data));
     }
   }
-  LOG(INFO, "[Turnout] Loaded %d turnouts", turnouts_.size());
+  LOG(INFO, "[Turnout] Found %d DCC turnout(s)", turnouts_.size());
 
   // register the LCC event handler
   turnoutEventConsumer_.reset(new DccAccyConsumer(node, this));

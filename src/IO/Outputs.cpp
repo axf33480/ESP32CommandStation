@@ -101,18 +101,15 @@ static constexpr const char * OUTPUTS_JSON_FILE = "outputs.json";
 void OutputManager::init()
 {
   LOG(INFO, "[Output] Initializing outputs");
-  if(configStore->exists(OUTPUTS_JSON_FILE))
+  json root = json::parse(configStore->load(OUTPUTS_JSON_FILE));
+  if(root.contains(JSON_COUNT_NODE))
   {
-    json root = json::parse(configStore->load(OUTPUTS_JSON_FILE));
-    if(root.contains(JSON_COUNT_NODE))
+    uint16_t outputCount = root[JSON_COUNT_NODE].get<uint16_t>();
+    infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Found %02d Outputs", outputCount);
+    for(auto output : root[JSON_OUTPUTS_NODE])
     {
-      uint16_t outputCount = root[JSON_COUNT_NODE].get<uint16_t>();
-      infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Found %02d Outputs", outputCount);
-      for(auto output : root[JSON_OUTPUTS_NODE])
-      {
-        string data = output.dump();
-        outputs.add(new Output(data));
-      }
+      string data = output.dump();
+      outputs.add(new Output(data));
     }
   }
   LOG(INFO, "[Output] Loaded %d outputs", outputs.length());
