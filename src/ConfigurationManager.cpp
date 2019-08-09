@@ -37,28 +37,16 @@ unique_ptr<ConfigurationManager> configStore;
 
 static constexpr const char * ESP32_CS_CONFIG_JSON = "esp32cs-config.json";
 
-//#define CONFIG_USE_SD true
-
-#define SPIFFS_FILESYSTEM_PREFIX "/spiffs"
-#define SD_FILESYSTEM_PREFIX "/sdcard"
-
 // Handle for the SD card (if mounted)
 sdmmc_card_t *sdcard = nullptr;
 
-#if CONFIG_USE_SD
-#define FILESYSTEM_PREFIX SD_FILESYSTEM_PREFIX
-#else
-// default to SPIFFS storage
-#define FILESYSTEM_PREFIX SPIFFS_FILESYSTEM_PREFIX
-#endif
-
 // All ESP32 Command Station configuration files live under this directory on
 // the configured filesystem starting with v1.3.0.
-static const char* const ESP32CS_CONFIG_DIR = FILESYSTEM_PREFIX "/ESP32CS";
+static const char* const ESP32CS_CONFIG_DIR = CS_CONFIG_FILESYSTEM "/ESP32CS";
 
 // Prior to v1.3.0 this was the configuration location, it is retained here only
 // to support migration of data from previous releases.
-static const char* const OLD_CONFIG_DIR = FILESYSTEM_PREFIX "/DCCppESP32";
+static const char* const OLD_CONFIG_DIR = CS_CONFIG_FILESYSTEM "/DCCppESP32";
 
 // Global handle for WiFi Manager
 unique_ptr<Esp32WiFiManager> wifiManager;
@@ -108,7 +96,7 @@ ConfigurationManager::ConfigurationManager()
   bool initialize_default_config{true};
   esp_vfs_spiffs_conf_t conf =
   {
-    .base_path = SPIFFS_FILESYSTEM_PREFIX,
+    .base_path = "/spiffs",
     .partition_label = NULL,
     .max_files = 5,
     .format_if_mount_failed = true
@@ -138,7 +126,7 @@ ConfigurationManager::ConfigurationManager()
     .allocation_unit_size = 16 * 1024
   };
   ESP_ERROR_CHECK(
-    esp_vfs_fat_sdmmc_mount(SD_FILESYSTEM_PREFIX,
+    esp_vfs_fat_sdmmc_mount("/sdcard",
                             &host,
                             &slot_config,
                             &mount_config,
@@ -158,7 +146,7 @@ ConfigurationManager::ConfigurationManager()
   }
 #endif
   LOG(VERBOSE, "[Config] Persistent storage contents:");
-  recursiveWalkTree(FILESYSTEM_PREFIX
+  recursiveWalkTree(CS_CONFIG_FILESYSTEM
                   , config_cs_force_factory_reset() == CONSTANT_TRUE);
   mkdir(ESP32CS_CONFIG_DIR, ACCESSPERMS);
 

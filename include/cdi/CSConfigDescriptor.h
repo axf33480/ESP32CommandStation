@@ -24,19 +24,20 @@ COPYRIGHT (c) 2019 Mike Dunston
 #include <freertos_drivers/esp32/Esp32WiFiConfiguration.hxx>
 #include "cdi/TrackOutputDescriptor.h"
 
-namespace openlcb
+namespace esp32cs
 {
-    using TrackOutputs = RepeatedGroup<TrackOutputConfig, 2>;
+    using TrackOutputs = openlcb::RepeatedGroup<TrackOutputConfig, 2>;
 
     /// Defines the main segment in the configuration CDI. This is laid out at
     /// origin 128 to give space for the ACDI user data at the beginning.
-    CDI_GROUP(CommandStationSegment, Segment(MemoryConfigDefs::SPACE_CONFIG),
+    CDI_GROUP(CommandStationSegment,
+              Segment(openlcb::MemoryConfigDefs::SPACE_CONFIG),
               Offset(128));
     /// Each entry declares the name of the current entry, then the type and
     /// then optional arguments list.
-    CDI_GROUP_ENTRY(internal_config, InternalConfigData);
+    CDI_GROUP_ENTRY(internal_config, openlcb::InternalConfigData);
     /// CV Access via MemoryConfig protocol.
-    CDI_GROUP_ENTRY(cv, TractionShortCvSpace);
+    CDI_GROUP_ENTRY(cv, openlcb::TractionShortCvSpace);
     /// WiFi configuration
     CDI_GROUP_ENTRY(wifi, WiFiConfiguration, Name("WiFi Configuration"));
     /// H-Bridge configuration
@@ -45,24 +46,23 @@ namespace openlcb
 
     /// This segment is only needed temporarily until there is program code to set
     /// the ACDI user data version byte.
-    CDI_GROUP(VersionSeg, Segment(MemoryConfigDefs::SPACE_CONFIG),
+    CDI_GROUP(VersionSeg, Segment(openlcb::MemoryConfigDefs::SPACE_CONFIG),
         Name("Version information"));
-    CDI_GROUP_ENTRY(acdi_user_version, Uint8ConfigEntry,
+    CDI_GROUP_ENTRY(acdi_user_version, openlcb::Uint8ConfigEntry,
         Name("ACDI User Data version"),
         Description("Set to 2 and do not change."));
     CDI_GROUP_END();
 
-    /// The main structure of the CDI. ConfigDef is the symbol used in
-    /// src/LCCInterface.cpp to refer to the configuration defined here.
-    CDI_GROUP(ConfigDef, MainCdi());
+    /// The main structure of the ESP32 Command Station CDI.
+    CDI_GROUP(Esp32ConfigDef, MainCdi());
     /// Adds the <identification> tag with the values from SNIP_STATIC_DATA
     /// above.
-    CDI_GROUP_ENTRY(ident, Identification);
+    CDI_GROUP_ENTRY(ident, openlcb::Identification);
     /// Adds an <acdi> tag.
-    CDI_GROUP_ENTRY(acdi, Acdi);
+    CDI_GROUP_ENTRY(acdi, openlcb::Acdi);
     /// Adds a segment for changing the values in the ACDI user-defined
     /// space. UserInfoSegment is defined in the system header.
-    CDI_GROUP_ENTRY(userinfo, UserInfoSegment);
+    CDI_GROUP_ENTRY(userinfo, openlcb::UserInfoSegment);
     /// Adds the main configuration segment.
     CDI_GROUP_ENTRY(seg, CommandStationSegment);
     /// Adds the versioning segment.

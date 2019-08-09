@@ -29,8 +29,8 @@ MonitoredHBridge::MonitoredHBridge(SimpleCanStack *stack
                  , const uint32_t maxMilliAmps
                  , const string &name
                  , const string &bridgeType
-                 , const TrackOutputConfig &cfg) :
-  StateFlowBase(stack->service())
+                 , const esp32cs::TrackOutputConfig &cfg)
+  : StateFlowBase(stack->service())
   , DefaultConfigUpdateListener()
   , channel_(senseChannel)
   , enablePin_(enablePin)
@@ -60,8 +60,8 @@ MonitoredHBridge::MonitoredHBridge(SimpleCanStack *stack
                  , const uint32_t maxMilliAmps
                  , const string &name
                  , const string &bridgeType
-                 , const TrackOutputConfig &cfg) :
-  StateFlowBase(stack->service())
+                 , const esp32cs::TrackOutputConfig &cfg)
+  : StateFlowBase(stack->service())
   , DefaultConfigUpdateListener()
   , channel_(senseChannel)
   , enablePin_(enablePin)

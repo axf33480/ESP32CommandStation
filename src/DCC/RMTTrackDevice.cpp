@@ -227,8 +227,8 @@ static void rmt_tx_complete_isr_callback(void *ctx)
 
 RMTTrackDevice::RMTTrackDevice(SimpleCanStack *stack
                              , RailcomHubFlow *railComHub
-                             , const TrackOutputConfig &opsCfg
-                             , const TrackOutputConfig &progCfg
+                             , const esp32cs::TrackOutputConfig &opsCfg
+                             , const esp32cs::TrackOutputConfig &progCfg
                              , const rmt_channel_t opsChannel
                              , const gpio_num_t opsSignalPin
                              , const uint8_t opsPreambleBits

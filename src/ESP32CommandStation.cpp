@@ -18,8 +18,6 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #include "ESP32CommandStation.h"
 #include "cdi/CSConfigDescriptor.h"
 
-using openlcb::ConfigDef;
-
 const char * buildTime = __DATE__ " " __TIME__;
 
 // Allow usage of ::select() for GridConnect TCP connections.
@@ -56,12 +54,12 @@ std::unique_ptr<OpenMRN> openmrn;
 // for the ESP32
 string dummystring("abcdef");
 
-// ConfigDef comes from CSConfigDescriptor.h and is specific to this particular
-// device and target. It defines the layout of the configuration memory space
-// and is also used to generate the cdi.xml file. Here we instantiate the
-// configuration layout. The argument of offset zero is ignored and will be
-// removed later.
-static constexpr ConfigDef cfg(0);
+// Esp32ConfigDef comes from CSConfigDescriptor.h and is specific to this
+// particular device and target. It defines the layout of the configuration
+// memory space and is also used to generate the cdi.xml file. Here we
+// instantiate the configuration layout. The argument of offset zero is ignored
+// and will be removed later.
+static constexpr esp32cs::Esp32ConfigDef cfg(0);
 
 // define the SNIP data for the Command Station.
 namespace openlcb {
@@ -74,37 +72,27 @@ namespace openlcb {
   };
 }
 
+// override LCC defaults with the ESP32 CS values.
+namespace openlcb
+{
+  // This will stop openlcb from exporting the CDI memory space upon start.
+  const char CDI_DATA[] = "";
+
+  // Path to where OpenMRN should persist general configuration data.
+  const char *const CONFIG_FILENAME = CS_CONFIG_FILESYSTEM LCC_NODE_CONFIG_FILE;
+
+  // The size of the memory space to export over the above device.
+  const size_t CONFIG_FILE_SIZE = cfg.seg().size() + cfg.seg().offset();
+
+  // Default to store the dynamic SNIP data is stored in the same persistant
+  // data file as general configuration data.
+  const char *const SNIP_DYNAMIC_FILENAME = CONFIG_FILENAME;
+}
+
 unique_ptr<OTAMonitorFlow> otaMonitor;
 unique_ptr<RMTTrackDevice> trackSignal;
 unique_ptr<LocalTrackIf> trackInterface;
 unique_ptr<RailcomHubFlow> railComHub;
-
-#if CONFIG_USE_SD
-#define CDI_CONFIG_PREFIX "/sdcard"
-#else
-#define CDI_CONFIG_PREFIX "/spiffs"
-#endif
-
-namespace openlcb
-{
-    // Name of CDI.xml to generate dynamically.
-    const char CDI_FILENAME[] = CDI_CONFIG_PREFIX LCC_CDI_FILE;
-
-    // This will stop openlcb from exporting the CDI memory space upon start.
-    const char CDI_DATA[] = "";
-
-    // Path to where OpenMRN should persist general configuration data.
-    const char *const CONFIG_FILENAME = CDI_CONFIG_PREFIX LCC_CONFIG_FILE;
-
-    // The size of the memory space to export over the above device.
-    const size_t CONFIG_FILE_SIZE = cfg.seg().size() + cfg.seg().offset();
-
-    // Default to store the dynamic SNIP data is stored in the same persistant
-    // data file as general configuration data.
-    const char *const SNIP_DYNAMIC_FILENAME = CONFIG_FILENAME;
-
-    const char *const CONFIG_DIR = CDI_CONFIG_PREFIX LCC_CONFIG_DIR;
-}
 
 // when the command station starts up the first time the config is blank
 // and needs to be reset to factory settings. This class being declared here
@@ -124,8 +112,6 @@ public:
         cfg.userinfo().description().write(fd, "");
     }
 };
-
-
 
 void openmrn_loop_task(void *unused)
 {
@@ -170,7 +156,7 @@ extern "C" void app_main()
   configStore.reset(new ConfigurationManager());
 
   // Pre-create LCC configuration directory.
-  mkdir(openlcb::CONFIG_DIR, ACCESSPERMS);
+  mkdir(LCC_PERSISTENT_CONFIG_DIR, ACCESSPERMS);
 
   bool factoryResetNeeded = config_cs_force_factory_reset() == CONSTANT_TRUE ||
                             config_lcc_force_factory_reset() == CONSTANT_TRUE;
@@ -190,8 +176,8 @@ extern "C" void app_main()
   if (factoryResetNeeded)
   {
     LOG(WARNING, "[LCC] Forcing factory reset!");
-    unlink(openlcb::CDI_FILENAME);
     unlink(openlcb::CONFIG_FILENAME);
+    unlink(LCC_NODE_CDI_FILE);
   }
 
   // Initialize the OpenMRN stack.
@@ -216,7 +202,7 @@ extern "C" void app_main()
   configStore->configureCAN(openmrn.get());
 
   // Create the CDI.xml dynamically if it doesn't already exist.
-  openmrn->create_config_descriptor_xml(cfg, openlcb::CDI_FILENAME);
+  openmrn->create_config_descriptor_xml(cfg, LCC_NODE_CDI_FILE);
 
   // Create the default internal configuration file if it doesn't already exist.
 #if CONFIG_USE_SD

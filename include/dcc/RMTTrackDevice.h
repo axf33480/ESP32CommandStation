@@ -39,8 +39,8 @@ class RMTTrackDevice : public dcc::PacketFlowInterface
 public:
   RMTTrackDevice(openlcb::SimpleCanStack *
                , dcc::RailcomHubFlow *
-               , const TrackOutputConfig &
-               , const TrackOutputConfig &
+               , const esp32cs::TrackOutputConfig &
+               , const esp32cs::TrackOutputConfig &
                , const rmt_channel_t=RMT_CHANNEL_0
                , const gpio_num_t=(gpio_num_t)OPS_SIGNAL_PIN
                , const uint8_t=OPS_PREAMBLE_BITS

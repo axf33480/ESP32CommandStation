@@ -38,7 +38,7 @@ public:
                  , const uint32_t
                  , const std::string &
                  , const std::string &
-                 , const TrackOutputConfig &);
+                 , const esp32cs::TrackOutputConfig &);
 
   MonitoredHBridge(openlcb::SimpleCanStack *
                  , const adc1_channel_t
@@ -46,7 +46,7 @@ public:
                  , const uint32_t
                  , const std::string &
                  , const std::string &
-                 , const TrackOutputConfig &);
+                 , const esp32cs::TrackOutputConfig &);
 
   enum STATE
   {
@@ -157,7 +157,7 @@ private:
   uint32_t shutdownLimit_{0};
   uint32_t warnLimit_{0};
   uint32_t progAckLimit_{0};
-  const TrackOutputConfig cfg_;
+  const esp32cs::TrackOutputConfig cfg_;
   const uint8_t targetLED_;
   const uint8_t adcSampleCount_{64};
   const uint64_t checkInterval_{MSEC_TO_NSEC(100)};
