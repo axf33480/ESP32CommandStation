@@ -48,6 +48,9 @@ OVERRIDE_CONST(local_alias_cache_size, 30);
 // Uncomment to have all railcom data printed as it is received.
 //OVERRIDE_CONST_TRUE("enable_railcom_packet_dump");
 
+// Uncomment to list task statistics periodically.
+//OVERRIDE_CONST_TRUE(cs_task_list_reporting);
+
 std::unique_ptr<OpenMRN> openmrn;
 // note the dummy string below is required due to a bug in the GCC compiler
 // for the ESP32
@@ -122,38 +125,7 @@ public:
     }
 };
 
-#if CPULOAD_REPORTING
-#include <freertos_drivers/arduino/CpuLoad.hxx>
-#include <esp32-hal-timer.h>
-CpuLoad cpuLogTracker;
-hw_timer_t *cpuTickTimer{nullptr};
-unique_ptr<CpuLoadLog> cpuLoadLogger;
 
-constexpr uint8_t CPULOAD_TIMER_NUMBER = 3;
-constexpr uint8_t CPULOAD_TIMER_DIVIDER = 80;
-
-os_thread_t cpuTickTaskHandle;
-
-void *cpuTickTask(void *param)
-{
-  while(true)
-  {
-    // go to sleep until next interval
-    ulTaskNotifyTake(true, portMAX_DELAY);
-    // Retrieves the vtable pointer from the currently running executable.
-    unsigned *pp = (unsigned *)openmrn->stack()->executor()->current();
-    cpuload_tick(pp ? pp[0] | 1 : 0);
-  }
-  return nullptr;
-}
-
-void IRAM_ATTR cpuTickTimerCallback()
-{
-  BaseType_t xHigherPriorityTaskWoken{pdFALSE};
-  vTaskNotifyGiveFromISR(cpuTickTaskHandle, &xHigherPriorityTaskWoken);
-  portYIELD_FROM_ISR();
-}
-#endif // CPULOAD_REPORTING
 
 void openmrn_loop_task(void *unused)
 {
@@ -356,16 +328,6 @@ extern "C" void app_main()
                           , openmrn_arduino::OPENMRN_STACK_SIZE, nullptr, 1
                           , nullptr, APP_CPU_NUM);
   }));
-
-#if CPULOAD_REPORTING
-  cpuLoadLogger.reset(new CpuLoadLog(openmrn.stack()->service()));
-  os_thread_create(&cpuTickTaskHandle, "loadtick", 1, 0, &cpuTickTask, nullptr);
-  cpuTickTimer = timerBegin(CPULOAD_TIMER_NUMBER, CPULOAD_TIMER_DIVIDER, true);
-  timerAttachInterrupt(cpuTickTimer, &cpuTickTimerCallback, true);
-  // 1MHz clock, 163 ticks per second desired.
-  timerAlarmWrite(cpuTickTimer, 1000000/163, true);
-  timerAlarmEnable(cpuTickTimer);
-#endif
 
 #if ENABLE_OUTPUTS
   OutputManager::init();

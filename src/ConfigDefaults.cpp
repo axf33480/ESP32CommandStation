@@ -18,11 +18,6 @@ COPYRIGHT (c) 2019 Mike Dunston
 #include <utils/constants.hxx>
 
 ///////////////////////////////////////////////////////////////////////////////
-// Enabling this will print all RailCom packet data as it arrives at the hub.
-///////////////////////////////////////////////////////////////////////////////
-DEFAULT_CONST_FALSE(enable_railcom_packet_dump);
-
-///////////////////////////////////////////////////////////////////////////////
 // This flag will clear the stored configuration data causing the command
 // station to regenerate the configuration from scratch. This is usually not
 // necessary.
@@ -35,6 +30,19 @@ DEFAULT_CONST_TRUE(cs_force_factory_reset);
 #endif
 
 ///////////////////////////////////////////////////////////////////////////////
+// This flag will print a list of FreeRTOS tasks every ~5min. This is not
+// recommended to be enabled except during debugging sessions as it will cause
+// the FreeRTOS scheduler to remain in a "locked" state for an extended period.
+///////////////////////////////////////////////////////////////////////////////
+DEFAULT_CONST_FALSE(cs_task_list_reporting);
+
+///////////////////////////////////////////////////////////////////////////////
+// This flag will cause cpu utilization metrics to be collected and reported by
+// the LCC CpuLoad and CpuLoadLog system.
+///////////////////////////////////////////////////////////////////////////////
+DEFAULT_CONST_FALSE(cs_cpu_reporting);
+
+///////////////////////////////////////////////////////////////////////////////
 // This flag will force a factory reset by removing the LCC_CDI_FILE and
 // LCC_CONFIG_FILE before starting the OpenMRN stack. This should not normally
 // be required.
@@ -45,6 +53,11 @@ DEFAULT_CONST_FALSE(lcc_force_factory_reset);
 #else
 DEFAULT_CONST_TRUE(lcc_force_factory_reset);
 #endif
+
+///////////////////////////////////////////////////////////////////////////////
+// Enabling this will print all RailCom packet data as it arrives at the hub.
+///////////////////////////////////////////////////////////////////////////////
+DEFAULT_CONST_FALSE(enable_railcom_packet_dump);
 
 ///////////////////////////////////////////////////////////////////////////////
 // This is the number of pending dcc::Packet objects that the RMT driver will

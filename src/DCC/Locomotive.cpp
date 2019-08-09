@@ -17,15 +17,6 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 #include "ESP32CommandStation.h"
 
-// This controls how often to send a speed update packet to the decoder,
-// this is the minimum periodic refresh period. It will always be sent
-// when the speed changes.
-constexpr uint64_t LOCO_SPEED_PACKET_INTERVAL = MSEC_TO_USEC(100);
-
-// This controls how often to send the locomotive function packets,
-// default is approximately every second.
-constexpr uint64_t LOCO_FUNCTION_PACKET_INTERVAL = SEC_TO_USEC(60);
-
 static int8_t LOCO_REGISTER_ID = 1;
 
 Locomotive::Locomotive(uint16_t address, TrainService *trainService)
@@ -56,10 +47,10 @@ string Locomotive::toJson(bool includeFunctions)
   {
     for(uint8_t funcID = 0; funcID < p.get_max_fn(); funcID++)
     {
-      json functionNode;
-      functionNode[JSON_ID_NODE] = funcID;
-      functionNode[JSON_STATE_NODE] = get_fn(funcID);
-      object[JSON_FUNCTIONS_NODE].push_back(functionNode);
+      object[JSON_FUNCTIONS_NODE].push_back({
+        { JSON_ID_NODE, funcID },
+        { JSON_STATE_NODE, get_fn(funcID) }
+      });
     }
   }
   return object.dump();

@@ -168,7 +168,8 @@ ConfigurationManager::ConfigurationManager()
     commandStationConfig = json::parse(load(ESP32_CS_CONFIG_JSON));
     if (validateLCCConfig() && validateWiFiConfig())
     {
-      LOG(INFO, "[Config] Existing configuration successfully loaded.");
+      LOG(INFO
+        , "[Config] Existing configuration successfully loaded and validated.");
       initialize_default_config = false;
     }
     else

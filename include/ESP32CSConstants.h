@@ -20,11 +20,13 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 #include <utils/constants.hxx>
 
-DECLARE_CONST(enable_railcom_packet_dump);
-
 DECLARE_CONST(cs_force_factory_reset);
+DECLARE_CONST(cs_task_list_reporting);
+DECLARE_CONST(cs_cpu_reporting);
 
 DECLARE_CONST(lcc_force_factory_reset);
+
+DECLARE_CONST(enable_railcom_packet_dump);
 
 DECLARE_CONST(rmt_packet_queue_ops);
 DECLARE_CONST(rmt_packet_queue_prog);

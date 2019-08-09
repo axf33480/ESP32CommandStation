@@ -18,21 +18,6 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #ifndef ESP32_CS_H_
 #define ESP32_CS_H_
 
-/////////////////////////////////////////////////////////////////////////////////////
-// INTERNAL FLAGS
-/////////////////////////////////////////////////////////////////////////////////////
-
-// This flag will print a list of FreeRTOS tasks every ~5min. This is not recommended
-// to be enabled except during debugging sessions as it will cause the FreeRTOS
-// scheduler to remain in a "locked" state for an extended period.
-
-// #define ENABLE_TASK_LIST_REPORTING true
-
-// This flag will cause cpu utilization metrics to be collected and reported by
-// the LCC CpuLoad and CpuLoadLog system.
-
-// #define CPULOAD_REPORTING true
-
 #include <algorithm>
 #include <functional>
 #include <string>

@@ -570,6 +570,9 @@ function connectWebSocket() {
  if(socketUrl.indexOf('#') > 0) {
   socketUrl = socketUrl.substring(0, socketUrl.lastIndexOf('/') + 1);
  }
+ if(socketUrl.endsWith('/index.html') > 0) {
+  socketUrl = socketUrl.substring(0, socketUrl.lastIndexOf('/') + 1);
+ }
  if(socketUrl.endsWith('/')) {
   socketUrl = socketUrl + 'ws';
  } else {
@@ -635,27 +638,25 @@ function initPage() {
    },
    success : function (data, status, xhr) {
     if(data.sensors === 'false') {
-     $('#cs-sensors-h3').hide();
-     $('#cs-sensors').hide();
-     disableS88Tab();
+     $('[id^=cs-sensors]').hide();
     }
     if(data.outputs === 'false') {
-     $('#cs-outputs-h3').hide();
-     $('#cs-outputs').hide();
+     $('[id^=cs-outputs]').hide();
     }
     if(data.s88 === 'false') {
-     disableS88Tab();
+     $('[id^=cs-sensors-s88]').hide();
     } else {
      s88SensorIDBase = data.sensorIDBase;
     }
    },
    error : function (xhr, status, error) {
-    disableS88Tab();
+    sensors=false;
    }
   });
  } else {
-  online = false;
-  disableS88Tab();
+  online=false;
+  sensors=false;
+  outputs=false;
  }
  $('#clock').clock({"timeFormat":"H:i:s"});
  setupThrottle();
@@ -1686,11 +1687,6 @@ function changeLocomotive(newAddress) {
    }
   });
  }
-}
-function disableS88Tab() {
- console.log("Disabling S88 section");
- $('#cs-sensors-s88-h3').hide();
- $('#cs-sensors-s88').hide();
 }
 function refreshTable({table, url, fields, filter=function() {return true;}, failureHandler=function() {}, refreshCallback=function() {}} = {}) {
  console.log('refreshing table:', table, 'using url:', url, 'and fields:', fields)

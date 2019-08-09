@@ -252,6 +252,7 @@ void ESP32CSWebServer::begin()
   GET_PUT_URI("/power", handlePower)
   GET_POST_DELETE_URI("/config", handleConfig)
   GET_POST_PUT_DELETE_URI("/locomotive", handleLocomotive)
+  GET_POST_PUT_DELETE_URI("/turnouts", handleTurnouts)
   POST_UPLOAD_URI("/update", handleOTA, otaUploadCallback)
 
 #if ENABLE_OUTPUTS

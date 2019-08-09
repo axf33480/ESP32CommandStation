@@ -29,16 +29,19 @@ ESP32CSWebServer esp32csWebServer(&mDNS);
 OSMutex jmriClientsMux;
 vector<int> jmriClients;
 unique_ptr<SocketListener> JMRIListener;
+
 WiFiInterface wifiInterface;
 
 constexpr int JMRI_CLIENT_PRIORITY = 1;
 constexpr size_t JMRI_CLIENT_STACK_SIZE = 4096;
 constexpr uint16_t JMRI_LISTENER_PORT = 2560;
 
-WiFiInterface::WiFiInterface() {
+WiFiInterface::WiFiInterface()
+{
 }
 
-void WiFiInterface::init() {
+void WiFiInterface::init()
+{
 #if NEXTION_ENABLED
   auto nextionTitlePage = static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE]);
   nextionTitlePage->setStatusText(0, "Initializing WiFi");
@@ -122,7 +125,8 @@ void WiFiInterface::init() {
   });
 }
 
-void WiFiInterface::showInitInfo() {
+void WiFiInterface::showInitInfo()
+{
   broadcast(StringPrintf("<N1: " IPSTR " >", IP2STR(&ip_.ip)));
 }
 
@@ -142,9 +146,11 @@ void WiFiInterface::broadcast(const std::string &buf)
 void *jmriClientHandler(void *arg)
 {
   int fd = (int)arg;
-  DCCPPProtocolConsumer consumer;
-  std::unique_ptr<uint8_t> buf(new uint8_t[128]);
+  unique_ptr<uint8_t> buf(new uint8_t[128]);
   HASSERT(buf.get() != nullptr);
+
+  unique_ptr<DCCPPProtocolConsumer> consumer(new DCCPPProtocolConsumer());
+  HASSERT(consumer.get() != nullptr);
 
   // tell JMRI about our state
   DCCPPProtocolHandler::process("s");
@@ -158,7 +164,7 @@ void *jmriClientHandler(void *arg)
     }
     else if (bytesRead > 0)
     {
-      consumer.feed(buf.get(), bytesRead);
+      consumer->feed(buf.get(), bytesRead);
     }
     else if (bytesRead == 0)
     {

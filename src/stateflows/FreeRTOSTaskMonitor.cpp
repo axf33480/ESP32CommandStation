@@ -37,7 +37,11 @@ StateFlowBase::Action FreeRTOSTaskMonitor::report()
     , heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)
     , taskCount
   );
-#if ENABLE_TASK_LIST_REPORTING
+  // exit early if we do not need to report task state
+  if (config_cs_task_list_reporting() == CONSTANT_FALSE)
+  {
+    return call_immediately(STATE(delay));
+  }
   uint64_t now = esp_timer_get_time();
   if ((now - lastTaskList_) > taskListInterval_ || !lastTaskList_)
   {
@@ -69,6 +73,5 @@ StateFlowBase::Action FreeRTOSTaskMonitor::report()
     }
     lastTaskList_ = now;
   }
-#endif // ENABLE_TASK_LIST_REPORTING
   return call_immediately(STATE(delay));
 }
