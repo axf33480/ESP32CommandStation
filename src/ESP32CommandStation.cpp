@@ -49,7 +49,7 @@ OVERRIDE_CONST(local_alias_cache_size, 30);
 //OVERRIDE_CONST_TRUE("enable_railcom_packet_dump");
 
 // Uncomment to list task statistics periodically.
-//OVERRIDE_CONST_TRUE(cs_task_list_reporting);
+//OVERRIDE_CONST_TRUE(cs_task_list_report);
 
 std::unique_ptr<OpenMRN> openmrn;
 // note the dummy string below is required due to a bug in the GCC compiler

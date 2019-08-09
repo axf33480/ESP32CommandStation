@@ -19,6 +19,10 @@ COPYRIGHT (c) 2019 Mike Dunston
 
 FreeRTOSTaskMonitor::FreeRTOSTaskMonitor(Service *service)
   : StateFlowBase(service)
+  // explicit cast is necessary for these next two lines due to compiler
+  // warnings for data type truncation.
+  , reportInterval_{(uint64_t)SEC_TO_NSEC(config_cs_task_list_report_interval_sec())}
+  , taskListInterval_{(uint64_t)SEC_TO_USEC(config_cs_task_list_stats_interval_sec())}
 {
 #if configUSE_TRACE_FACILITY
   start_flow(STATE(delay));
@@ -27,6 +31,8 @@ FreeRTOSTaskMonitor::FreeRTOSTaskMonitor(Service *service)
 
 StateFlowBase::Action FreeRTOSTaskMonitor::report()
 {
+  vector<TaskStatus_t> taskList;
+  uint32_t ulTotalRunTime{0};
   UBaseType_t taskCount = uxTaskGetNumberOfTasks();
   LOG(INFO,
       "[TaskMon] uptime: %02d:%02d:%02d freeHeap: %u, largest free block: %u, tasks: %d"
@@ -38,18 +44,19 @@ StateFlowBase::Action FreeRTOSTaskMonitor::report()
     , taskCount
   );
   // exit early if we do not need to report task state
-  if (config_cs_task_list_reporting() == CONSTANT_FALSE)
+  if (config_cs_task_list_report() == CONSTANT_FALSE)
   {
     return call_immediately(STATE(delay));
   }
   uint64_t now = esp_timer_get_time();
   if ((now - lastTaskList_) > taskListInterval_ || !lastTaskList_)
   {
-    std::unique_ptr<TaskStatus_t[]> taskList(new TaskStatus_t[taskCount]);
-    uint32_t ulTotalRunTime;
-    UBaseType_t retrievedTaskCount = uxTaskGetSystemState(taskList.get(),
+    taskList.resize(taskCount);
+    UBaseType_t retrievedTaskCount = uxTaskGetSystemState(&taskList[0],
                                                           taskCount,
                                                           &ulTotalRunTime);
+    // adjust this time so we can use it for percentages.
+    ulTotalRunTime /= 100;
     for (int task = 0; task < retrievedTaskCount; task++)
     {
       LOG(INFO,
@@ -63,7 +70,7 @@ StateFlowBase::Action FreeRTOSTaskMonitor::report()
         , taskList[task].xCoreID == tskNO_AFFINITY ? "BOTH" :
           taskList[task].xCoreID == PRO_CPU_NUM ? "PRO" :
           taskList[task].xCoreID == APP_CPU_NUM ? "APP" : "UNK"
-        , taskList[task].ulRunTimeCounter / (ulTotalRunTime / 100)
+        , (taskList[task].ulRunTimeCounter / portNUM_PROCESSORS) / ulTotalRunTime
         , taskList[task].eCurrentState == eRunning ? "Running" :
           taskList[task].eCurrentState == eReady ? "Ready" :
           taskList[task].eCurrentState == eBlocked ? "Blocked" :

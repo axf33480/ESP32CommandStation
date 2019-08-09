@@ -28,8 +28,8 @@ public:
 
 private:
   StateFlowTimer timer_{this};
-  const uint64_t reportInterval_{SEC_TO_NSEC(45)};
-  const uint64_t taskListInterval_{SEC_TO_USEC(300)}; // 5min
+  const uint64_t reportInterval_;
+  const uint64_t taskListInterval_;
   uint64_t lastTaskList_{0};
 
   STATE_FLOW_STATE(report);

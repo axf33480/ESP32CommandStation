@@ -40,7 +40,11 @@ DEFAULT_CONST_FALSE(cs_task_list_reporting);
 // This flag will cause cpu utilization metrics to be collected and reported by
 // the LCC CpuLoad and CpuLoadLog system.
 ///////////////////////////////////////////////////////////////////////////////
-DEFAULT_CONST_FALSE(cs_cpu_reporting);
+DEFAULT_CONST_FALSE(cs_task_list_report);
+
+DEFAULT_CONST(cs_task_list_report_interval_sec, 45);
+
+DEFAULT_CONST(cs_task_list_stats_interval_sec, 300);
 
 ///////////////////////////////////////////////////////////////////////////////
 // This flag will force a factory reset by removing the LCC_CDI_FILE and
