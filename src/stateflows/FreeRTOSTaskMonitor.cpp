@@ -57,10 +57,16 @@ StateFlowBase::Action FreeRTOSTaskMonitor::report()
                                                           &ulTotalRunTime);
     // adjust this time so we can use it for percentages.
     ulTotalRunTime /= 100;
+    // sort by runtime
+    std::sort(taskList.begin(), taskList.end(),
+    [](const TaskStatus_t &left, const TaskStatus_t &right)
+    {
+      return left.ulRunTimeCounter > right.ulRunTimeCounter;
+    });
     for (int task = 0; task < retrievedTaskCount; task++)
     {
       LOG(INFO,
-          "[TaskMon] %-16s id:%3d, prio:%2d/%2d, stack:%5d, core:%4s, "
+          "[TaskMon] %-16s id:%3d, priority:%2d/%2d, free stack:%5d, core:%4s, "
           "cpu%%:%-3d, state:%s"
         , taskList[task].pcTaskName
         , taskList[task].xTaskNumber
