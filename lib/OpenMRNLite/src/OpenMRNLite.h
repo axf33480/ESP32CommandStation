@@ -55,7 +55,7 @@
 namespace openmrn_arduino {
 
 /// Default stack size to use for all OpenMRN tasks on the ESP32 platform.
-constexpr uint32_t OPENMRN_STACK_SIZE = 4096L;
+constexpr uint32_t OPENMRN_STACK_SIZE = 2048L;
 
 /// Default thread priority for any OpenMRN owned tasks on the ESP32
 /// platform. ESP32 hardware CAN RX and TX tasks run at lower priority
