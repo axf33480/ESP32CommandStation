@@ -136,28 +136,6 @@ void openmrn_loop_task(void *unused)
   }
 }
 
-class OpenMRNLoopStarter : private StateFlowBase
-{
-public:
-  OpenMRNLoopStarter(Service *service) : StateFlowBase(service)
-  {
-    start_flow(STATE(start_openmrn_task));
-  }
-
-  Action start_openmrn_task()
-  {
-    LOG(INFO, "[OpenMRN] Starting loop task on core:%d", APP_CPU_NUM);
-    xTaskCreatePinnedToCore(openmrn_loop_task
-                          , "OpenMRN:loop"
-                          , openmrn_arduino::OPENMRN_STACK_SIZE
-                          , nullptr
-                          , 1
-                          , nullptr
-                          , APP_CPU_NUM);
-    return exit();
-  }
-};
-
 extern "C" void app_main()
 {
   // Setup UART0 115200 8N1 TX: 1, RX: 3, 2k buffer (1k rx, 1k tx)
@@ -173,7 +151,9 @@ extern "C" void app_main()
   uart_param_config(UART_NUM_0, &uart0);
   uart_driver_install(UART_NUM_0, 1024, 1024, 0, NULL, 0);
 
-  LOG(INFO, "\n\nESP32 Command Station v%s starting up", ESP32CS_VERSION);
+  LOG(INFO, "\n\nESP32 Command Station v%s starting up...", ESP32CS_VERSION);
+  LOG(INFO, "ESP32 Command Station uses the OpenMRN library\n"
+            "Copyright (c) 2019, OpenMRN\nAll rights reserved.");
 
   // Initialize the Arduino-ESP32 stack early in the startup flow.
   LOG(INFO, "[Arduino] Initializing Arduino stack");
