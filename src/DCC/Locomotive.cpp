@@ -27,12 +27,12 @@ Locomotive::Locomotive(uint16_t address, TrainService *trainService)
   LOG(INFO, "[Loco %d] Created", address);
 }
 
-void Locomotive::showStatus()
+string Locomotive::getStateAsDCCpp()
 {
   dcc::SpeedType speed(get_speed());
   LOG(INFO, "[Loco %d] speed: %d, direction: %s",
     legacy_address(), (speed.get_dcc_128() & 0x7F), speed.direction() ? JSON_VALUE_REVERSE : JSON_VALUE_FORWARD);
-  wifiInterface.broadcast(StringPrintf("<T %d %d %d>", _registerNumber, speed.get_dcc_128(), speed.direction()));
+  return StringPrintf("<T %d %d %d>", _registerNumber, speed.get_dcc_128(), speed.direction());
 }
 
 string Locomotive::toJson(bool includeFunctions)

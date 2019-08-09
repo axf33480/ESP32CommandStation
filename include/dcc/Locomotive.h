@@ -52,7 +52,7 @@ public:
   void set_speed(dcc::SpeedType speed) override
   {
     dcc::Dcc128Train::set_speed(speed);
-    showStatus();
+    getStateAsDCCpp();
   }
 
   void set_fn(uint32_t address, uint16_t value) override
@@ -72,7 +72,7 @@ public:
     return _orientation;
   }
 
-  void showStatus();
+  std::string getStateAsDCCpp();
   std::string toJson(bool=true);
   static Locomotive *fromJson(std::string &, openlcb::TrainService *);
 private:
@@ -91,9 +91,9 @@ public:
   {
   }
   virtual ~LocomotiveConsist();
-  void showStatus();
+  std::string getStateAsDCCpp();
   bool isAddressInConsist(uint16_t);
-  void updateThrottle(uint16_t, int8_t, bool);
+  std::string updateThrottle(uint16_t, int8_t, bool);
   void addLocomotive(uint16_t, bool, uint8_t);
   bool removeLocomotive(uint16_t);
   void releaseLocomotives();
@@ -179,15 +179,16 @@ public:
   // removes a locomotive from management, sends speed zero before removal
   void removeLocomotive(const uint16_t);
   bool removeLocomotiveConsist(const uint16_t);
-  void processThrottle(const std::vector<std::string>);
-  void processThrottleEx(const std::vector<std::string>);
+  std::string processThrottle(const std::vector<std::string>);
+  std::string processThrottleEx(const std::vector<std::string>);
   void processFunction(const std::vector<std::string>);
   void processFunctionEx(const std::vector<std::string>);
-  void processConsistThrottle(const std::vector<std::string>);
-  void showStatus();
-  void showConsistStatus();
+  std::string processConsistThrottle(const std::vector<std::string>);
+  std::string getStateAsDCCpp();
+  std::string getConsistStateAsDCCpp();
   uint8_t getActiveLocoCount()
   {
+    AtomicHolder h(this);
     return locos_.size();
   }
   void clear();
@@ -239,31 +240,4 @@ private:
 };
 
 extern std::unique_ptr<LocomotiveManager> locoManager;
-
-// <t {REGISTER} {LOCO} {SPEED} {DIRECTION}> command handler, this command
-// converts the provided locomotive control command into a compatible DCC
-// locomotive control packet.
-DECLARE_DCC_PROTOCOL_COMMAND_CLASS(ThrottleCommandAdapter, "t")
-
-// <tex {LOCO} {SPEED} {DIRECTION}> command handler, this command
-// converts the provided locomotive control command into a compatible DCC
-// locomotive control packet.
-DECLARE_DCC_PROTOCOL_COMMAND_CLASS(ThrottleExCommandAdapter, "tex")
-
-// <f {LOCO} {BYTE} [{BYTE2}]> command handler, this command converts a
-// locomotive function update into a compatible DCC function control packet.
-DECLARE_DCC_PROTOCOL_COMMAND_CLASS(FunctionCommandAdapter, "f")
-
-// <fex {LOCO} {FUNC} {STATE}]> command handler, this command converts a
-// locomotive function update into a compatible DCC function control packet.
-DECLARE_DCC_PROTOCOL_COMMAND_CLASS(FunctionExCommandAdapter, "fex")
-
-// wrapper to handle the following command structures:
-// CREATE: <C {ID} {LEAD LOCO} {TRAIL LOCO}  [{OTHER LOCO}]>
-// DELETE: <C {ID} {LOCO}>
-// DELETE: <C {ID}>
-// QUERY : <C 0 {LOCO}>
-// SHOW  : <C>
-DECLARE_DCC_PROTOCOL_COMMAND_CLASS(ConsistCommandAdapter, "C")
-
 #endif // LOCOMOTIVE_H_

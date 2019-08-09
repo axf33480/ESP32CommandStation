@@ -73,7 +73,7 @@ uint16_t TurnoutManager::store()
   return turnoutStoredCount;
 }
 
-bool TurnoutManager::setByID(uint16_t id, bool thrown, bool sendDCC)
+string TurnoutManager::setByID(uint16_t id, bool thrown, bool sendDCC)
 {
   AtomicHolder h(this);
   for (auto & turnout : turnouts_)
@@ -81,13 +81,13 @@ bool TurnoutManager::setByID(uint16_t id, bool thrown, bool sendDCC)
     if (turnout->getID() == id)
     {
       turnout->set(thrown, sendDCC);
-      return true;
+      return turnout->getStateAsDCCpp();
     }
   }
-  return false;
+  return COMMAND_FAILED_RESPONSE;
 }
 
-void TurnoutManager::setByAddress(uint16_t address, bool thrown, bool sendDCC)
+std::string TurnoutManager::setByAddress(uint16_t address, bool thrown, bool sendDCC)
 {
   AtomicHolder h(this);
   for (auto & turnout : turnouts_)
@@ -95,16 +95,16 @@ void TurnoutManager::setByAddress(uint16_t address, bool thrown, bool sendDCC)
     if (turnout->getAddress() == address)
     {
       turnout->set(thrown, sendDCC);
-      return;
+      return turnout->getStateAsDCCpp();
     }
   }
 
   // we didn't find it, create it and set it
   turnouts_.emplace_back(new Turnout(turnouts_.size() + 1, address, -1));
-  getTurnoutByAddress(address)->set(thrown, sendDCC);
+  return setByAddress(address, thrown, sendDCC);
 }
 
-bool TurnoutManager::toggleByID(uint16_t id)
+std::string TurnoutManager::toggleByID(uint16_t id)
 {
   AtomicHolder h(this);
   for (auto & turnout : turnouts_)
@@ -112,13 +112,13 @@ bool TurnoutManager::toggleByID(uint16_t id)
     if (turnout->getID() == id)
     {
       turnout->toggle();
-      return true;
+      return turnout->getStateAsDCCpp();
     }
   }
-  return false;
+  return COMMAND_FAILED_RESPONSE;
 }
 
-void TurnoutManager::toggleByAddress(uint16_t address)
+std::string TurnoutManager::toggleByAddress(uint16_t address)
 {
   AtomicHolder h(this);
   auto const &elem = std::find_if(turnouts_.begin(), turnouts_.end(),
@@ -130,12 +130,12 @@ void TurnoutManager::toggleByAddress(uint16_t address)
   if (elem != turnouts_.end())
   {
     elem->get()->toggle();
-    return;
+    return elem->get()->getStateAsDCCpp();
   }
 
   // we didn't find it, create it and throw it
   turnouts_.emplace_back(new Turnout(turnouts_.size() + 1, address, -1));
-  getTurnoutByAddress(address)->toggle();
+  return toggleByAddress(address);
 }
 
 string TurnoutManager::getStateAsJson(bool readableStrings)
@@ -149,13 +149,15 @@ string TurnoutManager::getStateAsJson(bool readableStrings)
   return root.dump();
 }
 
-void TurnoutManager::showStatus()
+string TurnoutManager::getStateAsDCCpp()
 {
   AtomicHolder h(this);
+  string status;
   for (auto& turnout : turnouts_)
   {
-    turnout->showStatus();
+    status += turnout->getStateAsDCCpp();
   }
+  return status;
 }
 
 Turnout *TurnoutManager::createOrUpdate(const uint16_t id, const uint16_t address, const int8_t index, const TurnoutType type)
@@ -418,16 +420,15 @@ void Turnout::set(bool thrown, bool sendDCCPacket)
   {
     packet_processor_add_refresh_source(this);
   }
-  wifiInterface.broadcast(StringPrintf("<H %d %d>", _turnoutID, _thrown));
   LOG(VERBOSE
     , "[Turnout %d] Set to %s"
     , _turnoutID
     , _thrown ? JSON_VALUE_THROWN : JSON_VALUE_CLOSED);
 }
 
-void Turnout::showStatus()
+string Turnout::getStateAsDCCpp()
 {
-  wifiInterface.broadcast(StringPrintf("<H %d %d %d %d>", _turnoutID, _address, _index, _thrown));
+  return StringPrintf("<H %d %d %d %d>", _turnoutID, _address, _index, _thrown);
 }
 
 void Turnout::get_next_packet(unsigned code, dcc::Packet* packet)
@@ -436,89 +437,4 @@ void Turnout::get_next_packet(unsigned code, dcc::Packet* packet)
 
   // remove ourselves as turnouts are single fire sources
   packet_processor_remove_refresh_source(this);
-}
-
-void TurnoutCommandAdapter::process(const vector<string> arguments)
-{
-  if (arguments.empty())
-  {
-    // list all turnouts
-    turnoutManager->showStatus();
-  }
-  else
-  {
-    uint16_t turnoutID = std::stoi(arguments[0]);
-    if (arguments.size() == 1 &&
-        turnoutManager->removeByID(turnoutID))
-    {
-      // delete turnout
-      wifiInterface.broadcast(COMMAND_SUCCESSFUL_RESPONSE);
-    }
-    else if (arguments.size() == 2 &&
-             turnoutManager->setByID(turnoutID, arguments[1][0] == '1'))
-    {
-      // throw turnout
-    }
-    else if (arguments.size() == 3)
-    {
-      // create/update turnout
-      turnoutManager->createOrUpdate(turnoutID, std::stoi(arguments[1]), std::stoi(arguments[2]));
-      wifiInterface.broadcast(COMMAND_SUCCESSFUL_RESPONSE);
-    }
-    else
-    {
-      wifiInterface.broadcast(COMMAND_FAILED_RESPONSE);
-    }
-  }
-}
-
-void TurnoutExCommandAdapter::process(const vector<string> arguments)
-{
-  bool sendSuccess = false;
-  if (!arguments.empty())
-  {
-    if (std::stoi(arguments[0]) >= 0)
-    {
-      if (arguments.size() == 1 &&
-          turnoutManager->toggleByID(std::stoi(arguments[0])))
-      {
-        // no response required for throw as it will automatically be sent by the turnout
-        return;
-      }
-      else if (arguments.size() == 3 &&
-               turnoutManager->createOrUpdate(std::stoi(arguments[0])
-                                            , std::stoi(arguments[1])
-                                            , -1
-                                            , (TurnoutType)std::stoi(arguments[2])))
-      {
-        sendSuccess = true;
-      }
-    }
-    else
-    {
-      auto turnout = turnoutManager->getTurnoutByAddress(std::stoi(arguments[1]));
-      if (turnout)
-      {
-        turnout->setType((TurnoutType)std::stoi(arguments[2]));
-        sendSuccess = true;
-      }
-      else if (turnoutManager->createOrUpdate(turnoutManager->getTurnoutCount() + 1
-                                            , std::stoi(arguments[1])
-                                            , -1
-                                            , (TurnoutType)std::stoi(arguments[2])))
-      {
-        sendSuccess = true;
-      }
-    }
-  }
-  wifiInterface.broadcast(sendSuccess ? COMMAND_SUCCESSFUL_RESPONSE : COMMAND_FAILED_RESPONSE);
-}
-
-void AccessoryCommand::process(const vector<string> arguments)
-{
-  turnoutManager->setByAddress(
-      decodeDCCAccessoryAddress(std::stoi(arguments[0])
-                              , std::stoi(arguments[1]))
-    , std::stoi(arguments[2])
-  );
 }

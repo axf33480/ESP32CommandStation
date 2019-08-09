@@ -27,35 +27,13 @@ static constexpr const char * CONSIST_ENTRY_JSON_FILE = "consist-%d.json";
 
 std::unique_ptr<LocomotiveManager> locoManager;
 
-void ThrottleCommandAdapter::process(const std::vector<std::string> arguments)
-{
-  locoManager->processThrottle(arguments);
-}
-
-void ThrottleExCommandAdapter::process(const std::vector<std::string> arguments)
-{
-  locoManager->processThrottleEx(arguments);
-}
-
-void FunctionCommandAdapter::process(const std::vector<std::string> arguments)
-{
-  locoManager->processFunction(arguments);
-}
-
-void FunctionExCommandAdapter::process(const std::vector<std::string> arguments)
-{
-  locoManager->processFunctionEx(arguments);
-}
-
-
-void LocomotiveManager::processThrottle(const vector<string> arguments)
+string LocomotiveManager::processThrottle(const vector<string> arguments)
 {
   int registerNumber = std::stoi(arguments[0]);
   uint16_t locoAddress = std::stoi(arguments[1]);
   if(isConsistAddress(locoAddress) || isAddressInConsist(locoAddress))
   {
-    processConsistThrottle(arguments);
-    return;
+    return processConsistThrottle(arguments);
   }
   Locomotive *instance = getLocomotiveByRegister(registerNumber);
   if(instance == nullptr)
@@ -70,10 +48,10 @@ void LocomotiveManager::processThrottle(const vector<string> arguments)
     speed.set_direction(dcc::SpeedType::REVERSE);
   }
   instance->set_speed(speed);
-  instance->showStatus();
+  return instance->getStateAsDCCpp();
 }
 
-void LocomotiveManager::processThrottleEx(const vector<string> arguments)
+string LocomotiveManager::processThrottleEx(const vector<string> arguments)
 {
   uint16_t locoAddress(std::stoi(arguments[0]));
   int8_t req_speed(std::stoi(arguments[1]));
@@ -90,6 +68,7 @@ void LocomotiveManager::processThrottleEx(const vector<string> arguments)
     upd_speed.set_direction(req_dir ? dcc::SpeedType::FORWARD : dcc::SpeedType::REVERSE);
   }
   instance->set_speed(upd_speed);
+  return instance->getStateAsDCCpp();
 }
 
 // This method decodes the incoming function packet(s) to update the stored
@@ -159,7 +138,7 @@ void LocomotiveManager::processFunctionEx(const vector<string> arguments)
   loco->set_fn(function, state);
 }
 
-void LocomotiveManager::processConsistThrottle(const vector<string> arguments)
+string LocomotiveManager::processConsistThrottle(const vector<string> arguments)
 {
   uint16_t locoAddress = std::stoi(arguments[1]);
   int8_t speed = std::stoi(arguments[2]);
@@ -168,29 +147,33 @@ void LocomotiveManager::processConsistThrottle(const vector<string> arguments)
   {
     if (consist->legacy_address() == locoAddress || consist->isAddressInConsist(locoAddress))
     {
-      consist->updateThrottle(locoAddress, speed, forward);
-      return;
+      return consist->updateThrottle(locoAddress, speed, forward);
     }
   }
+  return COMMAND_FAILED_RESPONSE;
 }
 
-void LocomotiveManager::showStatus()
+string LocomotiveManager::getStateAsDCCpp()
 {
   AtomicHolder h(this);
+  string status;
   for (const auto& loco : locos_)
   {
-    loco->showStatus();
+    status += loco->getStateAsDCCpp();
   }
-  showConsistStatus();
+  status += getConsistStateAsDCCpp();
+  return status;
 }
 
-void LocomotiveManager::showConsistStatus()
+string LocomotiveManager::getConsistStateAsDCCpp()
 {
   AtomicHolder h(this);
+  string status;
   for (const auto& consist : consists_)
   {
-    consist->showStatus();
+    status += consist->getStateAsDCCpp();
   }
+  return status;
 }
 
 Locomotive *LocomotiveManager::getLocomotive(const uint16_t address, const bool managed)

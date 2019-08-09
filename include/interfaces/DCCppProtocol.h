@@ -26,16 +26,33 @@ class DCCPPProtocolCommand
 {
 public:
   virtual ~DCCPPProtocolCommand() {}
-  virtual void process(const std::vector<std::string>) = 0;
+  virtual std::string process(const std::vector<std::string>) = 0;
   virtual std::string getID() = 0;
 };
+
+#define DECLARE_DCC_PROTOCOL_COMMAND_CLASS(name, id)              \
+class name : public DCCPPProtocolCommand                          \
+{                                                                 \
+public:                                                           \
+  std::string process(const std::vector<std::string>) override;   \
+  std::string getID()                                             \
+  {                                                               \
+    return id;                                                    \
+  }                                                               \
+};
+
+#define DCC_PROTOCOL_COMMAND_HANDLER(name, func)                  \
+std::string name::process(const std::vector<std::string> args)    \
+{                                                                 \
+ return func(args);                                               \
+}
 
 // Class definition for the Protocol Interpreter
 class DCCPPProtocolHandler
 {
 public:
   static void init();
-  static void process(const std::string &);
+  static std::string process(const std::string &);
   static void registerCommand(DCCPPProtocolCommand *);
   static DCCPPProtocolCommand *getCommandHandler(const std::string &);
 };
@@ -44,25 +61,13 @@ class DCCPPProtocolConsumer
 {
 public:
   DCCPPProtocolConsumer();
-  void feed(uint8_t *, size_t);
-  void update();
+  std::string feed(uint8_t *, size_t);
 private:
-  void processData();
+  std::string processData();
   std::vector<uint8_t> _buffer;
 };
 
 const std::string COMMAND_FAILED_RESPONSE = "<X>";
 const std::string COMMAND_SUCCESSFUL_RESPONSE = "<O>";
-
-#define DECLARE_DCC_PROTOCOL_COMMAND_CLASS(name, id)  \
-class name : public DCCPPProtocolCommand              \
-{                                                     \
-public:                                               \
-  void process(const std::vector<std::string>);       \
-  std::string getID()                                 \
-  {                                                   \
-    return id;                                        \
-  }                                                   \
-};
-
+const std::string COMMAND_NO_RESPONSE = "";
 #endif // DCC_PROTOCOL_H_

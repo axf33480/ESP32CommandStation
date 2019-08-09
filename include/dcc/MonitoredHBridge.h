@@ -97,7 +97,7 @@ public:
 
   std::string getInfoScreenData();
 
-  void broadcastStatus();
+  std::string getStateAsDCCpp();
 
   void disable();
 

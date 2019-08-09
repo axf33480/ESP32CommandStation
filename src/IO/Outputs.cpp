@@ -134,17 +134,16 @@ uint16_t OutputManager::store()
   return outputStoredCount;
 }
 
-bool OutputManager::set(uint16_t id, bool active)
+string OutputManager::set(uint16_t id, bool active)
 {
   for (const auto& output : outputs)
   {
     if(output->getID() == id)
     {
-      output->set(active);
-      return true;
+      return output->set(active);
     }
   }
-  return false;
+  return COMMAND_FAILED_RESPONSE;
 }
 
 Output *OutputManager::getOutput(uint16_t id)
@@ -182,12 +181,14 @@ std::string OutputManager::getStateAsJson()
   return root.dump();
 }
 
-void OutputManager::showStatus()
+string OutputManager::getStateAsDCCpp()
 {
+  string status;
   for (const auto& output : outputs)
   {
-    output->showStatus();
+    status += output->getStateAsDCCpp();
   }
+  return status;
 }
 
 bool OutputManager::createOrUpdate(const uint16_t id, const uint8_t pin, const uint8_t flags)
@@ -266,15 +267,16 @@ Output::Output(string &data)
   pinMode(_pin, OUTPUT);
 }
 
-void Output::set(bool active, bool announce)
+string Output::set(bool active, bool announce)
 {
   _active = active;
   digitalWrite(_pin, _active);
   LOG(INFO, "[Output] Output(%d) set to %s", _id, _active ? JSON_VALUE_ON : JSON_VALUE_OFF);
   if(announce)
   {
-    wifiInterface.broadcast(StringPrintf("<Y %d %d>", _id, !_active));
+    return StringPrintf("<Y %d %d>", _id, !_active);
   }
+  return COMMAND_NO_RESPONSE;
 }
 
 void Output::update(uint8_t pin, uint8_t flags)
@@ -311,61 +313,8 @@ std::string Output::toJson(bool readableStrings)
   return object.dump();
 }
 
-void Output::showStatus()
+string Output::getStateAsJson()
 {
-  wifiInterface.broadcast(StringPrintf("<Y %d %d %d %d>", _id, _pin, _flags, !_active));
-}
-
-void OutputCommandAdapter::process(const vector<string> arguments)
-{
-  if(arguments.empty())
-  {
-    // list all outputs
-    OutputManager::showStatus();
-  }
-  else
-  {
-    uint16_t outputID = std::stoi(arguments[0]);
-    if (arguments.size() == 1 && OutputManager::remove(outputID))
-    {
-      // delete output
-      wifiInterface.broadcast(COMMAND_SUCCESSFUL_RESPONSE);
-    }
-    else if (arguments.size() == 2 && OutputManager::set(outputID, arguments[1][0] == 1))
-    {
-      // set output state
-    }
-    else if (arguments.size() == 3)
-    {
-      // create output
-      OutputManager::createOrUpdate(outputID, std::stoi(arguments[1]), std::stoi(arguments[2]));
-      wifiInterface.broadcast(COMMAND_SUCCESSFUL_RESPONSE);
-    }
-    else
-    {
-      wifiInterface.broadcast(COMMAND_FAILED_RESPONSE);
-    }
-  }
-}
-
-void OutputExCommandAdapter::process(const vector<string> arguments)
-{
-  if(arguments.empty())
-  {
-    wifiInterface.broadcast(COMMAND_FAILED_RESPONSE);
-  }
-  else
-  {
-    uint16_t outputID = std::stoi(arguments[0]);
-    auto output = OutputManager::getOutput(outputID);
-    if (output)
-    {
-      output->set(!output->isActive());
-    }
-    else
-    {
-      wifiInterface.broadcast(COMMAND_FAILED_RESPONSE);
-    }
-  }
+  return StringPrintf("<Y %d %d %d %d>", _id, _pin, _flags, !_active);
 }
 #endif // ENABLE_OUTPUTS

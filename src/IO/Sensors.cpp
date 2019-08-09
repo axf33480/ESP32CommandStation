@@ -84,7 +84,8 @@ static constexpr uint32_t SENSOR_TASK_STACK_SIZE = 2048;
 
 static constexpr const char * SENSORS_JSON_FILE = "sensors.json";
 
-void SensorManager::init() {
+void SensorManager::init()
+{
   LOG(INFO, "[Sensors] Initializing sensors");
   json root = json::parse(configStore->load(SENSORS_JSON_FILE));
   if(root.contains(JSON_COUNT_NODE))
@@ -101,7 +102,8 @@ void SensorManager::init() {
   xTaskCreate(sensorTask, "SensorManager", SENSOR_TASK_STACK_SIZE, NULL, SENSOR_TASK_PRIORITY, &_taskHandle);
 }
 
-void SensorManager::clear() {
+void SensorManager::clear()
+{
   sensors.free();
 }
 
@@ -139,12 +141,12 @@ void SensorManager::sensorTask(void *param)
 
 string SensorManager::getStateAsJson()
 {
-  json root;
+  string status;
   for (const auto& sensor : sensors)
   {
-    root.push_back(sensor->toJson(true));
+    status += sensor->toJson(true);
   }
-  return root.dump();
+  return status;
 }
 
 Sensor *SensorManager::getSensor(uint16_t id)
@@ -264,50 +266,20 @@ void Sensor::check()
   set(digitalRead(_pin) == 1);
 }
 
-void Sensor::show()
+string Sensor::getStateAsDCCpp()
 {
-  wifiInterface.broadcast(StringPrintf("<Q %d %d %d>", _sensorID, _pin, _pullUp));
+  return StringPrintf("<Q %d %d %d>", _sensorID, _pin, _pullUp);
 }
 
-void Sensor::set(bool state)
+string Sensor::set(bool state)
 {
   if(_lastState != state)
   {
     _lastState = state;
     LOG(INFO, "Sensor: %d :: %s", _sensorID, _lastState ? "ACTIVE" : "INACTIVE");
-    wifiInterface.broadcast(StringPrintf("<%c %d>", state ? 'Q' : 'q', _sensorID));
+    return StringPrintf("<%c %d>", state ? 'Q' : 'q', _sensorID);
   }
-}
-
-void SensorCommandAdapter::process(const vector<string> arguments)
-{
-  if(arguments.empty())
-  {
-    // list all sensors
-    for (const auto& sensor : sensors)
-    {
-      sensor->show();
-    }
-  }
-  else
-  {
-    uint16_t sensorID = std::stoi(arguments[0]);
-    if (arguments.size() == 1 && SensorManager::remove(sensorID))
-    {
-      // delete turnout
-      wifiInterface.broadcast(COMMAND_SUCCESSFUL_RESPONSE);
-    }
-    else if (arguments.size() == 3)
-    {
-      // create sensor
-      SensorManager::createOrUpdate(sensorID, std::stoi(arguments[1]), arguments[2][0] == '1');
-      wifiInterface.broadcast(COMMAND_SUCCESSFUL_RESPONSE);
-    }
-    else
-    {
-      wifiInterface.broadcast(COMMAND_FAILED_RESPONSE);
-    }
-  }
+  return COMMAND_NO_RESPONSE;
 }
 
 #endif // ENABLE_SENSORS

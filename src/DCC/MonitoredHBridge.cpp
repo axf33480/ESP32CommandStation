@@ -129,20 +129,17 @@ string MonitoredHBridge::getInfoScreenData()
   return StringPrintf("%s:Off", name_.c_str());
 }
 
-void MonitoredHBridge::broadcastStatus()
+std::string MonitoredHBridge::getStateAsDCCpp()
 {
   if (state_ == STATE_ON)
   {
-    wifiInterface.broadcast(StringPrintf("<p1 %s><a %s %d>", name_.c_str(), name_.c_str(), getLastReading()));
+    return StringPrintf("<p1 %s><a %s %d>", name_.c_str(), name_.c_str(), getLastReading());
   }
   else if (state_ == STATE_OVERCURRENT)
   {
-    wifiInterface.broadcast(StringPrintf("<p2 %s>", name_.c_str()));
+    return StringPrintf("<p2 %s>", name_.c_str());
   }
-  else
-  {
-    wifiInterface.broadcast(StringPrintf("<p0 %s>", name_.c_str()));
-  }
+  return StringPrintf("<p0 %s>", name_.c_str());
 }
 
 void MonitoredHBridge::disable()

@@ -43,6 +43,7 @@ public:
   void update(uint16_t, int8_t, TurnoutType);
   void set(bool=false, bool=true);
   std::string toJson(bool=false);
+  std::string getStateAsDCCpp();
   uint16_t getID()
   {
     return _turnoutID;
@@ -67,7 +68,6 @@ public:
   {
     set(!_thrown);
   }
-  void showStatus();
   TurnoutType getType()
   {
     return _type;
@@ -92,12 +92,12 @@ public:
   TurnoutManager(openlcb::Node *);
   void clear();
   uint16_t store();
-  bool setByID(uint16_t, bool=false, bool=true);
-  void setByAddress(uint16_t, bool=false, bool=true);
-  bool toggleByID(uint16_t);
-  void toggleByAddress(uint16_t);
+  std::string setByID(uint16_t, bool=false, bool=true);
+  std::string setByAddress(uint16_t, bool=false, bool=true);
+  std::string toggleByID(uint16_t);
+  std::string toggleByAddress(uint16_t);
   std::string getStateAsJson(bool=true);
-  void showStatus();
+  std::string getStateAsDCCpp();
   Turnout *createOrUpdate(const uint16_t, const uint16_t, const int8_t, const TurnoutType=TurnoutType::LEFT);
   bool removeByID(const uint16_t);
   bool removeByAddress(const uint16_t);
@@ -112,61 +112,5 @@ private:
 };
 
 extern std::unique_ptr<TurnoutManager> turnoutManager;
-
-/*
-  <T ID BOARD INDEX>:          creates a new turnout ID, with specified BOARD
-                               and INDEX. If turnout ID already exists, it is
-                               updated with specificed BOARD and INDEX
-      returns: <O> if successful and <X> if unsuccessful (ie: out of memory)
-
-  <T ID>:                      deletes definition of turnout ID
-      returns: <O> if successful and <X> if unsuccessful (ie: ID does not exist)
-
-  <T>:                         lists all defined turnouts
-      returns: <H ID ADDRESS SUBADDRESS THROW> for each defined turnout or <X>
-               if no turnouts defined
-  <T ID THROW>:                sets turnout ID to either the "thrown" or
-                               "unthrown" position
-      returns: <H ID THROW>, or <X> if turnout ID does not exist
-where
-  ID:         the numeric ID (0-32767) of the turnout to control
-  BOARD:      the primary address of the decoder controlling this turnout
-              (0-511)
-  INDEX:      the subaddress of the decoder controlling this turnout (0-3)
-  THROW:      0 (unthrown) or 1 (thrown)
-*/
-DECLARE_DCC_PROTOCOL_COMMAND_CLASS(TurnoutCommandAdapter, "T")
-
-/*
-  <Tex ID>:              Toggle turnout by ID.
-  <Tex ID ADDRESS TYPE>: Creates a Turnout by DCC address
-  <Tex ADDRESS TYPE>:    Create a Turnout by DCC address with automatic
-                         assignment of ID
-  all will return : <O> if successful and <X> if unsuccessful.
-
-where
-  ID:         the numeric ID (0-32767) of the turnout to control
-  ADDRESS:    the DCC decoder address for the turnout
-  TYPE:       turnout type:
-              0 : LEFT
-              1 : RIGHT
-              2 : WYE
-              3 : MULTI
-*/
-DECLARE_DCC_PROTOCOL_COMMAND_CLASS(TurnoutExCommandAdapter, "Tex")
-
-/*
- <a BOARD INDEX THROW>: Throws a turnout (accessory decoder)
-      returns: <H ID THROW>
-
-Note: When this is received a Turnout will be created based on the decoded
-DCC address for the accessory decoder.
-where
-  BOARD:      the primary address of the decoder controlling this turnout
-              (0-511)
-  INDEX:      the subaddress of the decoder controlling this turnout (0-3)
-  THROW:      0 (unthrown) or 1 (thrown)
-*/
-DECLARE_DCC_PROTOCOL_COMMAND_CLASS(AccessoryCommand, "a")
 
 #endif // TURNOUTS_H_

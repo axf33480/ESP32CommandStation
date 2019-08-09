@@ -76,13 +76,11 @@ StateFlowBase::Action HC12Radio::update() {
   uint8_t buf[128] = {0};
   int bytesRead = uart_read_bytes(uart_, buf, 128, 1);
   if(bytesRead > 0) {
-    consumer_.feed(buf, bytesRead);
+    string res = consumer_.feed(buf, bytesRead);
+    if (!res.empty())
+    {
+      uart_write_bytes(uart_, res.c_str(), res.length());
+    }
   }
   return sleep_and_call(&timer_, updateInterval_, STATE(update));
-}
-
-void HC12Radio::send(const std::string &buf) {
-#if HC12_RADIO_ENABLED
-  uart_write_bytes(uart_, buf.c_str(), buf.length());
-#endif
 }

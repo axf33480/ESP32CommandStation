@@ -73,7 +73,7 @@ public:
     return _nextSensorToRead < _sensors.size();
   }
   void readNext();
-  void show();
+  std::string getStateAsDCCpp();
 private:
   uint8_t _id;
   uint8_t _dataPin;

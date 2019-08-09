@@ -127,8 +127,8 @@ public:
     return opsSignalActive_ || progSignalActive_;
   }
 
-  // displays status of the track signal and current usage.
-  void broadcast_status();
+  // retrive status of the track signal and current usage.
+  std::string getStateAsDCCpp();
 
   std::string get_info_screen_data();
 

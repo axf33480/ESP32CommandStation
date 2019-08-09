@@ -24,7 +24,6 @@ COPYRIGHT (c) 2018-2019 Mike Dunston
 class HC12Radio : public StateFlowBase {
 public:
   HC12Radio(Service *);
-  void send(const std::string &text);
 private:
   StateFlowTimer timer_{this};
   uart_port_t uart_;

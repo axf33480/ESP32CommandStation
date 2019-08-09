@@ -47,9 +47,9 @@ public:
     return _lastState;
   }
   virtual void check();
-  void show();
+  virtual std::string getStateAsDCCpp();
 protected:
-  void set(bool);
+  virtual std::string set(bool);
   void setID(uint16_t id)
   {
     _sensorID = id;
@@ -77,7 +77,5 @@ private:
   static TaskHandle_t _taskHandle;
   static OSMutex _lock;
 };
-
-DECLARE_DCC_PROTOCOL_COMMAND_CLASS(SensorCommandAdapter, "S")
 
 #endif // SENSORS_H_

@@ -21,25 +21,6 @@ COPYRIGHT (c) 2018-2019 Mike Dunston
 ESP32 COMMAND STATION supports multiple Locomotive Consists, using either
 command station consisting or decoder assisted consisting.
 
-  <C ID LEAD TRAIL [{OTHER}]> : Creates a consist using ID with LEAD and TRAIL
-                                locomotives with any OTHER locomotives in the
-                                middle.
-        NOTE: If the LOCO number is NEGATIVE it will be treated as being in
-        reverse direction.
-        NOTE: To create a decoder assisted consist specify the ID as a negative
-        value or as ZERO.
-        returns: <O> if successful and <X> if unsuccessful.
-  <C ID LOCO>                 : Removes LOCO from consist ID when ID is not ZERO.
-        returns: <O> if successful and <X> if unsuccessful.
-  <C 0 LOCO>                  : Queries which consist LOCO is part of.
-        returns: <V ID LOCO> with ID as ZERO if LOCO is not in a consist
-        otherwise consist ID.
-  <C ID>                      : Deletes definition of consist ID.
-        returns: <O> if successful and <X> if unsuccessful.
-  <C>                         : Lists all consists.
-        returns: <U ID LEAD TRAIL [{OTHER}]> for each consist or <X> if no
-        consists have been defined.
-
 When either the leading or trailing locmotive is directly addressed all
 locomotives in the consist will respond accordingly based on the configuration
 of the consist. Therefore, the front light and rear lights of the lead and trail
@@ -88,7 +69,7 @@ LocomotiveConsist::~LocomotiveConsist()
   }
 }
 
-void LocomotiveConsist::showStatus() {
+string LocomotiveConsist::getStateAsDCCpp() {
   // <U ID LEAD TRAIL [{OTHER}]>
   auto speed = get_speed();
   LOG(INFO, "[Consist %d] speed: %d, direction: %s, decoderAssisted: %s"
@@ -102,7 +83,7 @@ void LocomotiveConsist::showStatus() {
     statusCmd += StringPrintf(" %d", loco->legacy_address() * loco->isOrientationForward() ? 1 : -1);
   }
   statusCmd += ">";
-  wifiInterface.broadcast(statusCmd);
+  return statusCmd;
 }
 
 string LocomotiveConsist::toJson(bool includeFunctions) {
@@ -156,7 +137,7 @@ bool LocomotiveConsist::isAddressInConsist(uint16_t locoAddress)
   return false;
 }
 
-void LocomotiveConsist::updateThrottle(uint16_t locoAddress, int8_t speed, bool forward)
+string LocomotiveConsist::updateThrottle(uint16_t locoAddress, int8_t speed, bool forward)
 {
   auto req_speed = get_speed();
   req_speed.set_dcc_128(speed);
@@ -178,6 +159,7 @@ void LocomotiveConsist::updateThrottle(uint16_t locoAddress, int8_t speed, bool 
     // the throttle adjustment
     set_speed(req_speed);
   }
+  return getStateAsDCCpp();
 }
 
 void LocomotiveConsist::addLocomotive(uint16_t locoAddress
@@ -259,90 +241,4 @@ void LocomotiveConsist::releaseLocomotives()
     delete ent;
   }
   _locos.clear();
-}
-
-void ConsistCommandAdapter::process(const vector<string> arguments)
-{
-  if (arguments.empty())
-  {
-    locoManager->showConsistStatus();
-  }
-  else if (arguments.size() == 1 &&
-           locoManager->removeLocomotiveConsist(std::stoi(arguments[1])))
-  {
-    wifiInterface.broadcast(COMMAND_SUCCESSFUL_RESPONSE);
-  }
-  else if (arguments.size() == 2)
-  {
-    int8_t consistAddress = std::stoi(arguments[0]);
-    uint16_t locomotiveAddress = std::stoi(arguments[1]);
-    if (consistAddress == 0)
-    {
-      // query which consist loco is in
-      auto consist = locoManager->getConsistForLoco(locomotiveAddress);
-      if (consist)
-      {
-        wifiInterface.broadcast(StringPrintf("<V %d %d>",
-          consist->legacy_address() * consist->isDecoderAssistedConsist() ? -1 : 1,
-          locomotiveAddress));
-        return;
-      }
-    }
-    else
-    {
-      // remove loco from consist
-      auto consist = locoManager->getConsistByID(consistAddress);
-      if (consist->isAddressInConsist(locomotiveAddress))
-      {
-        consist->removeLocomotive(locomotiveAddress);
-        wifiInterface.broadcast(COMMAND_SUCCESSFUL_RESPONSE);
-        return;
-      }
-    }
-    // if we get here either the query or remove failed
-    wifiInterface.broadcast(COMMAND_FAILED_RESPONSE);
-  }
-  else if (arguments.size() >= 3)
-  {
-    // create or update consist
-    uint16_t consistAddress = std::stoi(arguments[0]);
-    auto consist = locoManager->getConsistByID(consistAddress);
-    if (consist)
-    {
-      // existing consist, need to update
-      consist->releaseLocomotives();
-    }
-    else
-    {
-      // verify if all provided locos are not already in a consist
-      for(int index = 1; index < arguments.size(); index++)
-      {
-        int32_t locomotiveAddress = std::stoi(arguments[index]);
-        if(locoManager->isAddressInConsist(abs(locomotiveAddress)))
-        {
-          LOG_ERROR("[Consist] Locomotive %d is already in a consist.", abs(locomotiveAddress));
-          wifiInterface.broadcast(COMMAND_FAILED_RESPONSE);
-          return;
-        }
-      }
-      consist = locoManager->createLocomotiveConsist(consistAddress);
-      if(!consist)
-      {
-        LOG_ERROR("[Consist] Unable to create new Consist");
-        wifiInterface.broadcast(COMMAND_FAILED_RESPONSE);
-        return;
-      }
-    }
-    // add locomotives to consist
-    for(int index = 1; index < arguments.size(); index++)
-    {
-      int32_t locomotiveAddress = std::stoi(arguments[index]);
-      consist->addLocomotive(abs(locomotiveAddress), locomotiveAddress > 0,
-        index - 1);
-    }
-  }
-  else
-  {
-    wifiInterface.broadcast(COMMAND_FAILED_RESPONSE);
-  }
 }

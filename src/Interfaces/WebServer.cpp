@@ -49,7 +49,7 @@ enum HTTP_STATUS_CODES
 };
 
 Atomic webSocketAtomic;
-vector<WebSocketClient *> webSocketClients;
+vector<unique_ptr<WebSocketClient>> webSocketClients;
 
 void handleWsEvent(AsyncWebSocket * server,
                    AsyncWebSocketClient * client,
@@ -61,36 +61,39 @@ void handleWsEvent(AsyncWebSocket * server,
   AtomicHolder h(&webSocketAtomic);
   if (type == WS_EVT_CONNECT)
   {
-    webSocketClients.push_back(new WebSocketClient(client->id(), ntohl(client->remoteIP())));
-    client->printf("<iDCC++ ESP32 Command Station: V-%s / %s %s>", ESP32CS_VERSION, __DATE__, __TIME__);
-    infoScreen->replaceLine(INFO_SCREEN_CLIENTS_LINE, 
-                            "TCP Conn: %02d",
+    webSocketClients.emplace_back(new WebSocketClient(client->id(), ntohl(client->remoteIP())));
+    infoScreen->replaceLine(INFO_SCREEN_CLIENTS_LINE, "TCP Conn: %02d",
                             webSocketClients.size() + jmriClients.size());
   }
   else if (type == WS_EVT_DISCONNECT)
   {
-    auto elem = std::find_if(webSocketClients.begin(), webSocketClients.end(),
-      [client](WebSocketClient *clientNode) -> bool
+    auto const &elem = std::find_if(webSocketClients.begin(), webSocketClients.end(),
+      [client](unique_ptr<WebSocketClient> & clientNode) -> bool
       {
-        return (clientNode->getID() == client->id());
+        return clientNode->getID() == client->id();
       }
     );
     if (elem != webSocketClients.end())
     {
-      delete *elem;
       webSocketClients.erase(elem);
     }
-    infoScreen->replaceLine(INFO_SCREEN_CLIENTS_LINE,
-                            "TCP Conn: %02d",
+    infoScreen->replaceLine(INFO_SCREEN_CLIENTS_LINE, "TCP Conn: %02d",
                             webSocketClients.size() + jmriClients.size());
   }
   else if (type == WS_EVT_DATA)
   {
-    for (auto clientNode : webSocketClients)
-    {
-      if (clientNode->getID() == client->id())
+    auto const &elem = std::find_if(webSocketClients.begin(), webSocketClients.end(),
+      [client](unique_ptr<WebSocketClient> & clientNode) -> bool
       {
-        clientNode->feed(data, len);
+        return clientNode->getID() == client->id();
+      }
+    );
+    if (elem != webSocketClients.end())
+    {
+      string res = elem->get()->feed(data, len);
+      if (!res.empty())
+      {
+        client->text(res.c_str());
       }
     }
   }
@@ -274,10 +277,6 @@ void ESP32CSWebServer::begin()
   webServer.addHandler(&webSocket);
   webServer.begin();
   mdns_->publish("websvr", "_http._tcp", 80);
-}
-
-void ESP32CSWebServer::broadcastToWS(const std::string &buf) {
-  webSocket.textAll(buf.c_str());
 }
 
 void ESP32CSWebServer::handleProgrammer(AsyncWebServerRequest *request)
@@ -793,9 +792,9 @@ void ESP32CSWebServer::handleLocomotive(AsyncWebServerRequest *request)
     }
     else if (request->hasArg(JSON_ADDRESS_NODE))
     {
-      auto loco = locoManager->getLocomotive(request->arg(JSON_ADDRESS_NODE).toInt());
       if(request->method() == HTTP_PUT || request->method() == HTTP_POST)
       {
+        auto loco = locoManager->getLocomotive(request->arg(JSON_ADDRESS_NODE).toInt());
         auto upd_speed = loco->get_speed();
         // Creation / Update of active locomotive
         if(request->hasArg(JSON_IDLE_NODE) && request->arg(JSON_IDLE_NODE).equalsIgnoreCase(JSON_VALUE_TRUE))
@@ -819,6 +818,7 @@ void ESP32CSWebServer::handleLocomotive(AsyncWebServerRequest *request)
             loco->set_fn(funcID, request->arg(fArg.c_str()).equalsIgnoreCase(JSON_VALUE_TRUE));
           }
         }
+        SEND_JSON_IF_OBJECT(request, loco)
       }
       else if(request->method() == HTTP_DELETE)
       {
@@ -827,8 +827,13 @@ void ESP32CSWebServer::handleLocomotive(AsyncWebServerRequest *request)
 #if NEXTION_ENABLED
         static_cast<NextionThrottlePage *>(nextionPages[THROTTLE_PAGE])->invalidateLocomotive(request->arg(JSON_ADDRESS_NODE).toInt());
 #endif
+        SEND_GENERIC_RESPONSE(request, STATUS_OK)
       }
-      SEND_JSON_IF_OBJECT(request, loco)
+      else
+      {
+        auto loco = locoManager->getLocomotive(request->arg(JSON_ADDRESS_NODE).toInt());
+        SEND_JSON_IF_OBJECT(request, loco)
+      }
     }
   }
   // missing arg or unknown request

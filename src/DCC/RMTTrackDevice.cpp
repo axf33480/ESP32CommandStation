@@ -592,10 +592,9 @@ string RMTTrackDevice::generate_status_json()
                     , progHBridge_->getStateAsJson().c_str());
 }
 
-void RMTTrackDevice::broadcast_status()
+string RMTTrackDevice::getStateAsDCCpp()
 {
-  opsHBridge_->broadcastStatus();
-  progHBridge_->broadcastStatus();
+  return opsHBridge_->getStateAsDCCpp() + progHBridge_->getStateAsDCCpp();
 }
 
 string RMTTrackDevice::get_info_screen_data()

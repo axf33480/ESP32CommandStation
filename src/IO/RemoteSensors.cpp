@@ -150,19 +150,18 @@ string RemoteSensorManager::getStateAsJson()
   return root.dump();
 }
 
-void RemoteSensorManager::show()
+string RemoteSensorManager::getStateAsDCCpp()
 {
   if (remoteSensors.isEmpty())
   {
-    wifiInterface.broadcast(COMMAND_FAILED_RESPONSE);
+    return COMMAND_FAILED_RESPONSE;
   }
-  else
+  string status;
+  for (const auto& sensor : remoteSensors)
   {
-    for (const auto& sensor : remoteSensors)
-    {
-      sensor->showSensor();
-    }
+    status += sensor->getStateAsDCCpp();
   }
+  return status;
 }
 
 RemoteSensor::RemoteSensor(uint16_t id, uint16_t value) :
@@ -182,9 +181,9 @@ void RemoteSensor::check()
   }
 }
 
-void RemoteSensor::showSensor()
+string RemoteSensor::getStateAsDCCpp()
 {
-  wifiInterface.broadcast(StringPrintf("<RS %d %d>", getRawID(), _value));
+  return StringPrintf("<RS %d %d>", getRawID(), _value);
 }
 
 string RemoteSensor::toJson(bool includeState)
@@ -200,31 +199,4 @@ string RemoteSensor::toJson(bool includeState)
   return object.dump();
 }
 
-void RemoteSensorsCommandAdapter::process(const vector<string> arguments)
-{
-  if(arguments.empty())
-  {
-    // list all sensors
-    RemoteSensorManager::show();
-  }
-  else
-  {
-    uint16_t sensorID = std::stoi(arguments[0]);
-    if (arguments.size() == 1 && RemoteSensorManager::remove(sensorID))
-    {
-      // delete remote sensor
-      wifiInterface.broadcast(COMMAND_SUCCESSFUL_RESPONSE);
-    }
-    else if (arguments.size() == 2)
-    {
-      // create/update remote sensor
-      RemoteSensorManager::createOrUpdate(sensorID, std::stoi(arguments[1]));
-      wifiInterface.broadcast(COMMAND_SUCCESSFUL_RESPONSE);
-    }
-    else
-    {
-      wifiInterface.broadcast(COMMAND_FAILED_RESPONSE);
-    }
-  }
-}
 #endif // ENABLE_SENSORS

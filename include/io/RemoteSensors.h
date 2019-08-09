@@ -44,7 +44,7 @@ public:
     return _lastUpdate;
   }
   virtual void check();
-  void showSensor();
+  std::string getStateAsDCCpp() override;
   virtual std::string toJson(bool=false) override;
 private:
   uint16_t _rawID;
@@ -56,12 +56,10 @@ class RemoteSensorManager
 {
 public:
   static void init();
-  static void show();
   static void createOrUpdate(const uint16_t, const uint16_t=0);
   static bool remove(const uint16_t);
   static std::string getStateAsJson();
+  static std::string getStateAsDCCpp();
 };
-
-DECLARE_DCC_PROTOCOL_COMMAND_CLASS(RemoteSensorsCommandAdapter, "RS")
 
 #endif // REMOTE_SENSORS_H_

@@ -29,7 +29,7 @@ class Output
 public:
   Output(uint16_t, uint8_t, uint8_t);
   Output(std::string &);
-  void set(bool=false, bool=true);
+  std::string set(bool=false, bool=true);
   void update(uint8_t, uint8_t);
   std::string toJson(bool=false);
   uint16_t getID()
@@ -48,7 +48,11 @@ public:
   {
     return _active;
   }
-  void showStatus();
+  std::string getStateAsDCCpp()
+  {
+    return StringPrintf("<Y %d %d>", _id, !_active);
+  }
+  std::string getStateAsJson();
   std::string getFlagsAsString()
   {
     std::string flags = "";
@@ -90,17 +94,13 @@ class OutputManager
     static void init();
     static void clear();
     static uint16_t store();
-    static bool set(uint16_t, bool=false);
+    static std::string set(uint16_t, bool=false);
     static Output *getOutput(uint16_t);
     static bool toggle(uint16_t);
     static std::string getStateAsJson();
-    static void showStatus();
+    static std::string getStateAsDCCpp();
     static bool createOrUpdate(const uint16_t, const uint8_t, const uint8_t);
     static bool remove(const uint16_t);
 };
-
-DECLARE_DCC_PROTOCOL_COMMAND_CLASS(OutputCommandAdapter, "Z")
-
-DECLARE_DCC_PROTOCOL_COMMAND_CLASS(OutputExCommandAdapter, "Zex")
 
 #endif // OUTPUTS_H_

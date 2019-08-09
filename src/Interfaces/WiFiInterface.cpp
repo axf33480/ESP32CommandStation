@@ -125,22 +125,9 @@ void WiFiInterface::init()
   });
 }
 
-void WiFiInterface::showInitInfo()
+string WiFiInterface::getStateAsDCCpp()
 {
-  broadcast(StringPrintf("<N1: " IPSTR " >", IP2STR(&ip_.ip)));
-}
-
-void WiFiInterface::broadcast(const std::string &buf)
-{
-  {
-    OSMutexLock h(&jmriClientsMux);
-    for (const int client : jmriClients)
-    {
-      ::write(client, buf.c_str(), buf.length());
-    }
-  }
-  esp32csWebServer.broadcastToWS(buf);
-  hc12->send(buf.c_str());
+  return StringPrintf("<N1: " IPSTR " >", IP2STR(&ip_.ip));
 }
 
 void *jmriClientHandler(void *arg)
@@ -164,7 +151,11 @@ void *jmriClientHandler(void *arg)
     }
     else if (bytesRead > 0)
     {
-      consumer->feed(buf.get(), bytesRead);
+      string res = consumer->feed(buf.get(), bytesRead);
+      if (!res.empty())
+      {
+        ::write(fd, res.c_str(), res.length());
+      }
     }
     else if (bytesRead == 0)
     {

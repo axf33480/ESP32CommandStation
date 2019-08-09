@@ -228,7 +228,8 @@ string S88BusManager::getStateAsJson()
 }
 
 S88SensorBus::S88SensorBus(const uint8_t id, const uint8_t dataPin, const uint16_t sensorCount) :
-  _id(id), _dataPin(dataPin), _sensorIDBase((id * S88_MAX_SENSORS_PER_BUS) + S88_FIRST_SENSOR), _lastSensorID((id * S88_MAX_SENSORS_PER_BUS) + S88_FIRST_SENSOR)
+  _id(id), _dataPin(dataPin), _sensorIDBase((id * S88_MAX_SENSORS_PER_BUS) + S88_FIRST_SENSOR),
+  _lastSensorID((id * S88_MAX_SENSORS_PER_BUS) + S88_FIRST_SENSOR)
 {
   LOG(INFO, "[S88 Bus-%d] Created using data pin %d with %d sensors starting at id %d",
     _id, _dataPin, sensorCount, _sensorIDBase);
@@ -239,7 +240,7 @@ S88SensorBus::S88SensorBus(const uint8_t id, const uint8_t dataPin, const uint16
   }
 }
 
-S88SensorBus::S88SensorBus(string data)
+S88SensorBus::S88SensorBus(string &data)
 {
   json object = json::parse(data);
   _id = object[JSON_ID_NODE];
@@ -272,7 +273,6 @@ void S88SensorBus::update(const uint8_t dataPin, const uint16_t sensorCount)
   }
   LOG(INFO, "[S88 Bus-%d] Updated to use data pin %d with %d sensors",
     _id, _dataPin, _sensors.size());
-  show();
 }
 
 string S88SensorBus::toJson(bool includeState)
@@ -346,44 +346,16 @@ void S88SensorBus::readNext()
   _sensors[_nextSensorToRead++]->setState(digitalRead(_dataPin) == HIGH);
 }
 
-void S88SensorBus::show()
+string S88SensorBus::getStateAsDCCpp()
 {
-  wifiInterface.broadcast(StringPrintf("<S88 %d %d %d>", _id, _dataPin, _sensors.size()));
+  string status = StringPrintf("<S88 %d %d %d>", _id, _dataPin, _sensors.size());
   LOG(VERBOSE, "[S88 Bus-%d] Data:%d, Base:%d, Count:%d:", _id, _dataPin, _sensorIDBase, _sensors.size());
   for (const auto& sensor : _sensors)
   {
     LOG(VERBOSE, "[S88] Input: %d :: %s", sensor->getIndex(), sensor->isActive() ? "ACTIVE" : "INACTIVE");
-    sensor->show();
+    status += sensor->getStateAsDCCpp();
   }
-}
-
-void S88BusCommandAdapter::process(const vector<string> arguments)
-{
-  if(arguments.empty())
-  {
-    // list all sensor groups
-    for (const auto& sensorBus : s88SensorBus)
-    {
-      sensorBus->show();
-    }
-  }
-  else
-  {
-    if (arguments.size() == 1 && S88BusManager::removeBus(std::stoi(arguments[0])))
-    {
-      // delete sensor bus
-      wifiInterface.broadcast(COMMAND_SUCCESSFUL_RESPONSE);
-    }
-    else if (arguments.size() == 3 && S88BusManager::createOrUpdateBus(std::stoi(arguments[0]), std::stoi(arguments[1]), std::stoi(arguments[2])))
-    {
-      // create sensor bus
-      wifiInterface.broadcast(COMMAND_SUCCESSFUL_RESPONSE);
-    }
-    else
-    {
-      wifiInterface.broadcast(COMMAND_FAILED_RESPONSE);
-    }
-  }
+  return status;
 }
 
 S88Sensor::S88Sensor(uint16_t id, uint16_t index) : Sensor(id, NON_STORED_SENSOR_PIN, false, false), _index(index)

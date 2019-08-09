@@ -18,14 +18,15 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #ifndef WIFI_INTERFACE_H_
 #define WIFI_INTERFACE_H_
 
-class WiFiInterface {
+class WiFiInterface
+{
 public:
   WiFiInterface();
   void init();
   void showConfiguration();
-  void showInitInfo();
-  void broadcast(const std::string &);
-  void setIP(tcpip_adapter_ip_info_t ip) {
+  std::string getStateAsDCCpp();
+  void setIP(tcpip_adapter_ip_info_t ip)
+  {
     ip_.ip = ip.ip;
   }
 private:
@@ -34,11 +35,11 @@ private:
 
 extern WiFiInterface wifiInterface;
 
-class ESP32CSWebServer {
+class ESP32CSWebServer
+{
 public:
   ESP32CSWebServer(MDNS *mdns);
   void begin();
-  void broadcastToWS(const std::string &buf);
 private:
   MDNS *mdns_;
   std::string softAPAddress_;
@@ -61,18 +62,24 @@ private:
   void notFoundHandler(AsyncWebServerRequest *);
 };
 
-class WebSocketClient : public DCCPPProtocolConsumer {
+class WebSocketClient : public DCCPPProtocolConsumer
+{
 public:
-  WebSocketClient(int clientID, uint32_t remoteIP) : _id(clientID), _remoteIP(remoteIP) {
+  WebSocketClient(int clientID, uint32_t remoteIP)
+    : DCCPPProtocolConsumer(), _id(clientID), _remoteIP(remoteIP)
+  {
     LOG(INFO, "[WS %s] Connected", getName().c_str());
   }
-  virtual ~WebSocketClient() {
+  virtual ~WebSocketClient()
+  {
     LOG(INFO, "[WS %s] Disconnected", getName().c_str());
   }
-  int getID() {
+  int getID()
+  {
     return _id;
   }
-  std::string getName() {
+  std::string getName()
+  {
     return StringPrintf("%s/%d", ipv4_to_string(_remoteIP).c_str(), _id);
   }
 private:
@@ -80,7 +87,7 @@ private:
   uint32_t _remoteIP;
 };
 
-extern std::vector<WebSocketClient *> webSocketClients;
+extern vector<unique_ptr<WebSocketClient>> webSocketClients;
 extern std::vector<int> jmriClients;
 
 #endif // WIFI_INTERFACE_H_
