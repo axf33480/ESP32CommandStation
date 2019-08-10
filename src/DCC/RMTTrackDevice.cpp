@@ -154,7 +154,7 @@ static constexpr rmt_item32_t MARKLIN_RMT_ONE_BIT =
 
 // Marklin Motorola preamble bit pre-encoded in RMT format, both top and bottom
 // half of the wave are LOW.
-static constexpr rmt_item32_t MARKLIN_RMT_ONE_BIT =
+static constexpr rmt_item32_t MARKLIN_RMT_PREAMBLE_BIT =
 {{{
     MARKLIN_PREAMBLE_BIT_PULSE_HIGH_USEC // number of microseconds for TOP half
   , 0                                    // of the square wave.
