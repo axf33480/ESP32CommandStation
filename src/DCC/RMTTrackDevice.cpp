@@ -79,13 +79,34 @@ COPYRIGHT (c) 2019 Mike Dunston
 // APB/REF clock divider to use for the RMT module
 static constexpr uint8_t RMT_CLOCK_DIVIDER = 80;
 
-// number of microseconds for each half of the DCC signal for a zero
+// The NMRA DCC Signal is sent as a square wave with each half having
+// identical timing (or nearly identical). Packet Bytes have a minimum of 11
+// preamble ONE bits in order to be considered valid by the decoder. For
+// RailCom support it is recommended to have at least 16 preamble bits. For the
+// Programming Track it is required to have a longer preamble of at least 22
+// bits. Packet data follows immediately after the preamble bits, between the
+// packet bytes a DCC ZERO is sent. After the last byte of packet data a DCC
+// ONE is sent.
+//
+// DCC ZERO:
+//    ----------------
+//    |      96      |
+// ---|     usec     |      96      ---
+//                   |     usec     |
+//                   ----------------
+// DCC ONE:
+//    --------
+//    |  58  |      
+// ---| usec |  58  ---
+//           | usec |
+//           --------
+//
+// Waveforms above are not exact to scale.
+//
 static constexpr uint32_t DCC_ZERO_BIT_PULSE_USEC = 96;
-
-// number of microseconds for each half of the DCC signal for a one
 static constexpr uint32_t DCC_ONE_BIT_PULSE_USEC = 58;
 
-// pre-encoded DCC ZERO bit.
+// DCC ZERO bit pre-encoded in RMT format, sent as HIGH then LOW.
 static constexpr rmt_item32_t DCC_RMT_ZERO_BIT =
 {{{
     DCC_ZERO_BIT_PULSE_USEC       // number of microseconds for TOP half
@@ -94,13 +115,51 @@ static constexpr rmt_item32_t DCC_RMT_ZERO_BIT =
   , 0                             // of the square wave.
 }}};
 
-// pre-encoded DCC ONE bit.
+// DCC ONE bit pre-encoded in RMT format, sent as HIGH then LOW.
 static constexpr rmt_item32_t DCC_RMT_ONE_BIT =
 {{{
     DCC_ONE_BIT_PULSE_USEC        // number of microseconds for TOP half
   , 1                             // of the square wave.
   , DCC_ONE_BIT_PULSE_USEC        // number of microseconds for BOTTOM half
   , 0                             // of the square wave.
+}}};
+
+// Marklin Motorola bit timing (WIP)
+// https://people.zeelandnet.nl/zondervan/digispan.html
+// http://www.drkoenig.de/digital/motorola.htm
+static constexpr uint32_t MARKLIN_ZERO_BIT_PULSE_HIGH_USEC = 182;
+static constexpr uint32_t MARKLIN_ZERO_BIT_PULSE_LOW_USEC = 26;
+static constexpr uint32_t MARKLIN_ONE_BIT_PULSE_HIGH_USEC = 26;
+static constexpr uint32_t MARKLIN_ONE_BIT_PULSE_LOW_USEC = 182;
+static constexpr uint32_t MARKLIN_PREAMBLE_BIT_PULSE_HIGH_USEC = 104;
+static constexpr uint32_t MARKLIN_PREAMBLE_BIT_PULSE_LOW_USEC = 104;
+
+// Marklin Motorola ZERO bit pre-encoded in RMT format, sent as HIGH then LOW.
+static constexpr rmt_item32_t MARKLIN_RMT_ZERO_BIT =
+{{{
+    MARKLIN_ZERO_BIT_PULSE_HIGH_USEC  // number of microseconds for TOP half
+  , 1                                 // of the square wave.
+  , MARKLIN_ZERO_BIT_PULSE_LOW_USEC   // number of microseconds for BOTTOM half
+  , 0                                 // of the square wave.
+}}};
+
+// Marklin Motorola ONE bit pre-encoded in RMT format, sent as HIGH then LOW.
+static constexpr rmt_item32_t MARKLIN_RMT_ZERO_BIT =
+{{{
+    MARKLIN_ZERO_BIT_PULSE_HIGH_USEC  // number of microseconds for TOP half
+  , 1                                 // of the square wave.
+  , MARKLIN_ZERO_BIT_PULSE_LOW_USEC   // number of microseconds for BOTTOM half
+  , 0                                 // of the square wave.
+}}};
+
+// Marklin Motorola preamble bit pre-encoded in RMT format, both top and bottom
+// half of the wave are LOW.
+static constexpr rmt_item32_t MARKLIN_RMT_ONE_BIT =
+{{{
+    MARKLIN_PREAMBLE_BIT_PULSE_HIGH_USEC // number of microseconds for TOP half
+  , 0                                    // of the square wave.
+  , MARKLIN_PREAMBLE_BIT_PULSE_LOW_USEC  // number of microseconds for BOTTOM
+  , 0                                    // half of the square wave.
 }}};
 
 // Declare ISR flags for the RMT driver ISR and feeder ISR
@@ -517,7 +576,13 @@ void RMTTrackDevice::prog_rmt_transmit_complete()
 
 void RMTTrackDevice::send(Buffer<Packet> *b, unsigned prio)
 {
-  WRITE_PACKET_TO_QUEUE(opsPacketQueue_, packetQueueLock_, b->data(), b->size());
+  // if it is not a Marklin Motorola packet put it in the queue, otherwise
+  // discard.
+  if (!b->data()->packet_header.is_marklin)
+  {
+    WRITE_PACKET_TO_QUEUE(opsPacketQueue_, packetQueueLock_, b->data()
+                        , b->size());
+  }
   b->unref();
 }
 
