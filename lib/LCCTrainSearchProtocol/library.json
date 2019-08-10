@@ -1,0 +1,12 @@
+{
+  "name":"LCCTrainSearchProtocol",
+  "description":"LCC TrainSearch protocol",
+  "keywords":"lcc",
+  "authors":
+  {
+    "name": "Balazs Racz",
+    "maintainer": true
+  },
+  "frameworks": "arduino",
+  "platforms": ["espressif", "espressif32"]
+}
