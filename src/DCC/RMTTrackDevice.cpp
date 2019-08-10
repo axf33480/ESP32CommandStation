@@ -144,7 +144,7 @@ static constexpr rmt_item32_t MARKLIN_RMT_ZERO_BIT =
 }}};
 
 // Marklin Motorola ONE bit pre-encoded in RMT format, sent as HIGH then LOW.
-static constexpr rmt_item32_t MARKLIN_RMT_ZERO_BIT =
+static constexpr rmt_item32_t MARKLIN_RMT_ONE_BIT =
 {{{
     MARKLIN_ZERO_BIT_PULSE_HIGH_USEC  // number of microseconds for TOP half
   , 1                                 // of the square wave.
