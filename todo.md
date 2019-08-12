@@ -40,7 +40,7 @@ The primary focus of v1.4.0 will be improvements to the DCC signal code and addi
 - [-] adjust InfoScreen LCC details so they are useful, right now it is a placeholder.
 - [x] implement CV memory space.
 - [-] Traction proxy impl.
-- [ ] TrainSearch protocol.
+- [-] TrainSearch protocol.
 - [ ] Force factory reset when node id changes.
 
 ### InfoScreen
