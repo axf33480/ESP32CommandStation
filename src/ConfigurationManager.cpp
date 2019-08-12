@@ -27,11 +27,8 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #include <sdmmc_cmd.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <fstream>
 
-using std::ofstream;
-using std::ifstream;
-using std::ios;
+using nlohmann::json;
 
 unique_ptr<ConfigurationManager> configStore;
 
@@ -51,7 +48,7 @@ static const char* const OLD_CONFIG_DIR = CS_CONFIG_FILESYSTEM "/DCCppESP32";
 // Global handle for WiFi Manager
 unique_ptr<Esp32WiFiManager> wifiManager;
 
-// holder of the parsed command station configuration, this is 
+// holder of the parsed command station configuration.
 json commandStationConfig;
 
 void recursiveWalkTree(const string &path, bool remove=false)
@@ -145,6 +142,21 @@ ConfigurationManager::ConfigurationManager()
         (float)(((uint64_t)sdcard->csd.capacity) * sdcard->csd.sector_size) / 1048576);
   }
 #endif
+  if (config_cs_force_factory_reset() == CONSTANT_TRUE)
+  {
+    LOG(WARNING,
+        "WARNING: The Factory Reset flag has been set to true, all persistent "
+        "data will be cleared.");
+    uint8_t countdown = 10;
+    while (countdown--)
+    {
+      LOG(WARNING, "Factory reset will be initiated in %d seconds..."
+        , countdown);
+      usleep(SEC_TO_USEC(1));
+    }
+    LOG(WARNING, "Factory reset initiated!");
+  }
+
   LOG(VERBOSE, "[Config] Persistent storage contents:");
   recursiveWalkTree(CS_CONFIG_FILESYSTEM
                   , config_cs_force_factory_reset() == CONSTANT_TRUE);
@@ -255,12 +267,12 @@ void ConfigurationManager::clear()
   mkdir(configRoot.c_str(), ACCESSPERMS);
 }
 
-bool ConfigurationManager::exists(const std::string &name)
+bool ConfigurationManager::exists(const string &name)
 {
   string oldConfigFilePath = getFilePath(name, true);
   string configFilePath = getFilePath(name);
-  if (ifstream(oldConfigFilePath).good() &&
-     !ifstream(configFilePath).good())
+  if (!access(oldConfigFilePath.c_str(), F_OK) &&
+      access(configFilePath.c_str(), F_OK))
   {
     LOG(INFO, "[Config] Migrating configuration file %s to %s."
       , oldConfigFilePath.c_str()
@@ -268,17 +280,17 @@ bool ConfigurationManager::exists(const std::string &name)
     rename(oldConfigFilePath.c_str(), configFilePath.c_str());
   }
   LOG(VERBOSE, "[Config] Checking for %s", configFilePath.c_str());
-  return ifstream(configFilePath).good();
+  return access(configFilePath.c_str(), F_OK) == 0;
 }
 
-void ConfigurationManager::remove(const std::string &name)
+void ConfigurationManager::remove(const string &name)
 {
   string configFilePath = getFilePath(name);
   LOG(VERBOSE, "[Config] Removing %s", configFilePath.c_str());
   unlink(configFilePath.c_str());
 }
 
-string ConfigurationManager::load(const std::string &name)
+string ConfigurationManager::load(const string &name)
 {
   string configFilePath = getFilePath(name);
   if (!exists(name))
@@ -314,7 +326,7 @@ void ConfigurationManager::configureCAN(OpenMRN *openmrn)
       (gpio_num_t)canConfig[JSON_LCC_CAN_RX_NODE].get<uint8_t>();
     gpio_num_t canTXPin =
       (gpio_num_t)canConfig[JSON_LCC_CAN_TX_NODE].get<uint8_t>();
-    if (canRXPin != NOT_A_PIN && canTXPin != NOT_A_PIN)
+    if (canRXPin < GPIO_NUM_MAX && canTXPin < GPIO_NUM_MAX)
     {
       LOG(INFO, "[Config] Enabling LCC CAN interface (rx: %d, tx: %d)"
         , canRXPin, canTXPin);
@@ -324,7 +336,7 @@ void ConfigurationManager::configureCAN(OpenMRN *openmrn)
   }
 }
 
-void ConfigurationManager::configureWiFi(openlcb::SimpleCanStack *stack
+void ConfigurationManager::configureWiFi(SimpleCanStack *stack
                                        , const WiFiConfiguration &cfg)
 {
   auto wifiConfig = commandStationConfig[JSON_WIFI_NODE];
@@ -378,7 +390,7 @@ void ConfigurationManager::configureWiFi(openlcb::SimpleCanStack *stack
                                          WIFI_SOFT_AP_CHANNEL));
 }
 
-string ConfigurationManager::getFilePath(const std::string &name, bool oldPath)
+string ConfigurationManager::getFilePath(const string &name, bool oldPath)
 {
   if (oldPath)
   {
