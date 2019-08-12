@@ -82,8 +82,8 @@ using std::string;
 #include <utils/StringPrintf.hxx>
 
 // Train Search components
-//#include "TrainDb.hxx"
-//#include "AllTrainNodes.hxx"
+#include "TrainDb.hxx"
+#include "AllTrainNodes.hxx"
 
 // Define NOT_A_PIN in case it hasn't been defined already, this should be
 // defined inside Arduino.h
@@ -152,7 +152,7 @@ using openlcb::WriteHelper;
 #include "ESP32CSConstants.h"
 #include "JsonConstants.h"
 #include "ConfigurationManager.h"
-//#include "ESP32TrainDatabase.h"
+#include "ESP32TrainDatabase.h"
 
 #include "dcc/DCCProgrammer.h"
 #include "dcc/Locomotive.h"

@@ -289,7 +289,7 @@ extern "C" void app_main()
   // Initialize the locomotive manager
   locoManager.reset(new LocomotiveManager(openmrn->stack()->node(), &trainService));
 
-  //esp32cs::Esp32TrainDatabase trainDb;
+  esp32cs::Esp32TrainDatabase trainDb;
 
   // Start the OpenMRN stack.
   openmrn->begin();

@@ -23,6 +23,7 @@ constexpr const char * JSON_FILE_NODE = "file";
 constexpr const char * JSON_NAME_NODE = "name";
 constexpr const char * JSON_STATE_NODE = "state";
 constexpr const char * JSON_USAGE_NODE = "usage";
+constexpr const char * JSON_MODE_NODE = "mode";
 
 constexpr const char * JSON_COUNT_NODE = "count";
 
