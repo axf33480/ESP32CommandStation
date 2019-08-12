@@ -55,11 +55,15 @@ class AllTrainNodes {
  public:
   AllTrainNodes(TrainDb* db, openlcb::TrainService* traction_service,
                 openlcb::SimpleInfoFlow* info_flow,
-                openlcb::MemoryConfigHandler* memory_config);
+                openlcb::MemoryConfigHandler* memory_config,
+                openlcb::MemorySpace* ro_train_cdi,
+                openlcb::MemorySpace* ro_tmp_train_cdi);
   ~AllTrainNodes();
 
   // Used for debugging purposes
   openlcb::TrainImpl* get_train_impl(int id);
+
+  openlcb::TrainImpl* get_train_impl(openlcb::NodeID id);
 
   /// Returns a traindb entry or nullptr if the id is too high.
   std::shared_ptr<TrainDbEntry> get_traindb_entry(int id);
@@ -100,6 +104,8 @@ class AllTrainNodes {
   TrainDb* db_;
   openlcb::TrainService* tractionService_;
   openlcb::MemoryConfigHandler* memoryConfigService_;
+  openlcb::MemorySpace* ro_train_cdi_;
+  openlcb::MemorySpace* ro_tmp_train_cdi_;
 
   /// All train nodes that we know about.
   std::vector<Impl*> trains_;

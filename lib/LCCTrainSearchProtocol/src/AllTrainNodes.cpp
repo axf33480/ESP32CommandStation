@@ -50,7 +50,6 @@ namespace commandstation {
 // default to an empty database.
 struct const_traindb_entry_t __attribute__((weak)) const_lokdb[] =
 {
-  {0, {}, "", DCC_DEFAULT}
 };
 
 size_t __attribute__((weak)) const_lokdb_size =
@@ -155,6 +154,15 @@ struct AllTrainNodes::Impl {
 openlcb::TrainImpl* AllTrainNodes::get_train_impl(int id) {
   if (id >= (int)trains_.size()) return nullptr;
   return trains_[id]->train_;
+}
+
+openlcb::TrainImpl* AllTrainNodes::get_train_impl(openlcb::NodeID id) {
+  for (auto* i : trains_) {
+    if (i->node_->node_id() == id) {
+      return i->train_;
+    }
+  }
+  return nullptr;
 }
 
 AllTrainNodes::Impl* AllTrainNodes::find_node(openlcb::Node* node) {
@@ -410,9 +418,7 @@ extern const size_t TRAINTMPCDI_SIZE;
 class AllTrainNodes::TrainCDISpace : public openlcb::MemorySpace {
  public:
   TrainCDISpace(AllTrainNodes* parent)
-      : parent_(parent),
-        dbCdi_(TRAINCDI_DATA, TRAINCDI_SIZE),
-        tmpCdi_(TRAINTMPCDI_DATA, TRAINTMPCDI_SIZE) {}
+      : parent_(parent) {}
 
   bool set_node(openlcb::Node* node) override {
     if (impl_ && impl_->node_ == node) {
@@ -425,9 +431,9 @@ class AllTrainNodes::TrainCDISpace : public openlcb::MemorySpace {
     if (!entry) return false;
     int offset = entry->file_offset();
     if (offset < 0) {
-      proxySpace_ = &tmpCdi_;
+      proxySpace_ = parent_->ro_tmp_train_cdi_;
     } else {
-      proxySpace_ = &dbCdi_;
+      proxySpace_ = parent_->ro_train_cdi_;
     }
     return true;
   }
@@ -443,8 +449,6 @@ class AllTrainNodes::TrainCDISpace : public openlcb::MemorySpace {
   // Train object structure.
   Impl* impl_{nullptr};
   openlcb::MemorySpace* proxySpace_;
-  openlcb::ReadOnlyMemoryBlock dbCdi_;
-  openlcb::ReadOnlyMemoryBlock tmpCdi_;
 };
 
 class AllTrainNodes::TrainNodesUpdater : private DefaultConfigUpdateListener {
@@ -475,12 +479,20 @@ class AllTrainNodes::TrainNodesUpdater : private DefaultConfigUpdateListener {
 AllTrainNodes::AllTrainNodes(TrainDb* db,
                              openlcb::TrainService* traction_service,
                              openlcb::SimpleInfoFlow* info_flow,
-                             openlcb::MemoryConfigHandler* memory_config)
+                             openlcb::MemoryConfigHandler* memory_config,
+                             openlcb::MemorySpace* ro_train_cdi,
+                             openlcb::MemorySpace* ro_tmp_train_cdi)
     : db_(db),
       tractionService_(traction_service),
       memoryConfigService_(memory_config),
+      ro_train_cdi_(ro_train_cdi),
+      ro_tmp_train_cdi_(ro_tmp_train_cdi),
       snipHandler_(new TrainSnipHandler(this, info_flow)),
       pipHandler_(new TrainPipHandler(this)) {
+
+  HASSERT(ro_train_cdi_->read_only());
+  HASSERT(ro_tmp_train_cdi_->read_only());
+
   for (unsigned train_id = 0; train_id < const_lokdb_size; ++train_id) {
     if (!db->is_train_id_known(train_id)) continue;
     auto e = db->get_entry(train_id);
@@ -493,9 +505,9 @@ AllTrainNodes::AllTrainNodes(TrainDb* db,
   if (db_->has_file()) {
     trainUpdater_.reset(new TrainNodesUpdater(this));
   }
-  /*cdiSpace_.reset(new TrainCDISpace(this));
+  cdiSpace_.reset(new TrainCDISpace(this));
   memoryConfigService_->registry()->insert(
-      nullptr, openlcb::MemoryConfigDefs::SPACE_CDI, cdiSpace_.get());*/
+      nullptr, openlcb::MemoryConfigDefs::SPACE_CDI, cdiSpace_.get());
   findProtocolServer_.reset(new FindProtocolServer(this));
 }
 
