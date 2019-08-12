@@ -49,6 +49,10 @@ OVERRIDE_CONST(local_alias_cache_size, 30);
 // Uncomment to list task statistics periodically.
 //OVERRIDE_CONST_TRUE(cs_task_list_report);
 
+// Uncomment to force a factory reset of all configuration data on startup.
+// WARNING: THIS WILL CLEAR *ALL* PERSISTENT DATA!
+// OVERRIDE_CONST_TRUE(cs_force_factory_reset);
+
 std::unique_ptr<OpenMRN> openmrn;
 // note the dummy string below is required due to a bug in the GCC compiler
 // for the ESP32
@@ -79,7 +83,7 @@ namespace openlcb
   const char CDI_DATA[] = "";
 
   // Path to where OpenMRN should persist general configuration data.
-  const char *const CONFIG_FILENAME = CS_CONFIG_FILESYSTEM LCC_NODE_CONFIG_FILE;
+  const char *const CONFIG_FILENAME = LCC_NODE_CONFIG_FILE;
 
   // The size of the memory space to export over the above device.
   const size_t CONFIG_FILE_SIZE = cfg.seg().size() + cfg.seg().offset();
@@ -160,6 +164,7 @@ extern "C" void app_main()
 
   bool factoryResetNeeded = config_cs_force_factory_reset() == CONSTANT_TRUE ||
                             config_lcc_force_factory_reset() == CONSTANT_TRUE;
+
   struct stat statbuf;
   // check the LCC config file to ensure it is the expected size. If not
   // force a factory reset.
@@ -274,18 +279,29 @@ extern "C" void app_main()
 
   nextionInterfaceInit();
 
+  // Initialize the turnout manager and register it with the LCC stack to
+  // process accessories packets.
+  turnoutManager.reset(new TurnoutManager(openmrn->stack()->node()));
+
   // Initialize the Traction Protocol support
   TrainService trainService(openmrn->stack()->iface());
 
   // Initialize the locomotive manager
   locoManager.reset(new LocomotiveManager(openmrn->stack()->node(), &trainService));
 
-  // Initialize the turnout manager and register it with the LCC stack to
-  // process accessories packets.
-  turnoutManager.reset(new TurnoutManager(openmrn->stack()->node()));
+  //esp32cs::Esp32TrainDatabase trainDb;
 
   // Start the OpenMRN stack.
   openmrn->begin();
+
+/*
+  commandstation::AllTrainNodes
+    allTrainNodes(&trainDb, &trainService
+                , openmrn->stack()->info_flow()
+                , openmrn->stack()->memory_config_handler()
+                , trainDb.get_readonly_train_cdi()
+                , trainDb.get_readonly_temp_train_cdi());
+*/
 
   openmrn->stack()->executor()->add(new CallbackExecutable([]()
   {

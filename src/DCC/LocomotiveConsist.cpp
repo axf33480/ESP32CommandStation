@@ -17,6 +17,8 @@ COPYRIGHT (c) 2018-2019 Mike Dunston
 
 #include "ESP32CommandStation.h"
 
+using nlohmann::json;
+
 /**********************************************************************
 ESP32 COMMAND STATION supports multiple Locomotive Consists, using either
 command station consisting or decoder assisted consisting.

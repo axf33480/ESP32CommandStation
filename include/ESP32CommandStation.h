@@ -26,6 +26,7 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #include <memory>
 
 using std::unique_ptr;
+using std::shared_ptr;
 using std::vector;
 using std::string;
 
@@ -44,9 +45,7 @@ using std::string;
 // get rid of the arduino-esp32 abs override
 #undef abs
 // include json library
-#include "json.hpp"
-
-using nlohmann::json;
+#include <json.hpp>
 
 // OpenMRN library components
 #include <OpenMRNLite.h>
@@ -67,6 +66,7 @@ using nlohmann::json;
 #include <openlcb/DccAccyConsumer.hxx>
 #include <openlcb/DccAccyProducer.hxx>
 #include <openlcb/MemoryConfig.hxx>
+#include <openlcb/SimpleInfoProtocol.hxx>
 #include <openlcb/TcpDefs.hxx>
 #include <openlcb/TractionCvSpace.hxx>
 #include <openlcb/TractionProxy.hxx>
@@ -80,6 +80,10 @@ using nlohmann::json;
 #include <utils/logging.h>
 #include <utils/macros.h>
 #include <utils/StringPrintf.hxx>
+
+// Train Search components
+//#include "TrainDb.hxx"
+//#include "AllTrainNodes.hxx"
 
 // Define NOT_A_PIN in case it hasn't been defined already, this should be
 // defined inside Arduino.h
@@ -110,7 +114,9 @@ using nlohmann::json;
 
 // Declare namespace uses for OpenMRN components that are used
 using dcc::Dcc128Train;
+using dcc::Dcc28Train;
 using dcc::DccLongAddress;
+using dcc::DccShortAddress;
 using dcc::LocalTrackIf;
 using dcc::Packet;
 using dcc::PacketFlowInterface;
@@ -129,11 +135,14 @@ using openlcb::EventReport;
 using openlcb::EventState;
 using openlcb::MemoryBit;
 using openlcb::MemoryConfigDefs;
+using openlcb::MemoryConfigHandler;
 using openlcb::Node;
 using openlcb::NodeID;
 using openlcb::SimpleCanStack;
+using openlcb::SimpleInfoFlow;
 using openlcb::TractionCvSpace;
 using openlcb::TractionDefs;
+using openlcb::TrainImpl;
 using openlcb::TrainNodeForProxy;
 using openlcb::TractionProxyService;
 using openlcb::TrainService;
@@ -143,6 +152,7 @@ using openlcb::WriteHelper;
 #include "ESP32CSConstants.h"
 #include "JsonConstants.h"
 #include "ConfigurationManager.h"
+//#include "ESP32TrainDatabase.h"
 
 #include "dcc/DCCProgrammer.h"
 #include "dcc/Locomotive.h"

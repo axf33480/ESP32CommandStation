@@ -101,7 +101,7 @@ static constexpr const char * OUTPUTS_JSON_FILE = "outputs.json";
 void OutputManager::init()
 {
   LOG(INFO, "[Output] Initializing outputs");
-  json root = json::parse(configStore->load(OUTPUTS_JSON_FILE));
+  nlohmann::json root = nlohmann::json::parse(configStore->load(OUTPUTS_JSON_FILE));
   if(root.contains(JSON_COUNT_NODE))
   {
     uint16_t outputCount = root[JSON_COUNT_NODE].get<uint16_t>();
@@ -122,7 +122,7 @@ void OutputManager::clear()
 
 uint16_t OutputManager::store()
 {
-  json root;
+  nlohmann::json root;
   uint16_t outputStoredCount = 0;
   for (const auto& output : outputs)
   {
@@ -173,12 +173,14 @@ bool OutputManager::toggle(uint16_t id)
 
 std::string OutputManager::getStateAsJson()
 {
-  json root;
+  string state = "[";
   for (const auto& output : outputs)
   {
-    root.push_back(output->toJson(true));
+    state += output->toJson(true);
+    state += ",";
   }
-  return root.dump();
+  state += "]";
+  return state;
 }
 
 string OutputManager::getStateAsDCCpp()
@@ -251,7 +253,7 @@ Output::Output(uint16_t id, uint8_t pin, uint8_t flags) : _id(id), _pin(pin), _f
 
 Output::Output(string &data)
 {
-  json object = json::parse(data);
+  nlohmann::json object = nlohmann::json::parse(data);
   _id = object[JSON_ID_NODE].get<uint16_t>();
   _pin = object[JSON_PIN_NODE].get<uint8_t>();
   _flags = object[JSON_FLAGS_NODE].get<uint8_t>();
@@ -295,11 +297,13 @@ void Output::update(uint8_t pin, uint8_t flags)
   pinMode(_pin, OUTPUT);
 }
 
-std::string Output::toJson(bool readableStrings)
+string Output::toJson(bool readableStrings)
 {
-  json object;
-  object[JSON_ID_NODE] = _id;
-  object[JSON_PIN_NODE] = _pin;
+  nlohmann::json object =
+  {
+    { JSON_ID_NODE, _id },
+    { JSON_PIN_NODE, _pin },
+  };
   if(readableStrings)
   {
     object[JSON_FLAGS_NODE] = getFlagsAsString();

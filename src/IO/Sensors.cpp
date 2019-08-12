@@ -87,7 +87,7 @@ static constexpr const char * SENSORS_JSON_FILE = "sensors.json";
 void SensorManager::init()
 {
   LOG(INFO, "[Sensors] Initializing sensors");
-  json root = json::parse(configStore->load(SENSORS_JSON_FILE));
+  nlohmann::json root = nlohmann::json::parse(configStore->load(SENSORS_JSON_FILE));
   if(root.contains(JSON_COUNT_NODE))
   {
     uint16_t sensorCount = root[JSON_COUNT_NODE].get<uint16_t>();
@@ -109,7 +109,7 @@ void SensorManager::clear()
 
 uint16_t SensorManager::store()
 {
-  json root;
+  nlohmann::json root;
   uint16_t sensorStoredCount = 0;
   for (const auto& sensor : sensors)
   {
@@ -232,7 +232,7 @@ Sensor::Sensor(uint16_t sensorID, int8_t pin, bool pullUp, bool announce) : _sen
 
 Sensor::Sensor(string &data) : _lastState(false)
 {
-  json object = json::parse(data);
+  nlohmann::json object = nlohmann::json::parse(data);
   _sensorID = object[JSON_ID_NODE];
   _pin = object[JSON_PIN_NODE];
   _pullUp = object[JSON_PULLUP_NODE];
@@ -242,10 +242,12 @@ Sensor::Sensor(string &data) : _lastState(false)
 
 string Sensor::toJson(bool includeState)
 {
-  json object;
-  object[JSON_ID_NODE] = _sensorID;
-  object[JSON_PIN_NODE] = _pin;
-  object[JSON_PULLUP_NODE] = _pullUp;
+  nlohmann::json object =
+  {
+    { JSON_ID_NODE, _sensorID },
+    { JSON_PIN_NODE, _pin },
+    { JSON_PULLUP_NODE, _pullUp },
+  };
   if(includeState)
   {
     object[JSON_STATE_NODE] = _lastState;

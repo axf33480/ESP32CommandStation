@@ -17,6 +17,8 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 #include "ESP32CommandStation.h"
 
+using nlohmann::json;
+
 unique_ptr<TurnoutManager> turnoutManager;
 
 static constexpr const char * TURNOUTS_JSON_FILE = "turnouts.json";

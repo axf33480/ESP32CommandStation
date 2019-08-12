@@ -142,12 +142,14 @@ bool RemoteSensorManager::remove(const uint16_t id)
 
 string RemoteSensorManager::getStateAsJson()
 {
-  json root;
+  string output = "[";
   for (const auto& sensor : remoteSensors)
   {
-    root.push_back(sensor->toJson());
+    output += sensor->toJson();
+    output += ",";
   }
-  return root.dump();
+  output += "]";
+  return output;
 }
 
 string RemoteSensorManager::getStateAsDCCpp()
@@ -188,14 +190,15 @@ string RemoteSensor::getStateAsDCCpp()
 
 string RemoteSensor::toJson(bool includeState)
 {
-  json object;
-  object[JSON_ID_NODE] = getRawID();
-  object[JSON_VALUE_NODE] = getSensorValue();
-  object[JSON_STATE_NODE] = isActive();
-  object[JSON_LAST_UPDATE_NODE] = getLastUpdate();
-  // for compatibility with sensors table
-  object[JSON_PIN_NODE] = getPin();
-  object[JSON_PULLUP_NODE] = isPullUp();
+  nlohmann::json object =
+  {
+    { JSON_ID_NODE, getRawID() },
+    { JSON_VALUE_NODE, getSensorValue() },
+    { JSON_STATE_NODE, isActive() },
+    { JSON_LAST_UPDATE_NODE, getLastUpdate() },
+    { JSON_PIN_NODE, getPin() },
+    { JSON_PULLUP_NODE, isPullUp() },
+  };
   return object.dump();
 }
 

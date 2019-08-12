@@ -77,13 +77,15 @@ OSMutex S88BusManager::_s88SensorLock;
 static constexpr UBaseType_t S88_SENSOR_TASK_PRIORITY = 1;
 static constexpr uint32_t S88_SENSOR_TASK_STACK_SIZE = 2048;
 
-LinkedList<S88SensorBus *> s88SensorBus([](S88SensorBus *sensorBus) {
+LinkedList<S88SensorBus *> s88SensorBus([](S88SensorBus *sensorBus)
+{
   sensorBus->removeSensors(-1);
   LOG(INFO, "[S88 Bus-%d] Removed", sensorBus->getID());
   delete sensorBus;
 });
 
-void S88BusManager::init() {
+void S88BusManager::init()
+{
 #if S88_ENABLED
   LOG(INFO, "[S88] Configuration (clock: %d, reset: %d, load: %d)", S88_CLOCK_PIN, S88_RESET_PIN, S88_LOAD_PIN);
   pinMode(S88_CLOCK_PIN, OUTPUT);
@@ -108,15 +110,17 @@ void S88BusManager::init() {
 #endif
 }
 
-void S88BusManager::clear() {
+void S88BusManager::clear()
+{
   s88SensorBus.free();
 }
 
 uint8_t S88BusManager::store()
 {
-  json root;
+  nlohmann::json root;
   uint8_t sensorBusIndex = 0;
-  for (const auto& bus : s88SensorBus) {
+  for (const auto& bus : s88SensorBus)
+  {
     root[JSON_SENSORS_NODE].push_back(bus->toJson());
     sensorBusIndex++;
   }
@@ -219,12 +223,14 @@ bool S88BusManager::removeBus(const uint8_t id)
 
 string S88BusManager::getStateAsJson()
 {
-  json root;
+  string state = "[";
   for (const auto& sensorBus : s88SensorBus)
   {
-    root.push_back(sensorBus->toJson(true));
+    state += sensorBus->toJson(true);
+    state += ",";
   }
-  return root.dump();
+  state += "]";
+  return state;
 }
 
 S88SensorBus::S88SensorBus(const uint8_t id, const uint8_t dataPin, const uint16_t sensorCount) :
@@ -242,7 +248,7 @@ S88SensorBus::S88SensorBus(const uint8_t id, const uint8_t dataPin, const uint16
 
 S88SensorBus::S88SensorBus(string &data)
 {
-  json object = json::parse(data);
+  nlohmann::json object = nlohmann::json::parse(data);
   _id = object[JSON_ID_NODE];
   _dataPin = object[JSON_PIN_NODE];
   _lastSensorID = _sensorIDBase = object[JSON_S88_SENSOR_BASE_NODE];
@@ -277,11 +283,13 @@ void S88SensorBus::update(const uint8_t dataPin, const uint16_t sensorCount)
 
 string S88SensorBus::toJson(bool includeState)
 {
-  json object;
-  object[JSON_ID_NODE] = _id;
-  object[JSON_PIN_NODE] = _dataPin;
-  object[JSON_S88_SENSOR_BASE_NODE] = _sensorIDBase;
-  object[JSON_COUNT_NODE] = _sensors.size();
+  nlohmann::json object =
+  {
+    { JSON_ID_NODE, _id },
+    { JSON_PIN_NODE, _dataPin },
+    { JSON_S88_SENSOR_BASE_NODE, _sensorIDBase },
+    { JSON_COUNT_NODE, _sensors.size() },
+  };
   if(includeState)
   {
     object[JSON_STATE_NODE] = getStateString();

@@ -17,6 +17,8 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 #include "ESP32CommandStation.h"
 
+using nlohmann::json;
+
 static int8_t LOCO_REGISTER_ID = 1;
 
 Locomotive::Locomotive(uint16_t address, TrainService *trainService)
