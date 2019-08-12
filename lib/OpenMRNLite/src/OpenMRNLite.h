@@ -347,7 +347,7 @@ public:
 #if defined(ESP32) && CONFIG_TASK_WDT
             // Feed the watchdog so it doesn't reset the ESP32
             esp_task_wdt_reset();
-#endif // ESP32
+#endif // ESP32 && CONFIG_TASK_WDT
             e->run();
         }
     }
@@ -358,7 +358,7 @@ public:
     static void thread_entry(void *arg)
     {
         OpenMRN *p = (OpenMRN *)arg;
-        p->stack()->executor()->thread_body();
+        p->loop_executor();
     }
 
     /// Donates the calling thread to the @ref Executor.
