@@ -17,6 +17,8 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 #include "ESP32CommandStation.h"
 
+using nlohmann::json;
+
 #include <ESPAsyncDNSServer.h>
 
 // generated web content
@@ -746,6 +748,8 @@ void ESP32CSWebServer::handleLocomotive(AsyncWebServerRequest *request)
     if(request->method() == HTTP_GET && !request->hasArg(JSON_ADDRESS_NODE))
     {
       SEND_JSON_RESPONSE(request, locoManager->getRosterEntriesAsJson())
+      //SEND_JSON_RESPONSE(request,
+      //                   Singleton<esp32cs::Esp32TrainDatabase>::instance()->get_train_list_as_json())
     }
     else if (request->hasArg(JSON_ADDRESS_NODE))
     {
