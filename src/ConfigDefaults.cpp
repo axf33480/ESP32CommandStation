@@ -22,12 +22,7 @@ COPYRIGHT (c) 2019 Mike Dunston
 // station to regenerate the configuration from scratch. This is usually not
 // necessary.
 ///////////////////////////////////////////////////////////////////////////////
-#if !defined(ESP32_FORCE_FACTORY_RESET_ON_STARTUP) || \
-    !ESP32_FORCE_FACTORY_RESET_ON_STARTUP
 DEFAULT_CONST_FALSE(cs_force_factory_reset);
-#else
-DEFAULT_CONST_TRUE(cs_force_factory_reset);
-#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 // This flag will print a list of FreeRTOS tasks every ~5min. This is not
