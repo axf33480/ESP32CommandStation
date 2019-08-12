@@ -17,6 +17,8 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 #include "ESP32CommandStation.h"
 
+using nlohmann::json;
+
 static constexpr const char * OLD_ROSTER_JSON_FILE = "roster.json";
 static constexpr const char * ROSTER_JSON_FILE = "locoroster.json";
 static constexpr const char * ROSTER_ENTRY_JSON_FILE = "roster-%d.json";
@@ -73,13 +75,13 @@ string LocomotiveManager::processThrottleEx(const vector<string> arguments)
 
 // This method decodes the incoming function packet(s) to update the stored
 // functinon states. Loco update will be sent afterwards.
-void LocomotiveManager::processFunction(const vector<string> arguments)
+string LocomotiveManager::processFunction(const vector<string> arguments)
 {
   uint16_t locoAddress = std::stoi(arguments[0]);
   uint8_t functionByte = std::stoi(arguments[1]);
   if(isConsistAddress(locoAddress))
   {
-    return;
+    return COMMAND_NO_RESPONSE;
   }
   auto loco = getLocomotive(locoAddress);
   uint8_t firstFunction = 1, lastFunction = 4;
@@ -123,19 +125,21 @@ void LocomotiveManager::processFunction(const vector<string> arguments)
   {
     loco->set_fn(funcID, bitRead(bits, funcID - firstFunction));
   }
+  return COMMAND_NO_RESPONSE;
 }
 
-void LocomotiveManager::processFunctionEx(const vector<string> arguments)
+string LocomotiveManager::processFunctionEx(const vector<string> arguments)
 {
   int locoAddress = std::stoi(arguments[0]);
   int function = std::stoi(arguments[1]);
   int state = std::stoi(arguments[2]);
   if(isConsistAddress(locoAddress))
   {
-    return;
+    return COMMAND_NO_RESPONSE;
   }
   auto loco = getLocomotive(locoAddress);
   loco->set_fn(function, state);
+  return COMMAND_NO_RESPONSE;
 }
 
 string LocomotiveManager::processConsistThrottle(const vector<string> arguments)

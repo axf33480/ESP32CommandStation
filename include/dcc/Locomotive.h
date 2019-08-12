@@ -181,8 +181,8 @@ public:
   bool removeLocomotiveConsist(const uint16_t);
   std::string processThrottle(const std::vector<std::string>);
   std::string processThrottleEx(const std::vector<std::string>);
-  void processFunction(const std::vector<std::string>);
-  void processFunctionEx(const std::vector<std::string>);
+  std::string processFunction(const std::vector<std::string>);
+  std::string processFunctionEx(const std::vector<std::string>);
   std::string processConsistThrottle(const std::vector<std::string>);
   std::string getStateAsDCCpp();
   std::string getConsistStateAsDCCpp();

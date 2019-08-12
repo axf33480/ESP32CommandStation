@@ -31,6 +31,7 @@ DECLARE_DCC_PROTOCOL_COMMAND_CLASS(ConfigErase, "e")
 DCC_PROTOCOL_COMMAND_HANDLER(ConfigErase,
 [](const vector<string> arguments)
 {
+  // TODO: Implement esp32cs::Esp32TrainDatabase::instance()->clear();
   configStore->clear();
   turnoutManager->clear();
 #if SENSORS_ENABLED
@@ -42,35 +43,40 @@ DCC_PROTOCOL_COMMAND_HANDLER(ConfigErase,
 #if ENABLE_OUTPUTS
   OutputManager::clear();
 #endif
-  locoManager->clear();
   return COMMAND_SUCCESSFUL_RESPONSE;
 })
 
 // <E> command handler, this command stores all currently defined Turnouts,
-// Sensors, S88 Sensors (if enabled), Outputs and locomotives into the ESP32 for use on
-// subsequent startups.
+// Sensors, S88 Sensors (if enabled) and Outputs to persistent storage for use
+// by the Command Station in subsequent startups.
 DECLARE_DCC_PROTOCOL_COMMAND_CLASS(ConfigStore, "E")
 DCC_PROTOCOL_COMMAND_HANDLER(ConfigStore,
 [](const vector<string> arguments)
 {
-  return StringPrintf("<e %d %d %d 0 %d>",
-    turnoutManager->store(),
+
+  // esp32cs::Esp32TrainDatabase::instance()->store();
+  return StringPrintf("<e %d %d %d>"
+                    , turnoutManager->store()
 #if SENSORS_ENABLED
-    SensorManager::store(),
+                    , SensorManager::store()
+#if S88_ENABLED
+                    + S88BusManager::store()
+#endif
 #else
-    0,
+                    , 0
 #endif
 #if ENABLE_OUTPUTS
-    OutputManager::store(),
+                    , OutputManager::store()
 #else
-    0,
+                    , 0
 #endif
-    locoManager->store());
+    );
 })
 
 // <R {CV} {CALLBACK} {CALLBACK-SUB}> command handler, this command attempts
 // to read a CV value from the PROGRAMMING track. The returned value will be
-// the actual CV value or -1 when there is a failure reading or verifying the CV.
+// the actual CV value or -1 when there is a failure reading or verifying the
+// CV.
 DECLARE_DCC_PROTOCOL_COMMAND_CLASS(ReadCVCommand, "R")
 DCC_PROTOCOL_COMMAND_HANDLER(ReadCVCommand,
 [](const vector<string> arguments)
@@ -130,7 +136,8 @@ DCC_PROTOCOL_COMMAND_HANDLER(WriteCVBitProgCommand,
   }
   else
   {
-    return StringPrintf("<r%d|%d|%d %d %d>", callback, callbackSub, cv, bit, value);
+    return StringPrintf("<r%d|%d|%d %d %d>", callback, callbackSub, cv, bit
+                      , value);
   }
 })
 
@@ -140,9 +147,8 @@ DECLARE_DCC_PROTOCOL_COMMAND_CLASS(WriteCVByteOpsCommand, "w")
 DCC_PROTOCOL_COMMAND_HANDLER(WriteCVByteOpsCommand,
 [](const vector<string> arguments)
 {
-  writeOpsCVByte(std::stoi(arguments[0]),
-    std::stoi(arguments[1]),
-    std::stoi(arguments[2]));
+  writeOpsCVByte(std::stoi(arguments[0]), std::stoi(arguments[1])
+               , std::stoi(arguments[2]));
   return COMMAND_SUCCESSFUL_RESPONSE;
 })
 
@@ -153,10 +159,8 @@ DECLARE_DCC_PROTOCOL_COMMAND_CLASS(WriteCVBitOpsCommand, "b")
 DCC_PROTOCOL_COMMAND_HANDLER(WriteCVBitOpsCommand,
 [](const vector<string> arguments)
 {
-  writeOpsCVBit(std::stoi(arguments[0]),
-    std::stoi(arguments[1]),
-    std::stoi(arguments[2]),
-    arguments[3][0] == '1');
+  writeOpsCVBit(std::stoi(arguments[0]), std::stoi(arguments[1])
+              , std::stoi(arguments[2]), arguments[3][0] == '1');
   return COMMAND_SUCCESSFUL_RESPONSE;
 })
 
@@ -173,6 +177,7 @@ DCC_PROTOCOL_COMMAND_HANDLER(StatusCommand,
                 , __TIME__);
   status += trackSignal->getStateAsDCCpp();
   status += wifiInterface.getStateAsDCCpp();
+  // TODO: reimplement this with train list for this connection
   status += locoManager->getStateAsDCCpp();
   status += turnoutManager->getStateAsDCCpp();
 #if ENABLE_OUTPUTS
@@ -189,11 +194,13 @@ DCC_PROTOCOL_COMMAND_HANDLER(FreeHeapCommand,
   return StringPrintf("<f %d>", os_get_free_heap());
 })
 
-// <estop> command handler, this command sends an estop packet to all active locomotives.
+// <estop> command handler, this command sends an estop packet to all active
+// locomotives.
 DECLARE_DCC_PROTOCOL_COMMAND_CLASS(EStopCommand, "estop")
 DCC_PROTOCOL_COMMAND_HANDLER(EStopCommand,
 [](const vector<string> arguments)
 {
+  // TODO: reimplement with global estop handler
   locoManager->set_state(true);
   return COMMAND_SUCCESSFUL_RESPONSE;
 })
@@ -225,41 +232,31 @@ DCC_PROTOCOL_COMMAND_HANDLER(PowerOffCommand,
 // converts the provided locomotive control command into a compatible DCC
 // locomotive control packet.
 DECLARE_DCC_PROTOCOL_COMMAND_CLASS(ThrottleCommandAdapter, "t")
+// TODO: reimplement this with per-connection allocation of registers.
 DCC_PROTOCOL_COMMAND_HANDLER(ThrottleCommandAdapter,
-[](const vector<string> arguments)
-{
-  return locoManager->processThrottle(arguments);
-})
+  locoManager->processThrottle)
 
 // <tex {LOCO} {SPEED} {DIRECTION}> command handler, this command
 // converts the provided locomotive control command into a compatible DCC
 // locomotive control packet.
 DECLARE_DCC_PROTOCOL_COMMAND_CLASS(ThrottleExCommandAdapter, "tex")
+// TODO: reimplement this with per-connection allocation of registers.
 DCC_PROTOCOL_COMMAND_HANDLER(ThrottleExCommandAdapter,
-[](const vector<string> arguments)
-{
-  return locoManager->processThrottleEx(arguments);
-})
+  locoManager->processThrottleEx)
 
 // <f {LOCO} {BYTE} [{BYTE2}]> command handler, this command converts a
 // locomotive function update into a compatible DCC function control packet.
 DECLARE_DCC_PROTOCOL_COMMAND_CLASS(FunctionCommandAdapter, "f")
+// TODO: reimplement this with per-connection allocation of registers.
 DCC_PROTOCOL_COMMAND_HANDLER(FunctionCommandAdapter,
-[](const vector<string> arguments)
-{
-  locoManager->processFunction(arguments);
-  return COMMAND_NO_RESPONSE;
-})
+  locoManager->processFunction)
 
 // <fex {LOCO} {FUNC} {STATE}]> command handler, this command converts a
 // locomotive function update into a compatible DCC function control packet.
 DECLARE_DCC_PROTOCOL_COMMAND_CLASS(FunctionExCommandAdapter, "fex")
+// TODO: reimplement this with per-connection allocation of registers.
 DCC_PROTOCOL_COMMAND_HANDLER(FunctionExCommandAdapter,
-[](const vector<string> arguments)
-{
-  locoManager->processFunctionEx(arguments);
-  return COMMAND_NO_RESPONSE;
-})
+  locoManager->processFunctionEx)
 
 // wrapper to handle the following command structures:
 // CREATE: <C {ID} {LEAD LOCO} {TRAIL LOCO}  [{OTHER LOCO}]>
@@ -271,6 +268,8 @@ DECLARE_DCC_PROTOCOL_COMMAND_CLASS(ConsistCommandAdapter, "C")
 DCC_PROTOCOL_COMMAND_HANDLER(ConsistCommandAdapter,
 [](const vector<string> arguments)
 {
+  // TODO: reimplement
+  /*
   if (arguments.empty())
   {
     return locoManager->getConsistStateAsDCCpp();
@@ -346,6 +345,7 @@ DCC_PROTOCOL_COMMAND_HANDLER(ConsistCommandAdapter,
     }
     return COMMAND_SUCCESSFUL_RESPONSE;
   }
+  */
   return COMMAND_FAILED_RESPONSE;
 })
 
@@ -511,7 +511,8 @@ DCC_PROTOCOL_COMMAND_HANDLER(SensorCommandAdapter,
     else if (arguments.size() == 3)
     {
       // create sensor
-      SensorManager::createOrUpdate(sensorID, std::stoi(arguments[1]), arguments[2][0] == '1');
+      SensorManager::createOrUpdate(sensorID, std::stoi(arguments[1])
+                                  , arguments[2][0] == '1');
       return COMMAND_SUCCESSFUL_RESPONSE;
     }
   }
@@ -561,12 +562,16 @@ DCC_PROTOCOL_COMMAND_HANDLER(S88BusCommandAdapter,
   }
   else
   {
-    if (arguments.size() == 1 && S88BusManager::removeBus(std::stoi(arguments[0])))
+    if (arguments.size() == 1 &&
+        S88BusManager::removeBus(std::stoi(arguments[0])))
     {
       // delete sensor bus
       return COMMAND_SUCCESSFUL_RESPONSE;
     }
-    else if (arguments.size() == 3 && S88BusManager::createOrUpdateBus(std::stoi(arguments[0]), std::stoi(arguments[1]), std::stoi(arguments[2])))
+    else if (arguments.size() == 3 &&
+             S88BusManager::createOrUpdateBus(std::stoi(arguments[0])
+                                            , std::stoi(arguments[1])
+                                            , std::stoi(arguments[2])))
     {
       // create sensor bus
       return COMMAND_SUCCESSFUL_RESPONSE;
@@ -603,7 +608,8 @@ DCC_PROTOCOL_COMMAND_HANDLER(OutputCommandAdapter,
     else if (arguments.size() == 3)
     {
       // create output
-      OutputManager::createOrUpdate(outputID, std::stoi(arguments[1]), std::stoi(arguments[2]));
+      OutputManager::createOrUpdate(outputID, std::stoi(arguments[1])
+                                  , std::stoi(arguments[2]));
       return COMMAND_SUCCESSFUL_RESPONSE;
     }
   }
@@ -678,7 +684,8 @@ string DCCPPProtocolHandler::process(const string &commandString)
   }
   string commandID = parts.front();
   parts.erase(parts.begin());
-  LOG(VERBOSE, "Command: %s, argument count: %d", commandID.c_str(), parts.size());
+  LOG(VERBOSE, "Command: %s, argument count: %d", commandID.c_str()
+    , parts.size());
   auto handler = getCommandHandler(commandID);
   if (handler)
   {
@@ -703,13 +710,14 @@ void DCCPPProtocolHandler::registerCommand(DCCPPProtocolCommand *cmd)
   registeredCommands.emplace_back(cmd);
 }
 
-DCCPPProtocolCommand *DCCPPProtocolHandler::getCommandHandler(const std::string &id)
+DCCPPProtocolCommand *DCCPPProtocolHandler::getCommandHandler(const string &id)
 {
-  auto const &command = std::find_if(registeredCommands.begin(), registeredCommands.end(),
-  [id](unique_ptr<DCCPPProtocolCommand> & cmd)
-  {
-    return cmd->getID() == id;
-  });
+  auto command = std::find_if(registeredCommands.begin()
+                            , registeredCommands.end()
+                            , [id](const unique_ptr<DCCPPProtocolCommand> &cmd)
+                              {
+                                return cmd->getID() == id;
+                              });
   if (command != registeredCommands.end())
   {
     return command->get();
@@ -752,6 +760,7 @@ string DCCPPProtocolConsumer::processData()
     }
     s = e;
   }
-  _buffer.erase(_buffer.begin(), consumed); // drop everything we used from the buffer.
+  // drop everything we used from the buffer.
+  _buffer.erase(_buffer.begin(), consumed);
   return response;
 }
