@@ -35,7 +35,9 @@
 #ifndef _BRACZ_COMMANDSTATION_TRAINDBCDI_HXX_
 #define _BRACZ_COMMANDSTATION_TRAINDBCDI_HXX_
 
-#define TRAINDB_TRAIN_COUNT 32
+// TEMPORARY define to limit to *ONE* stored DB since the CDI interface
+// is not used currently.
+#define TRAINDB_TRAIN_COUNT 1
 
 #include <openlcb/ConfigRepresentation.hxx>
 #include "TrainDbDefs.hxx"
