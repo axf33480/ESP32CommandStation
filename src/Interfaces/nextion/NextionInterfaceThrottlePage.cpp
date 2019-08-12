@@ -286,7 +286,10 @@ uint32_t NextionThrottlePage::getCurrentLocoAddress() {
 void NextionThrottlePage::decreaseLocoSpeed() {
   if(_locoNumbers[_activeLoco]) {
     int8_t speed = max((uint8_t)0, (uint8_t)_speedNumber.getValue());
-    locoManager->getLocomotive(_locoNumbers[_activeLoco])->set_speed(speed);
+    auto loco(locoManager->getLocomotive(_locoNumbers[_activeLoco]));
+    auto upd_speed(loco->get_speed());
+    upd_speed.set_dcc_128(speed);
+    loco->set_speed(upd_speed);
     _speedSlider.setValue(speed);
   }
 }
@@ -294,14 +297,20 @@ void NextionThrottlePage::decreaseLocoSpeed() {
 void NextionThrottlePage::increaseLocoSpeed() {
   if(_locoNumbers[_activeLoco]) {
     int8_t speed = max((uint8_t)0, (uint8_t)_speedNumber.getValue());
-    locoManager->getLocomotive(_locoNumbers[_activeLoco])->set_speed(speed);
+    auto loco(locoManager->getLocomotive(_locoNumbers[_activeLoco]));
+    auto upd_speed(loco->get_speed());
+    upd_speed.set_dcc_128(speed);
+    loco->set_speed(upd_speed);
     _speedSlider.setValue(speed);
   }
 }
 
 void NextionThrottlePage::setLocoSpeed(uint8_t speed) {
   if(_locoNumbers[_activeLoco]) {
-    locoManager->getLocomotive(_locoNumbers[_activeLoco])->set_speed(speed);
+    auto loco(locoManager->getLocomotive(_locoNumbers[_activeLoco]));
+    auto upd_speed(loco->get_speed());
+    upd_speed.set_dcc_128(speed);
+    loco->set_speed(upd_speed);
     _speedNumber.setValue(speed);
     _speedSlider.setValue(speed);
   }
