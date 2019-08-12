@@ -474,3 +474,15 @@ string ConfigurationManager::getCSConfig()
 {
   return commandStationConfig.dump();
 }
+
+string ConfigurationManager::getCSFeatures()
+{
+  json features = 
+  {
+    { JSON_S88_SENSOR_BASE_NODE, S88_FIRST_SENSOR },
+    { JSON_S88_NODE, S88_ENABLED && ENABLE_SENSORS ? JSON_VALUE_TRUE : JSON_VALUE_FALSE },
+    { JSON_OUTPUTS_NODE, ENABLE_OUTPUTS ? JSON_VALUE_TRUE : JSON_VALUE_FALSE },
+    { JSON_SENSORS_NODE, ENABLE_SENSORS ? JSON_VALUE_TRUE : JSON_VALUE_FALSE },
+  };
+  return features.dump();
+}

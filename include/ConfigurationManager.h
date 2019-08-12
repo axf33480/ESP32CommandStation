@@ -37,6 +37,7 @@ public:
   void configureCAN(OpenMRN *openmrn);
   void configureWiFi(openlcb::SimpleCanStack *, const WiFiConfiguration &);
   std::string getCSConfig();
+  std::string getCSFeatures();
   std::string getSSID()
   {
     return wifiSSID_;
