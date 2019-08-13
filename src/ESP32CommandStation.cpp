@@ -193,29 +193,8 @@ extern "C" void app_main()
   // Initialize the factory reset helper for the CS.
   FactoryResetHelper resetHelper;
 
-  // Initialize the WiFi Manager.
-  configStore->configureWiFi(openmrn->stack(), cfg.seg().wifi());
-
-  // Initialize the CAN interface.
-  configStore->configureCAN(openmrn.get());
-
-  // Create the CDI.xml dynamically if it doesn't already exist.
-  openmrn->create_config_descriptor_xml(cfg, LCC_NODE_CDI_FILE);
-
-  // Create the default internal configuration file if it doesn't already exist.
-#if CONFIG_USE_SD
-  int config_fd =
-#endif // CONFIG_USE_SD
-    openmrn->stack()->create_config_file_if_needed(cfg.seg().internal_config()
-                                                 , ESP32CS_NUMERIC_VERSION
-                                                 , openlcb::CONFIG_FILE_SIZE);
-
-#if CONFIG_USE_SD
-  // ESP32 FFat library uses a 512b cache in memory by default for the SD VFS
-  // adding a periodic fsync call for the LCC configuration file ensures that
-  // config changes are saved since the LCC config file is less than 512b.
-  AutoSyncFileFlow configFileSync(openmrn->stack()->service(), config_fd);
-#endif // CONFIG_USE_SD
+  // Initialize the OpenMRN stack (CAN and WiFi interfaces).
+  configStore->configureLCC(openmrn.get(), cfg);
 
   // Initialize the RailCom Hub
   railComHub.reset(new RailcomHubFlow(openmrn->stack()->service()));

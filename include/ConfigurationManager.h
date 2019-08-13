@@ -19,6 +19,7 @@ COPYRIGHT (c) 2018-2019 Mike Dunston
 #define CONFIG_MGR_H_
 
 #include <openlcb/Defs.hxx>
+#include "cdi/CSConfigDescriptor.h"
 #include "stateflows/FreeRTOSTaskMonitor.h"
 #include "stateflows/HC12Radio.h"
 #include "stateflows/InfoScreen.h"
@@ -39,8 +40,7 @@ public:
   std::string load(const std::string &);
   void store(const char *, const std::string &);
   openlcb::NodeID getNodeId();
-  void configureCAN(OpenMRN *openmrn);
-  void configureWiFi(openlcb::SimpleCanStack *, const WiFiConfiguration &);
+  void configureLCC(OpenMRN *, const esp32cs::Esp32ConfigDef &);
   void configureEnabledModules(openlcb::SimpleCanStack *);
   std::string getCSConfig();
   std::string getCSFeatures();
@@ -60,6 +60,7 @@ private:
   std::string getFilePath(const std::string &, bool=false);
   bool validateWiFiConfig();
   bool validateLCCConfig();
+  void parseWiFiConfig();
 
   std::string wifiSSID_{SSID_NAME};
   std::string wifiPassword_{SSID_PASSWORD};
@@ -72,6 +73,7 @@ private:
   uninitialized<InfoScreen> infoScreen_;
   uninitialized<StatusLED> statusLED_;
   uninitialized<FreeRTOSTaskMonitor> taskMon_;
+  uninitialized<AutoSyncFileFlow> configAutoSync_;
 };
 
 extern std::unique_ptr<ConfigurationManager> configStore;

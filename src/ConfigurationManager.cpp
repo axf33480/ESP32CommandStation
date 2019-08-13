@@ -316,8 +316,27 @@ NodeID ConfigurationManager::getNodeId()
   return (NodeID)lccConfig[JSON_NODE_ID_NODE].get<uint64_t>();
 }
 
-void ConfigurationManager::configureCAN(OpenMRN *openmrn)
+void ConfigurationManager::configureLCC(OpenMRN *openmrn
+                                      , const esp32cs::Esp32ConfigDef &cfg)
 {
+  // Create the CDI.xml dynamically if it doesn't already exist.
+  openmrn->create_config_descriptor_xml(cfg, LCC_NODE_CDI_FILE);
+
+  // Create the default internal configuration file if it doesn't already exist.
+#if CONFIG_USE_SD
+  int config_fd =
+#endif // CONFIG_USE_SD
+    openmrn->stack()->create_config_file_if_needed(cfg.seg().internal_config()
+                                                 , ESP32CS_NUMERIC_VERSION
+                                                 , openlcb::CONFIG_FILE_SIZE);
+
+#if CONFIG_USE_SD
+  // ESP32 FFat library uses a 512b cache in memory by default for the SD VFS
+  // adding a periodic fsync call for the LCC configuration file ensures that
+  // config changes are saved since the LCC config file is less than 512b.
+  configAutoSync_.emplace(openmrn->stack()->service(), config_fd);
+#endif // CONFIG_USE_SD
+
   auto lccConfig = commandStationConfig[JSON_LCC_NODE];
   if (lccConfig.contains(JSON_LCC_CAN_NODE))
   {
@@ -334,55 +353,11 @@ void ConfigurationManager::configureCAN(OpenMRN *openmrn)
         new Esp32HardwareCan("esp32can", canRXPin, canTXPin, false));
     }
   }
-}
-
-void ConfigurationManager::configureWiFi(SimpleCanStack *stack
-                                       , const WiFiConfiguration &cfg)
-{
-  auto wifiConfig = commandStationConfig[JSON_WIFI_NODE];
-  string wifiMode = wifiConfig[JSON_WIFI_MODE_NODE];
-  if (!wifiMode.compare(JSON_VALUE_WIFI_MODE_SOFTAP_ONLY))
-  {
-    wifiMode_ =  WIFI_MODE_AP;
-  }
-  else if (!wifiMode.compare(JSON_VALUE_WIFI_MODE_SOFTAP_STATION))
-  {
-    wifiMode_ =  WIFI_MODE_APSTA;
-  }
-  else if (!wifiMode.compare(JSON_VALUE_WIFI_MODE_STATION_ONLY))
-  {
-    wifiMode_ =  WIFI_MODE_STA;
-  }
-  if (wifiMode_ != WIFI_MODE_AP)
-  {
-    auto stationConfig = wifiConfig[JSON_WIFI_STATION_NODE];
-    wifiSSID_ = stationConfig[JSON_WIFI_SSID_NODE];
-    wifiPassword_ = stationConfig[JSON_WIFI_PASSWORD_NODE];
-    string stationMode = stationConfig[JSON_WIFI_MODE_NODE];
-    if (!stationMode.compare(JSON_VALUE_STATION_IP_MODE_STATIC))
-    {
-      stationStaticIP_.reset(new tcpip_adapter_ip_info_t());
-      string value = stationConfig[JSON_WIFI_STATION_IP_NODE];
-      stationStaticIP_->ip.addr = ipaddr_addr(value.c_str());
-      value = stationConfig[JSON_WIFI_STATION_GATEWAY_NODE];
-      stationStaticIP_->gw.addr = ipaddr_addr(value.c_str());
-      value = stationConfig[JSON_WIFI_STATION_NETMASK_NODE];
-      stationStaticIP_->netmask.addr = ipaddr_addr(value.c_str());
-    }
-  }
-  else
-  {
-    wifiSSID_ = wifiConfig[JSON_WIFI_SOFTAP_NODE][JSON_WIFI_SSID_NODE];  
-  }
-  if (wifiConfig.contains(JSON_WIFI_DNS_NODE))
-  {
-    string value = wifiConfig[JSON_WIFI_DNS_NODE];
-    stationDNSServer_.u_addr.ip4.addr = ipaddr_addr(value.c_str());
-  }
+  parseWiFiConfig();
 
   wifiManager.reset(new Esp32WiFiManager(wifiSSID_.c_str(),
                                          wifiPassword_.c_str(),
-                                         stack, cfg,
+                                         openmrn->stack(), cfg.seg().wifi(),
                                          HOSTNAME_PREFIX,
                                          wifiMode_,
                                          stationStaticIP_.get(),
@@ -468,6 +443,50 @@ bool ConfigurationManager::validateLCCConfig()
     return false;
   }
   return true;
+}
+
+void ConfigurationManager::parseWiFiConfig()
+{
+  auto wifiConfig = commandStationConfig[JSON_WIFI_NODE];
+  string wifiMode = wifiConfig[JSON_WIFI_MODE_NODE];
+  if (!wifiMode.compare(JSON_VALUE_WIFI_MODE_SOFTAP_ONLY))
+  {
+    wifiMode_ =  WIFI_MODE_AP;
+  }
+  else if (!wifiMode.compare(JSON_VALUE_WIFI_MODE_SOFTAP_STATION))
+  {
+    wifiMode_ =  WIFI_MODE_APSTA;
+  }
+  else if (!wifiMode.compare(JSON_VALUE_WIFI_MODE_STATION_ONLY))
+  {
+    wifiMode_ =  WIFI_MODE_STA;
+  }
+  if (wifiMode_ != WIFI_MODE_AP)
+  {
+    auto stationConfig = wifiConfig[JSON_WIFI_STATION_NODE];
+    wifiSSID_ = stationConfig[JSON_WIFI_SSID_NODE];
+    wifiPassword_ = stationConfig[JSON_WIFI_PASSWORD_NODE];
+    string stationMode = stationConfig[JSON_WIFI_MODE_NODE];
+    if (!stationMode.compare(JSON_VALUE_STATION_IP_MODE_STATIC))
+    {
+      stationStaticIP_.reset(new tcpip_adapter_ip_info_t());
+      string value = stationConfig[JSON_WIFI_STATION_IP_NODE];
+      stationStaticIP_->ip.addr = ipaddr_addr(value.c_str());
+      value = stationConfig[JSON_WIFI_STATION_GATEWAY_NODE];
+      stationStaticIP_->gw.addr = ipaddr_addr(value.c_str());
+      value = stationConfig[JSON_WIFI_STATION_NETMASK_NODE];
+      stationStaticIP_->netmask.addr = ipaddr_addr(value.c_str());
+    }
+  }
+  else
+  {
+    wifiSSID_ = wifiConfig[JSON_WIFI_SOFTAP_NODE][JSON_WIFI_SSID_NODE];  
+  }
+  if (wifiConfig.contains(JSON_WIFI_DNS_NODE))
+  {
+    string value = wifiConfig[JSON_WIFI_DNS_NODE];
+    stationDNSServer_.u_addr.ip4.addr = ipaddr_addr(value.c_str());
+  }
 }
 
 void ConfigurationManager::configureEnabledModules(SimpleCanStack *stack)
