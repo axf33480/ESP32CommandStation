@@ -363,7 +363,7 @@ void NextionThrottlePage::refreshLocomotiveDetails()
     auto speed = loco->get_speed();
     _speedSlider.setValue((speed.get_dcc_128() & 0x7F));
     _speedNumber.setValue((speed.get_dcc_128() & 0x7F));
-    if(speed.direction() == FORWARD)
+    if(speed.direction() == dcc::SpeedType::FORWARD)
     {
       _fwdButton.setPictureID(FWD_PIC_ON);
       _revButton.setPictureID(REV_PIC_OFF);
