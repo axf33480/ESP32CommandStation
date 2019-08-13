@@ -229,7 +229,7 @@ void NextionThrottlePage::setLocoDirection(bool direction) {
   if(_locoNumbers[_activeLoco]) {
     auto loco(locoManager->getLocomotive(_locoNumbers[_activeLoco]));
     auto speed(loco->get_speed());
-    speed.set_direction(direction ? dcc::SpeedType::FORWARD : dcc::SpeedType::REVERSE);
+    speed.set_direction(!direction);
     loco->set_speed(speed);
     if(direction) {
       _fwdButton.setPictureID(FWD_PIC_ON);
@@ -363,10 +363,13 @@ void NextionThrottlePage::refreshLocomotiveDetails()
     auto speed = loco->get_speed();
     _speedSlider.setValue((speed.get_dcc_128() & 0x7F));
     _speedNumber.setValue((speed.get_dcc_128() & 0x7F));
-    if(speed.direction()) {
+    if(speed.direction() == FORWARD)
+    {
       _fwdButton.setPictureID(FWD_PIC_ON);
       _revButton.setPictureID(REV_PIC_OFF);
-    } else {
+    }
+    else
+    {
       _fwdButton.setPictureID(FWD_PIC_OFF);
       _revButton.setPictureID(REV_PIC_ON);
     }
