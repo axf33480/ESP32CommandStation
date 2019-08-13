@@ -17,6 +17,12 @@ COPYRIGHT (c) 2019 Mike Dunston
 
 #include <utils/constants.hxx>
 
+#ifndef ESP32CS_EXTERNAL_CONFIGURATION
+#include "Config.h"
+#endif
+
+#include "DefaultConfigs.h"
+
 ///////////////////////////////////////////////////////////////////////////////
 // This flag will clear the stored configuration data causing the command
 // station to regenerate the configuration from scratch. This is usually not
@@ -46,8 +52,7 @@ DEFAULT_CONST(cs_task_list_stats_interval_sec, 300);
 // LCC_CONFIG_FILE before starting the OpenMRN stack. This should not normally
 // be required.
 ///////////////////////////////////////////////////////////////////////////////
-#if !defined(LCC_FORCE_FACTORY_RESET_ON_STARTUP) || \
-    !LCC_FORCE_FACTORY_RESET_ON_STARTUP
+#if !LCC_FORCE_FACTORY_RESET_ON_STARTUP
 DEFAULT_CONST_FALSE(lcc_force_factory_reset);
 #else
 DEFAULT_CONST_TRUE(lcc_force_factory_reset);
@@ -64,3 +69,17 @@ DEFAULT_CONST_FALSE(enable_railcom_packet_dump);
 ///////////////////////////////////////////////////////////////////////////////
 DEFAULT_CONST(rmt_packet_queue_ops, 10);
 DEFAULT_CONST(rmt_packet_queue_prog, 5);
+
+///////////////////////////////////////////////////////////////////////////////
+// HC12 configuration settings
+///////////////////////////////////////////////////////////////////////////////
+#if !HC12_RADIO_ENABLED
+DEFAULT_CONST_FALSE(cs_hc12_enabled);
+#else
+DEFAULT_CONST_TRUE(cs_hc12_enabled);
+#endif
+DEFAULT_CONST(cs_hc12_buffer_size, 256);
+DEFAULT_CONST(cs_hc12_uart_num, HC12_UART_NUM);
+DEFAULT_CONST(cs_hc12_uart_speed, 19200);
+DEFAULT_CONST(cs_hc12_rx_pin, HC12_RX_PIN);
+DEFAULT_CONST(cs_hc12_rx_pin, HC12_TX_PIN);

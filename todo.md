@@ -53,6 +53,7 @@ The entries below are not tracked to a specific release or in any particular pri
 ### General
 
 - [ ] CMake and VisualGDB support (https://github.com/atanisoft/ESP32CommandStation/pull/22)
+- [ ] Report optional module failures via config portal.
 
 ### S88 Sensors
 

@@ -470,6 +470,14 @@ bool ConfigurationManager::validateLCCConfig()
   return true;
 }
 
+void ConfigurationManager::configureEnabledModules(SimpleCanStack *stack)
+{
+  if (config_cs_hc12_enabled() == CONSTANT_TRUE)
+  {
+    hc12_.emplace(stack->service(), (uart_port_t)config_cs_hc12_uart_num());
+  }
+}
+
 string ConfigurationManager::getCSConfig()
 {
   return commandStationConfig.dump();
@@ -479,10 +487,14 @@ string ConfigurationManager::getCSFeatures()
 {
   json features = 
   {
-    { JSON_S88_SENSOR_BASE_NODE, S88_FIRST_SENSOR },
-    { JSON_S88_NODE, S88_ENABLED && ENABLE_SENSORS ? JSON_VALUE_TRUE : JSON_VALUE_FALSE },
-    { JSON_OUTPUTS_NODE, ENABLE_OUTPUTS ? JSON_VALUE_TRUE : JSON_VALUE_FALSE },
-    { JSON_SENSORS_NODE, ENABLE_SENSORS ? JSON_VALUE_TRUE : JSON_VALUE_FALSE },
+    { JSON_S88_SENSOR_BASE_NODE, S88_FIRST_SENSOR }
+  , { JSON_S88_NODE, S88_ENABLED && ENABLE_SENSORS ? JSON_VALUE_TRUE
+                                                   : JSON_VALUE_FALSE }
+  , { JSON_OUTPUTS_NODE, ENABLE_OUTPUTS ? JSON_VALUE_TRUE : JSON_VALUE_FALSE }
+  , { JSON_SENSORS_NODE, ENABLE_SENSORS ? JSON_VALUE_TRUE : JSON_VALUE_FALSE }
+  , { JSON_HC12_NODE
+    , config_cs_hc12_enabled() == CONSTANT_TRUE ? JSON_VALUE_TRUE
+                                                : JSON_VALUE_FALSE }
   };
   return features.dump();
 }

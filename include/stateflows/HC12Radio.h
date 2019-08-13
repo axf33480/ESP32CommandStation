@@ -20,18 +20,29 @@ COPYRIGHT (c) 2018-2019 Mike Dunston
 
 #include <executor/Service.hxx>
 #include <executor/StateFlow.hxx>
+#include "interfaces/DCCppProtocol.h"
 
-class HC12Radio : public StateFlowBase {
+namespace esp32cs
+{
+
+class HC12Radio : public StateFlowBase
+                , private DCCPPProtocolConsumer
+{
 public:
-  HC12Radio(Service *);
+  HC12Radio(Service *, uart_port_t);
 private:
-  StateFlowTimer timer_{this};
+  static constexpr uint8_t RX_BUF_SIZE = 64;
+  StateFlowSelectHelper helper_{this};
+  uint8_t rx_buffer_[RX_BUF_SIZE];
+  string tx_buffer_;
+  int uartFd_;
   uart_port_t uart_;
-  DCCPPProtocolConsumer consumer_;
-  const uint64_t updateInterval_{MSEC_TO_NSEC(250)};
-  STATE_FLOW_STATE(init);
-  STATE_FLOW_STATE(update);
+
+  STATE_FLOW_STATE(initialize);
+  STATE_FLOW_STATE(data_received);
+  STATE_FLOW_STATE(wait_for_data);
 };
 
-extern unique_ptr<HC12Radio> hc12;
+} // namespace esp32cs
+
 #endif // HC12_RADIO_H_

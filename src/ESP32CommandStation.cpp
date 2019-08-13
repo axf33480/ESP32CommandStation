@@ -189,8 +189,8 @@ extern "C" void app_main()
   openmrn.reset(new OpenMRN(configStore->getNodeId()));
 
   // Initialize global state flows.
+  configStore->configureEnabledModules(openmrn->stack());
   infoScreen.reset(new InfoScreen(openmrn->stack()));
-  hc12.reset(new HC12Radio(openmrn->stack()->service()));
   otaMonitor.reset(new OTAMonitorFlow(openmrn->stack()->service()));
   statusLED.reset(new StatusLED(openmrn->stack()->service()));
 

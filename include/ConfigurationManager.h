@@ -19,6 +19,7 @@ COPYRIGHT (c) 2018-2019 Mike Dunston
 #define CONFIG_MGR_H_
 
 #include <openlcb/Defs.hxx>
+#include "stateflows/HC12Radio.h"
 
 // Class definition for the Configuration Management system in ESP32 Command Station
 class ConfigurationManager
@@ -36,6 +37,7 @@ public:
   openlcb::NodeID getNodeId();
   void configureCAN(OpenMRN *openmrn);
   void configureWiFi(openlcb::SimpleCanStack *, const WiFiConfiguration &);
+  void configureEnabledModules(openlcb::SimpleCanStack *);
   std::string getCSConfig();
   std::string getCSFeatures();
   std::string getSSID()
@@ -60,6 +62,7 @@ private:
   wifi_mode_t wifiMode_{WIFI_MODE_STA};
   std::unique_ptr<tcpip_adapter_ip_info_t> stationStaticIP_{nullptr};
   ip_addr_t stationDNSServer_{ip_addr_any};
+  uninitialized<esp32cs::HC12Radio> hc12_;
 };
 
 extern unique_ptr<ConfigurationManager> configStore;

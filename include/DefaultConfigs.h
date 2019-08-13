@@ -110,6 +110,10 @@ COPYRIGHT (c) 2019 Mike Dunston
 #define LCC_NODE_ID 0x050101013F00
 #endif
 
+#ifndef LCC_FORCE_FACTORY_RESET_ON_STARTUP
+#define LCC_FORCE_FACTORY_RESET_ON_STARTUP false
+#endif
+
 ///////////////////////////////////////////////////////////////////////////////
 // InfoScreen default configuration
 ///////////////////////////////////////////////////////////////////////////////
@@ -181,7 +185,7 @@ COPYRIGHT (c) 2019 Mike Dunston
 ///////////////////////////////////////////////////////////////////////////////
 // S88 default configuration
 ///////////////////////////////////////////////////////////////////////////////
-constexpr uint16_t S88_MAX_SENSORS_PER_BUS = 512;
+#define S88_MAX_SENSORS_PER_BUS 512
 
 #ifndef S88_ENABLED
 #define S88_ENABLED false
@@ -189,6 +193,23 @@ constexpr uint16_t S88_MAX_SENSORS_PER_BUS = 512;
 
 #ifndef S88_FIRST_SENSOR
 #define S88_FIRST_SENSOR S88_MAX_SENSORS_PER_BUS
+#endif
+
+///////////////////////////////////////////////////////////////////////////////
+// HC12 default configuration
+///////////////////////////////////////////////////////////////////////////////
+#ifndef HC12_UART_NUM
+#define HC12_UART_NUM 1
+#endif
+
+#ifndef HC12_RADIO_BAUD
+#define HC12_RADIO_BAUD 19200
+#endif
+#ifndef HC12_RX_PIN
+#define HC12_RX_PIN 9
+#endif
+#ifndef HC12_TX_PIN
+#define HC12_TX_PIN 10
 #endif
 
 /////////////////////////////////////////////////////////////////////////////////////
