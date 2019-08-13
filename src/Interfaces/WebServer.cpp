@@ -61,9 +61,11 @@ void handleWsEvent(AsyncWebSocket * server,
   AtomicHolder h(&webSocketAtomic);
   if (type == WS_EVT_CONNECT)
   {
-    webSocketClients.emplace_back(new WebSocketClient(client->id(), ntohl(client->remoteIP())));
-    infoScreen->replaceLine(INFO_SCREEN_CLIENTS_LINE, "TCP Conn: %02d",
-                            webSocketClients.size() + jmriClients.size());
+    webSocketClients.emplace_back(
+      new WebSocketClient(client->id(), ntohl(client->remoteIP())));
+    Singleton<InfoScreen>::instance()->replaceLine(
+      INFO_SCREEN_CLIENTS_LINE, "TCP Conn: %02d"
+    , webSocketClients.size() + jmriClients.size());
   }
   else if (type == WS_EVT_DISCONNECT)
   {
@@ -77,7 +79,7 @@ void handleWsEvent(AsyncWebSocket * server,
     {
       webSocketClients.erase(elem);
     }
-    infoScreen->replaceLine(INFO_SCREEN_CLIENTS_LINE, "TCP Conn: %02d",
+    Singleton<InfoScreen>::instance()->replaceLine(INFO_SCREEN_CLIENTS_LINE, "TCP Conn: %02d",
                             webSocketClients.size() + jmriClients.size());
   }
   else if (type == WS_EVT_DATA)
@@ -195,14 +197,14 @@ void otaUploadCallback(AsyncWebServerRequest *request
     LOG(INFO, "[WebSrv] OTA Update starting...");
     trackSignal->disable_ops_output();
     trackSignal->disable_prog_output();
-    otaMonitor->report_start();
+    Singleton<OTAMonitorFlow>::instance()->report_start();
   }
   res = esp_ota_write(otaHandle, data, len);
   if (res != ESP_OK)
   {
     goto ota_failure;
   }
-  otaMonitor->report_progress(len);
+  Singleton<OTAMonitorFlow>::instance()->report_progress(len);
   if (final)
   {
     res = esp_ota_end(otaHandle);
@@ -218,7 +220,7 @@ void otaUploadCallback(AsyncWebServerRequest *request
     }
     request->_tempObject = nullptr;
     LOG(INFO, "[WebSrv] OTA Update Complete!");
-    otaMonitor->report_success();
+    Singleton<OTAMonitorFlow>::instance()->report_success();
   }
   return;
 
@@ -226,7 +228,7 @@ ota_failure:
   request->_tempObject = nullptr;
   LOG_ERROR("[WebSrv] OTA Update failure: %s (%d)", esp_err_to_name(res), res);
   SEND_TEXT_RESPONSE(request, STATUS_BAD_REQUEST, esp_err_to_name(res))
-  otaMonitor->report_failure(res);
+  Singleton<OTAMonitorFlow>::instance()->report_failure(res);
 }
 
 void ESP32CSWebServer::begin()

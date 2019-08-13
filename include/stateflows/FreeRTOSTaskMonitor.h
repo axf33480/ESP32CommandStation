@@ -22,7 +22,8 @@ COPYRIGHT (c) 2019 Mike Dunston
 #include <executor/StateFlow.hxx>
 #include <openlcb/SimpleStack.hxx>
 
-class FreeRTOSTaskMonitor : public StateFlowBase {
+class FreeRTOSTaskMonitor : public StateFlowBase
+{
 public:
   FreeRTOSTaskMonitor(Service *);
 

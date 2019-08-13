@@ -17,8 +17,6 @@ COPYRIGHT (c) 2019 Mike Dunston
 
 #include "ESP32CommandStation.h"
 
-unique_ptr<StatusLED> statusLED;
-
 StateFlowBase::Action StatusLED::init()
 {
 #if STATUS_LED_ENABLED

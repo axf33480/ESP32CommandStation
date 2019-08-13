@@ -22,7 +22,8 @@ LocoNetESP32Uart locoNet(LOCONET_RX_PIN, LOCONET_TX_PIN, LOCONET_UART, LOCONET_I
 
 void initializeLocoNet()
 {
-  infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "LocoNet Init");
+  Singleton<InfoScreen>::instance()->replaceLine(
+    INFO_SCREEN_ROTATING_STATUS_LINE, "LocoNet Init");
   locoNet.begin();
   locoNet.onPacket(OPC_GPON, [](lnMsg *msg) {
     MotorBoardManager::powerOnAll();

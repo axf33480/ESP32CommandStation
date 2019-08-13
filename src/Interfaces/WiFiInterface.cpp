@@ -46,8 +46,10 @@ void WiFiInterface::init()
   auto nextionTitlePage = static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE]);
   nextionTitlePage->setStatusText(0, "Initializing WiFi");
 #endif
-  infoScreen->replaceLine(INFO_SCREEN_IP_ADDR_LINE, "IP:Pending");
-  infoScreen->replaceLine(INFO_SCREEN_CLIENTS_LINE, "TCP Conn: 00");
+  Singleton<InfoScreen>::instance()->replaceLine(
+    INFO_SCREEN_IP_ADDR_LINE, "IP:Pending");
+  Singleton<InfoScreen>::instance()->replaceLine(
+    INFO_SCREEN_CLIENTS_LINE, "TCP Conn: 00");
 
   wifiManager->add_event_callback([](system_event_t *event) {
 #if NEXTION_ENABLED
@@ -59,23 +61,25 @@ void WiFiInterface::init()
     {
       if (event->event_id == SYSTEM_EVENT_STA_GOT_IP)
       {
-        statusLED->setStatusLED(StatusLED::LED::WIFI, StatusLED::COLOR::GREEN);
+        Singleton<StatusLED>::instance()->setStatusLED(
+          StatusLED::LED::WIFI, StatusLED::COLOR::GREEN);
         tcpip_adapter_ip_info_t ip_info;
         tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_STA, &ip_info);
         wifiInterface.setIP(ip_info);
-        infoScreen->replaceLine(INFO_SCREEN_IP_ADDR_LINE,
+        Singleton<InfoScreen>::instance()->replaceLine(INFO_SCREEN_IP_ADDR_LINE
 #if (INFO_SCREEN_LCD && INFO_SCREEN_LCD_COLUMNS >= 20) || INFO_SCREEN_OLED
-                                "IP: "
+                              , "IP: "
 #endif
-                                IPSTR, IP2STR(&ip_info.ip)
+                              , IPSTR, IP2STR(&ip_info.ip)
         );
       }
       else
       {
-        statusLED->setStatusLED(StatusLED::LED::WIFI
-                              , StatusLED::COLOR::BLUE);
-        infoScreen->replaceLine(INFO_SCREEN_IP_ADDR_LINE, "SSID: %s"
-                              , configStore->getSSID().c_str());
+        Singleton<StatusLED>::instance()->setStatusLED(
+          StatusLED::LED::WIFI, StatusLED::COLOR::BLUE);
+        Singleton<InfoScreen>::instance()->replaceLine(
+          INFO_SCREEN_IP_ADDR_LINE, "SSID: %s"
+        , configStore->getSSID().c_str());
       }
       if (!JMRIListener)
       {
@@ -91,9 +95,8 @@ void WiFiInterface::init()
           os_thread_create(nullptr, StringPrintf("jmri-%d", fd).c_str(),
                           JMRI_CLIENT_PRIORITY, JMRI_CLIENT_STACK_SIZE,
                           jmriClientHandler, (void *)fd);
-          infoScreen->replaceLine(INFO_SCREEN_CLIENTS_LINE,
-                                  "TCP Conn: %02d",
-                                  clientCount);
+          Singleton<InfoScreen>::instance()->replaceLine(
+            INFO_SCREEN_CLIENTS_LINE, "TCP Conn: %02d", clientCount);
         }));
         mDNS.publish("jmri", "_esp32cs._tcp", JMRI_LISTENER_PORT);
         esp32csWebServer.begin();
@@ -106,18 +109,22 @@ void WiFiInterface::init()
     } else if (event->event_id == SYSTEM_EVENT_STA_LOST_IP ||
                event->event_id == SYSTEM_EVENT_AP_STOP)
     {
-      statusLED->setStatusLED(StatusLED::LED::WIFI, StatusLED::COLOR::RED);
+      Singleton<StatusLED>::instance()->setStatusLED(
+        StatusLED::LED::WIFI, StatusLED::COLOR::RED);
       LOG(INFO, "[WiFi] Shutting down JMRI listener");
       JMRIListener.reset(nullptr);
-      infoScreen->replaceLine(INFO_SCREEN_IP_ADDR_LINE, "Disconnected");
+      Singleton<InfoScreen>::instance()->replaceLine(
+        INFO_SCREEN_IP_ADDR_LINE, "Disconnected");
     }
     else if (event->event_id == SYSTEM_EVENT_STA_DISCONNECTED)
     {
-      statusLED->setStatusLED(StatusLED::LED::WIFI, StatusLED::COLOR::GREEN_BLINK);
+      Singleton<StatusLED>::instance()->setStatusLED(
+        StatusLED::LED::WIFI, StatusLED::COLOR::GREEN_BLINK);
     }
     else if (event->event_id == SYSTEM_EVENT_STA_START)
     {
-      statusLED->setStatusLED(StatusLED::LED::WIFI, StatusLED::COLOR::GREEN_BLINK);
+      Singleton<StatusLED>::instance()->setStatusLED(
+        StatusLED::LED::WIFI, StatusLED::COLOR::GREEN_BLINK);
 #if NEXTION_ENABLED
       nextionTitlePage->setStatusText(0, "Connecting to WiFi");
 #endif
@@ -178,8 +185,8 @@ void *jmriClientHandler(void *arg)
     jmriClients.erase(std::remove(jmriClients.begin(), jmriClients.end(), fd));
     clientCount = webSocketClients.size() + jmriClients.size();
   }
-  infoScreen->replaceLine(INFO_SCREEN_CLIENTS_LINE, "TCP Conn: %02d"
-                        , clientCount);
+  Singleton<InfoScreen>::instance()->replaceLine(
+    INFO_SCREEN_CLIENTS_LINE, "TCP Conn: %02d", clientCount);
 
   ::close(fd);
   return nullptr;

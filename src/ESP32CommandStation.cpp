@@ -93,7 +93,6 @@ namespace openlcb
   const char *const SNIP_DYNAMIC_FILENAME = CONFIG_FILENAME;
 }
 
-unique_ptr<OTAMonitorFlow> otaMonitor;
 unique_ptr<RMTTrackDevice> trackSignal;
 unique_ptr<LocalTrackIf> trackInterface;
 unique_ptr<RailcomHubFlow> railComHub;
@@ -188,14 +187,8 @@ extern "C" void app_main()
   // Initialize the OpenMRN stack.
   openmrn.reset(new OpenMRN(configStore->getNodeId()));
 
-  // Initialize global state flows.
+  // Initialize the enabled modules.
   configStore->configureEnabledModules(openmrn->stack());
-  infoScreen.reset(new InfoScreen(openmrn->stack()));
-  otaMonitor.reset(new OTAMonitorFlow(openmrn->stack()->service()));
-  statusLED.reset(new StatusLED(openmrn->stack()->service()));
-
-  // Task Monitor, periodically dumps runtime state to STDOUT.
-  FreeRTOSTaskMonitor taskMonitor(openmrn->stack()->service());
 
   // Initialize the factory reset helper for the CS.
   FactoryResetHelper resetHelper;
@@ -311,23 +304,9 @@ extern "C" void app_main()
                           , nullptr, APP_CPU_NUM);
   }));
 
-#if ENABLE_OUTPUTS
-  OutputManager::init();
-#endif
-
-#if ENABLE_SENSORS
-  SensorManager::init();
-  S88BusManager::init();
-  RemoteSensorManager::init();
-#endif
-
-#if LOCONET_ENABLED
-  initializeLocoNet();
-#endif
-
   LOG(INFO, "\n\nESP32 Command Station Startup complete!\n");
-  infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE
-                        , "ESP32-CS Started");
+  Singleton<InfoScreen>::instance()->replaceLine(
+    INFO_SCREEN_ROTATING_STATUS_LINE, "ESP32-CS Started");
 
   // donate our task thread to OpenMRN executor.
   openmrn->loop_executor();

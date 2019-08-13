@@ -95,7 +95,8 @@ void S88BusManager::init()
   LOG(INFO, "[S88] Initializing SensorBus list");
   json root = json::parse(configStore->load(S88_SENSORS_JSON_FILE));
   uint16_t s88BusCount = root.contains(JSON_COUNT_NODE) ? root[JSON_COUNT_NODE].get<int>() : 0;
-  infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Found %02d S88 Bus", s88BusCount);
+  Singleton<InfoScreen>::instance()->replaceLine(
+    INFO_SCREEN_ROTATING_STATUS_LINE, "Found %02d S88 Bus", s88BusCount);
   if(s88BusCount > 0)
   {
     for(auto bus : root[JSON_SENSORS_NODE])
@@ -253,7 +254,9 @@ S88SensorBus::S88SensorBus(string &data)
   _dataPin = object[JSON_PIN_NODE];
   _lastSensorID = _sensorIDBase = object[JSON_S88_SENSOR_BASE_NODE];
   uint16_t sensorCount = object[JSON_COUNT_NODE];
-  infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "S88(%d) %02d sensors", _id, sensorCount);
+  Singleton<InfoScreen>::instance()->replaceLine(
+    INFO_SCREEN_ROTATING_STATUS_LINE, "S88(%d) %02d sensors", _id
+  , sensorCount);
   if(sensorCount > 0)
   {
     addSensors(sensorCount);

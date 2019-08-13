@@ -236,7 +236,8 @@ StateFlowBase::Action MonitoredHBridge::check()
       {
         state_ = STATE_OFF;
         LOG(INFO, "[%s] Disabling track output", name_.c_str());
-        statusLED->setStatusLED((StatusLED::LED)targetLED_, StatusLED::COLOR::OFF);
+        Singleton<StatusLED>::instance()->setStatusLED(
+          (StatusLED::LED)targetLED_, StatusLED::COLOR::OFF);
         ESP_ERROR_CHECK(gpio_set_level(enablePin_, 0));
         return call_immediately(STATE(sleep_and_check_state));
       }
@@ -376,7 +377,8 @@ StateFlowBase::Action MonitoredHBridge::check()
     }
 
     // Set our LED to the updated state color value.
-    statusLED->setStatusLED((StatusLED::LED)targetLED_, statusLEDColor);
+    Singleton<StatusLED>::instance()->setStatusLED((StatusLED::LED)targetLED_
+                                                 , statusLEDColor);
 #if LOCONET_ENABLED
     if (!isProgTrack_)
     {

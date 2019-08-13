@@ -19,7 +19,11 @@ COPYRIGHT (c) 2018-2019 Mike Dunston
 #define CONFIG_MGR_H_
 
 #include <openlcb/Defs.hxx>
+#include "stateflows/FreeRTOSTaskMonitor.h"
 #include "stateflows/HC12Radio.h"
+#include "stateflows/InfoScreen.h"
+#include "stateflows/OTAMonitor.h"
+#include "stateflows/StatusLED.h"
 
 // Class definition for the Configuration Management system in ESP32 Command Station
 class ConfigurationManager
@@ -62,10 +66,15 @@ private:
   wifi_mode_t wifiMode_{WIFI_MODE_STA};
   std::unique_ptr<tcpip_adapter_ip_info_t> stationStaticIP_{nullptr};
   ip_addr_t stationDNSServer_{ip_addr_any};
+
   uninitialized<esp32cs::HC12Radio> hc12_;
+  uninitialized<OTAMonitorFlow> ota_;
+  uninitialized<InfoScreen> infoScreen_;
+  uninitialized<StatusLED> statusLED_;
+  uninitialized<FreeRTOSTaskMonitor> taskMon_;
 };
 
-extern unique_ptr<ConfigurationManager> configStore;
-extern unique_ptr<Esp32WiFiManager> wifiManager;
+extern std::unique_ptr<ConfigurationManager> configStore;
+extern std::unique_ptr<Esp32WiFiManager> wifiManager;
 
 #endif // CONFIG_MGR_H_

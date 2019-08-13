@@ -257,7 +257,8 @@ LocomotiveManager::LocomotiveManager(Node *node, TrainService *trainService) :
   if (root.contains(JSON_COUNT_NODE))
   {
     uint16_t locoCount = root[JSON_COUNT_NODE].get<uint16_t>();
-    infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Found %02d Locos", locoCount);
+    Singleton<InfoScreen>::instance()->replaceLine(
+      INFO_SCREEN_ROTATING_STATUS_LINE, "Found %02d Locos", locoCount);
     LOG(INFO, "[Roster] Loading %d Locomotive Roster entries", locoCount);
     for (auto entry : root[JSON_LOCOS_NODE])
     {
@@ -279,7 +280,8 @@ LocomotiveManager::LocomotiveManager(Node *node, TrainService *trainService) :
   {
     uint16_t locoCount = root[JSON_COUNT_NODE].get<uint16_t>();
     LOG(INFO, "[Roster] Loading %d older version Locomotive Roster entries", locoCount);
-    infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Load %02d Locos", locoCount);
+    Singleton<InfoScreen>::instance()->replaceLine(
+      INFO_SCREEN_ROTATING_STATUS_LINE, "Load %02d Locos", locoCount);
     for (auto entry : root[JSON_LOCOS_NODE])
     {
       string data = entry.dump();
@@ -295,7 +297,8 @@ LocomotiveManager::LocomotiveManager(Node *node, TrainService *trainService) :
   {
     uint16_t consistCount = root[JSON_COUNT_NODE].get<uint16_t>();
     LOG(INFO, "[Consist] Loading %d Locomotive Consists", consistCount);
-    infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Load %02d Consists", consistCount);
+    Singleton<InfoScreen>::instance()->replaceLine(
+      INFO_SCREEN_ROTATING_STATUS_LINE, "Load %02d Consists", consistCount);
     for(auto entry : root[JSON_CONSISTS_NODE])
     {
       string file = entry[JSON_FILE_NODE].get<string>();
@@ -316,7 +319,8 @@ LocomotiveManager::LocomotiveManager(Node *node, TrainService *trainService) :
   {
     uint16_t consistCount = root[JSON_COUNT_NODE].get<uint16_t>();
     LOG(INFO, "[Consist] Loading %d Locomotive Consists", consistCount);
-    infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Load %02d Consists", consistCount);
+    Singleton<InfoScreen>::instance()->replaceLine(
+      INFO_SCREEN_ROTATING_STATUS_LINE, "Load %02d Consists", consistCount);
     for (auto entry : root[JSON_CONSISTS_NODE])
     {
       string data = entry.dump();

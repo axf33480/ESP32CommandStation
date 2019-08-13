@@ -19,12 +19,14 @@ COPYRIGHT (c) 2019 Mike Dunston
 #define OTA_MONITOR_H_
 
 #include "stateflows/InfoScreen.h"
+#include "stateflows/StatusLED.h"
 #include "interfaces/NextionInterface.h"
 
 #include <executor/Service.hxx>
 #include <executor/StateFlow.hxx>
 
-class OTAMonitorFlow : public StateFlowBase {
+class OTAMonitorFlow : public StateFlowBase, public Singleton<OTAMonitorFlow>
+{
 public:
   OTAMonitorFlow(Service *service) : StateFlowBase(service)
   {
@@ -38,12 +40,18 @@ public:
     progress_ = 0;
 
     // set blink pattern to alternating green blink
-    statusLED->setStatusLED(StatusLED::LED::WIFI, StatusLED::COLOR::GREEN_BLINK, true);
-    statusLED->setStatusLED(StatusLED::LED::OPS_TRACK, StatusLED::COLOR::GREEN_BLINK);
-    statusLED->setStatusLED(StatusLED::LED::PROG_TRACK, StatusLED::COLOR::GREEN_BLINK, true);
-    statusLED->setStatusLED(StatusLED::LED::EXT_1, StatusLED::COLOR::GREEN_BLINK);
-    statusLED->setStatusLED(StatusLED::LED::EXT_2, StatusLED::COLOR::GREEN_BLINK, true);
-    infoScreen->replaceLine(INFO_SCREEN_STATION_INFO_LINE, "Update starting");
+    Singleton<StatusLED>::instance()->setStatusLED(
+      StatusLED::LED::WIFI, StatusLED::COLOR::GREEN_BLINK, true);
+    Singleton<StatusLED>::instance()->setStatusLED(
+      StatusLED::LED::OPS_TRACK, StatusLED::COLOR::GREEN_BLINK);
+    Singleton<StatusLED>::instance()->setStatusLED(
+      StatusLED::LED::PROG_TRACK, StatusLED::COLOR::GREEN_BLINK, true);
+    Singleton<StatusLED>::instance()->setStatusLED(
+      StatusLED::LED::EXT_1, StatusLED::COLOR::GREEN_BLINK);
+    Singleton<StatusLED>::instance()->setStatusLED(
+      StatusLED::LED::EXT_2, StatusLED::COLOR::GREEN_BLINK, true);
+    Singleton<InfoScreen>::instance()->replaceLine(
+      INFO_SCREEN_STATION_INFO_LINE, "Update starting");
 #if NEXTION_ENABLED
     titlePage_->show();
     titlePage_->setStatusText(0, "OTA Started...");
@@ -52,17 +60,23 @@ public:
 
   void report_success()
   {
-    // set blink pattern for all green
-    statusLED->setStatusLED(StatusLED::LED::WIFI, StatusLED::COLOR::GREEN);
-    statusLED->setStatusLED(StatusLED::LED::OPS_TRACK, StatusLED::COLOR::GREEN);
-    statusLED->setStatusLED(StatusLED::LED::PROG_TRACK, StatusLED::COLOR::GREEN);
-    statusLED->setStatusLED(StatusLED::LED::EXT_1, StatusLED::COLOR::GREEN);
-    statusLED->setStatusLED(StatusLED::LED::EXT_2, StatusLED::COLOR::GREEN);
+    // report successful OTA receipt
+    Singleton<StatusLED>::instance()->setStatusLED(
+      StatusLED::LED::WIFI, StatusLED::COLOR::GREEN);
+    Singleton<StatusLED>::instance()->setStatusLED(
+      StatusLED::LED::OPS_TRACK, StatusLED::COLOR::GREEN);
+    Singleton<StatusLED>::instance()->setStatusLED(
+      StatusLED::LED::PROG_TRACK, StatusLED::COLOR::GREEN);
+    Singleton<StatusLED>::instance()->setStatusLED(
+      StatusLED::LED::EXT_1, StatusLED::COLOR::GREEN);
+    Singleton<StatusLED>::instance()->setStatusLED(
+      StatusLED::LED::EXT_2, StatusLED::COLOR::GREEN);
 #if NEXTION_ENABLED
     titlePage_->setStatusText(1, "Update Complete");
     titlePage_->setStatusText(2, "Rebooting");
 #endif
-    infoScreen->replaceLine(INFO_SCREEN_STATION_INFO_LINE, "Update Complete");
+    Singleton<InfoScreen>::instance()->replaceLine(
+      INFO_SCREEN_STATION_INFO_LINE, "Update Complete");
 
     // reset countdown and trigger the restart
     countdown_ = StatusLED::LED::MAX_LED;
@@ -72,15 +86,21 @@ public:
   void report_failure(esp_err_t err)
   {
     // set blink pattern for alternating red blink
-    statusLED->setStatusLED(StatusLED::LED::WIFI, StatusLED::COLOR::RED_BLINK, true);
-    statusLED->setStatusLED(StatusLED::LED::OPS_TRACK, StatusLED::COLOR::RED_BLINK);
-    statusLED->setStatusLED(StatusLED::LED::PROG_TRACK, StatusLED::COLOR::RED_BLINK, true);
-    statusLED->setStatusLED(StatusLED::LED::EXT_1, StatusLED::COLOR::RED_BLINK);
-    statusLED->setStatusLED(StatusLED::LED::EXT_2, StatusLED::COLOR::RED_BLINK, true);
+    Singleton<StatusLED>::instance()->setStatusLED(
+      StatusLED::LED::WIFI, StatusLED::COLOR::RED_BLINK, true);
+    Singleton<StatusLED>::instance()->setStatusLED(
+      StatusLED::LED::OPS_TRACK, StatusLED::COLOR::RED_BLINK);
+    Singleton<StatusLED>::instance()->setStatusLED(
+      StatusLED::LED::PROG_TRACK, StatusLED::COLOR::RED_BLINK, true);
+    Singleton<StatusLED>::instance()->setStatusLED(
+      StatusLED::LED::EXT_1, StatusLED::COLOR::RED_BLINK);
+    Singleton<StatusLED>::instance()->setStatusLED(
+      StatusLED::LED::EXT_2, StatusLED::COLOR::RED_BLINK, true);
 #if NEXTION_ENABLED
     titlePage_->setStatusText(1, esp_err_to_name(err));
 #endif
-    infoScreen->replaceLine(INFO_SCREEN_STATION_INFO_LINE, esp_err_to_name(err));
+    Singleton<InfoScreen>::instance()->replaceLine(
+      INFO_SCREEN_STATION_INFO_LINE, esp_err_to_name(err));
 
     // restart the node due to failure
     start_flow(STATE(reboot_node));
@@ -89,9 +109,11 @@ public:
   void report_progress(uint32_t progress)
   {
     progress_ += progress;
-    infoScreen->replaceLine(INFO_SCREEN_STATION_INFO_LINE, "Recv: %d", progress_);
+    Singleton<InfoScreen>::instance()->replaceLine(
+      INFO_SCREEN_STATION_INFO_LINE, "Recv: %d", progress_);
 #if NEXTION_ENABLED
-    titlePage_->setStatusText(1, StringPrintf("Received: %d", progress_).c_str());
+    titlePage_->setStatusText(1
+                            , StringPrintf("Received: %d", progress_).c_str());
 #endif
   }
 
@@ -114,8 +136,10 @@ private:
     if(countdown_ > 0)
     {
       // turn off lights
-      statusLED->setStatusLED((StatusLED::LED)countdown_, StatusLED::COLOR::OFF);
-      infoScreen->replaceLine(INFO_SCREEN_STATION_INFO_LINE, "reboot in %2d...", countdown_);
+      Singleton<StatusLED>::instance()->setStatusLED(
+        (StatusLED::LED)countdown_, StatusLED::COLOR::OFF);
+      Singleton<InfoScreen>::instance()->replaceLine(
+        INFO_SCREEN_STATION_INFO_LINE, "reboot in %2d...", countdown_);
       LOG(WARNING, "ESP32 will reboot in %d seconds...", countdown_);
       --countdown_;
       return sleep_and_call(&timer_, SEC_TO_NSEC(1), STATE(reboot_node));
@@ -124,7 +148,5 @@ private:
     return call_immediately(STATE(reboot_node));
   }
 };
-
-extern unique_ptr<OTAMonitorFlow> otaMonitor;
 
 #endif // OTA_MONITOR_H_

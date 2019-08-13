@@ -79,7 +79,7 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #error "StatusLED: unknown LED type"
 #endif
 
-class StatusLED : public StateFlowBase
+class StatusLED : public StateFlowBase, public Singleton<StatusLED>
 {
 public:
   enum COLOR : uint8_t
@@ -134,7 +134,5 @@ private:
   STATE_FLOW_STATE(init);
   STATE_FLOW_STATE(update);
 };
-
-extern unique_ptr<StatusLED> statusLED;
 
 #endif // STATUS_LED_H_

@@ -476,6 +476,25 @@ void ConfigurationManager::configureEnabledModules(SimpleCanStack *stack)
   {
     hc12_.emplace(stack->service(), (uart_port_t)config_cs_hc12_uart_num());
   }
+  ota_.emplace(stack->service());
+  infoScreen_.emplace(stack);
+  statusLED_.emplace(stack->service());
+  
+  // Task Monitor, periodically dumps runtime state to STDOUT.
+  taskMon_.emplace(stack->service());
+#if ENABLE_OUTPUTS
+  OutputManager::init();
+#endif
+
+#if ENABLE_SENSORS
+  SensorManager::init();
+  S88BusManager::init();
+  RemoteSensorManager::init();
+#endif
+
+#if LOCONET_ENABLED
+  initializeLocoNet();
+#endif
 }
 
 string ConfigurationManager::getCSConfig()

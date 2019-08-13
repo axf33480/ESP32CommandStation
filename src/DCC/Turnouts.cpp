@@ -38,7 +38,8 @@ TurnoutManager::TurnoutManager(openlcb::Node *node)
   if (root.contains(JSON_COUNT_NODE) && root[JSON_COUNT_NODE].get<uint16_t>() > 0)
   {
     uint16_t turnoutCount = root[JSON_COUNT_NODE].get<uint16_t>();
-    infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Found %02d Turnouts", turnoutCount);
+    Singleton<InfoScreen>::instance()->replaceLine(
+      INFO_SCREEN_ROTATING_STATUS_LINE, "Found %02d Turnouts", turnoutCount);
     for (auto turnout : root[JSON_TURNOUTS_NODE])
     {
       string data = turnout.dump();

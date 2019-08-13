@@ -128,7 +128,8 @@ void nextionTask(void *param) {
 
 void nextionInterfaceInit() {
 #if NEXTION_ENABLED
-  infoScreen->replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Init Nextion");
+  Singleton<InfoScreen>::instance()->replaceLine(
+    INFO_SCREEN_ROTATING_STATUS_LINE, "Init Nextion");
 #if NEXTION_UART_NUM == 2
   Serial2.begin(NEXTION_UART_BAUD, SERIAL_8N1, NEXTION_UART_RX_PIN, NEXTION_UART_TX_PIN);
 #elif NEXTION_UART_NUM == 1

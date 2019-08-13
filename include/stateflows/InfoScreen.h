@@ -43,7 +43,8 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #define INFO_SCREEN_ROTATING_STATUS_LINE 1
 #endif
 
-class InfoScreen : public StateFlowBase {
+class InfoScreen : public StateFlowBase, public Singleton<InfoScreen>
+{
 public:
   InfoScreen(openlcb::SimpleCanStack *);
   void clear();
@@ -60,5 +61,4 @@ private:
   std::unique_ptr<LCCStatCollector> lccStatCollector_;
 };
 
-extern unique_ptr<InfoScreen> infoScreen;
 #endif // INFO_SCREEN_H_
