@@ -31,6 +31,8 @@ DECLARE_CONST(lcc_force_factory_reset);
 
 DECLARE_CONST(enable_railcom_packet_dump);
 
+DECLARE_CONST(cs_track_pool_size);
+
 DECLARE_CONST(rmt_packet_queue_ops);
 DECLARE_CONST(rmt_packet_queue_prog);
 

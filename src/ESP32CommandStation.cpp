@@ -206,7 +206,8 @@ extern "C" void app_main()
                                      , cfg.seg().hbridge().entry(1)));
 
   // Initialize Local Track inteface.
-  trackInterface.reset(new LocalTrackIf(openmrn->stack()->service(), 10));
+  trackInterface.reset(new LocalTrackIf(openmrn->stack()->service()
+                                      , config_cs_track_pool_size()));
 
   // Initialize the MemorySpace handler for CV read/write.
   TractionCvSpace cvMemorySpace(openmrn->stack()->memory_config_handler()
