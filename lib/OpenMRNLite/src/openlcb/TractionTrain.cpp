@@ -621,22 +621,26 @@ TrainService::~TrainService()
 
 void TrainService::register_train(TrainNode *node)
 {
+    iface_->executor()->assert_current();
     iface_->add_local_node(node);
     extern void StartInitializationFlow(Node * node);
     StartInitializationFlow(node);
     AtomicHolder h(this);
     nodes_.insert(node);
+    HASSERT(nodes_.count(node));
     LOG(VERBOSE, "Registered node %p for traction.", node);
-    HASSERT(nodes_.find(node) != nodes_.end());
 }
 
 void TrainService::unregister_train(TrainNode *node)
 {
+    iface_->executor()->assert_current();
     iface_->delete_local_node(node);
     AtomicHolder h(this);
-    nodes_.erase(node);
-    LOG(VERBOSE, "Unregistered node %p for traction.", node);
-    HASSERT(nodes_.find(node) == nodes_.end());
+    if (nodes_.count(node))
+    {
+        nodes_.erase(node);
+        LOG(VERBOSE, "Unregistered node %p for traction.", node);
+    }
 }
 
 } // namespace openlcb
