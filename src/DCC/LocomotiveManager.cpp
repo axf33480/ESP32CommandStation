@@ -31,25 +31,37 @@ std::unique_ptr<LocomotiveManager> locoManager;
 
 string LocomotiveManager::processThrottle(const vector<string> arguments)
 {
-  int registerNumber = std::stoi(arguments[0]);
-  uint16_t locoAddress = std::stoi(arguments[1]);
-  if(isConsistAddress(locoAddress) || isAddressInConsist(locoAddress))
+  int reg_num = std::stoi(arguments[0]);
+  uint16_t loco_addr = std::stoi(arguments[1]);
+  uint8_t req_speed = std::stoi(arguments[2]);
+  uint8_t req_dir = std::stoi(arguments[3]);
+  LOG(VERBOSE, "reg: %d, loco: %d, speed: %d, dir: %d"
+              , reg_num, loco_addr, req_speed, req_dir);
+
+  if(isConsistAddress(loco_addr) || isAddressInConsist(loco_addr))
   {
     return processConsistThrottle(arguments);
   }
-  Locomotive *instance = getLocomotiveByRegister(registerNumber);
+  Locomotive *instance = getLocomotiveByRegister(reg_num);
   if(instance == nullptr)
   {
-    instance = new Locomotive(locoAddress, trainService_);
+    instance = new Locomotive(loco_addr, trainService_);
     locos_.emplace_back(instance);
   }
-  dcc::SpeedType speed;
-  speed.set_dcc_128(std::stoi(arguments[2]));
-  if (!std::stoi(arguments[3]))
+  if (req_speed == UINT8_MAX)
   {
-    speed.set_direction(dcc::SpeedType::REVERSE);
+    instance->set_emergencystop();
   }
-  instance->set_speed(speed);
+  else
+  {
+    dcc::SpeedType new_speed;
+    new_speed.set_dcc_128(req_speed);
+    if (req_dir)
+    {
+      new_speed.set_direction(dcc::SpeedType::FORWARD);
+    }
+    instance->set_speed(new_speed);
+  }
   return instance->get_state_for_dccpp();
 }
 
