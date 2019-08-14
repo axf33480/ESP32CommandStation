@@ -759,9 +759,12 @@ void ESP32CSWebServer::handleLocomotive(AsyncWebServerRequest *request)
   {
     if(request->method() == HTTP_GET && !request->hasArg(JSON_ADDRESS_NODE))
     {
+      if(request->hasArg("new"))
+      {
+        SEND_JSON_RESPONSE(request,
+                           Singleton<esp32cs::Esp32TrainDatabase>::instance()->get_train_list_as_json())
+      }
       SEND_JSON_RESPONSE(request, locoManager->getRosterEntriesAsJson())
-      //SEND_JSON_RESPONSE(request,
-      //                   Singleton<esp32cs::Esp32TrainDatabase>::instance()->get_train_list_as_json())
     }
     else if (request->hasArg(JSON_ADDRESS_NODE))
     {
