@@ -29,7 +29,7 @@ Locomotive::Locomotive(uint16_t address, TrainService *trainService)
   LOG(INFO, "[Loco %d] Created", address);
 }
 
-string Locomotive::getStateAsDCCpp()
+string Locomotive::get_state_for_dccpp()
 {
   dcc::SpeedType speed(get_speed());
   LOG(INFO, "[Loco %d] speed: %d, direction: %s",

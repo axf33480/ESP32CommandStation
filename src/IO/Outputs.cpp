@@ -184,12 +184,12 @@ std::string OutputManager::getStateAsJson()
   return state;
 }
 
-string OutputManager::getStateAsDCCpp()
+string OutputManager::get_state_for_dccpp()
 {
   string status;
   for (const auto& output : outputs)
   {
-    status += output->getStateAsDCCpp();
+    status += output->get_state_for_dccpp();
   }
   return status;
 }

@@ -357,14 +357,14 @@ void S88SensorBus::readNext()
   _sensors[_nextSensorToRead++]->setState(digitalRead(_dataPin) == HIGH);
 }
 
-string S88SensorBus::getStateAsDCCpp()
+string S88SensorBus::get_state_for_dccpp()
 {
   string status = StringPrintf("<S88 %d %d %d>", _id, _dataPin, _sensors.size());
   LOG(VERBOSE, "[S88 Bus-%d] Data:%d, Base:%d, Count:%d:", _id, _dataPin, _sensorIDBase, _sensors.size());
   for (const auto& sensor : _sensors)
   {
     LOG(VERBOSE, "[S88] Input: %d :: %s", sensor->getIndex(), sensor->isActive() ? "ACTIVE" : "INACTIVE");
-    status += sensor->getStateAsDCCpp();
+    status += sensor->get_state_for_dccpp();
   }
   return status;
 }

@@ -71,7 +71,7 @@ LocomotiveConsist::~LocomotiveConsist()
   }
 }
 
-string LocomotiveConsist::getStateAsDCCpp() {
+string LocomotiveConsist::get_state_for_dccpp() {
   // <U ID LEAD TRAIL [{OTHER}]>
   auto speed = get_speed();
   LOG(INFO, "[Consist %d] speed: %d, direction: %s, decoderAssisted: %s"
@@ -161,7 +161,7 @@ string LocomotiveConsist::updateThrottle(uint16_t locoAddress, int8_t speed, boo
     // the throttle adjustment
     set_speed(req_speed);
   }
-  return getStateAsDCCpp();
+  return get_state_for_dccpp();
 }
 
 void LocomotiveConsist::addLocomotive(uint16_t locoAddress

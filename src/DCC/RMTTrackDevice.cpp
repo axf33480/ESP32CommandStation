@@ -813,9 +813,9 @@ string RMTTrackDevice::generate_status_json()
 ///////////////////////////////////////////////////////////////////////////////
 // Generates a status payload for the DCCppProtocol interface.
 ///////////////////////////////////////////////////////////////////////////////
-string RMTTrackDevice::getStateAsDCCpp()
+string RMTTrackDevice::get_state_for_dccpp()
 {
-  return opsHBridge_->getStateAsDCCpp() + progHBridge_->getStateAsDCCpp();
+  return opsHBridge_->get_state_for_dccpp() + progHBridge_->get_state_for_dccpp();
 }
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -155,7 +155,7 @@ string RemoteSensorManager::getStateAsJson()
   return output;
 }
 
-string RemoteSensorManager::getStateAsDCCpp()
+string RemoteSensorManager::get_state_for_dccpp()
 {
   if (remoteSensors.isEmpty())
   {
@@ -164,7 +164,7 @@ string RemoteSensorManager::getStateAsDCCpp()
   string status;
   for (const auto& sensor : remoteSensors)
   {
-    status += sensor->getStateAsDCCpp();
+    status += sensor->get_state_for_dccpp();
   }
   return status;
 }
@@ -186,7 +186,7 @@ void RemoteSensor::check()
   }
 }
 
-string RemoteSensor::getStateAsDCCpp()
+string RemoteSensor::get_state_for_dccpp()
 {
   return StringPrintf("<RS %d %d>", getRawID(), _value);
 }

@@ -175,13 +175,13 @@ DCC_PROTOCOL_COMMAND_HANDLER(StatusCommand,
                 , ESP32CS_VERSION
                 , __DATE__
                 , __TIME__);
-  status += trackSignal->getStateAsDCCpp();
-  status += wifiInterface.getStateAsDCCpp();
+  status += trackSignal->get_state_for_dccpp();
+  status += wifiInterface.get_state_for_dccpp();
   // TODO: reimplement this with train list for this connection
-  status += locoManager->getStateAsDCCpp();
-  status += turnoutManager->getStateAsDCCpp();
+  status += locoManager->get_state_for_dccpp();
+  status += turnoutManager->get_state_for_dccpp();
 #if ENABLE_OUTPUTS
-  status += OutputManager::getStateAsDCCpp();
+  status += OutputManager::get_state_for_dccpp();
 #endif
   return status;
 })
@@ -209,7 +209,7 @@ DECLARE_DCC_PROTOCOL_COMMAND_CLASS(CurrentDrawCommand, "c")
 DCC_PROTOCOL_COMMAND_HANDLER(CurrentDrawCommand,
 [](const vector<string> arguments)
 {
-  return trackSignal->getStateAsDCCpp();
+  return trackSignal->get_state_for_dccpp();
 })
 
 DECLARE_DCC_PROTOCOL_COMMAND_CLASS(PowerOnCommand, "1")
@@ -217,7 +217,7 @@ DCC_PROTOCOL_COMMAND_HANDLER(PowerOnCommand,
 [](const vector<string> arguments)
 {
   trackSignal->enable_ops_output();
-  return trackSignal->getStateAsDCCpp();
+  return trackSignal->get_state_for_dccpp();
 })
 
 DECLARE_DCC_PROTOCOL_COMMAND_CLASS(PowerOffCommand, "0")
@@ -225,7 +225,7 @@ DCC_PROTOCOL_COMMAND_HANDLER(PowerOffCommand,
 [](const vector<string> arguments)
 {
   trackSignal->disable_ops_output();
-  return trackSignal->getStateAsDCCpp();
+  return trackSignal->get_state_for_dccpp();
 })
 
 // <t {REGISTER} {LOCO} {SPEED} {DIRECTION}> command handler, this command
@@ -378,7 +378,7 @@ DCC_PROTOCOL_COMMAND_HANDLER(TurnoutCommandAdapter,
   if (arguments.empty())
   {
     // list all turnouts
-    return turnoutManager->getStateAsDCCpp();
+    return turnoutManager->get_state_for_dccpp();
   }
   else
   {
@@ -496,7 +496,7 @@ DCC_PROTOCOL_COMMAND_HANDLER(SensorCommandAdapter,
     string status;
     for (const auto& sensor : sensors)
     {
-      status += sensor->getStateAsDCCpp();
+      status += sensor->get_state_for_dccpp();
     }
     return status;
   }
@@ -526,7 +526,7 @@ DCC_PROTOCOL_COMMAND_HANDLER(RemoteSensorsCommandAdapter,
   if(arguments.empty())
   {
     // list all sensors
-    return RemoteSensorManager::getStateAsDCCpp();
+    return RemoteSensorManager::get_state_for_dccpp();
   }
   else
   {
@@ -556,7 +556,7 @@ DCC_PROTOCOL_COMMAND_HANDLER(S88BusCommandAdapter,
     // list all sensor groups
     for (const auto& sensorBus : s88SensorBus)
     {
-      status += sensorBus->getStateAsDCCpp();
+      status += sensorBus->get_state_for_dccpp();
     }
     return status;
   }

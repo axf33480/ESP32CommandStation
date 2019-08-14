@@ -44,7 +44,7 @@ public:
     return _lastUpdate;
   }
   virtual void check();
-  std::string getStateAsDCCpp() override;
+  std::string get_state_for_dccpp() override;
   virtual std::string toJson(bool=false) override;
 private:
   uint16_t _rawID;
@@ -59,7 +59,7 @@ public:
   static void createOrUpdate(const uint16_t, const uint16_t=0);
   static bool remove(const uint16_t);
   static std::string getStateAsJson();
-  static std::string getStateAsDCCpp();
+  static std::string get_state_for_dccpp();
 };
 
 #endif // REMOTE_SENSORS_H_

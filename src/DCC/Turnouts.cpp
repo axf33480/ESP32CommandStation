@@ -84,7 +84,7 @@ string TurnoutManager::setByID(uint16_t id, bool thrown, bool sendDCC)
     if (turnout->getID() == id)
     {
       turnout->set(thrown, sendDCC);
-      return turnout->getStateAsDCCpp();
+      return turnout->get_state_for_dccpp();
     }
   }
   return COMMAND_FAILED_RESPONSE;
@@ -98,7 +98,7 @@ std::string TurnoutManager::setByAddress(uint16_t address, bool thrown, bool sen
     if (turnout->getAddress() == address)
     {
       turnout->set(thrown, sendDCC);
-      return turnout->getStateAsDCCpp();
+      return turnout->get_state_for_dccpp();
     }
   }
 
@@ -115,7 +115,7 @@ std::string TurnoutManager::toggleByID(uint16_t id)
     if (turnout->getID() == id)
     {
       turnout->toggle();
-      return turnout->getStateAsDCCpp();
+      return turnout->get_state_for_dccpp();
     }
   }
   return COMMAND_FAILED_RESPONSE;
@@ -133,7 +133,7 @@ std::string TurnoutManager::toggleByAddress(uint16_t address)
   if (elem != turnouts_.end())
   {
     elem->get()->toggle();
-    return elem->get()->getStateAsDCCpp();
+    return elem->get()->get_state_for_dccpp();
   }
 
   // we didn't find it, create it and throw it
@@ -152,13 +152,13 @@ string TurnoutManager::getStateAsJson(bool readableStrings)
   return root.dump();
 }
 
-string TurnoutManager::getStateAsDCCpp()
+string TurnoutManager::get_state_for_dccpp()
 {
   AtomicHolder h(this);
   string status;
   for (auto& turnout : turnouts_)
   {
-    status += turnout->getStateAsDCCpp();
+    status += turnout->get_state_for_dccpp();
   }
   return status;
 }
@@ -429,7 +429,7 @@ void Turnout::set(bool thrown, bool sendDCCPacket)
     , _thrown ? JSON_VALUE_THROWN : JSON_VALUE_CLOSED);
 }
 
-string Turnout::getStateAsDCCpp()
+string Turnout::get_state_for_dccpp()
 {
   return StringPrintf("<H %d %d %d %d>", _turnoutID, _address, _index, _thrown);
 }

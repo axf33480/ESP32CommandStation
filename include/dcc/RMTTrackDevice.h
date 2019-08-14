@@ -97,7 +97,7 @@ public:
   std::string generate_status_json();
 
   // retrive status of the track signal and current usage.
-  std::string getStateAsDCCpp();
+  std::string get_state_for_dccpp();
 
   // retrieve the data to display on the InfoScreen.
   std::string get_info_screen_data();

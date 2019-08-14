@@ -97,7 +97,7 @@ public:
 
   std::string getInfoScreenData();
 
-  std::string getStateAsDCCpp();
+  std::string get_state_for_dccpp();
 
   void disable();
 

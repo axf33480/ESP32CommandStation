@@ -132,7 +132,7 @@ void WiFiInterface::init()
   });
 }
 
-string WiFiInterface::getStateAsDCCpp()
+string WiFiInterface::get_state_for_dccpp()
 {
   return StringPrintf("<N1: " IPSTR " >", IP2STR(&ip_.ip));
 }

@@ -48,7 +48,7 @@ public:
   {
     return _active;
   }
-  std::string getStateAsDCCpp()
+  std::string get_state_for_dccpp()
   {
     return StringPrintf("<Y %d %d>", _id, !_active);
   }
@@ -98,7 +98,7 @@ class OutputManager
     static Output *getOutput(uint16_t);
     static bool toggle(uint16_t);
     static std::string getStateAsJson();
-    static std::string getStateAsDCCpp();
+    static std::string get_state_for_dccpp();
     static bool createOrUpdate(const uint16_t, const uint8_t, const uint8_t);
     static bool remove(const uint16_t);
 };

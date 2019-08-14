@@ -269,7 +269,7 @@ void Sensor::check()
   set(digitalRead(_pin) == 1);
 }
 
-string Sensor::getStateAsDCCpp()
+string Sensor::get_state_for_dccpp()
 {
   return StringPrintf("<Q %d %d %d>", _sensorID, _pin, _pullUp);
 }

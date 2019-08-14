@@ -47,7 +47,7 @@ public:
     return _lastState;
   }
   virtual void check();
-  virtual std::string getStateAsDCCpp();
+  virtual std::string get_state_for_dccpp();
 protected:
   virtual std::string set(bool);
   void setID(uint16_t id)

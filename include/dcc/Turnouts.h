@@ -43,7 +43,7 @@ public:
   void update(uint16_t, int8_t, TurnoutType);
   void set(bool=false, bool=true);
   std::string toJson(bool=false);
-  std::string getStateAsDCCpp();
+  std::string get_state_for_dccpp();
   uint16_t getID()
   {
     return _turnoutID;
@@ -97,7 +97,7 @@ public:
   std::string toggleByID(uint16_t);
   std::string toggleByAddress(uint16_t);
   std::string getStateAsJson(bool=true);
-  std::string getStateAsDCCpp();
+  std::string get_state_for_dccpp();
   Turnout *createOrUpdate(const uint16_t, const uint16_t, const int8_t, const TurnoutType=TurnoutType::LEFT);
   bool removeByID(const uint16_t);
   bool removeByAddress(const uint16_t);

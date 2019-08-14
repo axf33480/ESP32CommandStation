@@ -24,7 +24,7 @@ public:
   WiFiInterface();
   void init();
   void showConfiguration();
-  std::string getStateAsDCCpp();
+  std::string get_state_for_dccpp();
   void setIP(tcpip_adapter_ip_info_t ip)
   {
     ip_.ip = ip.ip;

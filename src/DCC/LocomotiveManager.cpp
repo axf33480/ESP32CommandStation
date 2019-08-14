@@ -50,7 +50,7 @@ string LocomotiveManager::processThrottle(const vector<string> arguments)
     speed.set_direction(dcc::SpeedType::REVERSE);
   }
   instance->set_speed(speed);
-  return instance->getStateAsDCCpp();
+  return instance->get_state_for_dccpp();
 }
 
 string LocomotiveManager::processThrottleEx(const vector<string> arguments)
@@ -70,7 +70,7 @@ string LocomotiveManager::processThrottleEx(const vector<string> arguments)
     upd_speed.set_direction(req_dir ? dcc::SpeedType::FORWARD : dcc::SpeedType::REVERSE);
   }
   instance->set_speed(upd_speed);
-  return instance->getStateAsDCCpp();
+  return instance->get_state_for_dccpp();
 }
 
 // This method decodes the incoming function packet(s) to update the stored
@@ -157,25 +157,25 @@ string LocomotiveManager::processConsistThrottle(const vector<string> arguments)
   return COMMAND_FAILED_RESPONSE;
 }
 
-string LocomotiveManager::getStateAsDCCpp()
+string LocomotiveManager::get_state_for_dccpp()
 {
   AtomicHolder h(this);
   string status;
   for (const auto& loco : locos_)
   {
-    status += loco->getStateAsDCCpp();
+    status += loco->get_state_for_dccpp();
   }
-  status += getConsistStateAsDCCpp();
+  status += get_consist_state_for_dccpp();
   return status;
 }
 
-string LocomotiveManager::getConsistStateAsDCCpp()
+string LocomotiveManager::get_consist_state_for_dccpp()
 {
   AtomicHolder h(this);
   string status;
   for (const auto& consist : consists_)
   {
-    status += consist->getStateAsDCCpp();
+    status += consist->get_state_for_dccpp();
   }
   return status;
 }

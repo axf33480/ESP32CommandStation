@@ -52,7 +52,7 @@ public:
   void set_speed(dcc::SpeedType speed) override
   {
     dcc::Dcc128Train::set_speed(speed);
-    getStateAsDCCpp();
+    get_state_for_dccpp();
   }
 
   void set_fn(uint32_t address, uint16_t value) override
@@ -72,7 +72,7 @@ public:
     return _orientation;
   }
 
-  std::string getStateAsDCCpp();
+  std::string get_state_for_dccpp();
   std::string toJson(bool=true);
   static Locomotive *fromJson(std::string &, openlcb::TrainService *);
 private:
@@ -91,7 +91,7 @@ public:
   {
   }
   virtual ~LocomotiveConsist();
-  std::string getStateAsDCCpp();
+  std::string get_state_for_dccpp();
   bool isAddressInConsist(uint16_t);
   std::string updateThrottle(uint16_t, int8_t, bool);
   void addLocomotive(uint16_t, bool, uint8_t);
@@ -184,8 +184,8 @@ public:
   std::string processFunction(const std::vector<std::string>);
   std::string processFunctionEx(const std::vector<std::string>);
   std::string processConsistThrottle(const std::vector<std::string>);
-  std::string getStateAsDCCpp();
-  std::string getConsistStateAsDCCpp();
+  std::string get_state_for_dccpp();
+  std::string get_consist_state_for_dccpp();
   uint8_t getActiveLocoCount()
   {
     AtomicHolder h(this);
