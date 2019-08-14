@@ -28,14 +28,19 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #define MAX_LOCOMOTIVE_FUNCTION_PACKETS 5
 
 class Locomotive : public dcc::Dcc128Train
-                 , public openlcb::TrainNodeForProxy
+                 , public openlcb::TrainNode
 {
 public:
   Locomotive(uint16_t, openlcb::TrainService *);
 
   virtual ~Locomotive()
   {
-    service_->unregister_train(this);
+    Locomotive *loco = this;
+    TrainService *service = service_;
+    service_->iface()->executor()->add(new CallbackExecutable([loco, service]()
+    {
+      service->unregister_train(loco);
+    }));
     LOG(INFO, "[Loco %d] Deleted", legacy_address());
   }
 
@@ -72,12 +77,24 @@ public:
     return _orientation;
   }
 
+  NodeID node_id() override
+  {
+    return TractionDefs::train_node_id_from_legacy(legacy_address_type()
+                                                 , legacy_address());
+  }
+
+  void register_train()
+  {
+    _service->register_train(this);
+  }
+
   std::string get_state_for_dccpp();
   std::string toJson(bool=true);
   static Locomotive *fromJson(std::string &, openlcb::TrainService *);
 private:
   int8_t _registerNumber{-1};
   bool _orientation{true};
+  TrainService *_service;
 };
 
 class LocomotiveConsist : public Locomotive

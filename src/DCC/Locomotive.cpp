@@ -23,9 +23,15 @@ static int8_t LOCO_REGISTER_ID = 1;
 
 Locomotive::Locomotive(uint16_t address, TrainService *trainService)
   : Dcc128Train(DccLongAddress(address))
-  , TrainNodeForProxy(trainService, this)
+  , TrainNode(trainService, this)
   , _registerNumber(LOCO_REGISTER_ID++)
+  , _service(trainService)
 {
+  Locomotive *loco = this;
+  trainService->iface()->executor()->add(new CallbackExecutable([loco]()
+  {
+    loco->register_train();
+  }));
   LOG(INFO, "[Loco %d] Created", address);
 }
 
@@ -33,8 +39,12 @@ string Locomotive::get_state_for_dccpp()
 {
   dcc::SpeedType speed(get_speed());
   LOG(INFO, "[Loco %d] speed: %d, direction: %s",
-    legacy_address(), (speed.get_dcc_128() & 0x7F), speed.direction() ? JSON_VALUE_REVERSE : JSON_VALUE_FORWARD);
-  return StringPrintf("<T %d %d %d>", _registerNumber, speed.get_dcc_128(), speed.direction());
+    legacy_address(), (speed.get_dcc_128() & 0x7F),
+    speed.direction() == dcc::SpeedType::FORWARD ? JSON_VALUE_FORWARD :
+                                                   JSON_VALUE_REVERSE);
+  return StringPrintf("<T %d %d %d>", _registerNumber
+                    , (speed.get_dcc_128() & 0x7F)
+                    , speed.direction() == dcc::SpeedType::FORWARD);
 }
 
 string Locomotive::toJson(bool includeFunctions)
@@ -64,7 +74,7 @@ Locomotive *Locomotive::fromJson(string &content, TrainService *trainService)
   Locomotive *loco = new Locomotive(object[JSON_ADDRESS_NODE].get<uint16_t>(), trainService);
   dcc::SpeedType speed(0);
   speed.set_dcc_128(object[JSON_SPEED_NODE].get<uint8_t>());
-  speed.set_direction(object[JSON_DIRECTION_NODE] == JSON_VALUE_FORWARD);
+  speed.set_direction(object[JSON_DIRECTION_NODE] != JSON_VALUE_FORWARD);
   loco->set_speed(speed);
   loco->setOrientationForward(object[JSON_ORIENTATION_NODE] == JSON_VALUE_FORWARD);
   if (!object[JSON_FUNCTIONS_NODE].is_null())
