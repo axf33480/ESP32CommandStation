@@ -96,6 +96,12 @@ public:
   // generates a json payload for the current hbridge status.
   std::string generate_status_json();
 
+  // retrive status of the track signal and current usage.
+  std::string getStateAsDCCpp();
+
+  // retrieve the data to display on the InfoScreen.
+  std::string get_info_screen_data();
+
   // BitEventInterface method to return current track output status.
   openlcb::EventState get_current_state() override
   {
@@ -127,10 +133,6 @@ public:
     return opsSignalActive_ || progSignalActive_;
   }
 
-  // retrive status of the track signal and current usage.
-  std::string getStateAsDCCpp();
-
-  std::string get_info_screen_data();
 
 private:
   // maximum number of RMT memory blocks (256 bytes each, 4 bytes per data bit)
@@ -177,7 +179,6 @@ private:
   rmt_item32_t opsEncodedPacket_[MAX_DCC_PACKET_BITS];
   uint32_t opsEncodedLength_{0};
   int8_t opsPacketRepeatCount_{0};
-  uintptr_t opsPacketFeedbackKey_{0};
   bool opsSignalActive_{false};
   std::unique_ptr<MonitoredHBridge> opsHBridge_;
 
@@ -202,18 +203,19 @@ private:
   Buffer<dcc::RailcomHubData> *railComFeedback_{nullptr};
   std::function<void(void)> railcomReader_{nullptr};
   bool railcomEnabled_{false};
+  uintptr_t railcomFeedbackKey_{0};
 
-  dcc::Packet idlePacket_{dcc::Packet::DCC_IDLE()};
-  Atomic packetQueueLock_;
-  uint32_t packetQueueOverrunCount_{0};
+  Atomic opsPacketQueueLock_;
+  Atomic progPacketQueueLock_;
   bool devOpened_{false};
   bool infoDataFirst_{false};
 
   void initRMTDevice(const char *, rmt_channel_t, gpio_num_t, uint8_t);
   void encode_next_ops_packet();
   void encode_next_prog_packet();
-  void send_last_railcom_response_buffer(bool=false);
-  void get_next_railcom_response_buffer(uintptr_t);
+  void send_railcom_response_buffer(bool=false);
+  void alloc_railcom_response_buffer(uintptr_t);
+  void noop_alloc_railcom_response_buffer(uintptr_t key) {}
   void read_railcom_response();
   void read_railcom_response_noop();
 
