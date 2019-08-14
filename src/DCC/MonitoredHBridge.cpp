@@ -244,8 +244,11 @@ StateFlowBase::Action MonitoredHBridge::check()
       else if (requestedState_ == STATE_ON)
       {
         state_ = STATE_ON;
-        initialState = STATE_OFF;
-        // fall through to check for status etc immediately.
+        LOG(INFO, "[%s] Enabling track output", name_.c_str());
+        Singleton<StatusLED>::instance()->setStatusLED(
+          (StatusLED::LED)targetLED_, StatusLED::COLOR::GREEN);
+        ESP_ERROR_CHECK(gpio_set_level(enablePin_, 1));
+        return call_immediately(STATE(sleep_and_check_state));
       }
     }
     else if (state_ == STATE_OFF)
