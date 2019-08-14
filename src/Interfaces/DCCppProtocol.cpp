@@ -217,7 +217,9 @@ DCC_PROTOCOL_COMMAND_HANDLER(PowerOnCommand,
 [](const vector<string> arguments)
 {
   trackSignal->enable_ops_output();
-  return trackSignal->get_state_for_dccpp();
+  // hardcoded response since enable/disable is deferred until the next
+  // check interval.
+  return "<p1 OPS>";
 })
 
 DECLARE_DCC_PROTOCOL_COMMAND_CLASS(PowerOffCommand, "0")
@@ -225,7 +227,9 @@ DCC_PROTOCOL_COMMAND_HANDLER(PowerOffCommand,
 [](const vector<string> arguments)
 {
   trackSignal->disable_ops_output();
-  return trackSignal->get_state_for_dccpp();
+  // hardcoded response since enable/disable is deferred until the next
+  // check interval.
+  return "<p0 OPS>";
 })
 
 // <t {REGISTER} {LOCO} {SPEED} {DIRECTION}> command handler, this command
