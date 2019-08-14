@@ -129,7 +129,7 @@ string MonitoredHBridge::getInfoScreenData()
   return StringPrintf("%s:Off", name_.c_str());
 }
 
-std::string MonitoredHBridge::get_state_for_dccpp()
+string MonitoredHBridge::get_state_for_dccpp()
 {
   if (state_ == STATE_ON)
   {
