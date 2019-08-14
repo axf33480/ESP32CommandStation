@@ -815,7 +815,7 @@ string RMTTrackDevice::generate_status_json()
 ///////////////////////////////////////////////////////////////////////////////
 string RMTTrackDevice::get_state_for_dccpp()
 {
-  return opsHBridge_->get_state_for_dccpp() + progHBridge_->get_state_for_dccpp();
+  return opsHBridge_->get_state_for_dccpp();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
