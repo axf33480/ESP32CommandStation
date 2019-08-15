@@ -95,12 +95,26 @@ public:
     /// Locks the specific critical section.
     void lock()
     {
-        portENTER_CRITICAL(&mux);
+        if (xPortInIsrContext())
+        {
+            portENTER_CRITICAL_ISR(&mux);
+        }
+        else
+        {
+            portENTER_CRITICAL(&mux);
+        }
     }
     /// Unlocks the specific critical section.
     void unlock()
     {
-        portEXIT_CRITICAL(&mux);
+        if (xPortInIsrContext())
+        {
+            portEXIT_CRITICAL_ISR(&mux);
+        }
+        else
+        {
+            portEXIT_CRITICAL(&mux);
+        }
     }
 
 private:
