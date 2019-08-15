@@ -138,6 +138,7 @@ using openlcb::MemoryConfigDefs;
 using openlcb::MemoryConfigHandler;
 using openlcb::Node;
 using openlcb::NodeID;
+using openlcb::ROFileMemorySpace;
 using openlcb::SimpleCanStack;
 using openlcb::SimpleInfoFlow;
 using openlcb::TractionCvSpace;

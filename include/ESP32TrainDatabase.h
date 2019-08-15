@@ -40,6 +40,9 @@ namespace esp32cs
     bool show_on_limited_throttles;
     DccMode mode;
     std::vector<Symbols> functions;
+    Esp32PersistentTrainData()
+    {
+    }
     Esp32PersistentTrainData(uint16_t address, DccMode mode=DccMode::DCC_128)
     {
       this->address = address;
@@ -142,8 +145,7 @@ namespace esp32cs
       return train_id < knownTrains_.size();
     }
 
-    std::shared_ptr<TrainDbEntry> get_entry(
-      unsigned train_id) override;
+    std::shared_ptr<TrainDbEntry> get_entry(unsigned train_id) override;
 
     std::shared_ptr<TrainDbEntry> find_entry(
       openlcb::NodeID traction_node_id, unsigned hint = 0) override;
@@ -164,7 +166,9 @@ namespace esp32cs
     }
 
   private:
-    OSMutex lock_;
+    bool dirty_{false};
+    bool legacyEntriesFound_{false};
+    OSMutex knownTrainsLock_;
     std::set<shared_ptr<Esp32TrainDbEntry>> knownTrains_;
     std::unique_ptr<openlcb::MemorySpace> trainCdiFile_;
     std::unique_ptr<openlcb::MemorySpace> tempTrainCdiFile_;

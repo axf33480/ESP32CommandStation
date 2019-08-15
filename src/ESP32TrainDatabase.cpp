@@ -20,8 +20,58 @@ COPYRIGHT (c) 2019 Mike Dunston
 
 #include "TrainDbCdi.hxx"
 
+namespace commandstation
+{
+// JSON serialization mappings for the commandstation::DccMode enum
+NLOHMANN_JSON_SERIALIZE_ENUM(DccMode,
+{
+  { DCCMODE_DEFAULT,     "DCC" },
+  { DCCMODE_OLCBUSER,    "DCC-OlcbUser" },
+  { MARKLIN_DEFAULT,     "Marklin" },
+  { MARKLIN_OLD,         "Marklin (v1)" },
+  { MARKLIN_NEW,         "Marklin (v2, f0-f4)" },
+  { MARKLIN_TWOADDR,     "Marklin (v2, f0-f8)" },
+  { MFX,                 "Marklin (MFX)" },
+  { DCC_DEFAULT,         "DCC"},
+  { DCC_14,              "DCC (14 speed step)"},
+  { DCC_28,              "DCC (28 speed step)"},
+  { DCC_128,             "DCC (128 speed step)"},
+  { DCC_14_LONG_ADDRESS, "DCC (14 speed step, long address)"},
+  { DCC_28_LONG_ADDRESS, "DCC (28 speed step, long address)"},
+  { DCC_128_LONG_ADDRESS,"DCC (128 speed step, long address)"},
+});
+
+// JSON serialization mappings for the commandstation::Symbols enum
+NLOHMANN_JSON_SERIALIZE_ENUM(Symbols,
+{
+  { FN_NONEXISTANT,   "N/A" },
+  { LIGHT,            "Light" },
+  { BEAMER,           "Beamer" },
+  { BELL,             "Bell" },
+  { HORN,             "Horn" },
+  { SHUNT,            "Shunting mode" },
+  { PANTO,            "Pantograph" },
+  { SMOKE,            "Smoke" },
+  { ABV,              "Momentum On/Off" },
+  { WHISTLE,          "Whistle" },
+  { SOUND,            "Sound" },
+  { FNT11,            "Generic Function" },
+  { SPEECH,           "Announce" },
+  { ENGINE,           "Engine" },
+  { LIGHT1,           "Light1" },
+  { LIGHT2,           "Light2" },
+  { TELEX,            "Coupler" },
+  { FN_UNKNOWN,       "Unknown" },
+  { MOMENTARY,        "momentary" },
+  { FNP,              "fnp" },
+  { SOUNDP,           "soundp" },
+  { FN_UNINITIALIZED, "uninit" },
+})
+}
+
 namespace esp32cs
 {
+
 using nlohmann::json;
 
 static constexpr const char * const TRAIN_CDI_FILE =
@@ -63,52 +113,6 @@ void create_config_descriptor_xml(const ConfigDef &config
     write_string_to_file(filename, cdi_string);
   }
 }
-
-// JSON serialization mappings for the commandstation::DccMode enum
-NLOHMANN_JSON_SERIALIZE_ENUM(DccMode,
-{
-  { DCCMODE_DEFAULT,     "DCC" },
-  { DCCMODE_OLCBUSER,    "DCC-OlcbUser" },
-  { MARKLIN_DEFAULT,     "Marklin" },
-  { MARKLIN_OLD,         "Marklin (v1)" },
-  { MARKLIN_NEW,         "Marklin (v2, f0-f4)" },
-  { MARKLIN_TWOADDR,     "Marklin (v2, f0-f8)" },
-  { MFX,                 "Marklin (MFX)" },
-  { DCC_DEFAULT,         "DCC"},
-  { DCC_14,              "DCC (14 speed step)"},
-  { DCC_28,              "DCC (28 speed step)"},
-  { DCC_128,             "DCC (128 speed step)"},
-  { DCC_14_LONG_ADDRESS, "DCC (14 speed step, long address)"},
-  { DCC_28_LONG_ADDRESS, "DCC (28 speed step, long address)"},
-  { DCC_128_LONG_ADDRESS,"DCC (128 speed step, long address)"},
-});
-
-// JSON serialization mappings for the commandstation::Symbols enum
-NLOHMANN_JSON_SERIALIZE_ENUM(Symbols,
-{
-  { FN_NONEXISTANT,   "N/A" },
-  { LIGHT,            "Light" },
-  { BEAMER,           "Beamer" },
-  { BELL,             "Bell" },
-  { HORN,             "Horn" },
-  { SHUNT,            "Shunting mode" },
-  { PANTO,            "Pantograph" },
-  { SMOKE,            "Smoke" },
-  { ABV,              "Momentum On/Off" },
-  { WHISTLE,          "Whistle" },
-  { SOUND,            "Sound" },
-  { FNT11,            "Generic Function" },
-  { SPEECH,           "Announce" },
-  { ENGINE,           "Engine" },
-  { LIGHT1,           "Light1" },
-  { LIGHT2,           "Light2" },
-  { TELEX,            "Coupler" },
-  { FN_UNKNOWN,       "Unknown" },
-  { MOMENTARY,        nullptr },
-  { FNP,              nullptr },
-  { SOUNDP,           nullptr },
-  { FN_UNINITIALIZED, nullptr },
-})
 
 // converts a Esp32PersistentTrainData to a json object
 void to_json(json& j, const Esp32PersistentTrainData& t)
@@ -210,20 +214,57 @@ std::find_if(knownTrains_.begin(), knownTrains_.end(),  \
 #define FIND_TRAIN_BY_NODE_ID(node_id) _FIND_TRAIN(get_traction_node, node_id)
 #define IS_VALID_TRAIN_ENTRY(entry) entry != knownTrains_.end()
 
-Esp32TrainDatabase::Esp32TrainDatabase()
+static constexpr const char * TRAIN_DB_JSON_FILE = "trains.json";
+static constexpr const char * LEGACY_ROSTER_JSON_FILE = "roster.json";
+
+Esp32TrainDatabase::Esp32TrainDatabase() : dirty_(false)
 {
   TrainConfigDef trainCfg(0);
   TrainTmpConfigDef tmpTrainCfg(0);
   create_config_descriptor_xml(trainCfg, TRAIN_CDI_FILE);
   create_config_descriptor_xml(tmpTrainCfg, TEMP_TRAIN_CDI_FILE);
-  trainCdiFile_.reset(new openlcb::ROFileMemorySpace(TRAIN_CDI_FILE));
-  tempTrainCdiFile_.reset(new openlcb::ROFileMemorySpace(TEMP_TRAIN_CDI_FILE));
-  knownTrains_.emplace(new Esp32TrainDbEntry(Esp32PersistentTrainData(1234)));
+  trainCdiFile_.reset(new ROFileMemorySpace(TRAIN_CDI_FILE));
+  tempTrainCdiFile_.reset(new ROFileMemorySpace(TEMP_TRAIN_CDI_FILE));
+
+  LOG(INFO, "[TrainDB] Initializing...");
+  if (configStore->exists(TRAIN_DB_JSON_FILE))
+  {
+    json stored_trains = json::parse(configStore->load(TRAIN_DB_JSON_FILE));
+    for (auto &entry : stored_trains)
+    {
+      knownTrains_.emplace(
+        new Esp32TrainDbEntry(entry.get<Esp32PersistentTrainData>()));
+    }
+  }
+
+  if (configStore->exists(LEGACY_ROSTER_JSON_FILE))
+  {
+    LOG(INFO, "[TrainDB] Loading Legacy roster file...");
+    json roster = json::parse(configStore->load(LEGACY_ROSTER_JSON_FILE));
+    for (auto &entry : roster)
+    {
+      Esp32PersistentTrainData data;
+      entry.at(JSON_ADDRESS_NODE).get_to(data.address);
+      entry.at(JSON_DESCRIPTION_NODE).get_to(data.name);
+      string auto_idle = entry[JSON_IDLE_ON_STARTUP_NODE];
+      string limited_throttle = entry[JSON_DEFAULT_ON_THROTTLE_NODE];
+      data.automatic_idle = (auto_idle == JSON_VALUE_TRUE);
+      data.show_on_limited_throttles = (limited_throttle == JSON_VALUE_TRUE);
+      knownTrains_.emplace(new Esp32TrainDbEntry(data));
+    }
+    // when persisting the database the legacy file should be removed.
+    // configStore->remove(LEGACY_ROSTER_JSON_FILE);
+    // persistence is TBD
+    dirty_ = true;
+    legacyEntriesFound_ = true;
+  }
+  LOG(INFO, "[TrainDB] There are %d entries in the database."
+    , knownTrains_.size());
 }
 
 shared_ptr<TrainDbEntry> Esp32TrainDatabase::get_entry(unsigned train_id)
 {
-  OSMutexLock l(&lock_);
+  OSMutexLock l(&knownTrainsLock_);
   auto entry = FIND_TRAIN_BY_ADDRESS(train_id)
   if (IS_VALID_TRAIN_ENTRY(entry))
   {
@@ -235,7 +276,7 @@ shared_ptr<TrainDbEntry> Esp32TrainDatabase::get_entry(unsigned train_id)
 shared_ptr<TrainDbEntry> Esp32TrainDatabase::find_entry(NodeID node_id
                                                       , unsigned hint)
 {
-  OSMutexLock l(&lock_);
+  OSMutexLock l(&knownTrainsLock_);
   auto entry = FIND_TRAIN_BY_NODE_ID(node_id)
   if (IS_VALID_TRAIN_ENTRY(entry))
   {
@@ -249,25 +290,34 @@ unsigned Esp32TrainDatabase::add_dynamic_entry(TrainDbEntry* temp_entry)
   uint16_t address = temp_entry->get_legacy_address();
   DccMode mode = temp_entry->get_legacy_drive_mode();
 
-  // discard the provided entry as we allocate our own custom type
+  // discard the provided entry as we use our own custom type
   delete temp_entry;
 
   {
-    OSMutexLock l(&lock_);
+    OSMutexLock l(&knownTrainsLock_);
     auto entry = FIND_TRAIN_BY_ADDRESS(address)
 
     if (IS_VALID_TRAIN_ENTRY(entry))
     {
-      knownTrains_.emplace(
-        new Esp32TrainDbEntry(Esp32PersistentTrainData(address, mode)));
-      return address;
+      return (*entry)->get_legacy_address();
     }
-    return (*entry)->get_legacy_address();
+
+    // create the new entry
+    knownTrains_.emplace(
+      new Esp32TrainDbEntry(Esp32PersistentTrainData(address, mode)));
+    return address;
   }
 }
 
 string Esp32TrainDatabase::get_train_list_as_json()
 {
+  OSMutexLock l(&knownTrainsLock_);
+  // If we don't have any trains in our db return an empty set to the caller.
+  if (knownTrains_.empty())
+  {
+    return "[]";
+  }
+  // convert our db into a json set and return it to the caller.
   json j;
   for (auto entry : knownTrains_)
   {
@@ -278,6 +328,7 @@ string Esp32TrainDatabase::get_train_list_as_json()
 
 string Esp32TrainDatabase::get_train_as_json(uint16_t address)
 {
+  OSMutexLock l(&knownTrainsLock_);
   auto entry = FIND_TRAIN_BY_ADDRESS(address)
   if (IS_VALID_TRAIN_ENTRY(entry))
   {
