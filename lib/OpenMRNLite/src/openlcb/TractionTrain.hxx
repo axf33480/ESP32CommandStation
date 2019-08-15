@@ -250,9 +250,6 @@ public:
     /// Will initiate a node initialization flow for the train.
     void register_train(TrainNode *node);
 
-    /// Unregisters a train with the train service.
-    void unregister_train(TrainNode *node);
-
 private:
     struct Impl;
     /// Implementation flows.

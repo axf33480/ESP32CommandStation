@@ -35,12 +35,6 @@ public:
 
   virtual ~Locomotive()
   {
-    Locomotive *loco = this;
-    TrainService *service = service_;
-    service_->iface()->executor()->add(new CallbackExecutable([loco, service]()
-    {
-      service->unregister_train(loco);
-    }));
     LOG(INFO, "[Loco %d] Deleted", legacy_address());
   }
 

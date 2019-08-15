@@ -631,16 +631,4 @@ void TrainService::register_train(TrainNode *node)
     LOG(VERBOSE, "Registered node %p for traction.", node);
 }
 
-void TrainService::unregister_train(TrainNode *node)
-{
-    iface_->executor()->assert_current();
-    iface_->delete_local_node(node);
-    AtomicHolder h(this);
-    if (nodes_.count(node))
-    {
-        nodes_.erase(node);
-        LOG(VERBOSE, "Unregistered node %p for traction.", node);
-    }
-}
-
 } // namespace openlcb
