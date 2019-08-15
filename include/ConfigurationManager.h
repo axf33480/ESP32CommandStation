@@ -62,6 +62,8 @@ private:
   bool validateLCCConfig();
   void parseWiFiConfig();
 
+  int configFd_{-1};
+
   std::string wifiSSID_{SSID_NAME};
   std::string wifiPassword_{SSID_PASSWORD};
   wifi_mode_t wifiMode_{WIFI_MODE_STA};
