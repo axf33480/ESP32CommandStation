@@ -322,8 +322,17 @@ public:
      */
     void add_from_isr(Executable *msg, unsigned priority = UINT_MAX) override
     {
+#ifdef ESP32
+        // On the ESP32 we need to call insert instead of insert_locked to
+        // ensure that all code paths lock the queue for consistency  since
+        // this code path is not guaranteed to be protected by a critical
+        // section.
+        queue_.insert(
+            msg, priority >= NUM_PRIO ? NUM_PRIO - 1 : priority);
+#else
         queue_.insert_locked(
             msg, priority >= NUM_PRIO ? NUM_PRIO - 1 : priority);
+#endif // ESP32
         selectHelper_.wakeup_from_isr();
     }
 #endif // OPENMRN_FEATURE_RTOS_FROM_ISR
