@@ -947,8 +947,11 @@ void RMTTrackDevice::send_railcom_response_buffer(bool need_more)
 void RMTTrackDevice::alloc_railcom_response_buffer(uintptr_t key)
 {
   railComFeedback_ = railComHub_->alloc();
-  railComFeedback_->data()->reset(key);
-  railcomFeedbackKey_ = key;
+  if (railComFeedback_)
+  {
+    railComFeedback_->data()->reset(key);
+    railcomFeedbackKey_ = key;
+  }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
