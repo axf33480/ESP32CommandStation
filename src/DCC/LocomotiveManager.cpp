@@ -419,40 +419,59 @@ vector<RosterEntry *> LocomotiveManager::getDefaultLocos(const int8_t maxCount)
 std::string LocomotiveManager::getDefaultLocosAsJson()
 {
   AtomicHolder h(this);
-  json root;
+  string response = "[";
   for (const auto& entry : roster_)
   {
     if(entry->isDefaultOnThrottles())
     {
-      root.push_back(entry->toJson());
+      if (response.length() > 1)
+      {
+        response += ",";
+      }
+      response += entry->toJson();
     }
   }
-  return root.dump();
+  response += "]";
+  return response;
 }
 
 std::string LocomotiveManager::getActiveLocosAsJson()
 {
   AtomicHolder h(this);
-  json root;
+  string response = "[";
   for (const auto& loco : locos_)
   {
-    root.push_back(loco->toJson(false));
+    if (response.length() > 1)
+    {
+      response += ",";
+    }
+    response += loco->toJson(false);
   }
   for (const auto& consist : consists_)
   {
-    root.push_back(consist->toJson(false));
+    if (response.length() > 1)
+    {
+      response += ",";
+    }
+    response += consist->toJson(false);
   }
-  return root.dump();
+  response += "]";
+  return response;
 }
 
 std::string LocomotiveManager::getRosterEntriesAsJson()
 {
   AtomicHolder h(this);
-  json root;
+  string response = "[";
   for (const auto& entry : roster_) {
-    root.push_back(entry->toJson());
+    if (response.length() > 1)
+    {
+      response += ",";
+    }
+    response += entry->toJson();
   }
-  return root.dump();
+  response += "]";
+  return response;
 }
 
 bool LocomotiveManager::isConsistAddress(uint16_t address)
