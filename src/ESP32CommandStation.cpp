@@ -44,7 +44,7 @@ OVERRIDE_CONST(local_nodes_count, 30);
 OVERRIDE_CONST(local_alias_cache_size, 30);
 
 // Uncomment to have all railcom data printed as it is received.
-//OVERRIDE_CONST_TRUE("enable_railcom_packet_dump");
+//OVERRIDE_CONST_TRUE(enable_railcom_packet_dump);
 
 // Uncomment to list task statistics periodically.
 //OVERRIDE_CONST_TRUE(cs_task_list_report);
