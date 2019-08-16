@@ -62,6 +62,7 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #define WS281X_400K 3
 #define SK6812      4
 #define LC6812      5
+#define APA106      6
 
 #if STATUS_LED_TYPE == WS281X
 #define NEO_METHOD NeoEsp32Rmt7Ws2812xMethod
@@ -75,6 +76,9 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #elif STATUS_LED_TYPE == SK6812 || STATUS_LED_TYPE == LC6812
 #define NEO_METHOD NeoEsp32Rmt7Sk6812Method
 #define NEO_METHOD_NAME "RMT(7)-sk6812"
+#elif STATUS_LED_TYPE == APA106
+#define NEO_METHOD NeoEsp32Rmt7Apa106Method
+#define NEO_METHOD_NAME "RMT(7)-APA106"
 #else
 #error "StatusLED: unknown LED type"
 #endif

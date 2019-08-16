@@ -185,7 +185,7 @@ COPYRIGHT (c) 2019 Mike Dunston
 ///////////////////////////////////////////////////////////////////////////////
 
 #ifndef STATUS_LED_ENABLED
-#define STATUS_LED_TYPE WS281X_800K
+#define STATUS_LED_TYPE WS281X
 #define STATUS_LED_COLOR_ORDER RGB
 #define STATUS_LED_ENABLED false
 #endif
