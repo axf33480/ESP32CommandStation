@@ -17,6 +17,8 @@ COPYRIGHT (c) 2019 Mike Dunston
 
 #include "ESP32CommandStation.h"
 
+#include <soc/gpio_struct.h>
+
 ///////////////////////////////////////////////////////////////////////////////
 // H-Bridge type declarations, converts the precompiler constant to a numeric
 // for comparison.
@@ -198,16 +200,27 @@ static constexpr rmt_item32_t MARKLIN_RMT_PREAMBLE_BIT =
 ///////////////////////////////////////////////////////////////////////////////
 static constexpr uint32_t RMT_ISR_FLAGS =
 (
-    ESP_INTR_FLAG_LEVEL2              // ISR is implemented in C code
+    ESP_INTR_FLAG_LOWMED              // ISR is implemented in C code
   | ESP_INTR_FLAG_SHARED              // ISR is shared across multiple handlers
 );
 
 ///////////////////////////////////////////////////////////////////////////////
 // RailCom UART threshold defaults (copied from esp-idf uart.c)
 ///////////////////////////////////////////////////////////////////////////////
-#define UART_EMPTY_THRESH_DEFAULT  (10)
-#define UART_FULL_THRESH_DEFAULT  (120)
-#define UART_TOUT_THRESH_DEFAULT   (10)
+static constexpr uint8_t UART_FULL_THRESH_DEFAULT = 120; // 120 bytes
+static constexpr uint8_t UART_TOUT_THRESH_DEFAULT = 10;  // 10 bit times
+
+///////////////////////////////////////////////////////////////////////////////
+// RailCom UART ISR bitmask to enable/disable RX.
+///////////////////////////////////////////////////////////////////////////////
+static constexpr uint32_t UART_RX_INT_EN_MASK = UART_RXFIFO_FULL_INT_ENA
+                                              | UART_RXFIFO_TOUT_INT_ENA;
+
+///////////////////////////////////////////////////////////////////////////////
+// RailCom UART ISR bitmask to clear the RX of data.
+///////////////////////////////////////////////////////////////////////////////
+static constexpr uint32_t UART_RX_INT_CLR_MASK = UART_RXFIFO_TOUT_INT_CLR_M
+                                               | UART_RXFIFO_FULL_INT_CLR_M;
 
 ///////////////////////////////////////////////////////////////////////////////
 // RailCom UART ISR flags.
@@ -240,7 +253,102 @@ static constexpr DRAM_ATTR uint8_t PACKET_BIT_MASK[] =
 };
 
 ///////////////////////////////////////////////////////////////////////////////
-// ESP VFS ::write() impl for the RMTTrackDevice
+// Inline method for setting the output state of a gpio pin via it's hardware
+// register. gpio_set_level should normally be used instead.
+//
+// Note: This method has minimal error checking and should only be used with
+// previously validated parameters when execution speed is critical.
+///////////////////////////////////////////////////////////////////////////////
+static inline void _set_gpio_state(gpio_num_t pin, bool state)
+{
+  if (state)
+  {
+    if (pin < 32)
+    {
+      GPIO.out_w1ts = (1 << pin);
+    }
+    else if (pin < 40)
+    {
+      GPIO.out1_w1ts.data = (1 << (pin & 31));
+    }
+  }
+  else
+  {
+    if (pin < 32)
+    {
+      GPIO.out_w1tc = (1 << pin);
+    }
+    else if (pin < 40)
+    {
+      GPIO.out1_w1tc.data = (1 << (pin & 31));
+    }
+  }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Inline method to retrieve the current state of a gpio pin from the hardware
+// register. gpio_get_level should normally be used instead.
+//
+// Note: This method has minimal error checking and should only be used with
+// previously validated parameters when execution speed is critical.
+///////////////////////////////////////////////////////////////////////////////
+static inline bool _get_gpio_state(gpio_num_t pin)
+{
+  if (pin < 32)
+  {
+    return (GPIO.in >> pin) & 0x1;
+  }
+  else if (pin < 40)
+  {
+    return (GPIO.in1.data >> (pin & 31)) & 0x1;
+  }
+  return false;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Inline method to retrieve the current byte from the hardware uart fifo
+// register.
+//
+// Note: This has *NO* error checking and should only be used with previously
+// validated parameters when execution speed is critical.
+///////////////////////////////////////////////////////////////////////////////
+static inline uint8_t _uart_read(uart_port_t uart_num)
+{
+  return UART[uart_num]->fifo.rw_byte;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Inline method to check the hardware UART RX FIFO for data.
+//
+// Note: This has *NO* error checking and should only be used with previously
+// validated parameters when execution speed is critical.
+///////////////////////////////////////////////////////////////////////////////
+static inline bool _uart_available(uart_port_t uart_num)
+{
+  return UART[uart_num]->status.rxfifo_cnt != 0 ||
+        (UART[uart_num]->mem_rx_status.wr_addr !=
+         UART[uart_num]->mem_rx_status.rd_addr);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Inline method to clear the UART RX buffer.
+//
+// Note: This has *NO* error checking and should only be used with previously
+// validated parameters when execution speed is critical.
+//
+// Note: Due to a hardware issue we can not reset the fifo directly but instead
+// need to read data from it until the fifo is empty. This is a known rom bug.
+///////////////////////////////////////////////////////////////////////////////
+static inline void _uart_flush(uart_port_t uart_num)
+{
+  while(_uart_available(uart_num))
+  {
+    READ_PERI_REG(UART_FIFO_REG(uart_num));
+  }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// ESP32 VFS ::write() impl for the RMTTrackDevice
 ///////////////////////////////////////////////////////////////////////////////
 static ssize_t rmt_track_write(void* ctx, int fd, const void * data, size_t size)
 {
@@ -248,7 +356,7 @@ static ssize_t rmt_track_write(void* ctx, int fd, const void * data, size_t size
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// ESP VFS ::open() impl for the RMTTrackDevice
+// ESP32 VFS ::open() impl for the RMTTrackDevice
 ///////////////////////////////////////////////////////////////////////////////
 static int rmt_track_open(void* ctx, const char * path, int flags, int mode)
 {
@@ -256,7 +364,7 @@ static int rmt_track_open(void* ctx, const char * path, int flags, int mode)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// ESP VFS ::close() impl for the RMTTrackDevice
+// ESP32 VFS ::close() impl for the RMTTrackDevice
 ///////////////////////////////////////////////////////////////////////////////
 static int rmt_track_close(void* ctx, int fd)
 {
@@ -264,7 +372,7 @@ static int rmt_track_close(void* ctx, int fd)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// ESP VFS ::ioctl() impl for the RMTTrackDevice
+// ESP32 VFS ::ioctl() impl for the RMTTrackDevice
 ///////////////////////////////////////////////////////////////////////////////
 static int rmt_track_ioctl(void* ctx, int fd, int cmd, va_list args)
 {
@@ -466,9 +574,9 @@ RMTTrackDevice::RMTTrackDevice(SimpleCanStack *stack
     ESP_ERROR_CHECK(uart_isr_free(railComUartPort_));
     uart_intr_config_t uart_intr =
     {
-      .intr_enable_mask = 0 // none enabled by default
+      .intr_enable_mask = 0                          // none enabled by default
     , .rx_timeout_thresh = UART_TOUT_THRESH_DEFAULT
-    , .txfifo_empty_intr_thresh = UART_EMPTY_THRESH_DEFAULT
+    , .txfifo_empty_intr_thresh = 0                  // unused
     , .rxfifo_full_thresh = UART_FULL_THRESH_DEFAULT
     };
     ESP_ERROR_CHECK(uart_isr_register(railComUartPort_, railcom_uart_isr, this
@@ -1010,121 +1118,93 @@ void RMTTrackDevice::alloc_railcom_response_buffer(uintptr_t key)
 void RMTTrackDevice::read_railcom_response()
 {
   // Ensure the signal pin is LOW before starting RailCom detection
-  ESP_ERROR_CHECK(gpio_set_level(opsSignalPin_, 0));
+  _set_gpio_state(opsSignalPin_, false);
   ets_delay_us(RAILCOM_PACKET_END_DELAY_USEC);
+
   // Enable the BRAKE pin on the h-bridge to force it into coast mode
-  ESP_ERROR_CHECK(gpio_set_level(railComBrakeEnablePin_, 1));
+  _set_gpio_state(railComBrakeEnablePin_, true);
+
   // Disable the h-bridge output after a short delay to allow the h-bridge to
   // sink remaining current.
   ets_delay_us(RAILCOM_BRAKE_ENABLE_DELAY_USEC);
-  ESP_ERROR_CHECK(gpio_set_level(opsOutputEnablePin_, 0));
+  _set_gpio_state(opsOutputEnablePin_, false);
+
   // enable the UART RX ISR
-  ESP_ERROR_CHECK(uart_enable_rx_intr(railComUartPort_));
+  SET_PERI_REG_MASK(UART_INT_CLR_REG(railComUartPort_), UART_RX_INT_EN_MASK);
+  SET_PERI_REG_MASK(UART_INT_ENA_REG(railComUartPort_), UART_RX_INT_EN_MASK);
+
   // enable the RailCom receiver circuitry
-  ESP_ERROR_CHECK(gpio_set_level(railComEnablePin_, 1));
+  _set_gpio_state(railComEnablePin_, true);
 
-  {
-    AtomicHolder h(&railcomLock_);
-    railcomReaderEnabled_ = true;
-  }
-
-  // allow the RailCom detector to stabilize before we try and read data
+  // Allow the RailCom detector to stabilize before we try and read data. Any
+  // data received during this stabilization period will be discarded.
   ets_delay_us(RAILCOM_ENABLE_TRANSIENT_DELAY_USEC);
 
-  {
-    AtomicHolder h(&railcomLock_);
-    railcomReaderCh1_ = true;
-  }
+  // Tell the RailCom detector that we are ready for channel 1 data
+  railcomReaderCh1_ = true;
 
   // Give the RailCom ISR time to read channel 1
   ets_delay_us(RAILCOM_MAX_READ_DELAY_CH_1);
-  {
-    AtomicHolder h(&railcomLock_);
-    railcomReaderCh1_ = false;
-  }
+  railcomReaderCh1_ = false;
 
-  // Give the RailCom ISR time to flush between channels (may not trigger!)
+  // Tell the RailCom detector that we are ready for channel 2 data
   ets_delay_us(RAILCOM_ENABLE_TRANSIENT_DELAY_USEC);
-  {
-    AtomicHolder h(&railcomLock_);
-    railcomReaderCh2_ = true;
-  }
+  railcomReaderCh2_ = true;
 
   // Give the RailCom ISR time to read channel 2
   ets_delay_us(RAILCOM_MAX_READ_DELAY_CH_2);
-  {
-    AtomicHolder h(&railcomLock_);
-    railcomReaderCh2_ = false;
-    railcomReaderEnabled_ = false;
-  }
+  railcomReaderCh2_ = false;
 
-  // disable the UART RX ISR
-  ESP_ERROR_CHECK(uart_disable_rx_intr(railComUartPort_));
+  // Disable the UART RX ISR
+  CLEAR_PERI_REG_MASK(UART_INT_ENA_REG(railComUartPort_), UART_RX_INT_EN_MASK);
 
-  ESP_ERROR_CHECK(gpio_set_level(railComEnablePin_, 0));
-  if (gpio_get_level(railComShortPin_))
-  {
-    LOG_ERROR("RailCom short detected!!!");
-  }
-  ESP_ERROR_CHECK(gpio_set_level(opsOutputEnablePin_, 1));
+  // Disable the RailCom detector circuitry
+  _set_gpio_state(railComEnablePin_, false);
+  _set_gpio_state(opsOutputEnablePin_, true);
+
   ets_delay_us(RAILCOM_BRAKE_DISABLE_DELAY_USEC);
-  ESP_ERROR_CHECK(gpio_set_level(railComBrakeEnablePin_, 0));
+  _set_gpio_state(railComBrakeEnablePin_, false);
 }
-
-#define UART_READ(uart) \
-  uart->fifo.rw_byte
-
-#define FLUSH_UART(uart) \
-  while (uart->status.rxfifo_cnt) \
-  { \
-    UART_READ(uart); \
-  }
 
 void RMTTrackDevice::railcom_data_received()
 {
-  uint32_t uart_intr_status = UART[railComUartPort_]->int_st.val;
-  while (uart_intr_status & UART_RXFIFO_TOUT_INT_ST_M ||
-         uart_intr_status & UART_RXFIFO_FULL_INT_ST_M)
+  while (_uart_available(railComUartPort_))
   {
-    AtomicHolder h(&railcomLock_);
-    // check if we have data
-    if (UART[railComUartPort_]->status.rxfifo_cnt)
+    if (_get_gpio_state(railComShortPin_))
     {
-      if (!railcomReaderEnabled_ || !railComFeedback_)
+      ets_printf("RailCom Short Detected!!!");
+    }
+    if (!railComFeedback_)
+    {
+      // If railcom is disabled *OR* we don't have a dcc::RailcomHubData
+      // to hold the data flush the UART.
+      _uart_flush(railComUartPort_);
+    }
+    else
+    {
+      dcc::RailcomHubData *data = railComFeedback_->data();
+      if (railcomReaderCh1_)
       {
-        // If railcom is disabled *OR* we don't have a dcc::RailcomHubData
-        // to hold the data flush the UART.
-        FLUSH_UART(UART[railComUartPort_]);
+        // If we are reading channel 1 retrieve a byte of data and add it to
+        // the dcc::Feedback packet.
+        data->add_ch1_data(_uart_read(railComUartPort_));
+      }
+      else if (railcomReaderCh2_)
+      {
+        // If we are reading channel 2 retrieve a byte of data and add it to
+        // the dcc::Feedback packet.
+        data->add_ch2_data(_uart_read(railComUartPort_));
       }
       else
       {
-        dcc::RailcomHubData *data = railComFeedback_->data();
-        if (railcomReaderCh1_ && data->ch1Size < 2)
-        {
-          // If we are reading channel 1 and we have capacity for data store
-          // it in the data buffer.
-          data->add_ch1_data(UART_READ(UART[railComUartPort_]));
-        }
-        else if (railcomReaderCh2_ && data->ch2Size < 6)
-        {
-          // If we are reading channel 2 and we have capacity for data store
-          // it in the data buffer.
-          data->add_ch2_data(UART_READ(UART[railComUartPort_]));
-        }
-        else
-        {
-          // we are either in beween channels or we have reached capacity for
-          // the current channel. Discard the received data.
-          FLUSH_UART(UART[railComUartPort_]);
-        }
+        // we are either in beween channels or we have reached capacity for
+        // the current channel. Discard the received data.
+        _uart_flush(railComUartPort_);
       }
     }
-    // clear the ISR mask
-    uart_clear_intr_status(railComUartPort_,
-                            (UART_RXFIFO_TOUT_INT_CLR_M |
-                            UART_RXFIFO_FULL_INT_CLR_M));
-    uart_intr_status = UART[railComUartPort_]->int_st.val;
   }
+  // clear the ISR mask
+  UART[railComUartPort_]->int_clr.val = UART_RX_INT_CLR_MASK;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -209,8 +209,6 @@ private:
   std::function<void(void)> railcomReader_{nullptr};
   bool railcomEnabled_{false};
   uintptr_t railcomFeedbackKey_{0};
-  Atomic railcomLock_;
-  bool railcomReaderEnabled_{false};
   bool railcomReaderCh1_{false};
   bool railcomReaderCh2_{false};
 
