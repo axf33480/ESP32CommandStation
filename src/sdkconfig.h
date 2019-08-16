@@ -105,7 +105,7 @@
 /* default task stack configuration */
 /* 7kb */
 #define CONFIG_MAIN_TASK_STACK_SIZE 7168
-#define CONFIG_IPC_TASK_STACK_SIZE 1024
+#define CONFIG_IPC_TASK_STACK_SIZE 2048
 /* 2.75kb */
 #define CONFIG_SYSTEM_EVENT_TASK_STACK_SIZE 2816
 
