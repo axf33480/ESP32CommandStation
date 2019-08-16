@@ -82,33 +82,65 @@ namespace esp32cs
   {
   public:
     Esp32TrainDbEntry(Esp32PersistentTrainData);
+
     std::string identifier() override;
+
     openlcb::NodeID get_traction_node() override;
+
     std::string get_train_name() override
     {
-      return props_.name;
+      return data_.name;
     }
+
+    void set_train_name(std::string &name)
+    {
+      data_.name = std::move(name);
+      dirty_ = true;
+    }
+
     int get_legacy_address() override
     {
-      return props_.address;
+      return data_.address;
     }
+
+    void set_legacy_address(int address)
+    {
+      data_.address = address;
+      dirty_ = true;
+    }
+
     DccMode get_legacy_drive_mode() override
     {
-      return props_.mode;
+      return data_.mode;
     }
+
+    void set_legacy_drive_mode(DccMode mode)
+    {
+      data_.mode = mode;
+      dirty_ = true;
+    }
+
     unsigned get_function_label(unsigned fn_id) override;
+
+    void set_function_label(unsigned fn_id, Symbols label);
+
     int get_max_fn() override
     {
       return maxFn_;
     }
+
     void start_read_functions() override { }
+
     Esp32PersistentTrainData get_data()
     {
-      return props_;
+      return data_;
     }
+
   private:
-    Esp32PersistentTrainData props_;
+    void recalcuate_max_fn();
+    Esp32PersistentTrainData data_;
     uint8_t maxFn_;
+    bool dirty_;
   };
 
   class Esp32TrainDatabase : public TrainDb
@@ -166,7 +198,6 @@ namespace esp32cs
     }
 
   private:
-    bool dirty_{false};
     bool legacyEntriesFound_{false};
     OSMutex knownTrainsLock_;
     std::set<shared_ptr<Esp32TrainDbEntry>> knownTrains_;

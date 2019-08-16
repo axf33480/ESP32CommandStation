@@ -80,6 +80,10 @@ static constexpr const char * const TRAIN_CDI_FILE =
 static constexpr const char * const TEMP_TRAIN_CDI_FILE =
   LCC_PERSISTENT_CONFIG_DIR "/tmptrain.xml";
 
+// This should really be defined inside TractionDefs.hxx and used by the call
+// to TractionDefs::train_node_id_from_legacy().
+static constexpr uint64_t const OLCB_NODE_ID_USER = 0x050101010000ULL;
+
 // copied from OpenMRNLite.h as a customized version to avoid adding the passed
 // config object to the stack. We only need to generate the CDI at this point
 // as it will be managed by the AllTrainsNode instead.
@@ -139,15 +143,16 @@ void from_json(const json& j, Esp32PersistentTrainData& t)
 }
 
 Esp32TrainDbEntry::Esp32TrainDbEntry(Esp32PersistentTrainData data)
-  : props_(data), maxFn_(data.functions.size())
+  : data_(data), dirty_(false)
 {
+  recalcuate_max_fn();
   LOG(INFO, "[Loco:%s] max function: %d", identifier().c_str(), maxFn_);
 }
 
 string Esp32TrainDbEntry::identifier()
 {
   dcc::TrainAddressType addrType =
-    dcc_mode_to_address_type(props_.mode, props_.address);
+    dcc_mode_to_address_type(data_.mode, data_.address);
   if (addrType == dcc::TrainAddressType::DCC_SHORT_ADDRESS ||
       addrType == dcc::TrainAddressType::DCC_LONG_ADDRESS)
   {
@@ -156,39 +161,37 @@ string Esp32TrainDbEntry::identifier()
     {
       prefix = "short_address";
     }
-    if ((props_.mode & DCC_SS_MASK) == 1)
+    if ((data_.mode & DCC_SS_MASK) == 1)
     {
-      return StringPrintf("dcc_14/%s/%d", prefix.c_str(), props_.address);
+      return StringPrintf("dcc_14/%s/%d", prefix.c_str(), data_.address);
     }
-    else if ((props_.mode & DCC_SS_MASK) == 2)
+    else if ((data_.mode & DCC_SS_MASK) == 2)
     {
-      return StringPrintf("dcc_28/%s/%d", prefix.c_str(), props_.address);
+      return StringPrintf("dcc_28/%s/%d", prefix.c_str(), data_.address);
     }
     else
     {
-      return StringPrintf("dcc_128/%s/%d", prefix.c_str(), props_.address);
+      return StringPrintf("dcc_128/%s/%d", prefix.c_str(), data_.address);
     }
   }
   else if (addrType == dcc::TrainAddressType::MM)
   {
     // TBD: should marklin types be explored further?
-    return StringPrintf("marklin/%d", props_.address);
+    return StringPrintf("marklin/%d", data_.address);
   }
-  return StringPrintf("unknown/%d", props_.address);
+  return StringPrintf("unknown/%d", data_.address);
 }
 
 NodeID Esp32TrainDbEntry::get_traction_node()
 {
-  if (props_.mode == DCCMODE_OLCBUSER)
+  if (data_.mode == DCCMODE_OLCBUSER)
   {
-    // TODO: move this to a constant in TractionDefs
-    return 0x050101010000ULL | static_cast<NodeID>(props_.address);
+    return OLCB_NODE_ID_USER | static_cast<NodeID>(data_.address);
   }
   else
   {
     return TractionDefs::train_node_id_from_legacy(
-        dcc_mode_to_address_type(props_.mode, props_.address)
-      , props_.address);
+        dcc_mode_to_address_type(data_.mode, data_.address), data_.address);
   }
 }
 
@@ -200,7 +203,34 @@ unsigned Esp32TrainDbEntry::get_function_label(unsigned fn_id)
     return FN_NONEXISTANT;
   }
   // return the mapping for the function
-  return props_.functions[fn_id];
+  return data_.functions[fn_id];
+}
+
+void Esp32TrainDbEntry::set_function_label(unsigned fn_id, Symbols label)
+{
+  data_.functions[fn_id] = label;
+  dirty_ = true;
+  recalcuate_max_fn();
+}
+
+void Esp32TrainDbEntry::recalcuate_max_fn()
+{
+  // recalculate the maxFn_ based on the first occurrence of FN_NONEXISTANT
+  // and if not found default to the size of the functions labels vector.
+  auto e = std::find_if(data_.functions.begin(), data_.functions.end()
+                      , [](const Symbols &e)
+  {
+    return e == FN_NONEXISTANT;
+  });
+
+  if (e != data_.functions.end())
+  {
+    maxFn_ = std::distance(data_.functions.begin(), e);
+  }
+  else
+  {
+    maxFn_ = data_.functions.size();
+  }
 }
 
 #define _FIND_TRAIN(method, value)                      \
@@ -217,7 +247,7 @@ std::find_if(knownTrains_.begin(), knownTrains_.end(),  \
 static constexpr const char * TRAIN_DB_JSON_FILE = "trains.json";
 static constexpr const char * LEGACY_ROSTER_JSON_FILE = "roster.json";
 
-Esp32TrainDatabase::Esp32TrainDatabase() : dirty_(false)
+Esp32TrainDatabase::Esp32TrainDatabase()
 {
   TrainConfigDef trainCfg(0);
   TrainTmpConfigDef tmpTrainCfg(0);
@@ -255,7 +285,6 @@ Esp32TrainDatabase::Esp32TrainDatabase() : dirty_(false)
     // when persisting the database the legacy file should be removed.
     // configStore->remove(LEGACY_ROSTER_JSON_FILE);
     // persistence is TBD
-    dirty_ = true;
     legacyEntriesFound_ = true;
   }
   LOG(INFO, "[TrainDB] There are %d entries in the database."
