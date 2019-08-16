@@ -68,9 +68,11 @@ void WiFiInterface::init()
         wifiInterface.setIP(ip_info);
         Singleton<InfoScreen>::instance()->replaceLine(INFO_SCREEN_IP_ADDR_LINE
 #if (INFO_SCREEN_LCD && INFO_SCREEN_LCD_COLUMNS >= 20) || INFO_SCREEN_OLED
-                              , "IP: "
+                              , "IP: " IPSTR
+#else
+                              , IPSTR
 #endif
-                              , IPSTR, IP2STR(&ip_info.ip)
+                              , IP2STR(&ip_info.ip)
         );
       }
       else
