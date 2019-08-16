@@ -366,4 +366,9 @@ COPYRIGHT (c) 2019 Mike Dunston
          "LCC_CAN_TX_PIN must be unique."
 #endif
 
+#if RAILCOM_UART != 1 && RAILCOM_UART != 2
+  #error "Invalid Configuration detected, RailCom is only supported on " \
+         "UART1 or UART2"
+#endif
+
 #endif // _CONFIG_VALIDATION_H_

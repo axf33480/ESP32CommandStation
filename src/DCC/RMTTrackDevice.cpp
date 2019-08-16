@@ -196,10 +196,39 @@ static constexpr rmt_item32_t MARKLIN_RMT_PREAMBLE_BIT =
 // have a dependency on execution from IRAM and the related software
 // limitations of execution from there.
 ///////////////////////////////////////////////////////////////////////////////
-static constexpr uint32_t RMT_ISR_FLAGS = (
+static constexpr uint32_t RMT_ISR_FLAGS =
+(
     ESP_INTR_FLAG_LEVEL2              // ISR is implemented in C code
   | ESP_INTR_FLAG_SHARED              // ISR is shared across multiple handlers
 );
+
+///////////////////////////////////////////////////////////////////////////////
+// RailCom UART threshold defaults (copied from esp-idf uart.c)
+///////////////////////////////////////////////////////////////////////////////
+#define UART_EMPTY_THRESH_DEFAULT  (10)
+#define UART_FULL_THRESH_DEFAULT  (120)
+#define UART_TOUT_THRESH_DEFAULT   (10)
+
+///////////////////////////////////////////////////////////////////////////////
+// RailCom UART ISR flags.
+//
+// For the RailCom UART the CS does not use the ESP-IDF default UART ISR
+// handler since it is not possible to call uart_read_bytes() from inside the
+// ISR callback for RMT TX complete (which is when the RC code is active).
+// Instead we register our own ISR to capture the data and push it into the
+// waiting dcc::Feedback packet.
+///////////////////////////////////////////////////////////////////////////////
+static constexpr uint32_t RAILCOM_ISR_FLAGS = ESP_INTR_FLAG_LOWMED;
+
+///////////////////////////////////////////////////////////////////////////////
+// UART device handles for direct hardware access.
+//
+// These should only be accessed from inside the ISR context for RailCom.
+///////////////////////////////////////////////////////////////////////////////
+static DRAM_ATTR uart_dev_t* const UART[UART_NUM_MAX] =
+{
+  &UART0, &UART1, &UART2
+};
 
 ///////////////////////////////////////////////////////////////////////////////
 // Bit mask constants used as part of the packet translation layer.
@@ -264,6 +293,12 @@ static void rmt_tx_complete_isr_callback(rmt_channel_t channel, void *ctx)
   {
     track->prog_rmt_transmit_complete();
   }
+}
+
+static void railcom_uart_isr(void *ctx)
+{
+  RMTTrackDevice *track = reinterpret_cast<RMTTrackDevice *>(ctx);
+  track->railcom_data_received();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -396,9 +431,10 @@ RMTTrackDevice::RMTTrackDevice(SimpleCanStack *stack
   if (railComEnablePin_ != NOT_A_PIN)
   {
     LOG(INFO
-    , "Initializing RailCom detector (hb-en:%d,rc-en:%d,br-en:%d,rc:%d,uart:%d)"
-    , opsOutputEnablePin_, railComEnablePin_, railComBrakeEnablePin_
-    , railComReceivePin, railComUartPort_);
+      , "[OPS] Initializing RailCom detector using UART %d on data pin: %d, "
+        "enable pin: %d, h-bridge enable pin:%d, h-bridge brake pin: %d"
+      , railComUartPort_, railComReceivePin, railComEnablePin_
+      , opsOutputEnablePin_, railComBrakeEnablePin_);
     gpio_pad_select_gpio(railComEnablePin_);
     ESP_ERROR_CHECK(gpio_set_direction(railComEnablePin_, GPIO_MODE_OUTPUT));
     ESP_ERROR_CHECK(gpio_pulldown_en(railComEnablePin_));
@@ -425,8 +461,20 @@ RMTTrackDevice::RMTTrackDevice(SimpleCanStack *stack
                         , 0                   // event queue size (disabled)
                         , NULL                // event queue handle (unused)
                         , 0));                // ISR flags (defaults)
-    ESP_ERROR_CHECK(uart_disable_rx_intr(railComUartPort_));
-    ESP_ERROR_CHECK(uart_disable_tx_intr(railComUartPort_));
+
+    // disable the default IDF UART ISR for RailCom port
+    ESP_ERROR_CHECK(uart_isr_free(railComUartPort_));
+    uart_intr_config_t uart_intr =
+    {
+      .intr_enable_mask = 0 // none enabled by default
+    , .rx_timeout_thresh = UART_TOUT_THRESH_DEFAULT
+    , .txfifo_empty_intr_thresh = UART_EMPTY_THRESH_DEFAULT
+    , .rxfifo_full_thresh = UART_FULL_THRESH_DEFAULT
+    };
+    ESP_ERROR_CHECK(uart_isr_register(railComUartPort_, railcom_uart_isr, this
+                                    , RAILCOM_ISR_FLAGS, nullptr));
+    ESP_ERROR_CHECK(uart_intr_config(railComUartPort_, &uart_intr));
+    LOG(INFO, "[OPS] RailCom detector configured");
     railcomReader_ = std::bind(&RMTTrackDevice::read_railcom_response, this);
     railcomEnabled_ = true;
   }
@@ -884,7 +932,6 @@ void RMTTrackDevice::initRMTDevice(const char *name
   };
   ESP_ERROR_CHECK(rmt_config(&opsRMTConfig));
   ESP_ERROR_CHECK(rmt_driver_install(channel, 0, RMT_ISR_FLAGS));
-  rmt_set_rx_intr_en(channel, true);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -962,7 +1009,6 @@ void RMTTrackDevice::alloc_railcom_response_buffer(uintptr_t key)
 ///////////////////////////////////////////////////////////////////////////////
 void RMTTrackDevice::read_railcom_response()
 {
-#if 0
   // Ensure the signal pin is LOW before starting RailCom detection
   ESP_ERROR_CHECK(gpio_set_level(opsSignalPin_, 0));
   ets_delay_us(RAILCOM_PACKET_END_DELAY_USEC);
@@ -972,29 +1018,48 @@ void RMTTrackDevice::read_railcom_response()
   // sink remaining current.
   ets_delay_us(RAILCOM_BRAKE_ENABLE_DELAY_USEC);
   ESP_ERROR_CHECK(gpio_set_level(opsOutputEnablePin_, 0));
-  // flush the uart buffers
-  ESP_ERROR_CHECK(uart_flush_input(railComUartPort_));
+  // enable the UART RX ISR
+  ESP_ERROR_CHECK(uart_enable_rx_intr(railComUartPort_));
   // enable the RailCom receiver circuitry
   ESP_ERROR_CHECK(gpio_set_level(railComEnablePin_, 1));
+
+  {
+    AtomicHolder h(&railcomLock_);
+    railcomReaderEnabled_ = true;
+  }
 
   // allow the RailCom detector to stabilize before we try and read data
   ets_delay_us(RAILCOM_ENABLE_TRANSIENT_DELAY_USEC);
 
-  uint8_t buf[8];
-  uint8_t buf_idx = 0;
-  int buf_used = uart_read_bytes(railComUartPort_, buf, 2, RAILCOM_MAX_READ_DELAY_CH_1);
-  while (--buf_used >= 0)
   {
-    railComFeedback_->data()->add_ch1_data(buf[buf_idx++]);
+    AtomicHolder h(&railcomLock_);
+    railcomReaderCh1_ = true;
   }
-  // flush the uart buffers
-  ESP_ERROR_CHECK(uart_flush_input(railComUartPort_));
-  buf_used = uart_read_bytes(railComUartPort_, buf, 6, RAILCOM_MAX_READ_DELAY_CH_2);
-  buf_idx = 0;
-  while (--buf_used >= 0)
+
+  // Give the RailCom ISR time to read channel 1
+  ets_delay_us(RAILCOM_MAX_READ_DELAY_CH_1);
   {
-    railComFeedback_->data()->add_ch2_data(buf[buf_idx++]);
+    AtomicHolder h(&railcomLock_);
+    railcomReaderCh1_ = false;
   }
+
+  // Give the RailCom ISR time to flush between channels (may not trigger!)
+  ets_delay_us(RAILCOM_ENABLE_TRANSIENT_DELAY_USEC);
+  {
+    AtomicHolder h(&railcomLock_);
+    railcomReaderCh2_ = true;
+  }
+
+  // Give the RailCom ISR time to read channel 2
+  ets_delay_us(RAILCOM_MAX_READ_DELAY_CH_2);
+  {
+    AtomicHolder h(&railcomLock_);
+    railcomReaderCh2_ = false;
+    railcomReaderEnabled_ = false;
+  }
+
+  // disable the UART RX ISR
+  ESP_ERROR_CHECK(uart_disable_rx_intr(railComUartPort_));
 
   ESP_ERROR_CHECK(gpio_set_level(railComEnablePin_, 0));
   if (gpio_get_level(railComShortPin_))
@@ -1004,7 +1069,62 @@ void RMTTrackDevice::read_railcom_response()
   ESP_ERROR_CHECK(gpio_set_level(opsOutputEnablePin_, 1));
   ets_delay_us(RAILCOM_BRAKE_DISABLE_DELAY_USEC);
   ESP_ERROR_CHECK(gpio_set_level(railComBrakeEnablePin_, 0));
-#endif
+}
+
+#define UART_READ(uart) \
+  uart->fifo.rw_byte
+
+#define FLUSH_UART(uart) \
+  while (uart->status.rxfifo_cnt) \
+  { \
+    UART_READ(uart); \
+  }
+
+void RMTTrackDevice::railcom_data_received()
+{
+  uint32_t uart_intr_status = UART[railComUartPort_]->int_st.val;
+  while (uart_intr_status & UART_RXFIFO_TOUT_INT_ST_M ||
+         uart_intr_status & UART_RXFIFO_FULL_INT_ST_M)
+  {
+    AtomicHolder h(&railcomLock_);
+    // check if we have data
+    if (UART[railComUartPort_]->status.rxfifo_cnt)
+    {
+      if (!railcomReaderEnabled_ || !railComFeedback_)
+      {
+        // If railcom is disabled *OR* we don't have a dcc::RailcomHubData
+        // to hold the data flush the UART.
+        FLUSH_UART(UART[railComUartPort_]);
+      }
+      else
+      {
+        dcc::RailcomHubData *data = railComFeedback_->data();
+        if (railcomReaderCh1_ && data->ch1Size < 2)
+        {
+          // If we are reading channel 1 and we have capacity for data store
+          // it in the data buffer.
+          data->add_ch1_data(UART_READ(UART[railComUartPort_]));
+        }
+        else if (railcomReaderCh2_ && data->ch2Size < 6)
+        {
+          // If we are reading channel 2 and we have capacity for data store
+          // it in the data buffer.
+          data->add_ch2_data(UART_READ(UART[railComUartPort_]));
+        }
+        else
+        {
+          // we are either in beween channels or we have reached capacity for
+          // the current channel. Discard the received data.
+          FLUSH_UART(UART[railComUartPort_]);
+        }
+      }
+    }
+    // clear the ISR mask
+    uart_clear_intr_status(railComUartPort_,
+                            (UART_RXFIFO_TOUT_INT_CLR_M |
+                            UART_RXFIFO_FULL_INT_CLR_M));
+    uart_intr_status = UART[railComUartPort_]->int_st.val;
+  }
 }
 
 ///////////////////////////////////////////////////////////////////////////////

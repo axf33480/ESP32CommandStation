@@ -20,6 +20,8 @@ COPYRIGHT (c) 2019 Mike Dunston
 
 #include <driver/rmt.h>
 #include <driver/uart.h>
+#include <soc/uart_reg.h>
+#include <soc/uart_struct.h>
 #include <esp_vfs.h>
 
 #include <dcc/Packet.hxx>
@@ -133,7 +135,8 @@ public:
     return opsSignalActive_ || progSignalActive_;
   }
 
-
+  // ISR callback for data received
+  void railcom_data_received();
 private:
   // maximum number of RMT memory blocks (256 bytes each, 4 bytes per data bit)
   // this will result in a max payload of 192 bits which is larger than any
@@ -145,23 +148,25 @@ private:
 
   // number of microseconds to wait after the end of packet to start the RailCom
   // processing.
-  static constexpr uint8_t RAILCOM_PACKET_END_DELAY_USEC = 1;
+  static constexpr uint32_t RAILCOM_PACKET_END_DELAY_USEC = 1;
 
   // number of microseconds to wait after enabling the BRAKE pin on the h-bridge
   // before disabling h-bridge output.
-  static constexpr uint8_t RAILCOM_BRAKE_ENABLE_DELAY_USEC = 1;
+  static constexpr uint32_t RAILCOM_BRAKE_ENABLE_DELAY_USEC = 1;
 
   // number of microseconds to wait after enabling the RailCom detection circuit.
-  static constexpr uint8_t RAILCOM_ENABLE_TRANSIENT_DELAY_USEC = 1;
+  static constexpr uint32_t RAILCOM_ENABLE_TRANSIENT_DELAY_USEC = 1;
 
   // number of microseconds to wait for railcom data on channel 1.
-  static constexpr TickType_t RAILCOM_MAX_READ_DELAY_CH_1 = 177
+  static constexpr uint32_t RAILCOM_MAX_READ_DELAY_CH_1 = 177
     - RAILCOM_PACKET_END_DELAY_USEC
     - RAILCOM_BRAKE_ENABLE_DELAY_USEC
     - RAILCOM_ENABLE_TRANSIENT_DELAY_USEC;
 
   // number of microseconds to wait for railcom data on channel 2.
-  static constexpr TickType_t RAILCOM_MAX_READ_DELAY_CH_2 = 454 - RAILCOM_MAX_READ_DELAY_CH_1;
+  static constexpr uint32_t RAILCOM_MAX_READ_DELAY_CH_2 = 454
+    - RAILCOM_MAX_READ_DELAY_CH_1
+    - RAILCOM_ENABLE_TRANSIENT_DELAY_USEC;
 
   // number of microseconds to wait after disabling the BRAKE pin on the h-bridge
   // before returning to normal operations. The h-bridge output will be ENABLED
@@ -204,6 +209,10 @@ private:
   std::function<void(void)> railcomReader_{nullptr};
   bool railcomEnabled_{false};
   uintptr_t railcomFeedbackKey_{0};
+  Atomic railcomLock_;
+  bool railcomReaderEnabled_{false};
+  bool railcomReaderCh1_{false};
+  bool railcomReaderCh2_{false};
 
   Atomic opsPacketQueueLock_;
   Atomic progPacketQueueLock_;
