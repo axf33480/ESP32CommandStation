@@ -325,7 +325,7 @@ void ConfigurationManager::configureLCC(OpenMRN *openmrn
   // Create the default internal configuration file if it doesn't already exist.
   configFd_ =
     openmrn->stack()->create_config_file_if_needed(cfg.seg().internal_config()
-                                                 , ESP32CS_NUMERIC_VERSION
+                                                 , ESP32CS_CDI_VERSION
                                                  , openlcb::CONFIG_FILE_SIZE);
 
 #if CONFIG_USE_SD
