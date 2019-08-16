@@ -31,6 +31,24 @@ COPYRIGHT (c) 2019 Mike Dunston
 DEFAULT_CONST_FALSE(cs_force_factory_reset);
 
 ///////////////////////////////////////////////////////////////////////////////
+// This flag will force a factory reset by removing the LCC_CDI_FILE and
+// LCC_CONFIG_FILE before starting the OpenMRN stack. This should not normally
+// be required.
+///////////////////////////////////////////////////////////////////////////////
+#if !LCC_FORCE_FACTORY_RESET_ON_STARTUP
+DEFAULT_CONST_FALSE(lcc_force_factory_reset);
+#else
+DEFAULT_CONST_TRUE(lcc_force_factory_reset);
+#endif
+
+///////////////////////////////////////////////////////////////////////////////
+// This flag controls the fsync call inteval for the LCC node config file when
+// using the SD card as the storage device. When using SPIFFS as the storage
+// device this setting will not be used.
+///////////////////////////////////////////////////////////////////////////////
+DEFAULT_CONST(lcc_sd_sync_interval_sec, 10);
+
+///////////////////////////////////////////////////////////////////////////////
 // This flag will print a list of FreeRTOS tasks every ~5min. This is not
 // recommended to be enabled except during debugging sessions as it will cause
 // the FreeRTOS scheduler to remain in a "locked" state for an extended period.
@@ -46,17 +64,6 @@ DEFAULT_CONST_FALSE(cs_task_list_report);
 DEFAULT_CONST(cs_task_list_report_interval_sec, 45);
 
 DEFAULT_CONST(cs_task_list_stats_interval_sec, 300);
-
-///////////////////////////////////////////////////////////////////////////////
-// This flag will force a factory reset by removing the LCC_CDI_FILE and
-// LCC_CONFIG_FILE before starting the OpenMRN stack. This should not normally
-// be required.
-///////////////////////////////////////////////////////////////////////////////
-#if !LCC_FORCE_FACTORY_RESET_ON_STARTUP
-DEFAULT_CONST_FALSE(lcc_force_factory_reset);
-#else
-DEFAULT_CONST_TRUE(lcc_force_factory_reset);
-#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 // This is the number of pending dcc::Packet objects that the LocalTrackIf will

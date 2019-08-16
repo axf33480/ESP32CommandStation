@@ -332,7 +332,8 @@ void ConfigurationManager::configureLCC(OpenMRN *openmrn
   // ESP32 FFat library uses a 512b cache in memory by default for the SD VFS
   // adding a periodic fsync call for the LCC configuration file ensures that
   // config changes are saved since the LCC config file is less than 512b.
-  configAutoSync_.emplace(openmrn->stack()->service(), configFd_);
+  configAutoSync_.emplace(openmrn->stack()->service(), configFd_
+                        , SEC_TO_USEC(config_lcc_sd_sync_interval_sec()));
 #endif // CONFIG_USE_SD
 
   auto lccConfig = commandStationConfig[JSON_LCC_NODE];
