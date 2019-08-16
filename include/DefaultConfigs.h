@@ -73,6 +73,26 @@ COPYRIGHT (c) 2019 Mike Dunston
 #define ENERGIZE_OPS_TRACK_ON_STARTUP false
 #endif
 
+#ifndef RAILCOM_BRAKE_ENABLE_PIN
+#define RAILCOM_BRAKE_ENABLE_PIN NOT_A_PIN
+#endif
+
+#ifndef RAILCOM_ENABLE_PIN
+#define RAILCOM_ENABLE_PIN NOT_A_PIN
+#endif
+
+#ifndef RAILCOM_SHORT_PIN
+#define RAILCOM_SHORT_PIN NOT_A_PIN
+#endif
+
+#ifndef RAILCOM_UART_RX_PIN
+#define RAILCOM_UART_RX_PIN NOT_A_PIN
+#endif
+
+#ifndef RAILCOM_UART
+#define RAILCOM_UART 2
+#endif
+
 ///////////////////////////////////////////////////////////////////////////////
 // WiFi default configuration
 ///////////////////////////////////////////////////////////////////////////////

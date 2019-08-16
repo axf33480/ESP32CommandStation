@@ -94,10 +94,11 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 //
 // DEFINE WHICH PINS ARE USED FOR OPS RAILCOM DETECTION
 //
-#define RAILCOM_BRAKE_ENABLE_PIN NOT_A_PIN
-#define RAILCOM_ENABLE_PIN NOT_A_PIN
-#define RAILCOM_SHORT_PIN NOT_A_PIN
-#define RAILCOM_UART 2
-#define RAILCOM_UART_RX_PIN NOT_A_PIN
+
+//#define RAILCOM_BRAKE_ENABLE_PIN NOT_A_PIN
+//#define RAILCOM_ENABLE_PIN NOT_A_PIN
+//#define RAILCOM_SHORT_PIN NOT_A_PIN
+//#define RAILCOM_UART 2
+//#define RAILCOM_UART_RX_PIN NOT_A_PIN
 
 /////////////////////////////////////////////////////////////////////////////////////
