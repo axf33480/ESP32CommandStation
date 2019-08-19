@@ -17,7 +17,7 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 #include "ESP32CommandStation.h"
 
-#include <ESPAsyncDNSServer.h>
+#include "interfaces/CaptivePortalDNSD.h"
 
 // generated web content
 #include "generated/index_html.h"
@@ -29,7 +29,7 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #include "generated/ajax_loader.h"
 
 AsyncWebServer webServer(80);
-AsyncDNSServer asyncDNS;
+unique_ptr<CaptivePortalDNSD> dnsServer;
 AsyncWebSocket webSocket("/ws");
 
 static constexpr const char * const APPLICATION_JSON_TYPE = "application/json";
@@ -241,7 +241,7 @@ void ESP32CSWebServer::begin()
     // store the IP address for use in the 404 handler
     softAPAddress_ = StringPrintf(IPSTR, IP2STR(&ip_info.ip));
     // start the async dns on the softap address
-    asyncDNS.start(53, "*", ip_info.ip);
+    dnsServer.reset(new CaptivePortalDNSD(ip_info.ip));
   }
 
   BUILTIN_URI("/jquery.min.js")
@@ -876,22 +876,26 @@ void ESP32CSWebServer::handleFeatures(AsyncWebServerRequest *request)
   if (request->url() == uri) \
   { \
     LOG(INFO, "[WebSrv %s] Sending %s from MEMORY (%d, %s)", IP_TO_STR(request), uri, totalSize, mimeType); \
-    response = request->beginResponse_P(STATUS_OK, mimeType, resource, totalSize); \
+    auto response = request->beginResponse_P(STATUS_OK, mimeType, resource, totalSize, nullptr); \
     if(!string(mimeType).compare(0, 5, "text/")) \
     { \
       response->addHeader("Content-Encoding", "gzip"); \
     } \
+    response->addHeader("Last-Modified", htmlBuildTime); \
+    SEND_GENERIC_RESPONSE(request, response) \
   }
 
 #define STREAM_RESOURCE(request, uri, fallback, mimeType, totalSize, resource) \
   if (request->url() == uri && configStore->isAPEnabled() && softAPAddress_.compare(request->host().c_str()) == 0) \
   { \
     LOG(INFO, "[WebSrv %s] Sending %s from MEMORY (%d, %s)", IP_TO_STR(request), uri, totalSize, mimeType); \
-    response = request->beginResponse_P(STATUS_OK, mimeType, resource, totalSize); \
+    auto response = request->beginResponse_P(STATUS_OK, mimeType, resource, totalSize, nullptr); \
     if(!string(mimeType).compare(0, 5, "text/")) \
     { \
       response->addHeader("Content-Encoding", "gzip"); \
     } \
+    response->addHeader("Last-Modified", htmlBuildTime); \
+    SEND_GENERIC_RESPONSE(request, response) \
   } \
   else if (request->url() == uri) \
   { \
@@ -908,7 +912,6 @@ void ESP32CSWebServer::streamResource(AsyncWebServerRequest *request)
   }
   else
   {
-    AsyncWebServerResponse *response = nullptr;
     STREAM_RESOURCE_NO_REDIRECT(request, "/index.html", "text/html"
                               , indexHtmlGz_size, indexHtmlGz)
     STREAM_RESOURCE(request, "/jquery.min.js"
@@ -929,15 +932,8 @@ void ESP32CSWebServer::streamResource(AsyncWebServerRequest *request)
     STREAM_RESOURCE(request, "/images/ajax-loader.gif"
                   , "https://code.jquery.com/mobile/1.5.0-rc1/images/ajax-loader.gif"
                   , "image/gif", ajaxLoader_size, ajaxLoader)
-    if (response)
-    {
-      response->addHeader("Last-Modified", htmlBuildTime);
-      SEND_GENERIC_RESPONSE(request, response)
-    }
-    else
-    {
-      SEND_GENERIC_RESPONSE(request, STATUS_NOT_FOUND)
-    }
+
+    SEND_GENERIC_RESPONSE(request, STATUS_NOT_FOUND)
   }
 }
 
