@@ -46,8 +46,6 @@ void CaptivePortalDNSD::dns_process_thread()
   struct sockaddr_in addr;
   int fd;
 
-  vTaskDelay(pdMS_TO_TICKS(100));
-
   ERRNOCHECK("socket", fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_IP));
 
   addr.sin_family = AF_INET;
