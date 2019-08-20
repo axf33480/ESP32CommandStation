@@ -20,9 +20,9 @@ COPYRIGHT (c) 2018-2019 Mike Dunston
 namespace esp32cs
 {
 
-HC12Radio::HC12Radio(Service *service, uart_port_t port)
-  : StateFlowBase(service)
-  , uart_(port)
+HC12Radio::HC12Radio(Service *service, uart_port_t port, gpio_num_t rx
+                   , gpio_num_t tx)
+                   : StateFlowBase(service), uart_(port), rx_(rx), tx_(tx)
 {
   start_flow(STATE(initialize));
 }
@@ -33,7 +33,7 @@ HC12Radio::HC12Radio(Service *service, uart_port_t port)
   if (res != ESP_OK)                                    \
   {                                                     \
     LOG_ERROR("[HC12] Failed to initialize UART%d: %s"  \
-            , HC12_UART_NUM, esp_err_to_name(res));     \
+            , uart_, esp_err_to_name(res));             \
     return exit();                                      \
   }                                                     \
 }
@@ -41,10 +41,8 @@ HC12Radio::HC12Radio(Service *service, uart_port_t port)
 StateFlowBase::Action HC12Radio::initialize()
 {
   LOG(INFO, "[HC12] Initializing UART(%d) at %ul baud on RX %d, TX %d"
-    , config_cs_hc12_uart_num(), config_cs_hc12_uart_speed()
-    , config_cs_hc12_rx_pin(), config_cs_hc12_tx_pin());
+    , uart_, config_cs_hc12_uart_speed(), rx_, tx_);
 
-  // Setup UART 115200 8N1, 2k buffer
   uart_config_t uart =
   {
     .baud_rate           = config_cs_hc12_uart_speed(),
@@ -56,17 +54,14 @@ StateFlowBase::Action HC12Radio::initialize()
     .use_ref_tick        = false                     // unused
   };
   LOG_ESP_ERROR_AND_EXIT(uart_param_config(uart_, &uart))
-  LOG_ESP_ERROR_AND_EXIT(uart_set_pin(uart_, config_cs_hc12_tx_pin()      \
-                                    , config_cs_hc12_rx_pin()             \
-                                    , UART_PIN_NO_CHANGE                  \
+  LOG_ESP_ERROR_AND_EXIT(uart_set_pin(uart_, tx_, rx_, UART_PIN_NO_CHANGE
                                     , UART_PIN_NO_CHANGE))
-  LOG_ESP_ERROR_AND_EXIT(uart_driver_install(uart_                        \
-                                           , config_cs_hc12_buffer_size() \
-                                           , config_cs_hc12_buffer_size() \
+  LOG_ESP_ERROR_AND_EXIT(uart_driver_install(uart_
+                                           , config_cs_hc12_buffer_size()
+                                           , config_cs_hc12_buffer_size()
                                            , 0, NULL, 0))
 
-  uartFd_ = open(StringPrintf("/dev/uart/%d"
-                            , config_cs_hc12_uart_num()).c_str()
+  uartFd_ = open(StringPrintf("/dev/uart/%d", uart_).c_str()
                , O_RDWR | O_NONBLOCK);
   if (uartFd_ >= 0)
   {

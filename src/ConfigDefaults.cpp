@@ -86,13 +86,5 @@ DEFAULT_CONST(rmt_packet_queue_prog, 5);
 ///////////////////////////////////////////////////////////////////////////////
 // HC12 configuration settings
 ///////////////////////////////////////////////////////////////////////////////
-#if !HC12_RADIO_ENABLED
-DEFAULT_CONST_FALSE(cs_hc12_enabled);
-#else
-DEFAULT_CONST_TRUE(cs_hc12_enabled);
-#endif
 DEFAULT_CONST(cs_hc12_buffer_size, 256);
-DEFAULT_CONST(cs_hc12_uart_num, HC12_UART_NUM);
 DEFAULT_CONST(cs_hc12_uart_speed, 19200);
-DEFAULT_CONST(cs_hc12_rx_pin, HC12_RX_PIN);
-DEFAULT_CONST(cs_hc12_rx_pin, HC12_TX_PIN);

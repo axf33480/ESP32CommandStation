@@ -38,11 +38,7 @@ DECLARE_CONST(cs_track_pool_size);
 DECLARE_CONST(rmt_packet_queue_ops);
 DECLARE_CONST(rmt_packet_queue_prog);
 
-DECLARE_CONST(cs_hc12_enabled);
-DECLARE_CONST(cs_hc12_uart_num);
 DECLARE_CONST(cs_hc12_uart_speed);
 DECLARE_CONST(cs_hc12_buffer_size);
-DECLARE_CONST(cs_hc12_rx_pin);
-DECLARE_CONST(cs_hc12_tx_pin);
 
 #endif

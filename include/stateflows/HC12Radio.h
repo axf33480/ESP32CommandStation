@@ -29,7 +29,7 @@ class HC12Radio : public StateFlowBase
                 , private DCCPPProtocolConsumer
 {
 public:
-  HC12Radio(Service *, uart_port_t);
+  HC12Radio(Service *, uart_port_t, gpio_num_t, gpio_num_t);
 private:
   static constexpr uint8_t RX_BUF_SIZE = 64;
   StateFlowSelectHelper helper_{this};
@@ -37,6 +37,8 @@ private:
   string tx_buffer_;
   int uartFd_;
   uart_port_t uart_;
+  gpio_num_t rx_;
+  gpio_num_t tx_;
 
   STATE_FLOW_STATE(initialize);
   STATE_FLOW_STATE(data_received);

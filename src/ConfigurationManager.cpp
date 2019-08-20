@@ -96,6 +96,7 @@ void recursiveWalkTree(const string &path, bool remove=false)
 ConfigurationManager::ConfigurationManager()
 {
   bool initialize_default_config{true};
+  bool persist_config{true};
   esp_vfs_spiffs_conf_t conf =
   {
     .base_path = "/spiffs",
@@ -179,6 +180,19 @@ ConfigurationManager::ConfigurationManager()
       LOG(INFO
         , "[Config] Existing configuration successfully loaded and validated.");
       initialize_default_config = false;
+      // If HC12 config is missing default it.
+      if (!commandStationConfig.contains(JSON_HC12_NODE))
+      {
+        commandStationConfig[JSON_HC12_NODE] =
+        {
+          { JSON_HC12_ENABLED_NODE, HC12_RADIO_ENABLED },
+          { JSON_HC12_UART_NODE, HC12_UART_NUM },
+          { JSON_HC12_RX_NODE, HC12_RX_PIN },
+          { JSON_HC12_TX_NODE, HC12_TX_PIN },
+        };
+        // flag to indicate we need to persist the configuration update
+        persist_config = true;
+      }
     }
     else
     {
@@ -245,8 +259,22 @@ ConfigurationManager::ConfigurationManager()
           },
 #endif
         },
+      },
+      {
+        JSON_HC12_NODE,
+        {
+          { JSON_HC12_ENABLED_NODE, HC12_RADIO_ENABLED },
+          { JSON_HC12_UART_NODE, HC12_UART_NUM },
+          { JSON_HC12_RX_NODE, HC12_RX_PIN },
+          { JSON_HC12_TX_NODE, HC12_TX_PIN },
+        }
       }
     };
+    persist_config = true;
+  }
+  if (persist_config)
+  {
+    LOG(INFO, "[Config] Persisting configuration settings");
     store(ESP32_CS_CONFIG_JSON, commandStationConfig.dump());
   }
   LOG(VERBOSE, "[Config] %s", commandStationConfig.dump().c_str());
@@ -536,9 +564,15 @@ void ConfigurationManager::parseWiFiConfig()
 
 void ConfigurationManager::configureEnabledModules(SimpleCanStack *stack)
 {
-  if (config_cs_hc12_enabled() < CONSTANT_FALSE)
+  auto hc12Config = commandStationConfig[JSON_HC12_NODE];
+  if (hc12Config[JSON_HC12_ENABLED_NODE].get<bool>())
   {
-    hc12_.emplace(stack->service(), (uart_port_t)config_cs_hc12_uart_num());
+    LOG(INFO, "[Config] Enabling HC12 Radio");
+    hc12_.emplace(stack->service()
+                , (uart_port_t)hc12Config[JSON_HC12_UART_NODE].get<uint8_t>()
+                , (gpio_num_t)hc12Config[JSON_HC12_RX_NODE].get<uint8_t>()
+                , (gpio_num_t)hc12Config[JSON_HC12_TX_NODE].get<uint8_t>()
+    );
   }
   ota_.emplace(stack->service());
   infoScreen_.emplace(stack);
@@ -547,16 +581,19 @@ void ConfigurationManager::configureEnabledModules(SimpleCanStack *stack)
   // Task Monitor, periodically dumps runtime state to STDOUT.
   taskMon_.emplace(stack->service());
 #if ENABLE_OUTPUTS
+  LOG(INFO, "[Config] Enabling GPIO Outputs");
   OutputManager::init();
 #endif
 
 #if ENABLE_SENSORS
+  LOG(INFO, "[Config] Enabling GPIO Inputs");
   SensorManager::init();
   S88BusManager::init();
   RemoteSensorManager::init();
 #endif
 
 #if LOCONET_ENABLED
+  LOG(INFO, "[Config] Enabling LocoNet interface");
   initializeLocoNet();
 #endif
 }
@@ -576,8 +613,7 @@ string ConfigurationManager::getCSFeatures()
   , { JSON_OUTPUTS_NODE, ENABLE_OUTPUTS ? JSON_VALUE_TRUE : JSON_VALUE_FALSE }
   , { JSON_SENSORS_NODE, ENABLE_SENSORS ? JSON_VALUE_TRUE : JSON_VALUE_FALSE }
   , { JSON_HC12_NODE
-    , config_cs_hc12_enabled() < CONSTANT_FALSE ? JSON_VALUE_TRUE
-                                                : JSON_VALUE_FALSE }
+    , commandStationConfig[JSON_HC12_NODE][JSON_HC12_ENABLED_NODE].get<bool>() }
   };
   return features.dump();
 }
