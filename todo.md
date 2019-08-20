@@ -12,7 +12,7 @@ The primary focus of v1.4.0 will be improvements to the DCC signal code and addi
 - [ ] Remove usages of WString.
 - [x] Add PCB build types (base, OLED, LCD)
 - [x] Replace ArduinoJson with "JSON for Modern C++"
-- [ ] Rework Roster Entry class to contain function id mappings.
+- [-] Rework Roster Entry class to contain function id mappings.
 - [ ] Rework Loco Consist to fit with LCC Traction Consist support (and not depend on Locomotive class)
 
 ### Config
@@ -41,7 +41,9 @@ The primary focus of v1.4.0 will be improvements to the DCC signal code and addi
 - [x] implement CV memory space.
 - [-] Traction proxy impl.
 - [-] TrainSearch protocol.
-- [ ] Force factory reset when node id changes.
+- [ ] CS CDI web interface.
+- [-] CS Node ID reset from web interface.
+- [-] Force factory reset when node id changes.
 
 ### InfoScreen
 
