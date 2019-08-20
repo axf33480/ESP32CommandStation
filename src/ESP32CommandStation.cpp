@@ -161,8 +161,12 @@ extern "C" void app_main()
   // Pre-create LCC configuration directory.
   mkdir(LCC_PERSISTENT_CONFIG_DIR, ACCESSPERMS);
 
-  bool factoryResetNeeded = config_cs_force_factory_reset() == CONSTANT_TRUE ||
-                            config_lcc_force_factory_reset() == CONSTANT_TRUE;
+  // NOTE: this does not use == CONSTANT_TRUE due to what appears to be a GCC
+  // bug. When using == CONSTANT_TRUE the result is always false even when the
+  // values match! By using < CONSTANT_FALSE it will trigger only when it is
+  // set to CONSTANT_TRUE.
+  bool factoryResetNeeded = config_cs_force_factory_reset() < CONSTANT_FALSE ||
+                            config_lcc_force_factory_reset() < CONSTANT_FALSE;
 
   struct stat statbuf;
   // check the LCC config file to ensure it is the expected size. If not
@@ -171,17 +175,15 @@ extern "C" void app_main()
       statbuf.st_size < openlcb::CONFIG_FILE_SIZE)
   {
     LOG(WARNING
-      , "[LCC] Corrupt configuration file detected, %s is too small: %ld bytes"
-        ", expected: %d bytes"
+      , "[LCC] Corrupt configuration file detected, %s is too small: %lu "
+        "bytes, expected: %zu bytes"
       , openlcb::CONFIG_FILENAME, statbuf.st_size, openlcb::CONFIG_FILE_SIZE);
     factoryResetNeeded = true;
   }
 
   if (factoryResetNeeded)
   {
-    LOG(WARNING, "[LCC] Forcing factory reset!");
-    unlink(openlcb::CONFIG_FILENAME);
-    unlink(LCC_NODE_CDI_FILE);
+    configStore->factory_reset_lcc();
   }
 
   // Initialize the OpenMRN stack.
@@ -280,7 +282,8 @@ extern "C" void app_main()
   {
     LOG(INFO, "[OpenMRN] Starting loop task on core:%d", APP_CPU_NUM);
     xTaskCreatePinnedToCore(openmrn_loop_task, "OpenMRN"
-                          , openmrn_arduino::OPENMRN_STACK_SIZE, nullptr, 1
+                          , openmrn_arduino::OPENMRN_STACK_SIZE, nullptr
+                          , tskIDLE_PRIORITY + 1
                           , nullptr, APP_CPU_NUM);
   }));
 

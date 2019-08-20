@@ -64,11 +64,16 @@ void recursiveWalkTree(const string &path, bool remove=false)
       {
         struct stat statbuf;
         stat(fullPath.c_str(), &statbuf);
-        LOG(VERBOSE, "[Config] %s (%d bytes)", fullPath.c_str()
-          , (int)statbuf.st_size);
         if (remove)
         {
-          unlink(fullPath.c_str());
+          LOG(INFO, "[Config] Deleting %s (%lu bytes)", fullPath.c_str()
+            , statbuf.st_size);
+          ERRNOCHECK(StringPrintf("unlink %s", fullPath.c_str()).c_str()
+                   , unlink(fullPath.c_str()));
+        }
+        else
+        {
+          LOG(INFO, "[Config] %s (%lu bytes)", fullPath.c_str(), statbuf.st_size);
         }
       }
       else if (ent->d_type == DT_DIR)
@@ -142,24 +147,27 @@ ConfigurationManager::ConfigurationManager()
         (float)(((uint64_t)sdcard->csd.capacity) * sdcard->csd.sector_size) / 1048576);
   }
 #endif
-  if (config_cs_force_factory_reset() == CONSTANT_TRUE)
+  if (config_cs_force_factory_reset() < CONSTANT_FALSE)
   {
+    LOG(WARNING, "!!!! WARNING WARNING WARNING WARNING WARNING !!!!");
+    LOG(WARNING, "!!!! WARNING WARNING WARNING WARNING WARNING !!!!");
+    LOG(WARNING, "!!!! WARNING WARNING WARNING WARNING WARNING !!!!");
     LOG(WARNING,
-        "WARNING: The Factory Reset flag has been set to true, all persistent "
+        "[Config] The factory reset flag has been set to true, all persistent "
         "data will be cleared.");
     uint8_t countdown = 10;
-    while (countdown--)
+    while (--countdown)
     {
-      LOG(WARNING, "Factory reset will be initiated in %d seconds..."
+      LOG(WARNING, "[Config] Factory reset will be initiated in %d seconds..."
         , countdown);
       usleep(SEC_TO_USEC(1));
     }
-    LOG(WARNING, "Factory reset initiated!");
+    LOG(WARNING, "[Config] Factory reset starting!");
   }
 
   LOG(VERBOSE, "[Config] Persistent storage contents:");
   recursiveWalkTree(CS_CONFIG_FILESYSTEM
-                  , config_cs_force_factory_reset() == CONSTANT_TRUE);
+                  , config_cs_force_factory_reset() < CONSTANT_FALSE);
   mkdir(ESP32CS_CONFIG_DIR, ACCESSPERMS);
 
   if (exists(ESP32_CS_CONFIG_JSON))
@@ -310,10 +318,47 @@ void ConfigurationManager::store(const char *name, const string &content)
   write_string_to_file(configFilePath, content);
 }
 
+void ConfigurationManager::factory_reset_lcc()
+{
+  LOG(WARNING, "[Config] LCC factory reset underway...");
+#if CONFIG_USE_SD
+  if (configAutoSync_.get())
+  {
+    configAutoSync_.reset(nullptr);
+  }
+#endif // CONFIG_USE_SD
+
+  // delete the CDI data so it forces a reinit on next boot
+  LOG(WARNING, "[Config] Removing %s", LCC_NODE_CONFIG_FILE);
+  ERRNOCHECK("openlcb::CONFIG_FILENAME", unlink(openlcb::CONFIG_FILENAME));
+  LOG(WARNING, "[Config] Removing %s", LCC_NODE_CDI_FILE);
+  ERRNOCHECK("LCC_NODE_CDI_FILE", unlink(LCC_NODE_CDI_FILE));
+  LOG(WARNING
+    , "[Config] The ESP32 CommandStation needs to be restarted in order to "
+      "complete the factory reset.");
+}
+
 NodeID ConfigurationManager::getNodeId()
 {
   auto lccConfig = commandStationConfig[JSON_LCC_NODE];
   return (NodeID)lccConfig[JSON_NODE_ID_NODE].get<uint64_t>();
+}
+
+void ConfigurationManager::setNodeID(string value)
+{
+  LOG(INFO, "[Config} Current Node ID: %s, incoming update: %s"
+    , uint64_to_string_hex(getNodeId()).c_str(), value.c_str());
+  // remove period characters if present
+  value.erase(std::remove(value.begin(), value.end(), '.'), value.end());
+  // convert the string to a uint64_t value
+  uint64_t new_node_id{0};
+  std::stringstream stream;
+  stream << std::hex << value;
+  stream >> new_node_id;
+  LOG(INFO, "[Config] New Node ID: %s", uint64_to_string_hex(new_node_id).c_str());
+  auto lccConfig = commandStationConfig[JSON_LCC_NODE];
+  lccConfig[JSON_NODE_ID_NODE] = new_node_id;
+  store(ESP32_CS_CONFIG_JSON, commandStationConfig.dump());
 }
 
 void ConfigurationManager::configureLCC(OpenMRN *openmrn
@@ -332,8 +377,9 @@ void ConfigurationManager::configureLCC(OpenMRN *openmrn
   // ESP32 FFat library uses a 512b cache in memory by default for the SD VFS
   // adding a periodic fsync call for the LCC configuration file ensures that
   // config changes are saved since the LCC config file is less than 512b.
-  configAutoSync_.emplace(openmrn->stack()->service(), configFd_
-                        , SEC_TO_USEC(config_lcc_sd_sync_interval_sec()));
+  configAutoSync_.reset(new AutoSyncFileFlow(openmrn->stack()->service()
+                      , configFd_
+                      , SEC_TO_USEC(config_lcc_sd_sync_interval_sec())));
 #endif // CONFIG_USE_SD
 
   auto lccConfig = commandStationConfig[JSON_LCC_NODE];
@@ -490,7 +536,7 @@ void ConfigurationManager::parseWiFiConfig()
 
 void ConfigurationManager::configureEnabledModules(SimpleCanStack *stack)
 {
-  if (config_cs_hc12_enabled() == CONSTANT_TRUE)
+  if (config_cs_hc12_enabled() < CONSTANT_FALSE)
   {
     hc12_.emplace(stack->service(), (uart_port_t)config_cs_hc12_uart_num());
   }
@@ -530,7 +576,7 @@ string ConfigurationManager::getCSFeatures()
   , { JSON_OUTPUTS_NODE, ENABLE_OUTPUTS ? JSON_VALUE_TRUE : JSON_VALUE_FALSE }
   , { JSON_SENSORS_NODE, ENABLE_SENSORS ? JSON_VALUE_TRUE : JSON_VALUE_FALSE }
   , { JSON_HC12_NODE
-    , config_cs_hc12_enabled() == CONSTANT_TRUE ? JSON_VALUE_TRUE
+    , config_cs_hc12_enabled() < CONSTANT_FALSE ? JSON_VALUE_TRUE
                                                 : JSON_VALUE_FALSE }
   };
   return features.dump();

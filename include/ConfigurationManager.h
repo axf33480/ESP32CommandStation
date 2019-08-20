@@ -39,7 +39,9 @@ public:
   void remove(const std::string &);
   std::string load(const std::string &);
   void store(const char *, const std::string &);
+  void factory_reset_lcc();
   openlcb::NodeID getNodeId();
+  void setNodeID(std::string);
   void configureLCC(OpenMRN *, const esp32cs::Esp32ConfigDef &);
   void configureEnabledModules(openlcb::SimpleCanStack *);
   std::string getCSConfig();
@@ -75,7 +77,7 @@ private:
   uninitialized<InfoScreen> infoScreen_;
   uninitialized<StatusLED> statusLED_;
   uninitialized<FreeRTOSTaskMonitor> taskMon_;
-  uninitialized<AutoSyncFileFlow> configAutoSync_;
+  std::unique_ptr<AutoSyncFileFlow> configAutoSync_;
 };
 
 extern std::unique_ptr<ConfigurationManager> configStore;
