@@ -110,7 +110,9 @@ public:
 
     void factory_reset(int fd) override
     {
-        LOG(VERBOSE, "Factory Reset Helper invoked");
+        LOG(INFO
+          , "[LCC] ESP32 CS factory_reset(%d) invoked, defaulting "
+            "configuration", fd);
         cfg.userinfo().name().write(fd, "ESP32 Command Station");
         cfg.userinfo().description().write(fd, "");
     }
@@ -155,48 +157,18 @@ extern "C" void app_main()
 
   // Initialize the Configuration Manager. This will mount SPIFFS and SD
   // (if configured) and then load the CS configuration (if present) or
-  // prepare the default configuration.
+  // prepare the default configuration. This will also include the LCC
+  // Factory reset (if required).
   configStore.reset(new ConfigurationManager());
-
-  // Pre-create LCC configuration directory.
-  mkdir(LCC_PERSISTENT_CONFIG_DIR, ACCESSPERMS);
-
-  // NOTE: this does not use == CONSTANT_TRUE due to what appears to be a GCC
-  // bug. When using == CONSTANT_TRUE the result is always false even when the
-  // values match! By using < CONSTANT_FALSE it will trigger only when it is
-  // set to CONSTANT_TRUE.
-  bool factoryResetNeeded = config_cs_force_factory_reset() < CONSTANT_FALSE ||
-                            config_lcc_force_factory_reset() < CONSTANT_FALSE;
-
-  struct stat statbuf;
-  // check the LCC config file to ensure it is the expected size. If not
-  // force a factory reset.
-  if (stat(openlcb::CONFIG_FILENAME, &statbuf) >= 0 &&
-      statbuf.st_size < openlcb::CONFIG_FILE_SIZE)
-  {
-    LOG(WARNING
-      , "[LCC] Corrupt configuration file detected, %s is too small: %lu "
-        "bytes, expected: %zu bytes"
-      , openlcb::CONFIG_FILENAME, statbuf.st_size, openlcb::CONFIG_FILE_SIZE);
-    factoryResetNeeded = true;
-  }
-
-  if (factoryResetNeeded)
-  {
-    configStore->factory_reset_lcc(false);
-  }
 
   // Initialize the OpenMRN stack.
   openmrn.reset(new OpenMRN(configStore->getNodeId()));
 
   // Initialize the enabled modules.
-  configStore->configureEnabledModules(openmrn->stack());
+  configStore->configureEnabledModules(openmrn->stack(), cfg);
 
   // Initialize the factory reset helper for the CS.
   FactoryResetHelper resetHelper;
-
-  // Initialize the OpenMRN stack (CAN and WiFi interfaces).
-  configStore->configureLCC(openmrn.get(), cfg);
 
   // Initialize the RailCom Hub
   railComHub.reset(new RailcomHubFlow(openmrn->stack()->service()));
@@ -247,16 +219,13 @@ extern "C" void app_main()
                    , std::bind(&RMTTrackDevice::disable_prog_output
                              , trackSignal.get()));
 
+  // Initialize the OpenMRN stack, this needs to be done *AFTER* all other LCC
+  // dependent components as it will initiate configuration load and factory
+  // reset calls.
+  configStore->configureLCC(openmrn.get(), cfg);
+
   // Initialize the DCC++ protocol adapter
   DCCPPProtocolHandler::init();
-
-  wifiInterface.init();
-
-  nextionInterfaceInit();
-
-  // Initialize the turnout manager and register it with the LCC stack to
-  // process accessories packets.
-  turnoutManager.reset(new TurnoutManager(openmrn->stack()->node()));
 
   // Initialize the Traction Protocol support
   TrainService trainService(openmrn->stack()->iface());

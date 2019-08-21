@@ -95,8 +95,15 @@ void recursiveWalkTree(const string &path, bool remove=false)
 
 ConfigurationManager::ConfigurationManager()
 {
-  bool initialize_default_config{true};
+  // NOTE: these do not use == CONSTANT_TRUE due to what appears to be a GCC
+  // bug. When using == CONSTANT_TRUE the result is always false even when the
+  // values match! By using < CONSTANT_FALSE it will trigger only when it is
+  // set to CONSTANT_TRUE.
+  bool factory_reset_config{config_cs_force_factory_reset() < CONSTANT_FALSE};
+  bool lcc_factory_reset{config_lcc_force_factory_reset() < CONSTANT_FALSE};
   bool persist_config{true};
+  struct stat statbuf;
+
   esp_vfs_spiffs_conf_t conf =
   {
     .base_path = "/spiffs",
@@ -148,7 +155,8 @@ ConfigurationManager::ConfigurationManager()
         (float)(((uint64_t)sdcard->csd.capacity) * sdcard->csd.sector_size) / 1048576);
   }
 #endif
-  if (config_cs_force_factory_reset() < CONSTANT_FALSE)
+
+  if (factory_reset_config)
   {
     LOG(WARNING, "!!!! WARNING WARNING WARNING WARNING WARNING !!!!");
     LOG(WARNING, "!!!! WARNING WARNING WARNING WARNING WARNING !!!!");
@@ -167,9 +175,11 @@ ConfigurationManager::ConfigurationManager()
   }
 
   LOG(VERBOSE, "[Config] Persistent storage contents:");
-  recursiveWalkTree(CS_CONFIG_FILESYSTEM
-                  , config_cs_force_factory_reset() < CONSTANT_FALSE);
+  recursiveWalkTree(CS_CONFIG_FILESYSTEM, factory_reset_config);
+  // Pre-create ESP32 CS configuration directory.
   mkdir(ESP32CS_CONFIG_DIR, ACCESSPERMS);
+  // Pre-create LCC configuration directory.
+  mkdir(LCC_PERSISTENT_CONFIG_DIR, ACCESSPERMS);
 
   if (exists(ESP32_CS_CONFIG_JSON))
   {
@@ -179,7 +189,7 @@ ConfigurationManager::ConfigurationManager()
     {
       LOG(INFO
         , "[Config] Existing configuration successfully loaded and validated.");
-      initialize_default_config = false;
+      factory_reset_config = false;
       // Check for any missing default configuration settings.
       persist_config = seedDefaultConfigSections();
     }
@@ -188,24 +198,48 @@ ConfigurationManager::ConfigurationManager()
       LOG_ERROR("[Config] Existing configuration failed one (or more) "
                 "validation(s)!");
       LOG_ERROR("[Config] Old config: %s", commandStationConfig.dump().c_str());
-      factory_reset_lcc(false);
     }
   }
+  else
+  {
+    factory_reset_config = true;
+  }
 
-  if (initialize_default_config)
+  if (factory_reset_config)
   {
     LOG(INFO, "[Config] Generating default configuration...");
     // TODO: break this up so it starts with an empty config and makes calls to
     // various "getDefaultConfigXXX" for each section.
     commandStationConfig = {};
     persist_config = seedDefaultConfigSections();
+    // force factory reset of LCC data
+    lcc_factory_reset = true;
   }
+
+  // if we need to persist the updated config do so now.
   if (persist_config)
   {
     LOG(INFO, "[Config] Persisting configuration settings");
     store(ESP32_CS_CONFIG_JSON, commandStationConfig.dump());
   }
   LOG(VERBOSE, "[Config] %s", commandStationConfig.dump().c_str());
+
+  // check the LCC config file to ensure it is the expected size. If not
+  // force a factory reset.
+  if (stat(openlcb::CONFIG_FILENAME, &statbuf) >= 0 &&
+      statbuf.st_size < openlcb::CONFIG_FILE_SIZE)
+  {
+    LOG(WARNING
+      , "[LCC] Corrupt configuration file detected, %s is too small: %lu "
+        "bytes, expected: %zu bytes"
+      , openlcb::CONFIG_FILENAME, statbuf.st_size, openlcb::CONFIG_FILE_SIZE);
+    lcc_factory_reset = true;
+  }
+
+  if (lcc_factory_reset)
+  {
+    configStore->factory_reset_lcc(false);
+  }
 }
 
 ConfigurationManager::~ConfigurationManager() {
@@ -335,6 +369,23 @@ void ConfigurationManager::setNodeID(string value)
 void ConfigurationManager::configureLCC(OpenMRN *openmrn
                                       , const esp32cs::Esp32ConfigDef &cfg)
 {
+  auto lccConfig = commandStationConfig[JSON_LCC_NODE];
+  if (lccConfig.contains(JSON_LCC_CAN_NODE))
+  {
+    auto canConfig = lccConfig[JSON_LCC_CAN_NODE];
+    gpio_num_t canRXPin =
+      (gpio_num_t)canConfig[JSON_LCC_CAN_RX_NODE].get<uint8_t>();
+    gpio_num_t canTXPin =
+      (gpio_num_t)canConfig[JSON_LCC_CAN_TX_NODE].get<uint8_t>();
+    if (canRXPin < GPIO_NUM_MAX && canTXPin < GPIO_NUM_MAX)
+    {
+      LOG(INFO, "[Config] Enabling LCC CAN interface (rx: %d, tx: %d)"
+        , canRXPin, canTXPin);
+      openmrn->add_can_port(
+        new Esp32HardwareCan("esp32can", canRXPin, canTXPin, false));
+    }
+  }
+
   // Create the CDI.xml dynamically if it doesn't already exist.
   openmrn->create_config_descriptor_xml(cfg, LCC_NODE_CDI_FILE);
 
@@ -352,33 +403,6 @@ void ConfigurationManager::configureLCC(OpenMRN *openmrn
                       , configFd_
                       , SEC_TO_USEC(config_lcc_sd_sync_interval_sec())));
 #endif // CONFIG_USE_SD
-
-  auto lccConfig = commandStationConfig[JSON_LCC_NODE];
-  if (lccConfig.contains(JSON_LCC_CAN_NODE))
-  {
-    auto canConfig = lccConfig[JSON_LCC_CAN_NODE];
-    gpio_num_t canRXPin =
-      (gpio_num_t)canConfig[JSON_LCC_CAN_RX_NODE].get<uint8_t>();
-    gpio_num_t canTXPin =
-      (gpio_num_t)canConfig[JSON_LCC_CAN_TX_NODE].get<uint8_t>();
-    if (canRXPin < GPIO_NUM_MAX && canTXPin < GPIO_NUM_MAX)
-    {
-      LOG(INFO, "[Config] Enabling LCC CAN interface (rx: %d, tx: %d)"
-        , canRXPin, canTXPin);
-      openmrn->add_can_port(
-        new Esp32HardwareCan("esp32can", canRXPin, canTXPin, false));
-    }
-  }
-  parseWiFiConfig();
-
-  wifiManager.reset(new Esp32WiFiManager(wifiSSID_.c_str(),
-                                         wifiPassword_.c_str(),
-                                         openmrn->stack(), cfg.seg().wifi(),
-                                         HOSTNAME_PREFIX,
-                                         wifiMode_,
-                                         stationStaticIP_.get(),
-                                         stationDNSServer_,
-                                         WIFI_SOFT_AP_CHANNEL));
 }
 
 string ConfigurationManager::getFilePath(const string &name, bool oldPath)
@@ -626,8 +650,24 @@ void ConfigurationManager::parseWiFiConfig()
   }
 }
 
-void ConfigurationManager::configureEnabledModules(SimpleCanStack *stack)
+void ConfigurationManager::configureEnabledModules(SimpleCanStack *stack
+                                                 , const esp32cs::Esp32ConfigDef &cfg)
 {
+  parseWiFiConfig();
+  wifiManager.reset(new Esp32WiFiManager(wifiSSID_.c_str()
+                                       , wifiPassword_.c_str()
+                                       , stack
+                                       , cfg.seg().wifi()
+                                       , HOSTNAME_PREFIX
+                                       , wifiMode_
+                                       , stationStaticIP_.get()
+                                       , stationDNSServer_
+                                       , WIFI_SOFT_AP_CHANNEL));
+
+  // Initialize the turnout manager and register it with the LCC stack to
+  // process accessories packets.
+  turnoutManager.reset(new TurnoutManager(stack->node()));
+
   auto hc12Config = commandStationConfig[JSON_HC12_NODE];
   if (hc12Config[JSON_HC12_ENABLED_NODE].get<bool>())
   {
@@ -644,6 +684,10 @@ void ConfigurationManager::configureEnabledModules(SimpleCanStack *stack)
   
   // Task Monitor, periodically dumps runtime state to STDOUT.
   taskMon_.emplace(stack->service());
+
+  wifiInterface.init();
+  nextionInterfaceInit();
+
 #if ENABLE_OUTPUTS
   LOG(INFO, "[Config] Enabling GPIO Outputs");
   OutputManager::init();

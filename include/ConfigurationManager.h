@@ -43,7 +43,8 @@ public:
   openlcb::NodeID getNodeId();
   void setNodeID(std::string);
   void configureLCC(OpenMRN *, const esp32cs::Esp32ConfigDef &);
-  void configureEnabledModules(openlcb::SimpleCanStack *);
+  void configureEnabledModules(openlcb::SimpleCanStack *
+                             , const esp32cs::Esp32ConfigDef &);
   std::string getCSConfig();
   std::string getCSFeatures();
   std::string getSSID()
