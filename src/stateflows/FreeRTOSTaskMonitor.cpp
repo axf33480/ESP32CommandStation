@@ -44,7 +44,7 @@ StateFlowBase::Action FreeRTOSTaskMonitor::report()
     , taskCount
   );
   // exit early if we do not need to report task state
-  if (config_cs_task_list_report() == CONSTANT_FALSE)
+  if (config_cs_task_list_report() > CONSTANT_TRUE)
   {
     return call_immediately(STATE(delay));
   }
