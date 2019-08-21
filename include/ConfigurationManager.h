@@ -41,7 +41,7 @@ public:
   void store(const char *, const std::string &);
   void factory_reset_lcc(bool=true);
   openlcb::NodeID getNodeId();
-  void setNodeID(std::string);
+  bool setNodeID(std::string);
   void configureLCC(OpenMRN *, const esp32cs::Esp32ConfigDef &);
   void configureEnabledModules(openlcb::SimpleCanStack *
                              , const esp32cs::Esp32ConfigDef &);

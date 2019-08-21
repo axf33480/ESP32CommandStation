@@ -378,7 +378,7 @@ NodeID ConfigurationManager::getNodeId()
   return (NodeID)lccConfig[JSON_LCC_NODE_ID_NODE].get<uint64_t>();
 }
 
-void ConfigurationManager::setNodeID(string value)
+bool ConfigurationManager::setNodeID(string value)
 {
   LOG(INFO, "[Config] Current NodeID: %s, updated NodeID: %s"
     , uint64_to_string_hex(getNodeId()).c_str(), value.c_str());
@@ -397,7 +397,9 @@ void ConfigurationManager::setNodeID(string value)
     commandStationConfig[JSON_LCC_NODE][JSON_LCC_NODE_ID_NODE] = new_node_id;
     commandStationConfig[JSON_LCC_NODE][JSON_LCC_FORCE_RESET_NODE] = true;
     store(ESP32_CS_CONFIG_JSON, commandStationConfig.dump());
+    return true;
   }
+  return false;
 }
 
 void ConfigurationManager::configureLCC(OpenMRN *openmrn
