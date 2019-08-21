@@ -126,6 +126,7 @@ ConfigurationManager::ConfigurationManager()
     LOG(INFO, "[Config] SPIFFS usage: %.2f/%.2f KiB", (float)(used / 1024.0f)
       , (float)(total / 1024.0f));
   }
+
 #if CONFIG_USE_SD
   sdmmc_host_t host = SDSPI_HOST_DEFAULT();
   sdspi_slot_config_t slot_config = SDSPI_SLOT_CONFIG_DEFAULT();
@@ -192,11 +193,21 @@ ConfigurationManager::ConfigurationManager()
       factory_reset_config = false;
       // Check for any missing default configuration settings.
       persist_config = seedDefaultConfigSections();
+      // Check if we need to force a reset of the LCC config (node id change)
+      auto lccConfig = commandStationConfig[JSON_LCC_NODE];
+      if (lccConfig.contains(JSON_LCC_FORCE_RESET_NODE) &&
+          lccConfig[JSON_LCC_FORCE_RESET_NODE].get<bool>())
+      {
+        LOG(WARNING, "[Config] LCC force factory_reset flag is ENABLED!");
+        commandStationConfig[JSON_LCC_NODE][JSON_LCC_FORCE_RESET_NODE] = false;
+        persist_config = true;
+        lcc_factory_reset = true;
+      }
     }
     else
     {
       LOG_ERROR("[Config] Existing configuration failed one (or more) "
-                "validation(s)!");
+                "validation(s) and will be regenerated!");
       LOG_ERROR("[Config] Old config: %s", commandStationConfig.dump().c_str());
     }
   }
@@ -224,31 +235,55 @@ ConfigurationManager::ConfigurationManager()
   }
   LOG(VERBOSE, "[Config] %s", commandStationConfig.dump().c_str());
 
-  // check the LCC config file to ensure it is the expected size. If not
-  // force a factory reset.
-  if (stat(openlcb::CONFIG_FILENAME, &statbuf) >= 0 &&
-      statbuf.st_size < openlcb::CONFIG_FILE_SIZE)
+  // If we are not currently forcing a factory reset, verify if the LCC config
+  // file is the correct size. If it is not the expected size force a factory
+  // reset.
+  if (!lcc_factory_reset &&
+      stat(LCC_NODE_CONFIG_FILE, &statbuf) >= 0 &&
+      statbuf.st_size != openlcb::CONFIG_FILE_SIZE)
   {
     LOG(WARNING
       , "[LCC] Corrupt configuration file detected, %s is too small: %lu "
         "bytes, expected: %zu bytes"
-      , openlcb::CONFIG_FILENAME, statbuf.st_size, openlcb::CONFIG_FILE_SIZE);
+      , LCC_NODE_CONFIG_FILE, statbuf.st_size, openlcb::CONFIG_FILE_SIZE);
     lcc_factory_reset = true;
   }
 
+  // If we need an LCC factory reset trigger is now.
   if (lcc_factory_reset)
   {
     configStore->factory_reset_lcc(false);
   }
 }
 
-ConfigurationManager::~ConfigurationManager() {
+ConfigurationManager::~ConfigurationManager()
+{
+  extern std::unique_ptr<OpenMRN> openmrn;
+
+  // Shutdown the auto-sync handler if it is running before unmounting the FS.
+  if (configAutoSync_.get())
+  {
+    SyncNotifiable n;
+    openmrn->stack()->executor()->add(new CallbackExecutable([&]()
+      {
+        configAutoSync_->shutdown();
+        n.notify();
+      }
+    ));
+    n.wait_for_notification();
+    configAutoSync_.reset(nullptr);
+  }
+
+  // shutdown the executor so that no more tasks will run
+  openmrn->stack()->executor()->shutdown();
+
   // Unmount the SPIFFS partition
   if (esp_spiffs_mounted(NULL))
   {
     LOG(INFO, "[Config] Unmounting SPIFFS...");
     ESP_ERROR_CHECK(esp_vfs_spiffs_unregister(NULL));
   }
+
   // Unmount the SD card if it was mounted
   if (sdcard)
   {
@@ -317,12 +352,6 @@ void ConfigurationManager::factory_reset_lcc(bool warn)
     {
       LOG(WARNING, "[Config] LCC factory reset underway...");
     }
-#if CONFIG_USE_SD
-    if (configAutoSync_.get())
-    {
-      configAutoSync_.reset(nullptr);
-    }
-#endif // CONFIG_USE_SD
 
     if (!access(LCC_NODE_CONFIG_FILE, F_OK))
     {
@@ -346,12 +375,12 @@ void ConfigurationManager::factory_reset_lcc(bool warn)
 NodeID ConfigurationManager::getNodeId()
 {
   auto lccConfig = commandStationConfig[JSON_LCC_NODE];
-  return (NodeID)lccConfig[JSON_NODE_ID_NODE].get<uint64_t>();
+  return (NodeID)lccConfig[JSON_LCC_NODE_ID_NODE].get<uint64_t>();
 }
 
 void ConfigurationManager::setNodeID(string value)
 {
-  LOG(INFO, "[Config} Current Node ID: %s, incoming update: %s"
+  LOG(INFO, "[Config] Current NodeID: %s, updated NodeID: %s"
     , uint64_to_string_hex(getNodeId()).c_str(), value.c_str());
   // remove period characters if present
   value.erase(std::remove(value.begin(), value.end(), '.'), value.end());
@@ -360,10 +389,15 @@ void ConfigurationManager::setNodeID(string value)
   std::stringstream stream;
   stream << std::hex << value;
   stream >> new_node_id;
-  LOG(INFO, "[Config] New Node ID: %s", uint64_to_string_hex(new_node_id).c_str());
-  auto lccConfig = commandStationConfig[JSON_LCC_NODE];
-  lccConfig[JSON_NODE_ID_NODE] = new_node_id;
-  store(ESP32_CS_CONFIG_JSON, commandStationConfig.dump());
+  if (new_node_id != getNodeId())
+  {
+    LOG(INFO
+      , "[Config] Persisting NodeID: %s and enabling forced factory_reset."
+      , uint64_to_string_hex(new_node_id).c_str());
+    commandStationConfig[JSON_LCC_NODE][JSON_LCC_NODE_ID_NODE] = new_node_id;
+    commandStationConfig[JSON_LCC_NODE][JSON_LCC_FORCE_RESET_NODE] = true;
+    store(ESP32_CS_CONFIG_JSON, commandStationConfig.dump());
+  }
 }
 
 void ConfigurationManager::configureLCC(OpenMRN *openmrn
@@ -463,8 +497,8 @@ bool ConfigurationManager::validateConfiguration()
   auto lccNode = commandStationConfig[JSON_LCC_NODE];
   LOG(VERBOSE, "[Config] LCC config: %s", lccNode.dump().c_str());
 
-  if (!lccNode.contains(JSON_NODE_ID_NODE) ||
-      lccNode[JSON_NODE_ID_NODE].get<uint64_t>() == 0)
+  if (!lccNode.contains(JSON_LCC_NODE_ID_NODE) ||
+      lccNode[JSON_LCC_NODE_ID_NODE].get<uint64_t>() == 0)
   {
     LOG_ERROR("[Config] Missing LCC node ID!");
     return false;
@@ -490,13 +524,14 @@ bool ConfigurationManager::seedDefaultConfigSections()
   {
     commandStationConfig[JSON_LCC_NODE] =
     {
-      { JSON_NODE_ID_NODE, UINT64_C(LCC_NODE_ID) },
+      { JSON_LCC_NODE_ID_NODE, UINT64_C(LCC_NODE_ID) },
       { JSON_LCC_CAN_NODE,
         {
           { JSON_LCC_CAN_RX_NODE, LCC_CAN_RX_PIN },
           { JSON_LCC_CAN_TX_NODE, LCC_CAN_TX_PIN },
         }
-      }
+      },
+      { JSON_LCC_FORCE_RESET_NODE, false },
     };
     config_updated = true;
   }
