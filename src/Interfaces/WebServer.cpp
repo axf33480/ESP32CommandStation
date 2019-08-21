@@ -241,7 +241,7 @@ void ESP32CSWebServer::begin()
     // store the IP address for use in the 404 handler
     softAPAddress_ = StringPrintf(IPSTR, IP2STR(&ip_info.ip));
     // start the async dns on the softap address
-    dnsServer.reset(new CaptivePortalDNSD(ip_info.ip));
+    dnsServer.reset(new CaptivePortalDNSD(ip_info.ip, "CaptiveDNS"));
   }
 
   BUILTIN_URI("/jquery.min.js")
@@ -685,6 +685,17 @@ void ESP32CSWebServer::handleConfig(AsyncWebServerRequest *request)
   {
     LOG(INFO, "Selected SSID: %s / %s", request->arg("ssid").c_str()
       , request->arg("password").c_str());
+  }
+  else if (request->hasArg("nodeid"))
+  {
+    if (configStore->setNodeID(request->arg("nodeid").c_str()))
+    {
+      // send a string back to the client rather than SEND_GENERIC_RESPONSE
+      // so we don't return prior to calling reboot.
+      SEND_TEXT_RESPONSE(request, STATUS_OK, "Rebooting!")
+      reboot();
+    }
+    SEND_GENERIC_RESPONSE(request, STATUS_SERVER_ERROR)
   }
   SEND_JSON_RESPONSE(request, configStore->getCSConfig())
 }

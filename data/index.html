@@ -306,6 +306,17 @@
      <div id="cs-config">
       <div class="ui-grid-solo">
        <div class="ui-field-contain">
+        <label for="cs-config-lcc-node-id">LCC Node ID (hex):</label>
+        <input type="text" id="cs-config-lcc-node-id">
+       </div>
+       <div class="ui-field-contain">
+        <label for="cs-config-lcc-mode">LCC Connection:</label>
+        <select id="cs-config-lcc-mode">
+         <option value="wifi">WiFi Only</option>
+         <option value="wifican">WiFi and CAN</option>
+        </select>
+       </div>
+       <div class="ui-field-contain">
         <label for="cs-config-wifi-mode">WiFi Mode:</label>
         <select id="cs-config-wifi-mode">
          <option value="station">Station Only</option>
@@ -1205,7 +1216,17 @@ function setupProgrammer() {
  $('#cs-prog-div-bit').hide();
  $('#cs-prog-div-create-roster').hide();
 }
+function int_to_hex(value, length) {
+  var hex = new Array(length + 1).join('0') + value.toString(16);
+  return hex.substr(-length).match(/.{1,2}/g).join('.');
+}
 function csConfigUpdate(data) {
+ $('#cs-config-lcc-node-id').val(int_to_hex(data.lcc.id, 12));
+ if(data.lcc.can.rx !== -1 && data.lcc.can.tx !== -1) {
+  $('#cs-config-lcc-wifi-mode').val('wifican').change();
+ } else {
+  $('#cs-config-lcc-wifi-mode').val('wifi').change();
+ }
  $('#cs-config-station-div').hide();
  $("#cs-config-wifi-mode").val(data.wifi.mode).change();
  if(data.wifi.mode !== 'softap') {
@@ -1256,11 +1277,10 @@ function refreshSSIDList() {
      $('#ssid-connect').popup('reposition', {positionTo:'window'});
     } else {
      $('#ssid-connect').popup('close');
-     $.put({url:String.format('/config?ssid={0}&pass={1}', idParts[3], $('#ssid-manual-password').val())});
+     $.ajax({method:'PUT',url:String.format('/config?ssid={0}&pass={1}', idParts[3], $('#ssid-manual-password').val())});
     }
    });
-   $('#ssid-manual-entry').hide();
-   $('#ssid-connect-manual').show();
+   $('#ssid-manual-entry').show();
    $('#ssid-list').show();
    $('#ssid-connect').popup('reposition', {positionTo:'window'});
   }
@@ -1269,6 +1289,7 @@ function refreshSSIDList() {
 function setupConfig() {
  $("#cs-persist-config").on("vclick", function() {
   $.ajax({
+   method: 'POST',
    url: '/config',
    beforeSend: function() {
     $.mobile.loading('show', {
@@ -1338,7 +1359,7 @@ function setupConfig() {
  })
  $('#ssid-connect-confirm').on('vclick', function() {
   $('#ssid-connect').popup('close');
-  $.put({url:String.format('/config?ssid={0}&password={1}', $('#ssid-manual-ssid').val(), $('#ssid-manual-password').val())});
+  $.ajax({method:'PUT',url:String.format('/config?ssid={0}&password={1}', $('#ssid-manual-ssid').val(), $('#ssid-manual-password').val())});
  })
 }
 function BSTabRefresh(section) {
@@ -1696,13 +1717,13 @@ function refreshTable({table, url, fields, filter=function() {return true;}, fai
   error: failureHandler,
   beforeSend: function() {
    $.mobile.loading('show', { text: 'Refreshing data', textVisible: true, textonly: false});
+   $(table + ' tbody').empty();
   },
   complete: function() {
    setTimeout(function () { $.mobile.loading('hide'); }, 1);
   },
   success: function(data, status, jqxhr) {
    var tableBody = $(table + ' tbody');
-   tableBody.empty();
    $.each(data, function(id, record) {
     if (filter(record)) {
      var row = '<tr>';
