@@ -102,6 +102,21 @@ constexpr const char * JSON_HC12_UART_NODE = "uart";
 constexpr const char * JSON_HC12_RX_NODE = "rx";
 constexpr const char * JSON_HC12_TX_NODE = "tx";
 
+constexpr const char * JSON_HBRIDGES_NODE = "hbridges";
+constexpr const char * JSON_HBRIDGE_ENABLE_PIN_NODE = "enable";
+constexpr const char * JSON_HBRIDGE_SIGNAL_PIN_NODE = "signal";
+constexpr const char * JSON_HBRIDGE_PREAMBLE_BITS_NODE = "preamble";
+constexpr const char * JSON_HBRIDGE_THERMAL_PIN_NODE = "thermal";
+constexpr const char * JSON_HBRIDGE_SENSE_PIN_NODE = "sense";
+constexpr const char * JSON_HBRIDGE_RMT_CHANNEL_NODE = "rmt";
+
+constexpr const char * JSON_RAILCOM_NODE = "railcom";
+constexpr const char * JSON_RAILCOM_ENABLE_PIN_NODE = "enable";
+constexpr const char * JSON_RAILCOM_BRAKE_PIN_NODE = "brake";
+constexpr const char * JSON_RAILCOM_SHORT_PIN_NODE = "short";
+constexpr const char * JSON_RAILCOM_UART_NODE = "uart";
+constexpr const char * JSON_RAILCOM_RX_NODE = "rx";
+
 constexpr const char * JSON_VALUE_STATION_IP_MODE_STATIC = "static";
 constexpr const char * JSON_VALUE_STATION_IP_MODE_DHCP = "dhcp";
 

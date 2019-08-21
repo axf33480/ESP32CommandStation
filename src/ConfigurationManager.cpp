@@ -66,14 +66,14 @@ void recursiveWalkTree(const string &path, bool remove=false)
         stat(fullPath.c_str(), &statbuf);
         if (remove)
         {
-          LOG(INFO, "[Config] Deleting %s (%lu bytes)", fullPath.c_str()
+          LOG(VERBOSE, "[Config] Deleting %s (%lu bytes)", fullPath.c_str()
             , statbuf.st_size);
-          ERRNOCHECK(StringPrintf("unlink %s", fullPath.c_str()).c_str()
-                   , unlink(fullPath.c_str()));
+          ERRNOCHECK(fullPath.c_str(), unlink(fullPath.c_str()));
         }
         else
         {
-          LOG(INFO, "[Config] %s (%lu bytes)", fullPath.c_str(), statbuf.st_size);
+          LOG(VERBOSE, "[Config] %s (%lu bytes)", fullPath.c_str()
+            , statbuf.st_size);
         }
       }
       else if (ent->d_type == DT_DIR)
@@ -175,102 +175,30 @@ ConfigurationManager::ConfigurationManager()
   {
     LOG(INFO, "[Config] Found existing CS config file, attempting to load...");
     commandStationConfig = json::parse(load(ESP32_CS_CONFIG_JSON));
-    if (validateLCCConfig() && validateWiFiConfig())
+    if (validateConfiguration())
     {
       LOG(INFO
         , "[Config] Existing configuration successfully loaded and validated.");
       initialize_default_config = false;
-      // If HC12 config is missing default it.
-      if (!commandStationConfig.contains(JSON_HC12_NODE))
-      {
-        commandStationConfig[JSON_HC12_NODE] =
-        {
-          { JSON_HC12_ENABLED_NODE, HC12_RADIO_ENABLED },
-          { JSON_HC12_UART_NODE, HC12_UART_NUM },
-          { JSON_HC12_RX_NODE, HC12_RX_PIN },
-          { JSON_HC12_TX_NODE, HC12_TX_PIN },
-        };
-        // flag to indicate we need to persist the configuration update
-        persist_config = true;
-      }
+      // Check for any missing default configuration settings.
+      persist_config = seedDefaultConfigSections();
     }
     else
     {
       LOG_ERROR("[Config] Existing configuration failed one (or more) "
                 "validation(s)!");
+      LOG_ERROR("[Config] Old config: %s", commandStationConfig.dump().c_str());
+      factory_reset_lcc(false);
     }
   }
-  
+
   if (initialize_default_config)
   {
     LOG(INFO, "[Config] Generating default configuration...");
-    commandStationConfig =
-    {
-      { JSON_LCC_NODE,
-        {
-          { JSON_NODE_ID_NODE, UINT64_C(LCC_NODE_ID) },
-          { JSON_LCC_CAN_NODE,
-            {
-              { JSON_LCC_CAN_RX_NODE, LCC_CAN_RX_PIN },
-              { JSON_LCC_CAN_TX_NODE, LCC_CAN_TX_PIN },
-            }
-          }
-        }
-      },
-      { JSON_WIFI_NODE, 
-        {
-#if WIFI_ENABLE_SOFT_AP_ONLY
-          { JSON_WIFI_MODE_NODE, JSON_VALUE_WIFI_MODE_SOFTAP_ONLY },
-          { JSON_WIFI_SOFTAP_NODE,
-            {
-              { JSON_WIFI_SSID_NODE, wifiSSID_ },
-/*
-              { JSON_WIFI_PASSWORD_NODE, wifiPassword_ },
-*/
-            },
-          },
-#elif WIFI_ENABLE_SOFT_AP
-          { JSON_WIFI_MODE_NODE, JSON_VALUE_WIFI_MODE_SOFTAP_STATION },
-          { JSON_WIFI_SOFTAP_NODE,
-            {
-              { JSON_WIFI_SSID_NODE, wifiSSID_ },
-            },
-          },
-#else
-          { JSON_WIFI_MODE_NODE, JSON_VALUE_WIFI_MODE_STATION_ONLY },
-#endif
-#ifdef WIFI_STATIC_IP_DNS
-          { JSON_WIFI_DNS_NODE, WIFI_STATIC_IP_DNS },
-#endif
-#if !WIFI_ENABLE_SOFT_AP_ONLY
-          { JSON_WIFI_STATION_NODE, 
-            {
-#if defined(WIFI_STATIC_IP_ADDRESS) && defined(WIFI_STATIC_IP_GATEWAY) && defined(WIFI_STATIC_IP_SUBNET)
-              { JSON_WIFI_MODE_NODE, JSON_VALUE_STATION_IP_MODE_STATIC },
-              { JSON_WIFI_STATION_IP_NODE, WIFI_STATIC_IP_ADDRESS },
-              { JSON_WIFI_STATION_GATEWAY_NODE, WIFI_STATIC_IP_GATEWAY },
-              { JSON_WIFI_STATION_NETMASK_NODE, WIFI_STATIC_IP_SUBNET },
-#else
-              { JSON_WIFI_MODE_NODE, JSON_VALUE_STATION_IP_MODE_DHCP },
-#endif
-              { JSON_WIFI_SSID_NODE, wifiSSID_ },
-              { JSON_WIFI_PASSWORD_NODE, wifiPassword_ },
-            }
-          },
-#endif
-        },
-      },
-      {
-        JSON_HC12_NODE,
-        {
-          { JSON_HC12_ENABLED_NODE, HC12_RADIO_ENABLED },
-          { JSON_HC12_UART_NODE, HC12_UART_NUM },
-          { JSON_HC12_RX_NODE, HC12_RX_PIN },
-          { JSON_HC12_TX_NODE, HC12_TX_PIN },
-        }
-      }
-    };
-    persist_config = true;
+    // TODO: break this up so it starts with an empty config and makes calls to
+    // various "getDefaultConfigXXX" for each section.
+    commandStationConfig = {};
+    persist_config = seedDefaultConfigSections();
   }
   if (persist_config)
   {
@@ -346,24 +274,39 @@ void ConfigurationManager::store(const char *name, const string &content)
   write_string_to_file(configFilePath, content);
 }
 
-void ConfigurationManager::factory_reset_lcc()
+void ConfigurationManager::factory_reset_lcc(bool warn)
 {
-  LOG(WARNING, "[Config] LCC factory reset underway...");
-#if CONFIG_USE_SD
-  if (configAutoSync_.get())
+  if (!access(LCC_NODE_CONFIG_FILE, F_OK) ||
+      !access(LCC_NODE_CDI_FILE, F_OK))
   {
-    configAutoSync_.reset(nullptr);
-  }
+    if (warn)
+    {
+      LOG(WARNING, "[Config] LCC factory reset underway...");
+    }
+#if CONFIG_USE_SD
+    if (configAutoSync_.get())
+    {
+      configAutoSync_.reset(nullptr);
+    }
 #endif // CONFIG_USE_SD
 
-  // delete the CDI data so it forces a reinit on next boot
-  LOG(WARNING, "[Config] Removing %s", LCC_NODE_CONFIG_FILE);
-  ERRNOCHECK("openlcb::CONFIG_FILENAME", unlink(openlcb::CONFIG_FILENAME));
-  LOG(WARNING, "[Config] Removing %s", LCC_NODE_CDI_FILE);
-  ERRNOCHECK("LCC_NODE_CDI_FILE", unlink(LCC_NODE_CDI_FILE));
-  LOG(WARNING
-    , "[Config] The ESP32 CommandStation needs to be restarted in order to "
-      "complete the factory reset.");
+    if (!access(LCC_NODE_CONFIG_FILE, F_OK))
+    {
+      LOG(WARNING, "[Config] Removing %s", LCC_NODE_CONFIG_FILE);
+      ERRNOCHECK(LCC_NODE_CONFIG_FILE, unlink(LCC_NODE_CONFIG_FILE));
+    }
+    if (!access(LCC_NODE_CDI_FILE, F_OK))
+    {
+      LOG(WARNING, "[Config] Removing %s", LCC_NODE_CDI_FILE);
+      ERRNOCHECK(LCC_NODE_CDI_FILE, unlink(LCC_NODE_CDI_FILE));
+    }
+    if (warn)
+    {
+      LOG(WARNING
+        , "[Config] The ESP32 CommandStation needs to be restarted in order "
+          "to complete the factory reset.");
+    }
+  }
 }
 
 NodeID ConfigurationManager::getNodeId()
@@ -447,13 +390,19 @@ string ConfigurationManager::getFilePath(const string &name, bool oldPath)
   return StringPrintf("%s/%s", ESP32CS_CONFIG_DIR, name.c_str());
 }
 
-bool ConfigurationManager::validateWiFiConfig()
+bool ConfigurationManager::validateConfiguration()
 {
   if (!commandStationConfig.contains(JSON_WIFI_NODE))
   {
     LOG_ERROR("[Config] WiFi configuration not found.");
     return false;
   }
+  else if (!commandStationConfig.contains(JSON_LCC_NODE))
+  {
+    LOG_ERROR("[Config] LCC configuration not found.");
+    return false;
+  }
+
   auto wifiNode = commandStationConfig[JSON_WIFI_NODE];
   LOG(VERBOSE, "[Config] WiFi config: %s", wifiNode.dump().c_str());
 
@@ -485,37 +434,152 @@ bool ConfigurationManager::validateWiFiConfig()
     LOG_ERROR("[Config] SSID was not specified for SoftAP mode!");
     return false;
   }
+
+  // verify LCC configuration
+  auto lccNode = commandStationConfig[JSON_LCC_NODE];
+  LOG(VERBOSE, "[Config] LCC config: %s", lccNode.dump().c_str());
+
+  if (!lccNode.contains(JSON_NODE_ID_NODE) ||
+      lccNode[JSON_NODE_ID_NODE].get<uint64_t>() == 0)
+  {
+    LOG_ERROR("[Config] Missing LCC node ID!");
+    return false;
+  }
+
+  if (!lccNode.contains(JSON_LCC_CAN_NODE) ||
+      !lccNode[JSON_LCC_CAN_NODE].contains(JSON_LCC_CAN_RX_NODE) ||
+      !lccNode[JSON_LCC_CAN_NODE].contains(JSON_LCC_CAN_TX_NODE))
+  {
+    LOG_ERROR("[Config] LCC CAN configuration invalid.");
+    return false;
+  }
+
   return true;
 }
 
-bool ConfigurationManager::validateLCCConfig()
+bool ConfigurationManager::seedDefaultConfigSections()
 {
-  // verify LCC configuration
-  if (commandStationConfig.contains(JSON_LCC_NODE))
-  {
-    auto lccNode = commandStationConfig[JSON_LCC_NODE];
-    LOG(VERBOSE, "[Config] LCC config: %s", lccNode.dump().c_str());
-    if (!lccNode.contains(JSON_NODE_ID_NODE) ||
-        lccNode[JSON_NODE_ID_NODE].get<uint64_t>() == 0)
-    {
-      LOG_ERROR("[Config] Missing LCC node ID!");
-      return false;
-    }
+  bool config_updated{false};
 
-    if (!lccNode.contains(JSON_LCC_CAN_NODE) ||
-        !lccNode[JSON_LCC_CAN_NODE].contains(JSON_LCC_CAN_RX_NODE) ||
-        !lccNode[JSON_LCC_CAN_NODE].contains(JSON_LCC_CAN_TX_NODE))
-    {
-      LOG_ERROR("[Config] LCC CAN configuration invalid.");
-      return false;
-    }
-  }
-  else
+  // If LCC config is missing default it.
+  if (!commandStationConfig.contains(JSON_LCC_NODE))
   {
-    LOG_ERROR("[Config] Missing LCC configuration!");
-    return false;
+    commandStationConfig[JSON_LCC_NODE] =
+    {
+      { JSON_NODE_ID_NODE, UINT64_C(LCC_NODE_ID) },
+      { JSON_LCC_CAN_NODE,
+        {
+          { JSON_LCC_CAN_RX_NODE, LCC_CAN_RX_PIN },
+          { JSON_LCC_CAN_TX_NODE, LCC_CAN_TX_PIN },
+        }
+      }
+    };
+    config_updated = true;
   }
-  return true;
+  // If LCC config is missing default it.
+  if (!commandStationConfig.contains(JSON_WIFI_NODE))
+  {
+    commandStationConfig[JSON_WIFI_NODE] =
+    {
+#if WIFI_ENABLE_SOFT_AP_ONLY
+      { JSON_WIFI_MODE_NODE, JSON_VALUE_WIFI_MODE_SOFTAP_ONLY },
+      { JSON_WIFI_SOFTAP_NODE,
+        {
+          { JSON_WIFI_SSID_NODE, wifiSSID_ },
+/*
+          { JSON_WIFI_PASSWORD_NODE, wifiPassword_ },
+*/
+        },
+      },
+#elif WIFI_ENABLE_SOFT_AP
+      { JSON_WIFI_MODE_NODE, JSON_VALUE_WIFI_MODE_SOFTAP_STATION },
+      { JSON_WIFI_SOFTAP_NODE,
+        {
+          { JSON_WIFI_SSID_NODE, wifiSSID_ },
+        },
+      },
+#else
+      { JSON_WIFI_MODE_NODE, JSON_VALUE_WIFI_MODE_STATION_ONLY },
+#endif
+#ifdef WIFI_STATIC_IP_DNS
+      { JSON_WIFI_DNS_NODE, WIFI_STATIC_IP_DNS },
+#endif
+#if !WIFI_ENABLE_SOFT_AP_ONLY
+      { JSON_WIFI_STATION_NODE, 
+        {
+#if defined(WIFI_STATIC_IP_ADDRESS) && defined(WIFI_STATIC_IP_GATEWAY) && defined(WIFI_STATIC_IP_SUBNET)
+          { JSON_WIFI_MODE_NODE, JSON_VALUE_STATION_IP_MODE_STATIC },
+          { JSON_WIFI_STATION_IP_NODE, WIFI_STATIC_IP_ADDRESS },
+          { JSON_WIFI_STATION_GATEWAY_NODE, WIFI_STATIC_IP_GATEWAY },
+          { JSON_WIFI_STATION_NETMASK_NODE, WIFI_STATIC_IP_SUBNET },
+#else
+          { JSON_WIFI_MODE_NODE, JSON_VALUE_STATION_IP_MODE_DHCP },
+#endif
+          { JSON_WIFI_SSID_NODE, wifiSSID_ },
+          { JSON_WIFI_PASSWORD_NODE, wifiPassword_ },
+        }
+      },
+#endif
+    };
+    config_updated = true;
+  }
+  // If HC12 config is missing default it.
+  if (!commandStationConfig.contains(JSON_HC12_NODE))
+  {
+    commandStationConfig[JSON_HC12_NODE] =
+    {
+      { JSON_HC12_ENABLED_NODE, HC12_RADIO_ENABLED },
+      { JSON_HC12_UART_NODE, HC12_UART_NUM },
+      { JSON_HC12_RX_NODE, HC12_RX_PIN },
+      { JSON_HC12_TX_NODE, HC12_TX_PIN },
+    };
+    // flag to indicate we need to persist the configuration update
+    config_updated = true;
+  }
+  // If HBridge config is missing default it.
+  if (!commandStationConfig.contains(JSON_HBRIDGES_NODE))
+  {
+    commandStationConfig[JSON_HBRIDGES_NODE] =
+    {
+      { "OPS",
+        {
+          { JSON_HBRIDGE_PREAMBLE_BITS_NODE, OPS_PREAMBLE_BITS },
+          { JSON_HBRIDGE_RMT_CHANNEL_NODE, RMT_CHANNEL_0 },
+          { JSON_HBRIDGE_ENABLE_PIN_NODE, OPS_ENABLE_PIN },
+          { JSON_HBRIDGE_SIGNAL_PIN_NODE, OPS_SIGNAL_PIN },
+          { JSON_HBRIDGE_THERMAL_PIN_NODE, OPS_THERMAL_PIN },
+          { JSON_HBRIDGE_SENSE_PIN_NODE, OPS_CURRENT_SENSE_ADC },
+          { JSON_RAILCOM_NODE, RAILCOM_ENABLE_PIN != NOT_A_PIN }
+        },
+      },
+      { "PROG",
+        {
+          { JSON_HBRIDGE_PREAMBLE_BITS_NODE, PROG_PREAMBLE_BITS },
+          { JSON_HBRIDGE_RMT_CHANNEL_NODE, RMT_CHANNEL_1 },
+          { JSON_HBRIDGE_ENABLE_PIN_NODE, PROG_ENABLE_PIN },
+          { JSON_HBRIDGE_SIGNAL_PIN_NODE, PROG_SIGNAL_PIN },
+          { JSON_HBRIDGE_SENSE_PIN_NODE, PROG_CURRENT_SENSE_ADC },
+        },
+      }
+    };
+    // flag to indicate we need to persist the configuration update
+    config_updated = true;
+  }
+  // If RailCom config is missing default it.
+  if (!commandStationConfig.contains(JSON_RAILCOM_NODE))
+  {
+    commandStationConfig[JSON_RAILCOM_NODE] =
+    {
+      { JSON_RAILCOM_ENABLE_PIN_NODE, RAILCOM_ENABLE_PIN },
+      { JSON_RAILCOM_BRAKE_PIN_NODE, RAILCOM_BRAKE_ENABLE_PIN },
+      { JSON_RAILCOM_SHORT_PIN_NODE, RAILCOM_SHORT_PIN },
+      { JSON_RAILCOM_UART_NODE, RAILCOM_UART },
+      { JSON_RAILCOM_RX_NODE, RAILCOM_UART_RX_PIN },
+    };
+    // flag to indicate we need to persist the configuration update
+    config_updated = true;
+  }
+  return config_updated;
 }
 
 void ConfigurationManager::parseWiFiConfig()

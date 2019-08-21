@@ -30,24 +30,24 @@ OVERRIDE_CONST(gridconnect_buffer_size, 3512);
 OVERRIDE_CONST(gridconnect_buffer_delay_usec, 1000);
 
 // Generate newlines after GridConnect packets on TCP.
-//OVERRIDE_CONST_TRUE(gc_generate_newlines);
+// OVERRIDE_CONST_TRUE(gc_generate_newlines);
 
 // Increased number of state flows to invoke before checking for ::select
 // timeouts
 OVERRIDE_CONST(executor_select_prescaler, 30);
 
 // Increased number of outbound GridConnect packets to queue.
-//OVERRIDE_CONST(gridconnect_bridge_max_outgoing_packets, 5);
+// OVERRIDE_CONST(gridconnect_bridge_max_outgoing_packets, 5);
 
 // Increased number of local nodes to account for TrainNode proxy nodes
 OVERRIDE_CONST(local_nodes_count, 30);
 OVERRIDE_CONST(local_alias_cache_size, 30);
 
 // Uncomment to have all railcom data printed as it is received.
-//OVERRIDE_CONST_TRUE(enable_railcom_packet_dump);
+// OVERRIDE_CONST_TRUE(enable_railcom_packet_dump);
 
 // Uncomment to list task statistics periodically.
-//OVERRIDE_CONST_TRUE(cs_task_list_report);
+// OVERRIDE_CONST_TRUE(cs_task_list_report);
 
 // Uncomment to force a factory reset of all configuration data on startup.
 // WARNING: THIS WILL CLEAR *ALL* PERSISTENT DATA!
@@ -183,7 +183,7 @@ extern "C" void app_main()
 
   if (factoryResetNeeded)
   {
-    configStore->factory_reset_lcc();
+    configStore->factory_reset_lcc(false);
   }
 
   // Initialize the OpenMRN stack.
@@ -234,7 +234,7 @@ extern "C" void app_main()
 
   // Add a data dumper for the RailCom Hub
   unique_ptr<RailcomPrintfFlow> railComDataDumper;
-  if (config_enable_railcom_packet_dump() == CONSTANT_TRUE)
+  if (config_enable_railcom_packet_dump() < CONSTANT_FALSE)
   {
     railComDataDumper.reset(new RailcomPrintfFlow(railComHub.get()));
   }

@@ -39,7 +39,7 @@ public:
   void remove(const std::string &);
   std::string load(const std::string &);
   void store(const char *, const std::string &);
-  void factory_reset_lcc();
+  void factory_reset_lcc(bool=true);
   openlcb::NodeID getNodeId();
   void setNodeID(std::string);
   void configureLCC(OpenMRN *, const esp32cs::Esp32ConfigDef &);
@@ -60,8 +60,8 @@ public:
   }
 private:
   std::string getFilePath(const std::string &, bool=false);
-  bool validateWiFiConfig();
-  bool validateLCCConfig();
+  bool validateConfiguration();
+  bool seedDefaultConfigSections();
   void parseWiFiConfig();
 
   int configFd_{-1};
