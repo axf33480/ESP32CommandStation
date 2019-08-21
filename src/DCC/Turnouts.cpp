@@ -72,7 +72,7 @@ uint16_t TurnoutManager::store()
     turnoutStoredCount++;
   }
   root[JSON_COUNT_NODE] = turnoutStoredCount;
-  configStore->store(TURNOUTS_JSON_FILE, root);
+  configStore->store(TURNOUTS_JSON_FILE, root.dump());
   return turnoutStoredCount;
 }
 

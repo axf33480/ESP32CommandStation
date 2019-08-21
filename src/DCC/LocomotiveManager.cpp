@@ -378,11 +378,11 @@ uint16_t LocomotiveManager::store()
     string filename = StringPrintf(ROSTER_ENTRY_JSON_FILE, entry->getAddress());
     locoRoot[JSON_LOCOS_NODE].push_back(filename.c_str());
     json content = entry->toJson();
-    configStore->store(filename.c_str(), content);
+    configStore->store(filename.c_str(), content.dump());
     locoStoredCount++;
   }
   locoRoot[JSON_COUNT_NODE] = locoStoredCount;
-  configStore->store(ROSTER_JSON_FILE, locoRoot);
+  configStore->store(ROSTER_JSON_FILE, locoRoot.dump());
 
   json consistRoot;
   uint16_t consistStoredCount = 0;
@@ -391,11 +391,11 @@ uint16_t LocomotiveManager::store()
     string filename = StringPrintf(CONSIST_ENTRY_JSON_FILE, consist->legacy_address());
     consistRoot[JSON_FILE_NODE].push_back(filename.c_str());
     json content = consist->toJson();
-    configStore->store(filename.c_str(), content);
+    configStore->store(filename.c_str(), content.dump());
     consistStoredCount++;
   }
   consistRoot[JSON_COUNT_NODE] = consistStoredCount;
-  configStore->store(CONSISTS_JSON_FILE, consistRoot);
+  configStore->store(CONSISTS_JSON_FILE, consistRoot.dump());
   return locoStoredCount + consistStoredCount;
 }
 

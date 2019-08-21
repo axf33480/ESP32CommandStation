@@ -121,7 +121,7 @@ uint16_t SensorManager::store()
     }
   }
   root[JSON_COUNT_NODE] = sensorStoredCount;
-  configStore->store(SENSORS_JSON_FILE, root);
+  configStore->store(SENSORS_JSON_FILE, root.dump());
   return sensorStoredCount;
 }
 

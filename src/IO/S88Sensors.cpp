@@ -126,7 +126,7 @@ uint8_t S88BusManager::store()
     sensorBusIndex++;
   }
   root[JSON_COUNT_NODE] = sensorBusIndex;
-  configStore->store(S88_SENSORS_JSON_FILE, root);
+  configStore->store(S88_SENSORS_JSON_FILE, root.dump());
   return sensorBusIndex;
 }
 

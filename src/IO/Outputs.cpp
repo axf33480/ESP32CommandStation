@@ -131,7 +131,7 @@ uint16_t OutputManager::store()
     outputStoredCount++;
   }
   root[JSON_COUNT_NODE] = outputStoredCount;
-  configStore->store(OUTPUTS_JSON_FILE, root);
+  configStore->store(OUTPUTS_JSON_FILE, root.dump());
   return outputStoredCount;
 }
 
