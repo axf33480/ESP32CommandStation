@@ -24,13 +24,13 @@ COPYRIGHT (c) 2019 Mike Dunston
 class CaptivePortalDNSD
 {
 public:
-  CaptivePortalDNSD(ip4_addr_t, uint16_t=53, string="dnsd");
+  CaptivePortalDNSD(ip4_addr_t, string="dnsd", uint16_t=53);
   ~CaptivePortalDNSD();
   void dns_process_thread();
 private:
   ip4_addr_t local_ip_;
-  uint16_t port_;
   std::string name_;
+  uint16_t port_;
   OSThread dns_thread_;
   bool shutdown_{false};
   bool shutdownComplete_{false};

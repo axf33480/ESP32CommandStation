@@ -26,8 +26,8 @@ static void* dns_thread_start(void* arg)
   return nullptr;
 }
 
-CaptivePortalDNSD::CaptivePortalDNSD(ip4_addr_t ip, uint16_t port, string name)
-  : local_ip_(ip), port_(port), name_(name)
+CaptivePortalDNSD::CaptivePortalDNSD(ip4_addr_t ip, string name, uint16_t port)
+  : local_ip_(ip), name_(name), port_(port)
   , dns_thread_(name_.c_str(), 1, DNS_TASK_STACK_SIZE, dns_thread_start, this)
 {
 }
