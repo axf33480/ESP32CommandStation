@@ -35,18 +35,16 @@ TurnoutManager::TurnoutManager(openlcb::Node *node)
 {
   LOG(INFO, "[Turnout] Initializing DCC Turnout database");
   json root = json::parse(configStore->load(TURNOUTS_JSON_FILE));
-  if (root.contains(JSON_COUNT_NODE) && root[JSON_COUNT_NODE].get<uint16_t>() > 0)
+  for (auto turnout : root)
   {
-    uint16_t turnoutCount = root[JSON_COUNT_NODE].get<uint16_t>();
-    Singleton<InfoScreen>::instance()->replaceLine(
-      INFO_SCREEN_ROTATING_STATUS_LINE, "Found %02d Turnouts", turnoutCount);
-    for (auto turnout : root[JSON_TURNOUTS_NODE])
-    {
-      string data = turnout.dump();
-      turnouts_.emplace_back(new Turnout(data));
-    }
+    turnouts_.emplace_back(
+      new Turnout(turnout[JSON_ID_NODE].get<int>()
+                , turnout[JSON_ADDRESS_NODE].get<int>()
+                , turnout[JSON_SUB_ADDRESS_NODE].get<int>()
+                , turnout[JSON_STATE_NODE].get<int>()
+                , (TurnoutType)turnout[JSON_TYPE_NODE].get<int>()));
   }
-  LOG(INFO, "[Turnout] Found %d DCC turnout(s)", turnouts_.size());
+  LOG(INFO, "[Turnout] Loaded %d DCC turnout(s)", turnouts_.size());
 
   // register the LCC event handler
   turnoutEventConsumer_.reset(new DccAccyConsumer(node, this));
@@ -64,16 +62,8 @@ void TurnoutManager::clear()
 
 uint16_t TurnoutManager::store()
 {
-  json root;
-  uint16_t turnoutStoredCount = 0;
-  for (const auto& turnout : turnouts_)
-  {
-    root.push_back(turnout->toJson());
-    turnoutStoredCount++;
-  }
-  root[JSON_COUNT_NODE] = turnoutStoredCount;
-  configStore->store(TURNOUTS_JSON_FILE, root.dump());
-  return turnoutStoredCount;
+  configStore->store(TURNOUTS_JSON_FILE, getStateAsJson(false));
+  return turnouts_.size();
 }
 
 string TurnoutManager::setByID(uint16_t id, bool thrown, bool sendDCC)
@@ -90,7 +80,8 @@ string TurnoutManager::setByID(uint16_t id, bool thrown, bool sendDCC)
   return COMMAND_FAILED_RESPONSE;
 }
 
-std::string TurnoutManager::setByAddress(uint16_t address, bool thrown, bool sendDCC)
+string TurnoutManager::setByAddress(uint16_t address, bool thrown
+                                  , bool sendDCC)
 {
   AtomicHolder h(this);
   for (auto & turnout : turnouts_)
@@ -107,7 +98,7 @@ std::string TurnoutManager::setByAddress(uint16_t address, bool thrown, bool sen
   return setByAddress(address, thrown, sendDCC);
 }
 
-std::string TurnoutManager::toggleByID(uint16_t id)
+string TurnoutManager::toggleByID(uint16_t id)
 {
   AtomicHolder h(this);
   for (auto & turnout : turnouts_)
@@ -121,7 +112,7 @@ std::string TurnoutManager::toggleByID(uint16_t id)
   return COMMAND_FAILED_RESPONSE;
 }
 
-std::string TurnoutManager::toggleByAddress(uint16_t address)
+string TurnoutManager::toggleByAddress(uint16_t address)
 {
   AtomicHolder h(this);
   auto const &elem = std::find_if(turnouts_.begin(), turnouts_.end(),
@@ -143,13 +134,14 @@ std::string TurnoutManager::toggleByAddress(uint16_t address)
 
 string TurnoutManager::getStateAsJson(bool readableStrings)
 {
-  json root;
   AtomicHolder h(this);
-  for (auto& turnout : turnouts_)
+  string content = "[";
+  for (const auto& turnout : turnouts_)
   {
-    root.push_back(turnout->toJson(readableStrings));
+    content += turnout->toJson(readableStrings);
   }
-  return root.dump();
+  content += "]";
+  return content;
 }
 
 string TurnoutManager::get_state_for_dccpp()
@@ -163,7 +155,10 @@ string TurnoutManager::get_state_for_dccpp()
   return status;
 }
 
-Turnout *TurnoutManager::createOrUpdate(const uint16_t id, const uint16_t address, const int8_t index, const TurnoutType type)
+Turnout *TurnoutManager::createOrUpdate(const uint16_t id
+                                      , const uint16_t address
+                                      , const int8_t index
+                                      , const TurnoutType type)
 {
   AtomicHolder h(this);
   auto const &elem = std::find_if(turnouts_.begin(), turnouts_.end(),
@@ -211,7 +206,8 @@ bool TurnoutManager::removeByAddress(const uint16_t address)
   );
   if (elem != turnouts_.end())
   {
-    LOG(VERBOSE, "[Turnout %d] Deleted as it used address %d", elem->get()->getID(), address);
+    LOG(VERBOSE, "[Turnout %d] Deleted as it used address %d"
+      , elem->get()->getID(), address);
     turnouts_.erase(elem);
     return true;
   }
@@ -232,7 +228,8 @@ Turnout *TurnoutManager::getTurnoutByID(const uint16_t id)
 {
   AtomicHolder h(this);
   auto const &elem = std::find_if(turnouts_.begin(), turnouts_.end(),
-    [id](unique_ptr<Turnout> & turnout) -> bool {
+    [id](unique_ptr<Turnout> & turnout) -> bool
+    {
       return (turnout->getID() == id);
     }
   );
@@ -246,7 +243,8 @@ Turnout *TurnoutManager::getTurnoutByAddress(const uint16_t address)
 {
   AtomicHolder h(this);
   auto const &elem = std::find_if(turnouts_.begin(), turnouts_.end(),
-    [address](unique_ptr<Turnout> & turnout) -> bool {
+    [address](unique_ptr<Turnout> & turnout) -> bool
+    {
       return (turnout->getAddress() == address);
     }
   );
@@ -264,10 +262,10 @@ uint16_t TurnoutManager::getTurnoutCount()
 }
 
 // TODO shift this to consume the LCC event directly
-void TurnoutManager::send(Buffer<dcc::Packet> *b, unsigned prio)
+void TurnoutManager::send(Buffer<Packet> *b, unsigned prio)
 {
   // add ref count so send doesn't delete it
-  dcc::Packet *pkt = b->data();
+  Packet *pkt = b->data();
   // Verify that the packet looks like a DCC Accessory decoder packet
   if(!pkt->packet_header.is_marklin &&
       pkt->dlc == 2 &&
@@ -288,7 +286,8 @@ void TurnoutManager::send(Buffer<dcc::Packet> *b, unsigned prio)
   b->unref();
 }
 
-void encodeDCCAccessoryAddress(uint16_t *boardAddress, int8_t *boardIndex, uint16_t address)
+void encodeDCCAccessoryAddress(uint16_t *boardAddress, int8_t *boardIndex
+                             , uint16_t address)
 {
   *boardAddress = (address + 3) / 4;
   *boardIndex = (address - (*boardAddress * 4)) + 3;
@@ -316,7 +315,7 @@ Turnout::Turnout(uint16_t turnoutID
     // convert the provided decoder address to a board address and accessory index
     encodeDCCAccessoryAddress(&_boardAddress, &_index, _address);
     LOG(INFO
-      , "[Turnout %d] Created using DCC address %d as type %s and initial state of %s"
+      , "[Turnout %d] Using DCC address %d as type %s and initial state of %s"
       , _turnoutID
       , _address
       , TURNOUT_TYPE_STRINGS[_type]
@@ -325,37 +324,7 @@ Turnout::Turnout(uint16_t turnoutID
   else
   {
     LOG(INFO
-      , "[Turnout %d] Created using address %d:%d as type %s and initial state of %s"
-      , _turnoutID
-      , _address
-      , _index
-      , TURNOUT_TYPE_STRINGS[_type]
-      , _thrown ? JSON_VALUE_THROWN : JSON_VALUE_CLOSED);
-  }
-}
-
-Turnout::Turnout(string &data)
-{
-  json object = json::parse(data);
-  _turnoutID = object[JSON_ID_NODE].get<int>();
-  _address = object[JSON_ADDRESS_NODE].get<int>();
-  _index = object[JSON_SUB_ADDRESS_NODE].get<int>();
-  _thrown = object[JSON_STATE_NODE].get<bool>();
-  _type = (TurnoutType)object[JSON_TYPE_NODE].get<int>();
-  _boardAddress = 0;
-  if (_index == -1)
-  {
-    // convert the provided decoder address to a board address and accessory index
-    encodeDCCAccessoryAddress(&_boardAddress, &_index, _address);
-    LOG(VERBOSE
-      , "[Turnout %d] Loaded using DCC address %d as type %s and last known state of %s"
-      , _turnoutID
-      , _address
-      , TURNOUT_TYPE_STRINGS[_type]
-      , _thrown ? JSON_VALUE_THROWN : JSON_VALUE_CLOSED);
-  } else {
-    LOG(VERBOSE
-      , "[Turnout %d] Loaded using address %d:%d as type %s and last known state of %s"
+      , "[Turnout %d] Using address %d:%d as type %s and initial state of %s"
       , _turnoutID
       , _address
       , _index
@@ -371,7 +340,8 @@ void Turnout::update(uint16_t address, int8_t index, TurnoutType type)
   _type = type;
   if (index == -1)
   {
-    // convert the provided decoder address to a board address and accessory index
+    // convert the provided decoder address to a board address and accessory
+    // index
     encodeDCCAccessoryAddress(&_boardAddress, &_index, _address);
     LOG(VERBOSE
       , "[Turnout %d] Updated to use DCC address %d and type %s"
@@ -390,30 +360,26 @@ void Turnout::update(uint16_t address, int8_t index, TurnoutType type)
   }
 }
 
-std::string Turnout::toJson(bool readableStrings)
+string Turnout::toJson(bool readableStrings)
 {
-  json object;
-  object[JSON_ID_NODE] = _turnoutID;
-  object[JSON_ADDRESS_NODE] = _address;
-  object[JSON_BOARD_ADDRESS_NODE] = _boardAddress;
-  if (_boardAddress)
-  {
-    object[JSON_SUB_ADDRESS_NODE] = -1;
-  }
-  else
-  {
-    object[JSON_SUB_ADDRESS_NODE] = _index;
-  }
+  string serialized = StringPrintf(
+    "{\"%s\":%d,\"%s\":%d,\"%s\":%d,\"%s\":%d,\"%s\":%d,\"%s\":"
+  , JSON_ID_NODE, _turnoutID, JSON_ADDRESS_NODE, _address
+  , JSON_BOARD_ADDRESS_NODE, _boardAddress
+  , JSON_SUB_ADDRESS_NODE, _boardAddress ? _index : -1
+  , JSON_TYPE_NODE, _type
+  , JSON_STATE_NODE);
   if (readableStrings)
   {
-    object[JSON_STATE_NODE] = _thrown ? JSON_VALUE_THROWN : JSON_VALUE_CLOSED;
+    serialized += StringPrintf("\"%s\"", _thrown ? JSON_VALUE_THROWN
+                                                 : JSON_VALUE_CLOSED);
   }
   else
   {
-    object[JSON_STATE_NODE] = _thrown;
+    serialized += integer_to_string(_thrown);
   }
-  object[JSON_TYPE_NODE] = (int)_type;
-  return object.dump();
+  serialized += "},";
+  return serialized;
 }
 
 void Turnout::set(bool thrown, bool sendDCCPacket)
@@ -431,10 +397,11 @@ void Turnout::set(bool thrown, bool sendDCCPacket)
 
 string Turnout::get_state_for_dccpp()
 {
-  return StringPrintf("<H %d %d %d %d>", _turnoutID, _address, _index, _thrown);
+  return StringPrintf("<H %d %d %d %d>", _turnoutID, _address, _index
+                    , _thrown);
 }
 
-void Turnout::get_next_packet(unsigned code, dcc::Packet* packet)
+void Turnout::get_next_packet(unsigned code, Packet* packet)
 {
   packet->add_dcc_basic_accessory(_address, _thrown);
 

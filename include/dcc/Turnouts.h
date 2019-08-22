@@ -38,7 +38,6 @@ class Turnout : public dcc::NonTrainPacketSource
 {
 public:
   Turnout(uint16_t, uint16_t, int8_t, bool=false, TurnoutType=TurnoutType::LEFT);
-  Turnout(std::string &);
   virtual ~Turnout() {}
   void update(uint16_t, int8_t, TurnoutType);
   void set(bool=false, bool=true);
