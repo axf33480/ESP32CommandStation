@@ -43,7 +43,7 @@ The primary focus of v1.4.0 will be improvements to the DCC signal code and addi
 - [-] TrainSearch protocol.
 - [ ] CS CDI web interface.
 - [-] CS Node ID reset from web interface.
-- [-] Force factory reset when node id changes.
+- [x] Force factory reset when node id changes.
 
 ### InfoScreen
 
