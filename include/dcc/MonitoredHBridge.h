@@ -159,8 +159,8 @@ private:
   uint32_t progAckLimit_{0};
   const esp32cs::TrackOutputConfig cfg_;
   const uint8_t targetLED_;
-  const uint8_t adcSampleCount_{64};
-  const uint64_t checkInterval_{MSEC_TO_NSEC(100)};
+  const uint8_t adcSampleCount_{32};
+  const uint64_t checkInterval_{MSEC_TO_NSEC(50)};
   const uint8_t overCurrentRetryCount_{3};
   const uint64_t overCurrentRetryInterval_{MSEC_TO_NSEC(25)};
   const uint64_t currentReportInterval_{SEC_TO_USEC(30)};
