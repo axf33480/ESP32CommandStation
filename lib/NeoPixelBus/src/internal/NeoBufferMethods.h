@@ -26,19 +26,12 @@ License along with NeoPixel.  If not, see
 
 #pragma once
 
-
-#ifdef ARDUINO_ARCH_AVR
-
-typedef uint16_t(*LayoutMapCallback)(int16_t x, int16_t y);
-
-#else
+#include <stdint.h>
 
 #undef max
 #undef min
 #include <functional>
 typedef std::function<uint16_t(int16_t x, int16_t y)> LayoutMapCallback;
-
-#endif
 
 template<typename T_COLOR_FEATURE> class NeoBufferMethod
 {

@@ -25,6 +25,8 @@ License along with NeoPixel.  If not, see
 -------------------------------------------------------------------------*/
 #pragma once
 
+#include <stdint.h>
+
 // This is used to allow a template classes that share common buffer concept to
 // be able to pass that common information to functions 
 // The template classes just need to expose a conversion operator to this type

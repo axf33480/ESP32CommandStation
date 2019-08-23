@@ -26,12 +26,15 @@ License along with NeoPixel.  If not, see
 
 #pragma once
 
-#ifdef ARDUINO_ARCH_ESP32
+#include <stdint.h>
+
+#ifdef ESP32
 
 /*  General Reference documentation for the APIs used in this implementation
 LOW LEVEL:  (what is actually used)
 DOCS: https://docs.espressif.com/projects/esp-idf/en/latest/api-reference/peripherals/rmt.html
-EXAMPLE: https://github.com/espressif/esp-idf/blob/826ff7186ae07dc81e960a8ea09ebfc5304bfb3b/examples/peripherals/rmt_tx/main/rmt_tx_main.c
+EXAMPLE: https://github.com/espressif/esp-idf/blob/826ff7186ae07dc81e960a8ea09ebfc5304bfb3b/examples/peripherals/rmt_tx/main/rmt_tx_main.c
+
 HIGHER LEVEL:
 NO TRANSLATE SUPPORT so this was not used
 NOTE: https://github.com/espressif/arduino-esp32/commit/50d142950d229b8fabca9b749dc4a5f2533bc426
@@ -39,11 +42,7 @@ Esp32-hal-rmt.h
 Esp32-hal-rmt.c
 */
 
-extern "C"
-{
-#include <Arduino.h>
 #include <driver/rmt.h>
-}
 
 class NeoEsp32RmtSpeedBase
 {

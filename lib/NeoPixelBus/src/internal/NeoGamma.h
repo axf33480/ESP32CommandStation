@@ -26,6 +26,11 @@ License along with NeoPixel.  If not, see
 -------------------------------------------------------------------------*/
 #pragma once
 
+#include <stdint.h>
+#include "NeoEase.h"
+#include "RgbColor.h"
+#include "RgbwColor.h"
+
 // NeoGammaEquationMethod uses no memory but is slower than NeoGammaTableMethod
 class NeoGammaEquationMethod
 {

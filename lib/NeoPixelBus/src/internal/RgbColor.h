@@ -25,11 +25,10 @@ License along with NeoPixel.  If not, see
 -------------------------------------------------------------------------*/
 #pragma once
 
-#include <Arduino.h>
+#include <stdint.h>
 
 struct HslColor;
 struct HsbColor;
-struct HtmlColor;
 
 // ------------------------------------------------------------------------
 // RgbColor represents a color object that is represented by Red, Green, Blue
@@ -55,11 +54,6 @@ struct RgbColor
         R(brightness), G(brightness), B(brightness)
     {
     };
-
-    // ------------------------------------------------------------------------
-    // Construct a RgbColor using HtmlColor
-    // ------------------------------------------------------------------------
-    RgbColor(const HtmlColor& color);
 
     // ------------------------------------------------------------------------
     // Construct a RgbColor using HslColor

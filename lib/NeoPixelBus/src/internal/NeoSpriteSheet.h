@@ -25,6 +25,7 @@ License along with NeoPixel.  If not, see
 -------------------------------------------------------------------------*/
 #pragma once
 
+#include <stdint.h>
 
 template<typename T_BUFFER_METHOD> class NeoVerticalSpriteSheet
 {

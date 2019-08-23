@@ -25,14 +25,6 @@ License along with NeoPixel.  If not, see
 -------------------------------------------------------------------------*/
 #pragma once
 
-#include <Arduino.h>
-
-// some platforms do not define this standard progmem type for some reason
-//
-#ifndef PGM_VOID_P
-#define PGM_VOID_P const void *
-#endif
-
 // '_state' flags for internal state
 #define NEO_DIRTY   0x80 // a change was made to pixel data that requires a show
 
@@ -41,11 +33,9 @@ License along with NeoPixel.  If not, see
 #include "internal/RgbColor.h"
 #include "internal/HslColor.h"
 #include "internal/HsbColor.h"
-#include "internal/HtmlColor.h"
 #include "internal/RgbwColor.h"
 
 #include "internal/NeoColorFeatures.h"
-#include "internal/DotStarColorFeatures.h"
 
 #include "internal/Layouts.h"
 #include "internal/NeoTopology.h"
@@ -63,38 +53,7 @@ License along with NeoPixel.  If not, see
 #include "internal/NeoEase.h"
 #include "internal/NeoGamma.h"
 
-#if defined(ARDUINO_ARCH_ESP8266)
-
-#include "internal/NeoEsp8266DmaMethod.h"
-#include "internal/NeoEsp8266UartMethod.h"
-#include "internal/NeoEspBitBangMethod.h"
-#include "internal/DotStarGenericMethod.h"
-
-#elif defined(ARDUINO_ARCH_ESP32)
-
-#include "internal/NeoEsp32I2sMethod.h"
 #include "internal/NeoEsp32RmtMethod.h"
-#include "internal/NeoEspBitBangMethod.h"
-#include "internal/DotStarGenericMethod.h"
-
-#elif defined(__arm__) // must be before ARDUINO_ARCH_AVR due to Teensy incorrectly having it set
-
-#include "internal/NeoArmMethod.h"
-#include "internal/DotStarGenericMethod.h"
-
-#elif defined(ARDUINO_ARCH_AVR)
-
-#include "internal/NeoAvrMethod.h"
-#include "internal/DotStarAvrMethod.h"
-
-#else
-#error "Platform Currently Not Supported, please add an Issue at Github/Makuna/NeoPixelBus"
-#endif
-
-#if !defined(__AVR_ATtiny85__)
-#include "internal/DotStarSpiMethod.h"
-#endif
-
 
 template<typename T_COLOR_FEATURE, typename T_METHOD> class NeoPixelBus
 {

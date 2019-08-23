@@ -26,18 +26,12 @@ License along with NeoPixel.  If not, see
 
 #pragma once
 
-#ifdef ARDUINO_ARCH_AVR
-
-typedef float(*AnimEaseFunction)(float unitValue);
-
-#else
-
 #undef max
 #undef min
 #include <functional>
+#define _USE_MATH_DEFINES
+#include <cmath>
 typedef std::function<float(float unitValue)> AnimEaseFunction;
-
-#endif
 
 class NeoEase
 {
@@ -190,28 +184,28 @@ public:
 
     static float SinusoidalIn(float unitValue)
     {
-        return (-cos(unitValue * HALF_PI) + 1.0f);
+        return (-cos(unitValue * M_PI_2) + 1.0f);
     }
 
     static float SinusoidalOut(float unitValue)
     {
-        return (sin(unitValue * HALF_PI));
+        return (sin(unitValue * M_PI_2));
     }
 
     static float SinusoidalInOut(float unitValue)
     {
-        return -0.5 * (cos(PI * unitValue) - 1.0f);
+        return -0.5 * (cos(M_PI * unitValue) - 1.0f);
     }
 
     static float SinusoidalCenter(float unitValue)
     {
         if (unitValue < 0.5f)
         {
-            return (0.5 * sin(PI * unitValue));
+            return (0.5 * sin(M_PI * unitValue));
         }
         else
         {
-            return (-0.5 * (cos(PI * (unitValue-0.5f)) + 1.0f));
+            return (-0.5 * (cos(M_PI * (unitValue-0.5f)) + 1.0f));
         }
         
     }

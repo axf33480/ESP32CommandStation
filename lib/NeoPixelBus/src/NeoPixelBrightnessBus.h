@@ -26,6 +26,7 @@ License along with NeoPixel.  If not, see
 
 #pragma once
 
+#include <stdint.h>
 #include "NeoPixelBus.h"
 
 template<typename T_COLOR_FEATURE, typename T_METHOD> class NeoPixelBrightnessBus : 

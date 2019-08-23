@@ -28,6 +28,8 @@ License along with NeoPixel.  If not, see
 <http://www.gnu.org/licenses/>.
 -------------------------------------------------------------------------*/
 
+#include <stdint.h>
+
 const uint16_t PixelIndex_OutOfBounds = 0xffff;
 
 //-----------------------------------------------------------------------------

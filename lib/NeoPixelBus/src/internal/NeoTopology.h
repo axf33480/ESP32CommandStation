@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdint.h>
+
 /*-------------------------------------------------------------------------
 NeoTopology provides a mapping feature of a 2d cordinate to linear 1d cordinate
 It is used to map a matrix of NeoPixels to a index on the NeoPixelBus

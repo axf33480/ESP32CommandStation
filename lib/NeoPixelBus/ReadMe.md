@@ -1,5 +1,11 @@
 # NeoPixelBus
 
+NOTE: This library has been modified for ESP32CommandStation as follows:
+1. Remove Arduino references
+2. Remove HTML color support (removes large chunk of static allocations)
+3. Only ESP32 RMT output support
+4. Remove NeoPixelAnimator (unused and has hard dependency on millis() for timing)
+
 [![Donate](https://img.shields.io/badge/paypal-donate-yellow.svg)](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=6AA97KE54UJR4)
 
 Arduino NeoPixel library
