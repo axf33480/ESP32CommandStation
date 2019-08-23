@@ -261,7 +261,7 @@ StateFlowBase::Action MonitoredHBridge::check()
   // collect samples from ADC
   while(samples.size() < adcSampleCount_) {
     samples.push_back(adc1_get_raw(channel_));
-    usleep(1);
+    ets_delay_us(1);
   }
   // average the collected samples
   lastReading_ = (std::accumulate(samples.begin(), samples.end(), 0) / samples.size());
