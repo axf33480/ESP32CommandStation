@@ -264,12 +264,7 @@ ConfigurationManager::~ConfigurationManager()
   if (configAutoSync_.get())
   {
     SyncNotifiable n;
-    openmrn->stack()->executor()->add(new CallbackExecutable([&]()
-      {
-        configAutoSync_->shutdown();
-        n.notify();
-      }
-    ));
+    configAutoSync_->shutdown(&n);
     n.wait_for_notification();
     configAutoSync_.reset(nullptr);
   }
