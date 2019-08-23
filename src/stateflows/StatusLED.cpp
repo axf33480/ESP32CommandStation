@@ -75,8 +75,17 @@ StateFlowBase::Action StatusLED::update()
     SET_LED_STATE(led, YELLOW, RGB_YELLOW_)
     SET_LED_STATE(led, OFF, RGB_OFF_)
   }
-  bus_->Show();
-  return sleep_and_call(&timer_, updateInterval_, STATE(update));
+  return yield_and_call(STATE(update_bus));
+}
+
+StateFlowBase::Action StatusLED::update_bus()
+{
+  if (bus_->CanShow())
+  {
+    bus_->Show();
+    return sleep_and_call(&timer_, updateInterval_, STATE(update));
+  }
+  return yield_and_call(STATE(update_bus));
 }
 
 void StatusLED::setStatusLED(const LED led, const COLOR color, const bool on)

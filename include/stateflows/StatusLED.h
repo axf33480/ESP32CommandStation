@@ -137,6 +137,7 @@ private:
 
   STATE_FLOW_STATE(init);
   STATE_FLOW_STATE(update);
+  STATE_FLOW_STATE(update_bus);
 };
 
 #endif // STATUS_LED_H_
