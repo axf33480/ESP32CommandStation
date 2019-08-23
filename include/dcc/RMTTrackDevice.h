@@ -49,7 +49,7 @@ public:
                , const gpio_num_t=(gpio_num_t)OPS_ENABLE_PIN
                , const gpio_num_t=(gpio_num_t)OPS_THERMAL_PIN
                , const adc1_channel_t=OPS_CURRENT_SENSE_ADC
-               , const rmt_channel_t=RMT_CHANNEL_1
+               , const rmt_channel_t=RMT_CHANNEL_3
                , const gpio_num_t=(gpio_num_t)PROG_SIGNAL_PIN
                , const uint8_t=PROG_PREAMBLE_BITS
                , const gpio_num_t=(gpio_num_t)PROG_ENABLE_PIN

@@ -65,20 +65,20 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #define APA106      6
 
 #if STATUS_LED_TYPE == WS281X
-#define NEO_METHOD NeoEsp32Rmt3Ws2812xMethod
-#define NEO_METHOD_NAME "RMT(3)-Ws2812"
+#define NEO_METHOD NeoEsp32Rmt6Ws2812xMethod
+#define NEO_METHOD_NAME "RMT(6)-Ws2812"
 #elif STATUS_LED_TYPE == WS281X_800K
-#define NEO_METHOD NeoEsp32Rmt3800KbpsMethod
-#define NEO_METHOD_NAME "RMT(3)-Ws2812-800kbps"
+#define NEO_METHOD NeoEsp32Rmt6800KbpsMethod
+#define NEO_METHOD_NAME "RMT(6)-Ws2812-800kbps"
 #elif STATUS_LED_TYPE == WS281X_400K
-#define NEO_METHOD NeoEsp32Rmt3400KbpsMethod
-#define NEO_METHOD_NAME "RMT(3)-Ws2812-400kbps"
+#define NEO_METHOD NeoEsp32Rmt6400KbpsMethod
+#define NEO_METHOD_NAME "RMT(6)-Ws2812-400kbps"
 #elif STATUS_LED_TYPE == SK6812 || STATUS_LED_TYPE == LC6812
-#define NEO_METHOD NeoEsp32Rmt3Sk6812Method
-#define NEO_METHOD_NAME "RMT(3)-sk6812"
+#define NEO_METHOD NeoEsp32Rmt6Sk6812Method
+#define NEO_METHOD_NAME "RMT(6)-sk6812"
 #elif STATUS_LED_TYPE == APA106
-#define NEO_METHOD NeoEsp32Rmt3Apa106Method
-#define NEO_METHOD_NAME "RMT(3)-APA106"
+#define NEO_METHOD NeoEsp32Rmt6Apa106Method
+#define NEO_METHOD_NAME "RMT(6)-APA106"
 #else
 #error "StatusLED: unknown LED type"
 #endif

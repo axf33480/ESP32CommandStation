@@ -397,7 +397,7 @@ static void rmt_tx_complete_isr_callback(rmt_channel_t channel, void *ctx)
 
   // Check if the channel 1 TX END has been triggered
   // if so the PROG TX has completed and we need to clear the event
-  if (channel == RMT_CHANNEL_1)
+  if (channel == RMT_CHANNEL_3)
   {
     track->prog_rmt_transmit_complete();
   }
