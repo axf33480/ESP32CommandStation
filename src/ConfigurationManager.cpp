@@ -263,6 +263,7 @@ ConfigurationManager::~ConfigurationManager()
   // Shutdown the auto-sync handler if it is running before unmounting the FS.
   if (configAutoSync_.get())
   {
+    LOG(INFO, "[Config] Disabling automatic fsync(%d) calls...", configFd_);
     SyncNotifiable n;
     configAutoSync_->shutdown(&n);
     n.wait_for_notification();
@@ -271,6 +272,12 @@ ConfigurationManager::~ConfigurationManager()
 
   // shutdown the executor so that no more tasks will run
   openmrn->stack()->executor()->shutdown();
+
+  // close the config file if it is open
+  if (configFd_ >= 0)
+  {
+    ::close(configFd_);
+  }
 
   // Unmount the SPIFFS partition
   if (esp_spiffs_mounted(NULL))
@@ -430,6 +437,8 @@ void ConfigurationManager::configureLCC(OpenMRN *openmrn
   // ESP32 FFat library uses a 512b cache in memory by default for the SD VFS
   // adding a periodic fsync call for the LCC configuration file ensures that
   // config changes are saved since the LCC config file is less than 512b.
+  LOG(INFO, "[Config] Creating automatic fsync(%d) calls every %dsec."
+    , configFd_, config_lcc_sd_sync_interval_sec());
   configAutoSync_.reset(new AutoSyncFileFlow(openmrn->stack()->service()
                       , configFd_
                       , SEC_TO_USEC(config_lcc_sd_sync_interval_sec())));
