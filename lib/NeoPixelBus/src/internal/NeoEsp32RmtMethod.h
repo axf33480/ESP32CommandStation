@@ -227,9 +227,12 @@ public:
 
         config.clk_div = T_SPEED::RmtClockDivider;
 
-        rmt_config(&config);
-        rmt_driver_install(T_CHANNEL::RmtChannelNumber, 0, 0);
-        rmt_translator_init(T_CHANNEL::RmtChannelNumber, _translate);
+        ESP_ERROR_CHECK(rmt_config(&config));
+        ESP_ERROR_CHECK(rmt_driver_install(T_CHANNEL::RmtChannelNumber, 0, 0));
+        if(_pixelsSending)
+        {
+          ESP_ERROR_CHECK(rmt_translator_init(T_CHANNEL::RmtChannelNumber, _translate));
+        }
     }
 
     void Update(bool maintainBufferConsistency)
@@ -242,7 +245,7 @@ public:
             if (_encodedPixels)
             {
               size_t translated{0}, count{0};
-              _translate((void *)_pixelsEditing, _encodedPixels, _pixelsSize, _pixelsSize, &translated, &count);
+              _translate((void *)_pixelsEditing, _encodedPixels, _pixelsSize, _pixelsSize * 8, &translated, &count);
               rmt_write_items(T_CHANNEL::RmtChannelNumber, _encodedPixels, count, false);
             }
             else
@@ -279,8 +282,8 @@ private:
 
     size_t    _pixelsSize;      // Size of '_pixels' buffer 
     uint8_t*  _pixelsEditing;   // Holds LED color values exposed for get and set
-    uint8_t*  _pixelsSending;   // Holds LED color values used to async send using RMT
-    rmt_item32_t *_encodedPixels; // pre-encoded pixel data
+    uint8_t*  _pixelsSending{nullptr};   // Holds LED color values used to async send using RMT
+    rmt_item32_t *_encodedPixels{nullptr}; // pre-encoded pixel data
 
 
     // stranslate NeoPixelBuffer into RMT buffer
