@@ -206,7 +206,7 @@ extern "C" void app_main()
 
   // Add a data dumper for the RailCom Hub
   unique_ptr<RailcomPrintfFlow> railComDataDumper;
-  if (config_enable_railcom_packet_dump() < CONSTANT_FALSE)
+  if (config_enable_railcom_packet_dump() == CONSTANT_TRUE)
   {
     railComDataDumper.reset(new RailcomPrintfFlow(railComHub.get()));
   }

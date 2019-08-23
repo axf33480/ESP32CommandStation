@@ -95,12 +95,8 @@ void recursiveWalkTree(const string &path, bool remove=false)
 
 ConfigurationManager::ConfigurationManager()
 {
-  // NOTE: these do not use == CONSTANT_TRUE due to what appears to be a GCC
-  // bug. When using == CONSTANT_TRUE the result is always false even when the
-  // values match! By using < CONSTANT_FALSE it will trigger only when it is
-  // set to CONSTANT_TRUE.
-  bool factory_reset_config{config_cs_force_factory_reset() < CONSTANT_FALSE};
-  bool lcc_factory_reset{config_lcc_force_factory_reset() < CONSTANT_FALSE};
+  bool factory_reset_config{config_cs_force_factory_reset() == CONSTANT_TRUE};
+  bool lcc_factory_reset{config_lcc_force_factory_reset() == CONSTANT_TRUE};
   bool persist_config{true};
   struct stat statbuf;
 
