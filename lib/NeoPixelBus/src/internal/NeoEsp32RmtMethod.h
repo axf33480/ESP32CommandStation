@@ -169,8 +169,15 @@ public:
         _pixelsEditing = static_cast<uint8_t*>(malloc(_pixelsSize));
         memset(_pixelsEditing, 0x00, _pixelsSize);
 
-        _pixelsSending = static_cast<uint8_t*>(malloc(_pixelsSize));
-        // no need to initialize it, it gets overwritten on every send
+        if ((_pixelsSize * 8) < 128)
+        {
+          _encodedPixels = static_cast<rmt_item32_t *>(malloc(sizeof(rmt_item32_t) * _pixelsSize * 8));
+        }
+        else
+        {
+           _pixelsSending = static_cast<uint8_t*>(malloc(_pixelsSize));
+          // no need to initialize it, it gets overwritten on every send
+        }
     }
 
     ~NeoEsp32RmtMethodBase()
@@ -182,7 +189,14 @@ public:
         rmt_driver_uninstall(T_CHANNEL::RmtChannelNumber);
 
         free(_pixelsEditing);
-        free(_pixelsSending);
+        if (_encodedPixels)
+        {
+          free(_encodedPixels);
+        }
+        else
+        {
+          free(_pixelsSending);
+        }
     }
 
 
@@ -199,6 +213,10 @@ public:
         config.channel = T_CHANNEL::RmtChannelNumber;
         config.gpio_num = static_cast<gpio_num_t>(_pin);
         config.mem_block_num = 1;
+        if(_encodedPixels)
+        {
+          config.mem_block_num = 2;
+        }
         config.tx_config.loop_en = false;
         
         config.tx_config.idle_output_en = true;
@@ -221,19 +239,28 @@ public:
         // and do nothing if this happens
         if (ESP_OK == rmt_wait_tx_done(T_CHANNEL::RmtChannelNumber, 10000 / portTICK_PERIOD_MS))
         {
-            // now start the RMT transmit with the editing buffer before we swap
-            rmt_write_sample(T_CHANNEL::RmtChannelNumber, _pixelsEditing, _pixelsSize, false);
-
-            if (maintainBufferConsistency)
+            if (_encodedPixels)
             {
-                // copy editing to sending,
-                // this maintains the contract that "colors present before will
-                // be the same after", otherwise GetPixelColor will be inconsistent
-                memcpy(_pixelsSending, _pixelsEditing, _pixelsSize);
+              size_t translated{0}, count{0};
+              _translate((void *)_pixelsEditing, _encodedPixels, _pixelsSize, _pixelsSize, &translated, &count);
+              rmt_write_items(T_CHANNEL::RmtChannelNumber, _encodedPixels, count, false);
             }
+            else
+            {
+              // now start the RMT transmit with the editing buffer before we swap
+              rmt_write_sample(T_CHANNEL::RmtChannelNumber, _pixelsEditing, _pixelsSize, false);
 
-            // swap so the user can modify without affecting the async operation
-            std::swap(_pixelsSending, _pixelsEditing);
+              if (maintainBufferConsistency)
+              {
+                  // copy editing to sending,
+                  // this maintains the contract that "colors present before will
+                  // be the same after", otherwise GetPixelColor will be inconsistent
+                  memcpy(_pixelsSending, _pixelsEditing, _pixelsSize);
+              }
+
+              // swap so the user can modify without affecting the async operation
+              std::swap(_pixelsSending, _pixelsEditing);
+            }
         }
     }
 
@@ -253,6 +280,7 @@ private:
     size_t    _pixelsSize;      // Size of '_pixels' buffer 
     uint8_t*  _pixelsEditing;   // Holds LED color values exposed for get and set
     uint8_t*  _pixelsSending;   // Holds LED color values used to async send using RMT
+    rmt_item32_t *_encodedPixels; // pre-encoded pixel data
 
 
     // stranslate NeoPixelBuffer into RMT buffer
