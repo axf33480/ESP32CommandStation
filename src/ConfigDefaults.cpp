@@ -48,6 +48,14 @@ DEFAULT_CONST_TRUE(lcc_force_factory_reset);
 ///////////////////////////////////////////////////////////////////////////////
 DEFAULT_CONST(lcc_sd_sync_interval_sec, 10);
 
+
+///////////////////////////////////////////////////////////////////////////////
+// This flag controls automatic creation of Locomotive roster entries based on
+// the request from the LCC FindProtocolServer -> AllTrainNodes::allocate_node
+// call.
+///////////////////////////////////////////////////////////////////////////////
+DEFAULT_CONST_TRUE(cs_train_db_auto_create_entries);
+
 ///////////////////////////////////////////////////////////////////////////////
 // This flag will print a list of FreeRTOS tasks every ~5min. This is not
 // recommended to be enabled except during debugging sessions as it will cause
