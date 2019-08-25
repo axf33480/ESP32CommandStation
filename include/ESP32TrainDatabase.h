@@ -26,6 +26,9 @@ COPYRIGHT (c) 2019 Mike Dunston
 
 #include "TrainDb.hxx"
 
+#include "ESP32CSConstants.h"
+#include "stateflows/AutoPersistCallbackFlow.h"
+
 namespace esp32cs
 {
   using namespace commandstation;
@@ -129,11 +132,35 @@ namespace esp32cs
       return maxFn_;
     }
 
-    void start_read_functions() override { }
+    void start_read_functions() override
+    {
+    }
 
     Esp32PersistentTrainData get_data()
     {
       return data_;
+    }
+
+    void set_auto_idle(bool idle)
+    {
+      data_.automatic_idle = idle;
+      dirty_ = true;
+    }
+
+    void set_show_on_limited_throttles(bool show)
+    {
+      data_.show_on_limited_throttles = show;
+      dirty_ = true;
+    }
+
+    bool is_dirty()
+    {
+      return dirty_;
+    }
+
+    void reset_dirty()
+    {
+      dirty_ = false;
     }
 
   private:
@@ -147,7 +174,7 @@ namespace esp32cs
                            , public Singleton<Esp32TrainDatabase>
   {
   public:
-    Esp32TrainDatabase();
+    Esp32TrainDatabase(openlcb::SimpleStackBase *stack);
 
     // not supported/used.
     bool has_file() override
@@ -169,13 +196,12 @@ namespace esp32cs
 
     bool is_train_id_known(unsigned train_id) override
     {
-      LOG(INFO, "[db] %d", train_id);
-      if (train_id == 0)
-      {
-        return false;
-      }
-      return train_id < knownTrains_.size();
+      return get_entry(train_id) != nullptr;
     }
+
+    std::shared_ptr<TrainDbEntry> create_if_not_found(unsigned address, DccMode mode=DccMode::DCC_128);
+
+    void delete_entry(unsigned address);
 
     std::shared_ptr<TrainDbEntry> get_entry(unsigned train_id) override;
 
@@ -184,8 +210,14 @@ namespace esp32cs
 
     unsigned add_dynamic_entry(TrainDbEntry* entry) override;
 
-    std::string get_train_list_as_json();
-    std::string get_train_as_json(uint16_t address);
+    std::set<uint16_t> get_default_train_addresses(uint16_t limit);
+
+    void set_train_name(unsigned address, std::string &name);
+    void set_train_auto_idle(unsigned address, bool idle);
+    void set_train_show_on_limited_throttle(unsigned address, bool show);
+
+    std::string get_all_entries_as_json();
+    std::string get_entry_as_json(unsigned address);
 
     openlcb::MemorySpace *get_readonly_train_cdi()
     {
@@ -197,12 +229,17 @@ namespace esp32cs
       return tempTrainCdiFile_.get();
     }
 
+    void persist();
+
   private:
+    openlcb::SimpleStackBase *stack_;
     bool legacyEntriesFound_{false};
     OSMutex knownTrainsLock_;
     std::set<shared_ptr<Esp32TrainDbEntry>> knownTrains_;
+    std::set<shared_ptr<TrainDbEntry>> temporaryTrains_;
     std::unique_ptr<openlcb::MemorySpace> trainCdiFile_;
     std::unique_ptr<openlcb::MemorySpace> tempTrainCdiFile_;
+    uninitialized<AutoPersistFlow> persistFlow_;
   };
 
 } // namespace esp32cs

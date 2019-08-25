@@ -58,7 +58,7 @@ Configuration for command station managed consist:
 NO CV changes, when consist is addressed (either by LEAD or TRAIL loco), all
 locomotives in consist will be updated concurrently via multiple packet queuing.
 **********************************************************************/
-
+/*
 // TODO remove this constant
 static constexpr const char * CONSIST_ENTRY_JSON_FILE = "consist-%d.json";
 
@@ -244,3 +244,4 @@ void LocomotiveConsist::releaseLocomotives()
   }
   _locos.clear();
 }
+*/

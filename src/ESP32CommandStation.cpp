@@ -209,6 +209,9 @@ extern "C" void app_main()
                                               , trackInterface->pool()
                                               , &dccUpdateLoop);
 
+  // Initialize the e-stop event handler
+  esp32cs::EStopHandler eStop(openmrn->stack()->node());
+
   // Add a data dumper for the RailCom Hub
   unique_ptr<RailcomPrintfFlow> railComDataDumper;
   if (config_enable_railcom_packet_dump() == CONSTANT_TRUE)
@@ -235,14 +238,13 @@ extern "C" void app_main()
   // Initialize the Traction Protocol support
   TrainService trainService(openmrn->stack()->iface());
 
-  // Initialize the locomotive manager
-  locoManager.reset(new LocomotiveManager(openmrn->stack()->node(), &trainService));
-
-  esp32cs::Esp32TrainDatabase trainDb;
+  // Initialize the train database
+  esp32cs::Esp32TrainDatabase trainDb(openmrn->stack());
 
   // Start the OpenMRN stack.
   openmrn->begin();
 
+  // Initialize the Train Search and Train Manager.
   trainNodes.reset(
     new commandstation::AllTrainNodes(&trainDb
                                     , &trainService
@@ -251,6 +253,7 @@ extern "C" void app_main()
                                     , trainDb.get_readonly_train_cdi()
                                     , trainDb.get_readonly_temp_train_cdi()));
 
+  // Add callback to start the loop task
   openmrn->stack()->executor()->add(new CallbackExecutable([]()
   {
     LOG(INFO, "[OpenMRN] Starting loop task on core:%d", APP_CPU_NUM);

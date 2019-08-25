@@ -159,7 +159,6 @@ using openlcb::WriteHelper;
 
 #include "dcc/DCCProgrammer.h"
 #include "dcc/EStopHandler.h"
-#include "dcc/Locomotive.h"
 #include "dcc/MonitoredHBridge.h"
 #include "dcc/RMTTrackDevice.h"
 #include "dcc/Turnouts.h"

@@ -74,7 +74,7 @@ void BaseNextionPage::setTrackPower(bool on) {
 }
 
 void BaseNextionPage::sendEStop() {
-  locoManager->set_state(true);
+  Singleton<esp32cs::EStopHandler>::instance()->set_state(true);
   refresh();
 }
 

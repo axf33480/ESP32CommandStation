@@ -369,15 +369,13 @@ void ESP32CSWebServer::handleProgrammer(AsyncWebServerRequest *request)
         response += StringPrintf("\"%s\":%d,", JSON_ADDRESS_NODE
                                , decoderAddress);
         bool create = request->arg(JSON_CREATE_NODE).equalsIgnoreCase(JSON_VALUE_TRUE);
-        auto roster = locoManager->getRosterEntry(decoderAddress, create);
-        if (roster)
+        // if it is a mobile decoder *AND* we are requested to create it, send
+        // the decoder address to the train db to create an entry.
+        if (create &&
+           (decoderConfig & BIT(DECODER_CONFIG_BITS::DECODER_TYPE)) == 0)
         {
-          response += StringPrintf("\"%s\":%s,", JSON_LOCO_NODE
-                                 , roster->toJson().c_str());
-          roster->setType(bitRead(decoderConfig
-                                , DECODER_CONFIG_BITS::DECODER_TYPE) ?
-                                  JSON_VALUE_STATIONARY_DECODER :
-                                  JSON_VALUE_MOBILE_DECODER);
+          auto traindb = Singleton<esp32cs::Esp32TrainDatabase>::instance();
+          traindb->create_if_not_found(decoderAddress);
         }
         response += "}";
         SEND_JSON_RESPONSE(request, response)
@@ -745,6 +743,28 @@ void ESP32CSWebServer::handleRemoteSensors(AsyncWebServerRequest *request) {
 #endif // ENABLE_SENSORS
 }
 
+string convert_loco_to_json(TrainImpl *t)
+{
+  if (!t)
+  {
+    return "{}";
+  }
+  nlohmann::json j =
+  {
+    { JSON_ADDRESS_NODE, t->legacy_address() },
+    { JSON_SPEED_NODE, t->get_speed().get_dcc_128() & 0x7F },
+    { JSON_DIRECTION_NODE, t->get_speed().direction() ? JSON_VALUE_REVERSE : JSON_VALUE_FORWARD},
+  };
+  for(uint8_t funcID = 0; funcID < DCC_MAX_FN; funcID++)
+  {
+    j[JSON_FUNCTIONS_NODE].push_back({
+      { JSON_ID_NODE, funcID },
+      { JSON_STATE_NODE, t->get_fn(funcID) }
+    });
+  }
+  return j.dump();
+}
+
 void ESP32CSWebServer::handleLocomotive(AsyncWebServerRequest *request)
 {
   // method - url pattern - meaning
@@ -760,53 +780,51 @@ void ESP32CSWebServer::handleLocomotive(AsyncWebServerRequest *request)
   // PUT /locomotive?address=<address>&speed=<speed>&dir=[FWD|REV]&fX=[true|false] - Update locomotive state, fX is short for function X where X is 0-28.
   // DELETE /locomotive?address=<address> - removes locomotive from active management
   string url(request->url().c_str());
+  auto traindb = Singleton<esp32cs::Esp32TrainDatabase>::instance();
+
   // check if we have an eStop command, we don't care how this gets sent to the
   // command station (method) so check it first
   if(url.find("/estop") != string::npos)
   {
-    locoManager->set_state(true);
+    Singleton<esp32cs::EStopHandler>::instance()->set_state(true);
   }
   else if(url.find("/roster")  != string::npos)
   {
     if(request->method() == HTTP_GET && !request->hasArg(JSON_ADDRESS_NODE))
     {
-      if(request->hasArg("new"))
-      {
-        SEND_JSON_RESPONSE(request,
-                           Singleton<esp32cs::Esp32TrainDatabase>::instance()->get_train_list_as_json())
-      }
-      SEND_JSON_RESPONSE(request, locoManager->getRosterEntriesAsJson())
+      SEND_JSON_RESPONSE(request,
+                         Singleton<esp32cs::Esp32TrainDatabase>::instance()->get_all_entries_as_json())
     }
     else if (request->hasArg(JSON_ADDRESS_NODE))
     {
       if(request->method() == HTTP_DELETE)
       {
-        locoManager->removeRosterEntry(request->arg(JSON_ADDRESS_NODE).toInt());
+        traindb->delete_entry(request->arg(JSON_ADDRESS_NODE).toInt());
         SEND_GENERIC_RESPONSE(request, STATUS_OK)
       }
       else
       {
-        RosterEntry *entry = locoManager->getRosterEntry(request->arg(JSON_ADDRESS_NODE).toInt());
+        uint16_t address = request->arg(JSON_ADDRESS_NODE).toInt();
+        traindb->create_if_not_found(address);
         if(request->method() == HTTP_PUT || request->method() == HTTP_POST)
         {
-          if(request->hasArg(JSON_DESCRIPTION_NODE))
+          if(request->hasArg(JSON_NAME_NODE))
           {
-            entry->setDescription(request->arg(JSON_DESCRIPTION_NODE).c_str());
-          }
-          if(request->hasArg(JSON_TYPE_NODE))
-          {
-            entry->setType(request->arg(JSON_TYPE_NODE).c_str());
+            string name = request->arg(JSON_NAME_NODE).c_str();
+            traindb->set_train_name(address, name);
           }
           if(request->hasArg(JSON_IDLE_ON_STARTUP_NODE))
           {
-            entry->setIdleOnStartup(request->arg(JSON_IDLE_ON_STARTUP_NODE).equalsIgnoreCase(JSON_VALUE_TRUE));
+            bool idle = request->arg(JSON_IDLE_ON_STARTUP_NODE).equalsIgnoreCase(JSON_VALUE_TRUE);
+            traindb->set_train_auto_idle(address, idle);
           }
           if(request->hasArg(JSON_DEFAULT_ON_THROTTLE_NODE))
           {
-            entry->setDefaultOnThrottles(request->arg(JSON_DEFAULT_ON_THROTTLE_NODE).equalsIgnoreCase(JSON_VALUE_TRUE));
+            bool show = request->arg(JSON_DEFAULT_ON_THROTTLE_NODE).equalsIgnoreCase(JSON_VALUE_TRUE);
+            traindb->set_train_show_on_limited_throttle(address, show);
           }
         }
-        SEND_JSON_IF_OBJECT(request, entry)
+        SEND_JSON_RESPONSE(request, traindb->get_entry_as_json(address));
       }
     }
   }
@@ -818,16 +836,29 @@ void ESP32CSWebServer::handleLocomotive(AsyncWebServerRequest *request)
     if(request->method() == HTTP_GET && !request->hasArg(JSON_ADDRESS_NODE))
     {
       // get all active locomotives
-      SEND_JSON_RESPONSE(request, locoManager->getActiveLocosAsJson())
+      string res = "[";
+      for (size_t id = 0; id < trainNodes->size(); id++)
+      {
+        auto nodeid(trainNodes->get_train_node_id(id));
+        if (nodeid)
+        {
+          auto loco(trainNodes->get_train_impl(nodeid));
+          res += convert_loco_to_json(loco);
+          res += ",";
+        }
+      }
+      res += "]";
+      SEND_JSON_RESPONSE(request, res)
     }
     else if (request->hasArg(JSON_ADDRESS_NODE))
     {
+      uint16_t address = request->arg(JSON_ADDRESS_NODE).toInt();
       if(request->method() == HTTP_PUT || request->method() == HTTP_POST)
       {
-        auto loco = locoManager->getLocomotive(request->arg(JSON_ADDRESS_NODE).toInt());
+        auto loco = trainNodes->get_train_impl(commandstation::DccMode::DCC_128_LONG_ADDRESS, address);
         auto upd_speed = loco->get_speed();
         // Creation / Update of active locomotive
-        if(request->hasArg(JSON_IDLE_NODE) && request->arg(JSON_IDLE_NODE).equalsIgnoreCase(JSON_VALUE_TRUE))
+        if(request->hasArg(JSON_IDLE_NODE))
         {
           upd_speed.set_dcc_128(0);
         }
@@ -837,7 +868,10 @@ void ESP32CSWebServer::handleLocomotive(AsyncWebServerRequest *request)
         }
         if(request->hasArg(JSON_DIRECTION_NODE))
         {
-          upd_speed.set_direction(request->arg(JSON_DIRECTION_NODE).equalsIgnoreCase(JSON_VALUE_FORWARD) ? dcc::SpeedType::FORWARD : dcc::SpeedType::REVERSE);
+          bool forward =
+            request->arg(JSON_DIRECTION_NODE).equalsIgnoreCase(JSON_VALUE_FORWARD);
+          upd_speed.set_direction(forward ? dcc::SpeedType::FORWARD
+                                          : dcc::SpeedType::REVERSE);
         }
         loco->set_speed(upd_speed);
         for(uint8_t funcID = 0; funcID <=28 ; funcID++)
@@ -848,21 +882,23 @@ void ESP32CSWebServer::handleLocomotive(AsyncWebServerRequest *request)
             loco->set_fn(funcID, request->arg(fArg.c_str()).equalsIgnoreCase(JSON_VALUE_TRUE));
           }
         }
-        SEND_JSON_IF_OBJECT(request, loco)
+        SEND_JSON_RESPONSE(request, convert_loco_to_json(loco))
       }
       else if(request->method() == HTTP_DELETE)
       {
         // Removal of an active locomotive
-        locoManager->removeLocomotive(request->arg(JSON_ADDRESS_NODE).toInt());
+        trainNodes->remove_train_impl(address);
 #if NEXTION_ENABLED
-        static_cast<NextionThrottlePage *>(nextionPages[THROTTLE_PAGE])->invalidateLocomotive(request->arg(JSON_ADDRESS_NODE).toInt());
+        static_cast<NextionThrottlePage *>(nextionPages[THROTTLE_PAGE])->invalidateLocomotive(address);
 #endif
         SEND_GENERIC_RESPONSE(request, STATUS_OK)
       }
       else
       {
-        auto loco = locoManager->getLocomotive(request->arg(JSON_ADDRESS_NODE).toInt());
-        SEND_JSON_IF_OBJECT(request, loco)
+        auto loco =
+          trainNodes->get_train_impl(commandstation::DccMode::DCC_128_LONG_ADDRESS
+                                   , address);
+        SEND_JSON_RESPONSE(request, convert_loco_to_json(loco))
       }
     }
   }

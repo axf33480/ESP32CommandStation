@@ -233,21 +233,37 @@ void Esp32TrainDbEntry::recalcuate_max_fn()
   }
 }
 
-#define _FIND_TRAIN(method, value)                      \
-std::find_if(knownTrains_.begin(), knownTrains_.end(),  \
-  [value](const shared_ptr<Esp32TrainDbEntry> &train)   \
-  {                                                     \
-    return train->method() == value;                    \
+#define _FIND_TRAIN(container, type, method, value) \
+std::find_if(container.begin(), container.end(),    \
+  [value](const shared_ptr<type> &train)            \
+  {                                                 \
+    return train->method() == value;                \
   });
 
-#define FIND_TRAIN_BY_ADDRESS(address) _FIND_TRAIN(get_legacy_address, address)
-#define FIND_TRAIN_BY_NODE_ID(node_id) _FIND_TRAIN(get_traction_node, node_id)
-#define IS_VALID_TRAIN_ENTRY(entry) entry != knownTrains_.end()
+#define FIND_KNOWN_TRAIN_BY_ADDRESS(address) _FIND_TRAIN(knownTrains_       \
+                                                       , Esp32TrainDbEntry  \
+                                                       , get_legacy_address \
+                                                       , address)
+#define FIND_KNOWN_TRAIN_BY_NODE_ID(node_id) _FIND_TRAIN(knownTrains_       \
+                                                       , Esp32TrainDbEntry  \
+                                                       , get_traction_node  \
+                                                       , node_id)
+#define IS_VALID_KNOWN_TRAIN_ENTRY(entry) entry != knownTrains_.end()
+
+#define FIND_DYN_TRAIN_BY_ADDRESS(address) _FIND_TRAIN(temporaryTrains_     \
+                                                     , TrainDbEntry         \
+                                                     , get_legacy_address   \
+                                                     , address)
+#define FIND_DYN_TRAIN_BY_NODE_ID(node_id) _FIND_TRAIN(temporaryTrains_     \
+                                                     , TrainDbEntry         \
+                                                     , get_traction_node    \
+                                                     , node_id)
+#define IS_VALID_DYN_TRAIN_ENTRY(entry) entry != temporaryTrains_.end()
 
 static constexpr const char * TRAIN_DB_JSON_FILE = "trains.json";
 static constexpr const char * LEGACY_ROSTER_JSON_FILE = "roster.json";
 
-Esp32TrainDatabase::Esp32TrainDatabase()
+Esp32TrainDatabase::Esp32TrainDatabase(openlcb::SimpleStackBase *stack)
 {
   TrainConfigDef trainCfg(0);
   TrainTmpConfigDef tmpTrainCfg(0);
@@ -255,6 +271,9 @@ Esp32TrainDatabase::Esp32TrainDatabase()
   create_config_descriptor_xml(tmpTrainCfg, TEMP_TRAIN_CDI_FILE);
   trainCdiFile_.reset(new ROFileMemorySpace(TRAIN_CDI_FILE));
   tempTrainCdiFile_.reset(new ROFileMemorySpace(TEMP_TRAIN_CDI_FILE));
+  persistFlow_.emplace(stack->service()
+                     , SEC_TO_NSEC(config_cs_train_db_auto_persist_sec)
+                     , std::bind(&Esp32TrainDatabase::persist, this));
 
   LOG(INFO, "[TrainDB] Initializing...");
   if (configStore->exists(TRAIN_DB_JSON_FILE))
@@ -282,20 +301,41 @@ Esp32TrainDatabase::Esp32TrainDatabase()
       data.show_on_limited_throttles = (limited_throttle == JSON_VALUE_TRUE);
       knownTrains_.emplace(new Esp32TrainDbEntry(data));
     }
-    // when persisting the database the legacy file should be removed.
-    // configStore->remove(LEGACY_ROSTER_JSON_FILE);
-    // persistence is TBD
     legacyEntriesFound_ = true;
   }
   LOG(INFO, "[TrainDB] There are %d entries in the database."
     , knownTrains_.size());
 }
 
+std::shared_ptr<TrainDbEntry> Esp32TrainDatabase::create_if_not_found(unsigned address
+                                                                    , DccMode mode)
+{
+  OSMutexLock l(&knownTrainsLock_);
+  auto entry = FIND_KNOWN_TRAIN_BY_ADDRESS(address)
+  if (IS_VALID_KNOWN_TRAIN_ENTRY(entry))
+  {
+    return *entry;
+  }
+  auto it = knownTrains_.emplace(
+        new Esp32TrainDbEntry(Esp32PersistentTrainData(address, mode)));
+  return *it.first;
+}
+
+void Esp32TrainDatabase::delete_entry(unsigned address)
+{
+  OSMutexLock l(&knownTrainsLock_);
+}
+
 shared_ptr<TrainDbEntry> Esp32TrainDatabase::get_entry(unsigned train_id)
 {
   OSMutexLock l(&knownTrainsLock_);
-  auto entry = FIND_TRAIN_BY_ADDRESS(train_id)
-  if (IS_VALID_TRAIN_ENTRY(entry))
+  auto entry = FIND_KNOWN_TRAIN_BY_ADDRESS(train_id)
+  if (IS_VALID_KNOWN_TRAIN_ENTRY(entry))
+  {
+    return *entry;
+  }
+  auto dynentry = FIND_DYN_TRAIN_BY_ADDRESS(train_id)
+  if (IS_VALID_DYN_TRAIN_ENTRY(dynentry))
   {
     return *entry;
   }
@@ -306,8 +346,13 @@ shared_ptr<TrainDbEntry> Esp32TrainDatabase::find_entry(NodeID node_id
                                                       , unsigned hint)
 {
   OSMutexLock l(&knownTrainsLock_);
-  auto entry = FIND_TRAIN_BY_NODE_ID(node_id)
-  if (IS_VALID_TRAIN_ENTRY(entry))
+  auto entry = FIND_KNOWN_TRAIN_BY_NODE_ID(node_id)
+  if (IS_VALID_KNOWN_TRAIN_ENTRY(entry))
+  {
+    return *entry;
+  }
+  auto dynentry = FIND_DYN_TRAIN_BY_NODE_ID(node_id)
+  if (IS_VALID_DYN_TRAIN_ENTRY(dynentry))
   {
     return *entry;
   }
@@ -318,27 +363,90 @@ unsigned Esp32TrainDatabase::add_dynamic_entry(TrainDbEntry* temp_entry)
 {
   uint16_t address = temp_entry->get_legacy_address();
   DccMode mode = temp_entry->get_legacy_drive_mode();
-
-  // discard the provided entry as we use our own custom type
-  delete temp_entry;
-
   {
     OSMutexLock l(&knownTrainsLock_);
-    auto entry = FIND_TRAIN_BY_ADDRESS(address)
+    auto dynentry = FIND_DYN_TRAIN_BY_ADDRESS(address)
+    auto entry = FIND_KNOWN_TRAIN_BY_ADDRESS(address)
 
-    if (IS_VALID_TRAIN_ENTRY(entry))
+    if (IS_VALID_DYN_TRAIN_ENTRY(dynentry))
+    {
+      // prevent duplicate dynamic entries
+      return (*entry)->get_legacy_address();
+    }
+    else if (IS_VALID_KNOWN_TRAIN_ENTRY(entry))
     {
       return (*entry)->get_legacy_address();
     }
+    else if (config_cs_train_db_auto_create_entries() == CONSTANT_TRUE)
+    {
+      // discard the provided entry and create a new entry
+      delete temp_entry;
+      // create the new entry
+      knownTrains_.emplace(
+        new Esp32TrainDbEntry(Esp32PersistentTrainData(address, mode)));
+    }
+    else
+    {
+      // add the temporary train to our known trains collection
+      temporaryTrains_.emplace(temp_entry);
+    }
+  }
+  return address;
+}
 
-    // create the new entry
-    knownTrains_.emplace(
-      new Esp32TrainDbEntry(Esp32PersistentTrainData(address, mode)));
-    return address;
+set<uint16_t> Esp32TrainDatabase::get_default_train_addresses(uint16_t limit)
+{
+  set<uint16_t> results;
+  OSMutexLock l(&knownTrainsLock_);
+  for(auto entry : knownTrains_)
+  {
+    if (entry->get_data().show_on_limited_throttles)
+    {
+      if (limit)
+      {
+        results.insert(entry->get_legacy_address());
+        limit--;
+      }
+      else
+      {
+        break;
+      }
+    }
+  }
+  return results;
+}
+
+void Esp32TrainDatabase::set_train_name(unsigned address, std::string &name)
+{
+  OSMutexLock l(&knownTrainsLock_);
+  auto entry = FIND_KNOWN_TRAIN_BY_ADDRESS(address)
+  if (IS_VALID_KNOWN_TRAIN_ENTRY(entry))
+  {
+    (*entry)->set_train_name(name);
   }
 }
 
-string Esp32TrainDatabase::get_train_list_as_json()
+void Esp32TrainDatabase::set_train_auto_idle(unsigned address, bool idle)
+{
+  OSMutexLock l(&knownTrainsLock_);
+  auto entry = FIND_KNOWN_TRAIN_BY_ADDRESS(address)
+  if (IS_VALID_KNOWN_TRAIN_ENTRY(entry))
+  {
+    (*entry)->set_auto_idle(idle);
+  }
+}
+
+void Esp32TrainDatabase::set_train_show_on_limited_throttle(unsigned address, bool show)
+{
+  OSMutexLock l(&knownTrainsLock_);
+  auto entry = FIND_KNOWN_TRAIN_BY_ADDRESS(address)
+  if (IS_VALID_KNOWN_TRAIN_ENTRY(entry))
+  {
+    (*entry)->set_show_on_limited_throttles(show);
+  }
+}
+
+string Esp32TrainDatabase::get_all_entries_as_json()
 {
   OSMutexLock l(&knownTrainsLock_);
   // If we don't have any trains in our db return an empty set to the caller.
@@ -355,16 +463,40 @@ string Esp32TrainDatabase::get_train_list_as_json()
   return j.dump();
 }
 
-string Esp32TrainDatabase::get_train_as_json(uint16_t address)
+string Esp32TrainDatabase::get_entry_as_json(unsigned address)
 {
   OSMutexLock l(&knownTrainsLock_);
-  auto entry = FIND_TRAIN_BY_ADDRESS(address)
-  if (IS_VALID_TRAIN_ENTRY(entry))
+  auto entry = FIND_KNOWN_TRAIN_BY_ADDRESS(address)
+  if (IS_VALID_KNOWN_TRAIN_ENTRY(entry))
   {
     json j = (*entry)->get_data();
     return j.dump();
   }
   return "{}";
+}
+
+void Esp32TrainDatabase::persist()
+{
+  OSMutexLock l(&knownTrainsLock_);
+  bool state = true;
+  auto ent = _FIND_TRAIN(knownTrains_, Esp32TrainDbEntry, is_dirty, state);
+  if (IS_VALID_KNOWN_TRAIN_ENTRY(ent) || legacyEntriesFound_)
+  {
+    json j;
+    for (auto entry : knownTrains_)
+    {
+      j.push_back(entry->get_data());
+      entry->reset_dirty();
+    }
+    configStore->store(TRAIN_DB_JSON_FILE, j.dump());
+
+    // if we loaded legacy entries we need to clean up the old file
+    if (legacyEntriesFound_)
+    {
+      configStore->remove(LEGACY_ROSTER_JSON_FILE);
+    }
+    legacyEntriesFound_ = false;
+  }
 }
 
 } // namespace esp32cs

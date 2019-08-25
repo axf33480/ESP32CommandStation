@@ -164,6 +164,13 @@ DCC_PROTOCOL_COMMAND_HANDLER(WriteCVBitOpsCommand,
   return COMMAND_SUCCESSFUL_RESPONSE;
 })
 
+string convert_loco_to_dccpp_state(TrainImpl *impl, size_t id)
+{
+  dcc::SpeedType speed(impl->get_speed());
+  return StringPrintf("<T %d %d %d>", id, (speed.get_dcc_128() & 0x7F)
+                    , speed.direction() == dcc::SpeedType::FORWARD);
+}
+
 // <s> command handler, this command sends the current status for all parts of
 // the ESP32 Command Station. JMRI uses this command as a keep-alive heartbeat
 // command.
@@ -177,8 +184,15 @@ DCC_PROTOCOL_COMMAND_HANDLER(StatusCommand,
                 , __TIME__);
   status += trackSignal->get_state_for_dccpp();
   status += wifiInterface.get_state_for_dccpp();
-  // TODO: reimplement this with train list for this connection
-  status += locoManager->get_state_for_dccpp();
+  for (size_t id = 0; id < trainNodes->size(); id++)
+  {
+    auto nodeid = trainNodes->get_train_node_id(id);
+    if (nodeid)
+    {
+      auto impl = trainNodes->get_train_impl(nodeid);
+      status += convert_loco_to_dccpp_state(impl, id);
+    }
+  }
   status += turnoutManager->get_state_for_dccpp();
 #if ENABLE_OUTPUTS
   status += OutputManager::get_state_for_dccpp();
@@ -200,8 +214,7 @@ DECLARE_DCC_PROTOCOL_COMMAND_CLASS(EStopCommand, "estop")
 DCC_PROTOCOL_COMMAND_HANDLER(EStopCommand,
 [](const vector<string> arguments)
 {
-  // TODO: reimplement with global estop handler
-  locoManager->set_state(true);
+  Singleton<esp32cs::EStopHandler>::instance()->set_state(true);
   return COMMAND_SUCCESSFUL_RESPONSE;
 })
 
@@ -238,7 +251,22 @@ DCC_PROTOCOL_COMMAND_HANDLER(PowerOffCommand,
 DECLARE_DCC_PROTOCOL_COMMAND_CLASS(ThrottleCommandAdapter, "t")
 // TODO: reimplement this with per-connection allocation of registers.
 DCC_PROTOCOL_COMMAND_HANDLER(ThrottleCommandAdapter,
-  locoManager->processThrottle)
+[](const vector<string> arguments)
+{
+  int reg_num = std::stoi(arguments[0]);
+  uint16_t loco_addr = std::stoi(arguments[1]);
+  uint8_t req_speed = std::stoi(arguments[2]);
+  uint8_t req_dir = std::stoi(arguments[3]);
+
+  TrainImpl *impl =
+    trainNodes->get_train_impl(commandstation::DccMode::DCC_128_LONG_ADDRESS
+                             , loco_addr);
+  dcc::SpeedType speed(impl->get_speed());
+  speed.set_dcc_128(req_speed);
+  speed.set_direction(req_dir ? dcc::SpeedType::FORWARD : dcc::SpeedType::REVERSE);
+  impl->set_speed(speed);
+  return convert_loco_to_dccpp_state(impl, reg_num);
+});
 
 // <tex {LOCO} {SPEED} {DIRECTION}> command handler, this command
 // converts the provided locomotive control command into a compatible DCC
@@ -246,21 +274,99 @@ DCC_PROTOCOL_COMMAND_HANDLER(ThrottleCommandAdapter,
 DECLARE_DCC_PROTOCOL_COMMAND_CLASS(ThrottleExCommandAdapter, "tex")
 // TODO: reimplement this with per-connection allocation of registers.
 DCC_PROTOCOL_COMMAND_HANDLER(ThrottleExCommandAdapter,
-  locoManager->processThrottleEx)
+[](const vector<string> arguments)
+{
+  uint16_t loco_addr = std::stoi(arguments[0]);
+  int8_t req_speed = std::stoi(arguments[1]);
+  int8_t req_dir = std::stoi(arguments[2]);
+
+  TrainImpl *impl =
+    trainNodes->get_train_impl(commandstation::DccMode::DCC_128_LONG_ADDRESS
+                             , loco_addr);
+  dcc::SpeedType speed(impl->get_speed());
+  if (req_speed >= 0)
+  {
+    speed.set_dcc_128(req_speed);
+  }
+  if (req_dir >= 0)
+  {
+    speed.set_direction(req_dir ? dcc::SpeedType::FORWARD : dcc::SpeedType::REVERSE);
+  }
+  impl->set_speed(speed);
+  return convert_loco_to_dccpp_state(impl, 0);
+})
 
 // <f {LOCO} {BYTE} [{BYTE2}]> command handler, this command converts a
 // locomotive function update into a compatible DCC function control packet.
 DECLARE_DCC_PROTOCOL_COMMAND_CLASS(FunctionCommandAdapter, "f")
-// TODO: reimplement this with per-connection allocation of registers.
 DCC_PROTOCOL_COMMAND_HANDLER(FunctionCommandAdapter,
-  locoManager->processFunction)
+[](const vector<string> arguments)
+{
+  uint16_t loco_addr = std::stoi(arguments[0]);
+  uint8_t func_byte = std::stoi(arguments[1]);
+  uint8_t first{1};
+  uint8_t last{4};
+  uint8_t bits{func_byte};
+
+  auto train =
+    trainNodes->get_train_impl(commandstation::DccMode::DCC_128_LONG_ADDRESS
+                             , loco_addr);
+  // check this is a request for functions F13-F28
+  if(arguments.size() > 2)
+  {
+    bits = std::stoi(arguments[2]);
+    if((func_byte & 0xDE) == 0xDE)
+    {
+      first = 13;
+      last = 20;
+    }
+    else
+    {
+      first = 21;
+      last = 28;
+    }
+  }
+  else
+  {
+    // this is a request for functions FL,F1-F12
+    // for safety this guarantees that first nibble of function byte will always
+    // be of binary form 10XX which should always be the case for FL,F1-F12
+    if((func_byte & 0xB0) == 0xB0)
+    {
+      first = 5;
+      last = 8;
+    }
+    else if((func_byte & 0xA0) == 0xA0)
+    {
+      first = 9;
+      last = 12;
+    }
+    else
+    {
+      train->set_fn(0, func_byte & BIT(4));
+    }
+  }
+  for(uint8_t id = first; id <= last; id++)
+  {
+    train->set_fn(id, bits & BIT(id - first));
+  }
+  return COMMAND_NO_RESPONSE;
+});
 
 // <fex {LOCO} {FUNC} {STATE}]> command handler, this command converts a
 // locomotive function update into a compatible DCC function control packet.
 DECLARE_DCC_PROTOCOL_COMMAND_CLASS(FunctionExCommandAdapter, "fex")
 // TODO: reimplement this with per-connection allocation of registers.
 DCC_PROTOCOL_COMMAND_HANDLER(FunctionExCommandAdapter,
-  locoManager->processFunctionEx)
+[](const vector<string> arguments)
+{
+  int loco_addr = std::stoi(arguments[0]);
+  int function = std::stoi(arguments[1]);
+  int state = std::stoi(arguments[2]);
+  trainNodes->get_train_impl(commandstation::DccMode::DCC_128_LONG_ADDRESS
+                           , loco_addr)->set_fn(function, state);
+  return COMMAND_NO_RESPONSE;
+});
 
 // wrapper to handle the following command structures:
 // CREATE: <C {ID} {LEAD LOCO} {TRAIL LOCO}  [{OTHER LOCO}]>
