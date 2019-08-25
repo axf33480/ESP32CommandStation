@@ -24,11 +24,13 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #include <sstream>
 #include <vector>
 #include <memory>
+#include <set>
 
 using std::unique_ptr;
 using std::shared_ptr;
 using std::vector;
 using std::string;
+using std::set;
 
 // ESP-IDF includes
 #include <driver/uart.h>
@@ -179,6 +181,7 @@ using openlcb::WriteHelper;
 
 extern unique_ptr<RMTTrackDevice> trackSignal;
 extern unique_ptr<LocalTrackIf> trackInterface;
+extern unique_ptr<commandstation::AllTrainNodes> trainNodes;
 
 #if LOCONET_ENABLED
 #include <LocoNetESP32UART.h>

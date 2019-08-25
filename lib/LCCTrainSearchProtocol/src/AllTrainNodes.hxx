@@ -60,10 +60,15 @@ class AllTrainNodes {
                 openlcb::MemorySpace* ro_tmp_train_cdi);
   ~AllTrainNodes();
 
-  // Used for debugging purposes
-  openlcb::TrainImpl* get_train_impl(int id);
+  /// Removes a TrainImpl for the requested address if it exists.
+  void remove_train_impl(int address);
 
   openlcb::TrainImpl* get_train_impl(openlcb::NodeID id);
+
+  /// Finds or creates a TrainImpl for the requested address and drive_type.
+  /// @param drive_type is the drive type for the loco to create if it doesn't exist.
+  /// @param address is the legacy address of the loco to find or create.
+  openlcb::TrainImpl* get_train_impl(DccMode drive_type, int address);
 
   /// Returns a traindb entry or nullptr if the id is too high.
   std::shared_ptr<TrainDbEntry> get_traindb_entry(int id);
@@ -81,6 +86,10 @@ class AllTrainNodes {
 
   // For testing.
   bool find_flow_is_idle();
+
+  bool is_valid_train_node(openlcb::Node *node) {
+    return find_node(node) != nullptr;
+  }
 
  private:
   // ==== Interface for children ====

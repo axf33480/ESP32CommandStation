@@ -20,6 +20,10 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 const char * buildTime = __DATE__ " " __TIME__;
 
+// Increase the number of memory spaces available at runtime to account for the
+// Traction protocol CDI/FDI needs.
+OVERRIDE_CONST(num_memory_spaces, 10);
+
 // Allow usage of ::select() for GridConnect TCP connections.
 OVERRIDE_CONST_TRUE(gridconnect_tcp_use_select);
 
@@ -96,6 +100,7 @@ namespace openlcb
 unique_ptr<RMTTrackDevice> trackSignal;
 unique_ptr<LocalTrackIf> trackInterface;
 unique_ptr<RailcomHubFlow> railComHub;
+unique_ptr<commandstation::AllTrainNodes> trainNodes;
 
 // when the command station starts up the first time the config is blank
 // and needs to be reset to factory settings. This class being declared here
@@ -238,14 +243,13 @@ extern "C" void app_main()
   // Start the OpenMRN stack.
   openmrn->begin();
 
-/*
-  commandstation::AllTrainNodes
-    allTrainNodes(&trainDb, &trainService
-                , openmrn->stack()->info_flow()
-                , openmrn->stack()->memory_config_handler()
-                , trainDb.get_readonly_train_cdi()
-                , trainDb.get_readonly_temp_train_cdi());
-*/
+  trainNodes.reset(
+    new commandstation::AllTrainNodes(&trainDb
+                                    , &trainService
+                                    , openmrn->stack()->info_flow()
+                                    , openmrn->stack()->memory_config_handler()
+                                    , trainDb.get_readonly_train_cdi()
+                                    , trainDb.get_readonly_temp_train_cdi()));
 
   openmrn->stack()->executor()->add(new CallbackExecutable([]()
   {

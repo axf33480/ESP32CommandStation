@@ -45,6 +45,8 @@
 #include <openlcb/TractionTrain.hxx>
 #include <utils/format_utils.hxx>
 
+#include <algorithm>
+
 namespace commandstation {
 
 // default to an empty database.
@@ -151,34 +153,73 @@ struct AllTrainNodes::Impl {
   openlcb::TrainImpl* train_ = nullptr;
 };
 
-openlcb::TrainImpl* AllTrainNodes::get_train_impl(int id) {
-  if (id >= (int)trains_.size()) return nullptr;
-  return trains_[id]->train_;
+void AllTrainNodes::remove_train_impl(int address)
+{
+  auto it = std::find_if(trains_.begin(), trains_.end(), [address](Impl *impl)
+  {
+    return impl->train_->legacy_address() == address;
+  });
+  if (it != trains_.end())
+  {
+    Impl *impl = (*it);
+    if (os_thread_self() != impl->node_->iface()->executor()->thread_handle())
+    {
+      impl->node_->iface()->executor()->add(new CallbackExecutable([impl]()
+      {
+        impl->node_->iface()->delete_local_node(impl->node_);
+        delete impl;
+      }));
+    }
+    else
+    {
+      impl->node_->iface()->delete_local_node(impl->node_);
+      delete impl;
+    }
+    trains_.erase(it);
+  }
 }
 
 openlcb::TrainImpl* AllTrainNodes::get_train_impl(openlcb::NodeID id) {
-  for (auto* i : trains_) {
-    if (i->node_->node_id() == id) {
-      return i->train_;
-    }
+  auto it = find_node(id);
+  if (it)
+  {
+    return it->train_;
   }
   return nullptr;
 }
 
+openlcb::TrainImpl* AllTrainNodes::get_train_impl(DccMode drive_type, int address) {
+  auto it = std::find_if(trains_.begin(), trains_.end(), [address](Impl *impl)
+  {
+    return impl->train_->legacy_address() == address;
+  });
+  if (it != trains_.end())
+  {
+    return (*it)->train_;
+  }
+  return find_node(allocate_node(drive_type, address))->train_;
+}
+
 AllTrainNodes::Impl* AllTrainNodes::find_node(openlcb::Node* node) {
-  for (auto* i : trains_) {
-    if (i->node_ == node) {
-      return i;
-    }
+  auto it = std::find_if(trains_.begin(), trains_.end(), [node](Impl *impl)
+  {
+    return impl->node_ == node;
+  });
+  if (it != trains_.end()) 
+  {
+    return *it;
   }
   return nullptr;
 }
 
 AllTrainNodes::Impl* AllTrainNodes::find_node(openlcb::NodeID node_id) {
-  for (auto* i : trains_) {
-    if (i->node_->node_id() == node_id) {
-      return i;
-    }
+  auto it = std::find_if(trains_.begin(), trains_.end(), [node_id](Impl *impl)
+  {
+    return impl->node_->node_id() == node_id;
+  });
+  if (it != trains_.end())
+  {
+    return *it;
   }
   return nullptr;
 }
@@ -293,12 +334,6 @@ class AllTrainNodes::TrainPipHandler
     // Grabs our allocated buffer.
     auto* b = get_allocation_result(iface()->addressed_message_write_flow());
     auto reply = pipReply_;
-    /* All trains now support CDI.
-    Impl* impl = parent_->find_node(nmsg()->dstNode);
-    if (parent_->db_->is_train_id_known(impl->id) &&
-        parent_->db_->get_entry(impl->id)->file_offset() >= 0) {
-      reply |= openlcb::Defs::CDI;
-      }*/
     // Fills in response. We use node_id_to_buffer because that converts a
     // 48-bit value to a big-endian byte string.
     b->data()->reset(openlcb::Defs::MTI_PROTOCOL_SUPPORT_REPLY,
@@ -617,6 +652,8 @@ AllTrainNodes::~AllTrainNodes() {
   }
   memoryConfigService_->registry()->erase(
       nullptr, openlcb::MemoryConfigDefs::SPACE_FDI, fdiSpace_.get());
+  memoryConfigService_->registry()->erase(
+      nullptr, openlcb::MemoryConfigDefs::SPACE_CDI, cdiSpace_.get());
 }
 
 }  // namespace commandstation
