@@ -28,8 +28,8 @@ DECLARE_CONST(cs_train_db_auto_create_entries);
 DECLARE_CONST(cs_train_db_auto_persist_sec);
 
 DECLARE_CONST(cs_task_list_report);
-DECLARE_CONST(cs_task_list_report_interval_sec);
-DECLARE_CONST(cs_task_list_stats_interval_sec);
+DECLARE_CONST(cs_task_stats_report_interval_sec);
+DECLARE_CONST(cs_task_list_list_interval_sec);
 
 DECLARE_CONST(cs_cpu_reporting);
 
@@ -44,5 +44,10 @@ DECLARE_CONST(cs_hc12_uart_speed);
 DECLARE_CONST(cs_hc12_buffer_size);
 
 DECLARE_CONST(cs_estop_packet_count);
+
+DECLARE_CONST(status_led_enabled);
+DECLARE_CONST(status_led_pin);
+DECLARE_CONST(status_led_brightness);
+DECLARE_CONST(status_led_update_interval_msec);
 
 #endif

@@ -19,22 +19,24 @@ COPYRIGHT (c) 2019 Mike Dunston
 
 StateFlowBase::Action StatusLED::init()
 {
-#if STATUS_LED_ENABLED
+  if (config_status_led_enabled() == CONSTANT_FALSE ||
+      config_status_led_pin() == NOT_A_PIN)
+  {
+    return exit();
+  }
   LOG(INFO
     , "[Status] Initializing LEDs (color-mode:%s, protocol:%s, pin: %d, "
       "brightness: %d)"
-    , NEO_COLOR_MODE_NAME, NEO_METHOD_NAME, STATUS_LED_DATA_PIN
-    , STATUS_LED_BRIGHTNESS);
+    , NEO_COLOR_MODE_NAME, NEO_METHOD_NAME, config_status_led_pin()
+    , config_status_led_brightness());
   bus_.reset(
     new NeoPixelBrightnessBus<NEO_COLOR_MODE, NEO_METHOD>(LED::MAX_LED
-                                                        , STATUS_LED_DATA_PIN));
+                                                        , config_status_led_pin()));
   bus_->Begin();
-  bus_->SetBrightness(STATUS_LED_BRIGHTNESS);
+  bus_->SetBrightness(config_status_led_brightness());
   bus_->ClearTo(RGB_OFF_);
   bus_->Show();
   return sleep_and_call(&timer_, updateInterval_, STATE(update));
-#endif
-  return exit();
 }
 
 #define SET_LED_COLOR_BLINK(led, val, color) \

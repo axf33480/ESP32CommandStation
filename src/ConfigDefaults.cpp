@@ -17,6 +17,9 @@ COPYRIGHT (c) 2019 Mike Dunston
 
 #include <utils/constants.hxx>
 
+// GCC pre-compiler trick to expand the value from a #define constant
+#define DEFAULT_CONST_EXPAND_VALUE(var, value) DEFAULT_CONST(var, value)
+
 #ifndef ESP32CS_EXTERNAL_CONFIGURATION
 #include "Config.h"
 #endif
@@ -35,11 +38,7 @@ DEFAULT_CONST_FALSE(cs_force_factory_reset);
 // LCC_CONFIG_FILE before starting the OpenMRN stack. This should not normally
 // be required.
 ///////////////////////////////////////////////////////////////////////////////
-#if !LCC_FORCE_FACTORY_RESET_ON_STARTUP
-DEFAULT_CONST_FALSE(lcc_force_factory_reset);
-#else
-DEFAULT_CONST_TRUE(lcc_force_factory_reset);
-#endif
+DEFAULT_CONST_EXPAND_VALUE(lcc_force_factory_reset, LCC_FORCE_FACTORY_RESET_ON_STARTUP);
 
 ///////////////////////////////////////////////////////////////////////////////
 // This flag controls the fsync call inteval for the LCC node config file when
@@ -65,17 +64,13 @@ DEFAULT_CONST(cs_train_db_auto_persist_sec, 30);
 // recommended to be enabled except during debugging sessions as it will cause
 // the FreeRTOS scheduler to remain in a "locked" state for an extended period.
 ///////////////////////////////////////////////////////////////////////////////
-DEFAULT_CONST_FALSE(cs_task_list_reporting);
-
-///////////////////////////////////////////////////////////////////////////////
-// This flag will cause cpu utilization metrics to be collected and reported by
-// the LCC CpuLoad and CpuLoadLog system.
-///////////////////////////////////////////////////////////////////////////////
 DEFAULT_CONST_FALSE(cs_task_list_report);
+DEFAULT_CONST(cs_task_list_list_interval_sec, 300);
 
-DEFAULT_CONST(cs_task_list_report_interval_sec, 45);
-
-DEFAULT_CONST(cs_task_list_stats_interval_sec, 300);
+///////////////////////////////////////////////////////////////////////////////
+// This flag controls how often the CS task stats will be reported.
+///////////////////////////////////////////////////////////////////////////////
+DEFAULT_CONST(cs_task_stats_report_interval_sec, 45);
 
 ///////////////////////////////////////////////////////////////////////////////
 // This is the number of pending dcc::Packet objects that the LocalTrackIf will
@@ -106,3 +101,12 @@ DEFAULT_CONST(cs_hc12_uart_speed, 19200);
 // e-stop handler will discontinue sending packets.
 ///////////////////////////////////////////////////////////////////////////////
 DEFAULT_CONST(cs_estop_packet_count, 200);
+
+///////////////////////////////////////////////////////////////////////////////
+// Status LED configuration settings
+///////////////////////////////////////////////////////////////////////////////
+DEFAULT_CONST_EXPAND_VALUE(status_led_enabled, STATUS_LED_ENABLED);
+DEFAULT_CONST_EXPAND_VALUE(status_led_pin, STATUS_LED_DATA_PIN);
+DEFAULT_CONST_EXPAND_VALUE(status_led_brightness, STATUS_LED_BRIGHTNESS);
+
+DEFAULT_CONST(status_led_update_interval_msec, 450);

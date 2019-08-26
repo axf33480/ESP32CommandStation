@@ -22,6 +22,8 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #include <executor/StateFlow.hxx>
 #include <NeoPixelBrightnessBus.h>
 
+#include "ESP32CSConstants.h"
+
 // constants for pre-compiler checks
 #define RGB   1
 #define GRB   2
@@ -109,25 +111,29 @@ public:
     MAX_LED
   };
 
-  StatusLED(Service *service) : StateFlowBase(service)
+  StatusLED(Service *service)
+    : StateFlowBase(service)
+    , bus_(nullptr)
+    , updateInterval_(MSEC_TO_NSEC(config_status_led_update_interval_msec()))
   {
     for(int index = 0; index < LED::MAX_LED; index++)
     {
       colors_[index] = RGB_OFF_;
       state_[index] = false;
     }
-#if STATUS_LED_ENABLED
-    start_flow(STATE(init));
-#endif
+    if (config_status_led_enabled() == CONSTANT_TRUE)
+    {
+      start_flow(STATE(init));
+    }
   }
 
   void setStatusLED(const LED, const COLOR, const bool=false);
 private:
   StateFlowTimer timer_{this};
-  std::unique_ptr<NeoPixelBrightnessBus<NEO_COLOR_MODE, NEO_METHOD>> bus_{nullptr};
+  std::unique_ptr<NeoPixelBrightnessBus<NEO_COLOR_MODE, NEO_METHOD>> bus_;
   NEO_COLOR_TYPE colors_[LED::MAX_LED];
   bool state_[LED::MAX_LED];
-  const uint64_t updateInterval_{MSEC_TO_NSEC(450)};
+  const uint64_t updateInterval_;
 
   NEO_COLOR_TYPE RGB_RED_{NEO_COLOR_TYPE(255, 0, 0)};
   NEO_COLOR_TYPE RGB_GREEN_{NEO_COLOR_TYPE(0, 255, 0)};

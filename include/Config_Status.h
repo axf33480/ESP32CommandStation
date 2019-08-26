@@ -52,4 +52,4 @@ COPYRIGHT (c) 2019 Mike Dunston
 
 /////////////////////////////////////////////////////////////////////////////////////
 
-#define STATUS_LED_ENABLED true
+#define STATUS_LED_ENABLED CONSTANT_TRUE

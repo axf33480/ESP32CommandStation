@@ -47,6 +47,6 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 // This define will force a factory reset by removing the LCC_CDI_FILE and
 // LCC_CONFIG_FILE before starting the OpenMRN stack. This should not normally
 // be required.
-// #define LCC_FORCE_FACTORY_RESET_ON_STARTUP true
+// #define LCC_FORCE_FACTORY_RESET_ON_STARTUP CONSTANT_TRUE
 
 /////////////////////////////////////////////////////////////////////////////////////

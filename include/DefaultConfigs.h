@@ -131,7 +131,7 @@ COPYRIGHT (c) 2019 Mike Dunston
 #endif
 
 #ifndef LCC_FORCE_FACTORY_RESET_ON_STARTUP
-#define LCC_FORCE_FACTORY_RESET_ON_STARTUP false
+#define LCC_FORCE_FACTORY_RESET_ON_STARTUP CONSTANT_FALSE
 #endif
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -187,7 +187,8 @@ COPYRIGHT (c) 2019 Mike Dunston
 #ifndef STATUS_LED_ENABLED
 #define STATUS_LED_TYPE WS281X
 #define STATUS_LED_COLOR_ORDER RGB
-#define STATUS_LED_ENABLED false
+#define STATUS_LED_ENABLED CONSTANT_FALSE
+#define STATUS_LED_DATA_PIN NOT_A_PIN
 #endif
 
 #ifndef STATUS_LED_COLOR_ORDER

@@ -21,8 +21,8 @@ FreeRTOSTaskMonitor::FreeRTOSTaskMonitor(Service *service)
   : StateFlowBase(service)
   // explicit cast is necessary for these next two lines due to compiler
   // warnings for data type truncation.
-  , reportInterval_{(uint64_t)SEC_TO_NSEC(config_cs_task_list_report_interval_sec())}
-  , taskListInterval_{(uint64_t)SEC_TO_USEC(config_cs_task_list_stats_interval_sec())}
+  , reportInterval_{(uint64_t)SEC_TO_NSEC(config_cs_task_stats_report_interval_sec())}
+  , taskListInterval_{(uint64_t)SEC_TO_USEC(config_cs_task_list_list_interval_sec())}
 {
 #if configUSE_TRACE_FACILITY
   start_flow(STATE(delay));
@@ -44,7 +44,7 @@ StateFlowBase::Action FreeRTOSTaskMonitor::report()
     , taskCount
   );
   // exit early if we do not need to report task state
-  if (config_cs_task_list_report() > CONSTANT_TRUE)
+  if (config_cs_task_list_report() == CONSTANT_FALSE)
   {
     return call_immediately(STATE(delay));
   }

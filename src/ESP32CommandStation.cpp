@@ -306,9 +306,6 @@ bool is_restricted_pin(int8_t pin)
 #if LCC_CAN_TX_PIN != NOT_A_PIN
   , LCC_CAN_TX_PIN            // LCC CAN TX
 #endif
-#if STATUS_LED_ENABLED
-  , STATUS_LED_DATA_PIN       // LED Data Pin
-#endif
 #if HC12_RADIO_ENABLED
   , HC12_RX_PIN               // HC12 RX
   , HC12_TX_PIN               // HC12 TX
@@ -334,6 +331,10 @@ bool is_restricted_pin(int8_t pin)
   , S88_LOAD_PIN              // S88 Load
 #endif
   };
+  if (config_status_led_pin() != NOT_A_PIN)
+  {
+    restrictedPins.push_back(config_status_led_pin());
+  }
   return std::find(restrictedPins.begin()
                  , restrictedPins.end()
                  , pin) != restrictedPins.end();
