@@ -1,5 +1,5 @@
 /**********************************************************************
-DCC COMMAND STATION FOR ESP32
+ESP32 COMMAND STATION
 
 COPYRIGHT (c) 2019 Mike Dunston
 
@@ -15,8 +15,8 @@ COPYRIGHT (c) 2019 Mike Dunston
   along with this program.  If not, see http://www.gnu.org/licenses
 **********************************************************************/
 
-#ifndef _TRACK_OUTPUT_DESCRIPTOR_H_
-#define _TRACK_OUTPUT_DESCRIPTOR_H_
+#ifndef TRACK_OUTPUT_DESCRIPTOR_H_
+#define TRACK_OUTPUT_DESCRIPTOR_H_
 
 #include <openlcb/ConfigRepresentation.hxx>
 
@@ -63,4 +63,4 @@ namespace esp32cs
 
 } // namespace esp32cs
 
-#endif // _TRACK_OUTPUT_DESCRIPTOR_H_
+#endif // TRACK_OUTPUT_DESCRIPTOR_H_
