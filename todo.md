@@ -32,6 +32,7 @@ The primary focus of v1.4.0 will be improvements to the DCC signal code and addi
 - [-] add dialog for failed CS requests.
 - [ ] Expose Loco Consist creation.
 - [x] Hide power button for prog track when it is off
+- [x] Configure Station SSID/PW
 
 ### LCC Integration
 
@@ -42,7 +43,7 @@ The primary focus of v1.4.0 will be improvements to the DCC signal code and addi
 - [-] Traction proxy impl.
 - [-] TrainSearch protocol.
 - [ ] CS CDI web interface.
-- [-] CS Node ID reset from web interface.
+- [x] CS Node ID reset from web interface.
 - [x] Force factory reset when node id changes.
 
 ### InfoScreen
