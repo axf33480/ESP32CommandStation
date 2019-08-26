@@ -97,6 +97,9 @@ constexpr const char * JSON_WIFI_STATION_GATEWAY_NODE = "gateway";
 constexpr const char * JSON_WIFI_STATION_NETMASK_NODE = "netmask";
 constexpr const char * JSON_WIFI_DNS_NODE = "dns";
 
+constexpr const char * JSON_WIFI_RSSI_NODE = "rssi";
+constexpr const char * JSON_WIFI_AUTH_NODE = "auth";
+
 constexpr const char * JSON_HC12_NODE = "hc12";
 constexpr const char * JSON_HC12_ENABLED_NODE = "enabled";
 constexpr const char * JSON_HC12_UART_NODE = "uart";

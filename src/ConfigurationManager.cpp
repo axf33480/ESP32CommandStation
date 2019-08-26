@@ -441,6 +441,49 @@ void ConfigurationManager::configureLCC(OpenMRN *openmrn
 #endif // CONFIG_USE_SD
 }
 
+void ConfigurationManager::setWiFiStationParams(string ssid, string password
+                                              , string ip, string gateway
+                                              , string subnet)
+{
+  string wifimode = commandStationConfig[JSON_WIFI_NODE][JSON_WIFI_MODE_NODE];
+  if (wifimode.compare(JSON_VALUE_WIFI_MODE_SOFTAP_ONLY))
+  {
+    LOG(INFO, "[Config] Current config is SoftAP only, enabling Station mode");
+    commandStationConfig[JSON_WIFI_NODE][JSON_WIFI_MODE_NODE] = JSON_VALUE_WIFI_MODE_SOFTAP_STATION;
+  }
+  LOG(INFO, "[Config] Reconfiguring Station SSID to '%s'", ssid.c_str());
+  if (!ssid.empty())
+  {
+    commandStationConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_SSID_NODE] = ssid;
+    commandStationConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_PASSWORD_NODE] = password;
+  }
+  if (ip.empty())
+  {
+    string ipmode = commandStationConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_MODE_NODE];
+    if (ipmode.compare(JSON_VALUE_STATION_IP_MODE_DHCP))
+    {
+      LOG(INFO, "[Config] Reconfiguring Station IP mode to DHCP");
+      commandStationConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_MODE_NODE] = JSON_VALUE_STATION_IP_MODE_DHCP;
+      commandStationConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_STATION_IP_NODE] = "";
+      commandStationConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_STATION_GATEWAY_NODE] = "";
+      commandStationConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_STATION_NETMASK_NODE] = "";
+    }
+  }
+  else
+  {
+    LOG(INFO
+      , "[Config] Reconfiguring Station IP mode to STATIC using:\n"
+        "ip: %s\n gateway: %s\nsubnet: %s"
+      , ip.c_str(), gateway.c_str(), subnet.c_str());
+    commandStationConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_MODE_NODE] = JSON_VALUE_STATION_IP_MODE_STATIC;
+    commandStationConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_STATION_IP_NODE] = ip;
+    commandStationConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_STATION_GATEWAY_NODE] = gateway;
+    commandStationConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_STATION_NETMASK_NODE] = subnet;
+  }
+  // persist the new config
+  store(ESP32_CS_CONFIG_JSON, commandStationConfig.dump());
+}
+
 string ConfigurationManager::getFilePath(const string &name, bool oldPath)
 {
   if (oldPath)

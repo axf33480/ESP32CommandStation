@@ -380,7 +380,7 @@
     <ul>
       <li><a href="#baseStationPage" data-rel="back" data-icon="ui-icon-back" class="ui-btn ui-shadow ui-corner-all ui-btn-icon-notext">Cancel</a></li>
       <li><a href="#" id="ssid-connect-manual" data-icon="ui-icon-plus" class="ui-btn ui-shadow ui-corner-all ui-btn-icon-notext">Manual</a></li>
-      <li><a href="#" id="ssid-connect-rescan" data-icon="ui-icon-plus" class="ui-btn ui-shadow ui-corner-all ui-btn-icon-notext">Rescan</a></li>
+      <li><a href="#" id="ssid-connect-rescan" data-icon="ui-icon-recycle" class="ui-btn ui-shadow ui-corner-all ui-btn-icon-notext">Rescan</a></li>
       <li><a href="#baseStationPage" id="ssid-connect-confirm" data-icon="ui-icon-check" class="ui-btn ui-shadow ui-corner-all ui-btn-icon-notext">Confirm</a></li>
     </ul>
     </div>
@@ -613,7 +613,7 @@ function createButton({type, id, title='',}= {}) {
    title = 'Stop';
   }
  }
- return String.format("<a href='#' data-role='button' data-show-label='false' class='ui-button-inline' data-icon='ui-icon-{0}' title='{1}' id='{2}'>{1}</a>", type, title, id);
+ return String.format("<a href='#' data-role='button' data-show-label='false' class='ui-button-inline' data-icon='ui-icon-{0}' data-iconpos='notext' title='{1}' id='{2}'>{1}</a>", type, title, id);
 }
 $(function() {
  registerStringFormat();
@@ -1245,6 +1245,9 @@ function csConfigUpdate(data) {
  }
 }
 function refreshSSIDList() {
+ $('#ssid-connect-confirm').hide();
+ $('#ssid-manual-entry').hide();
+ $('#ssid-connect-rescan').show();
  refreshTable({table: '#ssid-list', url: '/config?scan=true',
  fields: ['ssid', 'rssi', function(record) {
    if(record.auth === 0) {
@@ -1262,7 +1265,7 @@ function refreshSSIDList() {
    }
    return 'Unknown';
   }, function(record) {
-   return createButton({type:'action', id:String.format("cs-ssid-{0}-{1}", record.ssid, record.auth), title:'Connect'});
+   return createButton({type:'gear', id:String.format("cs-ssid-{0}-{1}", record.ssid, record.auth), title:'Connect'});
   }],
   refreshCallback:function() {
    $('#ssid-list tr td [id^=cs-ssid-]').button();
@@ -1272,15 +1275,16 @@ function refreshSSIDList() {
      $('#ssid-manual-ssid').val(idParts[2]);
      $('#ssid-manual-password').val('');
      $('#ssid-list').hide();
+     $('#ssid-manual-entry').show();
      $('#ssid-connect-manual').hide();
      $('#ssid-connect-confirm').show();
+     $('#ssid-connect-rescan').hide();
      $('#ssid-connect').popup('reposition', {positionTo:'window'});
     } else {
      $('#ssid-connect').popup('close');
      $.ajax({method:'PUT',url:String.format('/config?ssid={0}&pass={1}', idParts[3], $('#ssid-manual-password').val())});
     }
    });
-   $('#ssid-manual-entry').show();
    $('#ssid-list').show();
    $('#ssid-connect').popup('reposition', {positionTo:'window'});
   }
@@ -1290,7 +1294,7 @@ function setupConfig() {
  $("#cs-persist-config").on("vclick", function() {
   $.ajax({
    method: 'POST',
-   url: '/config',
+   url: '/config?persist',
    beforeSend: function() {
     $.mobile.loading('show', {
      text: 'Saving Configuration...',
@@ -1312,8 +1316,8 @@ function setupConfig() {
   });
  });
  $("#cs-clear-config").on("vclick", function() {
-  $.ajax({url: '/config',
-   method: 'DELETE',
+  $.ajax({url: '/config?clear',
+   method: 'POST',
    beforeSend: function() {
     $.mobile.loading('show', {
      text: 'Clearing Configuration...',
@@ -1344,6 +1348,9 @@ function setupConfig() {
  $('#cs-config-station-div').hide();
  $('#ssid-connect-confirm').hide();
  $('#cs-config-connect').on('vclick', function() {
+  $('#ssid-connect-rescan').show();
+  $('#ssid-manual-entry').hide();
+  $('#ssid-list tbody').empty();
   $('#ssid-connect').popup('open', {positionTo:'window'});
   refreshSSIDList();
  });
@@ -1353,13 +1360,14 @@ function setupConfig() {
   $('#ssid-list').hide();
   $('#ssid-manual-entry').show();
   $('#ssid-connect-confirm').show();
+  $('#ssid-connect-rescan').hide();
  })
- $('#cs-connect-rescan').on('vclick', function() {
+ $('#ssid-connect-rescan').on('vclick', function() {
   refreshSSIDList();
  })
  $('#ssid-connect-confirm').on('vclick', function() {
   $('#ssid-connect').popup('close');
-  $.ajax({method:'PUT',url:String.format('/config?ssid={0}&password={1}', $('#ssid-manual-ssid').val(), $('#ssid-manual-password').val())});
+  $.ajax({method:'POST', url:String.format('/config?ssid={0}&password={1}', $('#ssid-manual-ssid').val(), $('#ssid-manual-password').val())});
  })
 }
 function BSTabRefresh(section) {

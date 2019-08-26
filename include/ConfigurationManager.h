@@ -59,6 +59,9 @@ public:
   {
     return wifiMode_ == WIFI_MODE_APSTA || wifiMode_ == WIFI_MODE_APSTA;
   }
+  void setWiFiStationParams(std::string ssid, std::string password
+                          , std::string ip="", std::string gateway=""
+                          , std::string subnet="");
 private:
   std::string getFilePath(const std::string &, bool=false);
   bool validateConfiguration();

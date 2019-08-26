@@ -255,7 +255,7 @@ void ESP32CSWebServer::begin()
   GET_URI("/features", handleFeatures)
   GET_POST_URI("/programmer", handleProgrammer)
   GET_PUT_URI("/power", handlePower)
-  GET_POST_DELETE_URI("/config", handleConfig)
+  GET_POST_URI("/config", handleConfig)
   GET_POST_PUT_DELETE_URI("/locomotive", handleLocomotive)
   GET_POST_PUT_DELETE_URI("/turnouts", handleTurnouts)
   POST_UPLOAD_URI("/update", handleOTA, otaUploadCallback)
@@ -648,53 +648,75 @@ void ESP32CSWebServer::handleSensors(AsyncWebServerRequest *request)
 #endif // ENABLE_SENSORS
 }
 
+void to_json(nlohmann::json& j, const wifi_ap_record_t& t)
+{
+  j = nlohmann::json({
+    { JSON_WIFI_SSID_NODE, (char *)t.ssid },
+    { JSON_WIFI_RSSI_NODE, t.rssi },
+    { JSON_WIFI_AUTH_NODE, t.authmode },
+  });
+}
+
 void ESP32CSWebServer::handleConfig(AsyncWebServerRequest *request)
 {
-  if (request->method() == HTTP_POST)
+  bool needReboot = false;
+  if (request->hasArg("persist"))
   {
     DCCPPProtocolHandler::getCommandHandler("E")->process(vector<string>());
   }
-  else if (request->method() == HTTP_DELETE)
+  else if (request->hasArg("clear"))
   {
     DCCPPProtocolHandler::getCommandHandler("e")->process(vector<string>());
   }
-  if (request->hasArg("scan"))
+  else if (request->hasArg("scan"))
   {
     SyncNotifiable n;
     wifiManager->start_ssid_scan(&n);
     n.wait_for_notification();
     size_t num_found = wifiManager->get_ssid_scan_result_count();
     nlohmann::json ssid_list;
+    vector<string> seen_ssids;
     for (int i = 0; i < num_found; i++)
     {
-      auto result = wifiManager->get_ssid_scan_result(i);
-      ssid_list.push_back(
-        {
-          {"ssid", string((char *)result.ssid)},
-          {"rssi", result.rssi},
-          {"auth", result.authmode}
-        }
-      );
+      auto entry = wifiManager->get_ssid_scan_result(i);
+      if (std::find_if(seen_ssids.begin(), seen_ssids.end()
+        , [entry](string &s)
+          {
+            return s == (char *)entry.ssid;
+          }) != seen_ssids.end())
+      {
+        // filter duplicate SSIDs
+        continue;
+      }
+      seen_ssids.push_back((char *)entry.ssid);
+      ssid_list.push_back(entry);
     }
     wifiManager->clear_ssid_scan_results();
     SEND_JSON_RESPONSE(request, ssid_list.dump())
   }
   else if (request->hasArg("ssid"))
   {
-    LOG(INFO, "Selected SSID: %s / %s", request->arg("ssid").c_str()
-      , request->arg("password").c_str());
+    configStore->setWiFiStationParams(request->arg("ssid").c_str()
+                                    , request->arg("password").c_str());
+    needReboot = true;
   }
   else if (request->hasArg("nodeid"))
   {
-    if (configStore->setNodeID(request->arg("nodeid").c_str()))
+    if (!configStore->setNodeID(request->arg("nodeid").c_str()))
     {
-      // send a string back to the client rather than SEND_GENERIC_RESPONSE
-      // so we don't return prior to calling reboot.
-      SEND_TEXT_RESPONSE(request, STATUS_OK, "Rebooting!")
-      reboot();
+      SEND_GENERIC_RESPONSE(request, STATUS_SERVER_ERROR)
     }
-    SEND_GENERIC_RESPONSE(request, STATUS_SERVER_ERROR)
+    needReboot = true;
   }
+
+  if (needReboot)
+  {
+    // send a string back to the client rather than SEND_GENERIC_RESPONSE
+    // so we don't return prior to calling reboot.
+    SEND_TEXT_RESPONSE(request, STATUS_OK, "ESP32CommandStation Restarting!")
+    reboot();
+  }
+
   SEND_JSON_RESPONSE(request, configStore->getCSConfig())
 }
 
