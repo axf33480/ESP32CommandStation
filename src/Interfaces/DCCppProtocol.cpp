@@ -24,31 +24,34 @@ and has been adapter for use in ESP32 COMMAND STATION.
 
 vector<unique_ptr<DCCPPProtocolCommand>> registeredCommands;
 
-// <e> command handler, this command will clear all stored configuration data
-// on the ESP32. All Turnouts, Outputs, Sensors and S88 Sensors (if enabled)
-// will need to be reconfigured after sending this command.
+// <e> command handler, this command will clear all stored Turnouts, Outputs,
+// Sensors and S88 Sensors (if enabled) after sending this command. Note, when
+// running with the PCB configuration only turnouts will be cleared.
 DECLARE_DCC_PROTOCOL_COMMAND_CLASS(ConfigErase, "e")
 DCC_PROTOCOL_COMMAND_HANDLER(ConfigErase,
 [](const vector<string> arguments)
 {
-  // TODO: Implement esp32cs::Esp32TrainDatabase::instance()->clear();
-  configStore->clear();
   turnoutManager->clear();
+  turnoutManager->store();
 #if SENSORS_ENABLED
   SensorManager::clear();
+  SensorManager::store();
 #if S88_ENABLED
   S88BusManager::clear();
+  S88BusManager::store();
 #endif
 #endif
 #if ENABLE_OUTPUTS
   OutputManager::clear();
+  OutputManager::store();
 #endif
   return COMMAND_SUCCESSFUL_RESPONSE;
 })
 
 // <E> command handler, this command stores all currently defined Turnouts,
 // Sensors, S88 Sensors (if enabled) and Outputs to persistent storage for use
-// by the Command Station in subsequent startups.
+// by the Command Station in subsequent startups. Note, when running with the
+// PCB configuration only turnouts will be stored.
 DECLARE_DCC_PROTOCOL_COMMAND_CLASS(ConfigStore, "E")
 DCC_PROTOCOL_COMMAND_HANDLER(ConfigStore,
 [](const vector<string> arguments)
@@ -101,19 +104,15 @@ DCC_PROTOCOL_COMMAND_HANDLER(WriteCVByteProgCommand,
 [](const vector<string> arguments)
 {
   uint16_t cv = std::stoi(arguments[0]);
-  uint16_t value = std::stoi(arguments[1]);
+  int16_t value = std::stoi(arguments[1]);
   uint16_t callback = std::stoi(arguments[2]);
   uint16_t callbackSub = std::stoi(arguments[3]);
   if (!writeProgCVByte(cv, value))
   {
-    LOG(INFO, "[PROG] Failed to write CV %d as %d", cv, value);
-    return StringPrintf("<r%d|%d|%d -1>", callback, callbackSub, cv);
+    LOG_ERROR("[PROG] Failed to write CV %d as %d", cv, value);
+    value = -1;
   }
-  else
-  {
-    LOG(INFO, "[PROG] CV %d set and verify as %d", cv, value);
-    return StringPrintf("<r%d|%d|%d %d>", callback, callbackSub, cv, value);
-  }
+  return StringPrintf("<r%d|%d|%d %d>", callback, callbackSub, cv, value);
 })
 
 // <W {CV} {BIT} {VALUE} {CALLBACK} {CALLBACK-SUB}> command handler, this
@@ -131,14 +130,11 @@ DCC_PROTOCOL_COMMAND_HANDLER(WriteCVBitProgCommand,
   uint16_t callbackSub = std::stoi(arguments[4]);
   if (!writeProgCVBit(cv, bit, value))
   {
-    LOG(INFO, "[PROG] Failed to write CV %d BIT %d as %d", cv, bit, value);
-    return StringPrintf("<r%d|%d|%d %d -1>", callback, callbackSub, cv, bit);
+    LOG_ERROR("[PROG] Failed to write CV %d BIT %d as %d", cv, bit, value);
+    value = -1;
   }
-  else
-  {
-    return StringPrintf("<r%d|%d|%d %d %d>", callback, callbackSub, cv, bit
-                      , value);
-  }
+  return StringPrintf("<r%d|%d|%d %d %d>", callback, callbackSub, cv, bit
+                    , value);
 })
 
 // <w {LOCO} {CV} {VALUE}> command handler, this command sends a CV write packet
@@ -249,7 +245,6 @@ DCC_PROTOCOL_COMMAND_HANDLER(PowerOffCommand,
 // converts the provided locomotive control command into a compatible DCC
 // locomotive control packet.
 DECLARE_DCC_PROTOCOL_COMMAND_CLASS(ThrottleCommandAdapter, "t")
-// TODO: reimplement this with per-connection allocation of registers.
 DCC_PROTOCOL_COMMAND_HANDLER(ThrottleCommandAdapter,
 [](const vector<string> arguments)
 {
@@ -272,7 +267,6 @@ DCC_PROTOCOL_COMMAND_HANDLER(ThrottleCommandAdapter,
 // converts the provided locomotive control command into a compatible DCC
 // locomotive control packet.
 DECLARE_DCC_PROTOCOL_COMMAND_CLASS(ThrottleExCommandAdapter, "tex")
-// TODO: reimplement this with per-connection allocation of registers.
 DCC_PROTOCOL_COMMAND_HANDLER(ThrottleExCommandAdapter,
 [](const vector<string> arguments)
 {
@@ -356,7 +350,6 @@ DCC_PROTOCOL_COMMAND_HANDLER(FunctionCommandAdapter,
 // <fex {LOCO} {FUNC} {STATE}]> command handler, this command converts a
 // locomotive function update into a compatible DCC function control packet.
 DECLARE_DCC_PROTOCOL_COMMAND_CLASS(FunctionExCommandAdapter, "fex")
-// TODO: reimplement this with per-connection allocation of registers.
 DCC_PROTOCOL_COMMAND_HANDLER(FunctionExCommandAdapter,
 [](const vector<string> arguments)
 {
@@ -507,7 +500,8 @@ DCC_PROTOCOL_COMMAND_HANDLER(TurnoutCommandAdapter,
     else if (arguments.size() == 3)
     {
       // create/update turnout
-      turnoutManager->createOrUpdate(turnoutID, std::stoi(arguments[1]), std::stoi(arguments[2]));
+      turnoutManager->createOrUpdate(turnoutID, std::stoi(arguments[1])
+                                   , std::stoi(arguments[2]));
       return COMMAND_SUCCESSFUL_RESPONSE;
     }
   }
