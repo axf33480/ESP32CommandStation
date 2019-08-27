@@ -342,6 +342,11 @@ void ConfigurationManager::store(const char *name, const string &content)
   write_string_to_file(configFilePath, content);
 }
 
+void ConfigurationManager::factory_reset()
+{
+  remove(ESP32_CS_CONFIG_JSON);
+}
+
 void ConfigurationManager::factory_reset_lcc(bool warn)
 {
   if (!access(LCC_NODE_CONFIG_FILE, F_OK) ||

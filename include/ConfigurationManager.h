@@ -39,6 +39,7 @@ public:
   void remove(const std::string &);
   std::string load(const std::string &);
   void store(const char *, const std::string &);
+  void factory_reset();
   void factory_reset_lcc(bool=true);
   openlcb::NodeID getNodeId();
   bool setNodeID(std::string);

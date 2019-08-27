@@ -668,6 +668,11 @@ void ESP32CSWebServer::handleConfig(AsyncWebServerRequest *request)
   {
     DCCPPProtocolHandler::getCommandHandler("e")->process(vector<string>());
   }
+  else if (request->hasArg("reset"))
+  {
+    configStore->factory_reset();
+    needReboot = true;
+  }
   else if (request->hasArg("scan"))
   {
     SyncNotifiable n;
