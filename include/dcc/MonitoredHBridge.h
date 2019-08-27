@@ -142,7 +142,7 @@ public:
   void factory_reset(int fd) override
   {
       LOG(VERBOSE, "Factory Reset Helper invoked");
-      cfg_.description().write(fd, StringPrintf("%s Track Output", name_.c_str()).c_str());
+      cfg_.description().write(fd, StringPrintf("%s Track", name_.c_str()).c_str());
   }
 
 private:

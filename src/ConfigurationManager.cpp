@@ -93,7 +93,8 @@ void recursiveWalkTree(const string &path, bool remove=false)
   }
 }
 
-ConfigurationManager::ConfigurationManager()
+ConfigurationManager::ConfigurationManager(const esp32cs::Esp32ConfigDef &cfg)
+  : cfg_(cfg)
 {
   bool factory_reset_config{config_cs_force_factory_reset() == CONSTANT_TRUE};
   bool lcc_factory_reset{config_lcc_force_factory_reset() == CONSTANT_TRUE};
@@ -400,8 +401,7 @@ bool ConfigurationManager::setNodeID(string value)
   return false;
 }
 
-void ConfigurationManager::configureLCC(OpenMRN *openmrn
-                                      , const esp32cs::Esp32ConfigDef &cfg)
+void ConfigurationManager::configureLCC(OpenMRN *openmrn)
 {
   auto lccConfig = commandStationConfig[JSON_LCC_NODE];
   if (lccConfig.contains(JSON_LCC_CAN_NODE))
@@ -421,11 +421,11 @@ void ConfigurationManager::configureLCC(OpenMRN *openmrn
   }
 
   // Create the CDI.xml dynamically if it doesn't already exist.
-  openmrn->create_config_descriptor_xml(cfg, LCC_NODE_CDI_FILE);
+  openmrn->create_config_descriptor_xml(cfg_, LCC_NODE_CDI_FILE);
 
   // Create the default internal configuration file if it doesn't already exist.
   configFd_ =
-    openmrn->stack()->create_config_file_if_needed(cfg.seg().internal_config()
+    openmrn->stack()->create_config_file_if_needed(cfg_.seg().internal_config()
                                                  , ESP32CS_CDI_VERSION
                                                  , openlcb::CONFIG_FILE_SIZE);
 
@@ -730,14 +730,13 @@ void ConfigurationManager::parseWiFiConfig()
   }
 }
 
-void ConfigurationManager::configureEnabledModules(SimpleCanStack *stack
-                                                 , const esp32cs::Esp32ConfigDef &cfg)
+void ConfigurationManager::configureEnabledModules(SimpleCanStack *stack)
 {
   parseWiFiConfig();
   wifiManager.reset(new Esp32WiFiManager(wifiSSID_.c_str()
                                        , wifiPassword_.c_str()
                                        , stack
-                                       , cfg.seg().wifi()
+                                       , cfg_.seg().wifi()
                                        , HOSTNAME_PREFIX
                                        , wifiMode_
                                        , stationStaticIP_.get()
@@ -788,6 +787,70 @@ void ConfigurationManager::configureEnabledModules(SimpleCanStack *stack
 
 string ConfigurationManager::getCSConfig()
 {
+  if (!commandStationConfig.contains(JSON_CDI_NODE))
+  {
+    openlcb::TcpClientConfig<openlcb::TcpClientDefaultParams> uplink =
+      cfg_.seg().wifi().uplink();
+    openmrn_arduino::HubConfiguration hub = cfg_.seg().wifi().hub();
+    esp32cs::TrackOutputConfig ops = cfg_.seg().hbridge().entry(0);
+    esp32cs::TrackOutputConfig prog = cfg_.seg().hbridge().entry(1);
+
+    // load CDI elements that we can modify from web
+    commandStationConfig[JSON_CDI_NODE][JSON_CDI_UPLINK_NODE] =
+    {
+      {JSON_CDI_UPLINK_RECONNECT_NODE,
+       CDI_READ_TRIMMED(uplink.reconnect, configFd_)},
+      {JSON_CDI_UPLINK_MODE_NODE,
+        CDI_READ_TRIMMED(uplink.search_mode, configFd_)},
+      {JSON_CDI_UPLINK_AUTO_HOST_NODE,
+        uplink.auto_address().host_name().read(configFd_)},
+      {JSON_CDI_UPLINK_AUTO_SERVICE_NODE,
+        uplink.auto_address().service_name().read(configFd_)},
+      {JSON_CDI_UPLINK_MANUAL_HOST_NODE,
+        uplink.manual_address().ip_address().read(configFd_)},
+      {JSON_CDI_UPLINK_MANUAL_PORT_NODE,
+        CDI_READ_TRIMMED(uplink.manual_address().port, configFd_)},
+    };
+    commandStationConfig[JSON_CDI_NODE][JSON_CDI_HUB_NODE] =
+    {
+      {JSON_CDI_HUB_ENABLE_NODE, CDI_READ_TRIMMED(hub.enable, configFd_)},
+      {JSON_CDI_HUB_PORT_NODE, CDI_READ_TRIMMED(hub.port, configFd_)},
+      {JSON_CDI_HUB_SERVICE_NODE, hub.service_name().read(configFd_)},
+    };
+    commandStationConfig[JSON_CDI_NODE][JSON_HBRIDGES_NODE] =
+    {
+      {"OPS",
+        {
+          {JSON_DESCRIPTION_NODE, ops.description().read(configFd_)},
+          {JSON_CDI_HBRIDGE_SHORT_EVENT_NODE,
+           uint64_to_string_hex(ops.event_short().read(configFd_))},
+          {JSON_CDI_HBRIDGE_SHORT_CLEAR_EVENT_NODE,
+           uint64_to_string_hex(ops.event_short_cleared().read(configFd_))},
+          {JSON_CDI_HBRIDGE_SHUTDOWN_EVENT_NODE,
+           uint64_to_string_hex(ops.event_shutdown().read(configFd_))},
+          {JSON_CDI_HBRIDGE_SHUTDOWN_CLEAR_EVENT_NODE,
+           uint64_to_string_hex(ops.event_shutdown_cleared().read(configFd_))},
+          {JSON_CDI_HBRIDGE_THERMAL_EVENT_NODE,
+           uint64_to_string_hex(ops.event_thermal_shutdown().read(configFd_))},
+          {JSON_CDI_HBRIDGE_THERMAL_CLEAR_EVENT_NODE,
+           uint64_to_string_hex(ops.event_thermal_shutdown_cleared().read(configFd_))},
+        }
+      },
+      {"PROG",
+        {
+          {JSON_DESCRIPTION_NODE, prog.description().read(configFd_)},
+          {JSON_CDI_HBRIDGE_SHORT_EVENT_NODE,
+           uint64_to_string_hex(prog.event_short().read(configFd_))},
+          {JSON_CDI_HBRIDGE_SHORT_CLEAR_EVENT_NODE,
+           uint64_to_string_hex(prog.event_short_cleared().read(configFd_))},
+          {JSON_CDI_HBRIDGE_SHUTDOWN_EVENT_NODE,
+           uint64_to_string_hex(prog.event_shutdown().read(configFd_))},
+          {JSON_CDI_HBRIDGE_SHUTDOWN_CLEAR_EVENT_NODE,
+           uint64_to_string_hex(prog.event_shutdown_cleared().read(configFd_))},
+        }
+      },
+    };
+  }
   return commandStationConfig.dump();
 }
 

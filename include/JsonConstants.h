@@ -121,6 +121,25 @@ constexpr const char * JSON_RAILCOM_SHORT_PIN_NODE = "short";
 constexpr const char * JSON_RAILCOM_UART_NODE = "uart";
 constexpr const char * JSON_RAILCOM_RX_NODE = "rx";
 
+constexpr const char * JSON_CDI_NODE = "cdi";
+constexpr const char * JSON_CDI_UPLINK_NODE = "uplink";
+constexpr const char * JSON_CDI_UPLINK_RECONNECT_NODE = "reconnect";
+constexpr const char * JSON_CDI_UPLINK_MODE_NODE = "mode";
+constexpr const char * JSON_CDI_UPLINK_AUTO_HOST_NODE = "auto_host";
+constexpr const char * JSON_CDI_UPLINK_AUTO_SERVICE_NODE = "auto_service";
+constexpr const char * JSON_CDI_UPLINK_MANUAL_HOST_NODE = "manual_host";
+constexpr const char * JSON_CDI_UPLINK_MANUAL_PORT_NODE = "manual_port";
+constexpr const char * JSON_CDI_HUB_NODE = "hub";
+constexpr const char * JSON_CDI_HUB_ENABLE_NODE = "enable";
+constexpr const char * JSON_CDI_HUB_PORT_NODE = "port";
+constexpr const char * JSON_CDI_HUB_SERVICE_NODE = "service";
+constexpr const char * JSON_CDI_HBRIDGE_SHORT_EVENT_NODE = "short";
+constexpr const char * JSON_CDI_HBRIDGE_SHORT_CLEAR_EVENT_NODE = "short_clear";
+constexpr const char * JSON_CDI_HBRIDGE_SHUTDOWN_EVENT_NODE = "shutdown";
+constexpr const char * JSON_CDI_HBRIDGE_SHUTDOWN_CLEAR_EVENT_NODE = "shutdown_clear";
+constexpr const char * JSON_CDI_HBRIDGE_THERMAL_EVENT_NODE = "thermal";
+constexpr const char * JSON_CDI_HBRIDGE_THERMAL_CLEAR_EVENT_NODE = "thermal_clear";
+
 constexpr const char * JSON_VALUE_STATION_IP_MODE_STATIC = "static";
 constexpr const char * JSON_VALUE_STATION_IP_MODE_DHCP = "dhcp";
 

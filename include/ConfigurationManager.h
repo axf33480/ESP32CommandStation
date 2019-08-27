@@ -30,7 +30,7 @@ COPYRIGHT (c) 2018-2019 Mike Dunston
 class ConfigurationManager
 {
 public:
-  ConfigurationManager();
+  ConfigurationManager(const esp32cs::Esp32ConfigDef &);
   virtual ~ConfigurationManager();
   void init();
   void clear();
@@ -42,9 +42,8 @@ public:
   void factory_reset_lcc(bool=true);
   openlcb::NodeID getNodeId();
   bool setNodeID(std::string);
-  void configureLCC(OpenMRN *, const esp32cs::Esp32ConfigDef &);
-  void configureEnabledModules(openlcb::SimpleCanStack *
-                             , const esp32cs::Esp32ConfigDef &);
+  void configureLCC(OpenMRN *);
+  void configureEnabledModules(openlcb::SimpleCanStack *);
   std::string getCSConfig();
   std::string getCSFeatures();
   std::string getSSID()
@@ -68,6 +67,7 @@ private:
   bool seedDefaultConfigSections();
   void parseWiFiConfig();
 
+  const esp32cs::Esp32ConfigDef cfg_;
   int configFd_{-1};
 
   std::string wifiSSID_{SSID_NAME};

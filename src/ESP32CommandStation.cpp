@@ -164,13 +164,13 @@ extern "C" void app_main()
   // (if configured) and then load the CS configuration (if present) or
   // prepare the default configuration. This will also include the LCC
   // Factory reset (if required).
-  configStore.reset(new ConfigurationManager());
+  configStore.reset(new ConfigurationManager(cfg));
 
   // Initialize the OpenMRN stack.
   openmrn.reset(new OpenMRN(configStore->getNodeId()));
 
   // Initialize the enabled modules.
-  configStore->configureEnabledModules(openmrn->stack(), cfg);
+  configStore->configureEnabledModules(openmrn->stack());
 
   // Initialize the factory reset helper for the CS.
   FactoryResetHelper resetHelper;
@@ -230,7 +230,7 @@ extern "C" void app_main()
   // Initialize the OpenMRN stack, this needs to be done *AFTER* all other LCC
   // dependent components as it will initiate configuration load and factory
   // reset calls.
-  configStore->configureLCC(openmrn.get(), cfg);
+  configStore->configureLCC(openmrn.get());
 
   // Initialize the DCC++ protocol adapter
   DCCPPProtocolHandler::init();
