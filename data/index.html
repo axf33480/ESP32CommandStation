@@ -305,48 +305,118 @@
      <h3>Configuration</h3>
      <div id="cs-config">
       <div class="ui-grid-solo">
-       <div class="ui-field-contain">
-        <label for="cs-config-lcc-node-id">LCC Node ID (hex):</label>
-        <input type="text" id="cs-config-lcc-node-id">
-       </div>
-       <div class="ui-field-contain">
-        <label for="cs-config-lcc-mode">LCC Connection:</label>
-        <select id="cs-config-lcc-mode">
-         <option value="wifi">WiFi Only</option>
-         <option value="wifican">WiFi and CAN</option>
-        </select>
-       </div>
-       <div class="ui-field-contain">
-        <label for="cs-config-wifi-mode">WiFi Mode:</label>
-        <select id="cs-config-wifi-mode">
-         <option value="station">Station Only</option>
-         <option value="softap-station">Station and SoftAP</option>
-         <option value="softap">SoftAP Only</option>
-        </select>
-       </div>
-       <div class="ui-field-contain" id="cs-config-station-div">
-        <label for="cs-config-ssid">Current SSID:</label>
-        <input type="text" id="cs-config-ssid">
-        <input type="button" id="cs-config-connect" value="Connect to Network" class='ui-button-inline'/>
-        <div class="ui-field-contain" id="cs-config-ip-div">
-         <label for="cs-config-ip-mode">IP Assignment:</label>
-         <input type="checkbox" id="cs-config-ip-mode" data-role="flipswitch" data-off-text="DHCP" data-on-text="Static">
+       <div data-role="tabs" id="cs-config-tabs">
+        <div data-role="navbar">
+         <ul>
+          <li><a href="#cs-wifi">WiFi</a></li>
+          <li><a href="#cs-lcc">LCC</a></li>
+          <li><a href="#cs-cdi-uplink">LCC WiFi Uplink</a></li>
+          <li><a href="#cs-cdi-hbridge-ops">OPS H-Bridge Events</a></li>
+          <li><a href="#cs-cdi-hbridge-prog">PROG H-Bridge Events</a></li>
+         </ul>
         </div>
-        <div class="ui-field-contain" id="cs-config-static-div">
-         <label for="cs-config-sta-ip">IP:</label>
-         <input type="text" id="cs-config-sta-ip">
-         <label for="cs-config-sta-gateway">Gateway IP:</label>
-         <input type="text" id="cs-config-sta-gateway">
-         <label for="cs-config-sta-netmask">Subnet Mask:</label>
-         <input type="text" id="cs-config-sta-netmask" value="255.255.255.0">
-         <label for="cs-config-dns">DNS:</label>
-         <input id="cs-config-dns" type="text" value="8.8.8.8">
+        <div id="cs-wifi">
+         <div class="ui-field-contain">
+          <label for="cs-wifi-mode">WiFi Mode:</label>
+          <select id="cs-wifi-mode">
+           <option value="station">Station Only</option>
+           <option value="softap-station">Station and SoftAP</option>
+           <option value="softap">SoftAP Only</option>
+          </select>
+         </div>
+         <div class="ui-field-contain" id="cs-wifi-sta-div">
+          <label for="cs-wifi-ssid">SSID:</label>
+          <input type="text" id="cs-wifi-ssid">
+          <div class="ui-field-contain" id="cs-wifi-ip-div">
+           <label for="cs-wifi-ip-mode">Station IP Assignment:</label>
+           <input type="checkbox" id="cs-wifi-ip-mode" data-role="flipswitch" data-off-text="DHCP" data-on-text="Static">
+          </div>
+          <div class="ui-field-contain" id="cs-wifi-static-div">
+           <label for="cs-wifi-sta-ip">IP:</label>
+           <input type="text" id="cs-wifi-sta-ip">
+           <label for="cs-wifi-sta-gateway">Gateway IP:</label>
+           <input type="text" id="cs-wifi-sta-gateway">
+           <label for="cs-wifi-sta-netmask">Subnet Mask:</label>
+           <input type="text" id="cs-wifi-sta-netmask" value="255.255.255.0">
+           <label for="cs-wifi-dns">DNS:</label>
+           <input id="cs-wifi-dns" type="text" value="8.8.8.8">
+          </div>
+         </div>
+        </div>
+        <div id="cs-lcc">
+         <div class="ui-field-contain">
+          <label for="cs-lcc-node-id">LCC Node ID (hex):</label>
+          <input type="text" id="cs-lcc-node-id">
+         </div>
+         <div class="ui-field-contain">
+          <label for="cs-lcc-can">CAN Interface:</label>
+          <input type="checkbox" id="cs-lcc-can" data-role="flipswitch"/>
+         </div>
+         <div class="ui-field-contain">
+          <label for="cs-lcc-hub">WiFi LCC Hub:</label>
+          <input type="checkbox" id="cs-lcc-hub" data-role="flipswitch"/>
+         </div>
+        </div>
+        <div id="cs-cdi-uplink">
+         <div class="ui-field-contain">
+          <label for="cs-lcc-uplink-mode">LCC Uplink Mode:</label>
+          <select id="cs-lcc-uplink-mode">
+           <option value="0">Auto, Manual</option>
+           <option value="1">Manual, Auto</option>
+           <option value="2">Auto Only</option>
+           <option value="3">Manual Only</option>
+          </select>
+         </div>
+         <div class="ui-field-contain" id="lcc-uplink-auto-div">
+          <label for="cs-lcc-uplink-auto-service">mDNS Service Name:</label>
+          <input type="text" id="cs-lcc-uplink-auto-service">
+         </div>
+         <div class="ui-field-contain" id="lcc-uplink-manual-div">
+          <label for="cs-lcc-uplink-manual-host">LCC Uplink manual host:</label>
+          <input type="text" id="cs-lcc-uplink-manual-host">
+          <label for="cs-lcc-uplink-manual-port">LCC Uplink manual port:</label>
+          <input type="number" id="cs-lcc-uplink-manual-port">
+         </div>
+         <div class="ui-field-contain">
+          <label for="cs-lcc-uplink-reconnect">Uplink reconnect:</label>
+          <input type="checkbox" id="cs-lcc-uplink-reconnect" data-role="flipswitch"/>
+         </div>
+        </div>
+        <div id="cs-cdi-hbridge-ops">
+         <div class="ui-field-contain">
+          <label for="cs-cdi-ops-short">Short (hex):</label>
+          <input type="text" id="cs-cdi-ops-short">
+          <label for="cs-cdi-ops-short-clear">Short Cleared (hex):</label>
+          <input type="text" id="cs-cdi-ops-short-clear">
+          <label for="cs-cdi-ops-shutdown">Shutdown (hex):</label>
+          <input type="text" id="cs-cdi-ops-shutdown">
+          <label for="cs-cdi-ops-shutdown-clear">Shutdown Cleared (hex):</label>
+          <input type="text" id="cs-cdi-ops-shutdown-clear">
+          <label for="cs-cdi-ops-thermal">Thermal Shutdown (hex):</label>
+          <input type="text" id="cs-cdi-ops-thermal">
+          <label for="cs-cdi-ops-thermal-clear">Thermal Shutdown Cleared (hex):</label>
+          <input type="text" id="cs-cdi-ops-thermal-clear">
+         </div>
+        </div>
+        <div id="cs-cdi-hbridge-prog">
+         <div class="ui-field-contain">
+          <label for="cs-cdi-prog-short">Short (hex):</label>
+          <input type="text" id="cs-cdi-prog-short">
+          <label for="cs-cdi-prog-short-clear">Short Cleared (hex):</label>
+          <input type="text" id="cs-cdi-prog-short-clear">
+          <label for="cs-cdi-prog-shutdown">Shutdown (hex):</label>
+          <input type="text" id="cs-cdi-prog-shutdown">
+          <label for="cs-cdi-prog-shutdown-clear">Shutdown Cleared (hex):</label>
+          <input type="text" id="cs-cdi-prog-shutdown-clear">
+         </div>
         </div>
        </div>
       </div>
       <div class="ui-grid-solo">
        <input type="button" id="cs-persist-config" value="Save Config" class='ui-button-inline'/>
        <input type="button" id="cs-clear-config" value="Clear Config" class='ui-button-inline'/>
+       <input type="button" id="cs-factory-reset" value="Factory Reset" class='ui-button-inline'/>
+       <input type="button" id="cs-wifi-connect" value="Connect to Network" class='ui-button-inline'/>
       </div>
      </div>
     </div>
@@ -1217,31 +1287,48 @@ function setupProgrammer() {
  $('#cs-prog-div-create-roster').hide();
 }
 function int_to_hex(value, length) {
-  var hex = new Array(length + 1).join('0') + value.toString(16);
+  return pad_hex(value.toString(16), length);
+}
+function pad_hex(str, length) {
+  var hex = new Array(length + 1).join('0') + str;
   return hex.substr(-length).match(/.{1,2}/g).join('.');
 }
 function csConfigUpdate(data) {
- $('#cs-config-lcc-node-id').val(int_to_hex(data.lcc.id, 12));
- if(data.lcc.can.rx !== -1 && data.lcc.can.tx !== -1) {
-  $('#cs-config-lcc-wifi-mode').val('wifican').change();
- } else {
-  $('#cs-config-lcc-wifi-mode').val('wifi').change();
- }
- $('#cs-config-station-div').hide();
- $("#cs-config-wifi-mode").val(data.wifi.mode).change();
+ $('#cs-lcc-node-id').val(int_to_hex(data.lcc.id, 12));
+ $('#cs-lcc-can').prop('checked', (data.lcc.can.enable && data.lcc.can.rx !== -1 && data.lcc.can.tx !== -1)).flipswitch('refresh');
+ $('#cs-lcc-hub').prop('checked', data.cdi.hub.enable).flipswitch('refresh');
+ $('#cs-lcc-uplink-reconnect').prop('checked', data.cdi.uplink.reconnect).flipswitch('refresh');
+ $('#cs-lcc-uplink-auto-service').val(data.cdi.uplink.auto_service);
+ $('#cs-lcc-uplink-manual-host').val(data.cdi.uplink.manual_host);
+ $('#cs-lcc-uplink-manual-port').val(data.cdi.uplink.manual_port);
+ $('#cs-lcc-uplink-mode').val(data.cdi.uplink.mode).change();
+ $('#cs-cdi-ops-short').val(pad_hex(data.cdi.hbridges['OPS'].short, 16));
+ $('#cs-cdi-ops-short-clear').val(pad_hex(data.cdi.hbridges['OPS'].short_clear, 16));
+ $('#cs-cdi-ops-shutdown').val(pad_hex(data.cdi.hbridges['OPS'].shutdown, 16));
+ $('#cs-cdi-ops-shutdown-clear').val(pad_hex(data.cdi.hbridges['OPS'].shutdown_clear, 16));
+ $('#cs-cdi-ops-thermal').val(pad_hex(data.cdi.hbridges['OPS'].thermal, 16));
+ $('#cs-cdi-ops-thermal-clear').val(pad_hex(data.cdi.hbridges['OPS'].thermal_clear, 16));
+ $('#cs-cdi-prog-short').val(pad_hex(data.cdi.hbridges['PROG'].short, 16));
+ $('#cs-cdi-prog-short-clear').val(pad_hex(data.cdi.hbridges['PROG'].short_clear, 16));
+ $('#cs-cdi-prog-shutdown').val(pad_hex(data.cdi.hbridges['PROG'].shutdown, 16));
+ $('#cs-cdi-prog-shutdown-clear').val(pad_hex(data.cdi.hbridges['PROG'].shutdown_clear, 16));
+ $('#cs-wifi-sta-div').hide();
+ $('#cs-wifi-connect').hide();
+ $("#cs-wifi-mode").val(data.wifi.mode).change();
  if(data.wifi.mode !== 'softap') {
-   $('#cs-config-station-div').show();
-   $('#cs-config-ssid').val(data.wifi.station.ssid);
-   $('#cs-config-ip-mode').prop('checked', data.wifi.station.mode === 'static').flipswitch('refresh');
+  $('#cs-wifi-sta-div').show();
+  $('#cs-wifi-connect').show();
+  $('#cs-wifi-ssid').val(data.wifi.station.ssid);
+  $('#cs-wifi-ip-mode').prop('checked', data.wifi.station.mode === 'static').flipswitch('refresh');
   if(data.wifi.station.mode === 'static') {
-   $('#cs-config-static-div').show();
-   $('#cs-config-sta-ip').val(data.wifi.station.ip);
-   $('#cs-config-sta-gateway').val(data.wifi.station.gateway);
-   $('#cs-config-sta-netmask').val(data.wifi.station.netmask);
-   $('#cs-config-sta-dns').val(data.wifi.dns);
+   $('#cs-wifi-static-div').show();
+   $('#cs-wifi-sta-ip').val(data.wifi.station.ip);
+   $('#cs-wifi-sta-gateway').val(data.wifi.station.gateway);
+   $('#cs-wifi-sta-netmask').val(data.wifi.station.netmask);
+   $('#cs-wifi-sta-dns').val(data.wifi.dns);
   }
  } else {
-  $('#cs-config-station-div').hide();
+  $('#cs-wifi-stat-div').hide();
  }
 }
 function refreshSSIDList() {
@@ -1291,13 +1378,19 @@ function refreshSSIDList() {
  })
 }
 function setupConfig() {
- $("#cs-persist-config").on("vclick", function() {
-  $.ajax({
+ $("#cs-config-tabs").on("tabsactivate", function(event, ui) {
+  if(ui.newTab.text() === "WiFi") {
+   $('#cs-wifi-connect').show();
+  } else {
+   $('#cs-wifi-connect').hide();
+  }
+ });
+ $('#cs-factory-reset').on("vclick", function() {
+  $.ajax({url: '/config?reset',
    method: 'POST',
-   url: '/config?persist',
    beforeSend: function() {
     $.mobile.loading('show', {
-     text: 'Saving Configuration...',
+     text: 'Initiating Factory Reset...',
      textVisible: true,
      textonly: false});
    },
@@ -1306,8 +1399,61 @@ function setupConfig() {
      $.mobile.loading('hide');
     }, 1);
    },
+  });
+ });
+ $("#cs-persist-config").on("vclick", function() {
+  var tablist = ["WiFi", "LCC", "Uplink", "OPS", "PROG"];
+  var section = $("#cs-config-tabs").tabs("option", "active");
+  var url = "/config?persist";
+  var wantRefresh = true;
+  if (tablist[section] == "WiFi") {
+   url = String.format("/config?mode={0}", $('#cs-wifi-mode').val());
+  } else if (tablist[section] == "LCC") {
+   url = String.format("/config?nodeid={0}&lcc-hub={1}&lcc-can={2}", $('#cs-lcc-node-id').val(), $('#cs-lcc-hub').prop('checked'), $('#cs-lcc-can').prop('checked'));
+   wantRefresh = false;
+  } else if (tablist[section] == "Uplink") {
+   url = String.format("/config?uplink-mode={0}&uplink-service={1}&uplink-manual={2}&uplink-manual-port={3}", $('#cs-lcc-uplink-mode').val(), $('#cs-lcc-uplink-auto-service').val(), $('#cs-lcc-uplink-manual-host').val(), $('#cs-lcc-uplink-manual-port').val());
+   wantRefresh = false;
+  } else if (tablist[section] == "OPS") {
+   url = String.format("/config?ops-short={0}&ops-short-clear={1}&ops-shutdown={2}&ops-shutdown-clear={3}&ops-thermal={4}&ops-thermal-clear={5}", "", "", "", "", "");
+   wantRefresh = false;
+  } else if (tablist[section] == "PROG") {
+   url = String.format("/config?prog-short={0}&prog-short-clear={1}&prog-shutdown={2}&prog-shutdown-clear={3}", "", "", "", "");
+   wantRefresh = false;
+  }
+  $.ajax({
+   method: 'POST',
+   url: url,
+   beforeSend: function() {
+    $.mobile.loading('show', {
+     text: 'Saving Configuration...',
+     textVisible: true,
+     textonly: false});
+   },
+   complete: function(request, status) {
+    if(status == 'success') {
+     setTimeout(function () {
+      $.mobile.loading('hide');
+     }, 1);
+     if(!wantRefresh) {
+      // display new spinner for reboot
+      setTimeout(function () {
+       $.mobile.loading('show', {
+        text: 'Command Station restarting...',
+        textVisible: true,
+        textonly: false});
+      }, 2);
+      // set reload of webpage for 20sec
+      setTimeout(function() {
+       location.reload();
+      }, 20000);
+     }
+    }
+   },
    success : function (data, status, xhr) {
-    csConfigUpdate(data);
+    if(wantRefresh) {
+     csConfigUpdate(data);
+    }
    },
    error : function(xhr, status, error) {
     alert("The command station reported a failure saving configuration data");
@@ -1328,26 +1474,29 @@ function setupConfig() {
     setTimeout(function () {
      $.mobile.loading('hide');
     }, 1);
-   },});
+   },
+  });
  });
- $('#cs-config-wifi-mode').on('change', function() {
-  if($("#cs-config-wifi-mode").val() === 'station' || $("#cs-config-wifi-mode").val() === 'softap-station') {
-   $('#cs-config-station-div').show();
+ $('#cs-wifi-mode').on('change', function() {
+  if($("#cs-wifi-mode").val() === 'station' || $("#cs-wifi-mode").val() === 'softap-station') {
+   $('#cs-wifi-sta-div').show();
+   $('#cs-wifi-connect').show();
   } else {
-   $('#cs-config-station-div').hide();
+   $('#cs-wifi-sta-div').hide();
+   $('#cs-wifi-connect').hide();
   }
  });
- $('#cs-config-ip-mode').on('change', function() {
+ $('#cs-wifi-ip-mode').on('change', function() {
   if(this.checked) {
-   $("#cs-config-static-div").show();
+   $("#cs-wifi-static-div").show();
   } else {
-   $("#cs-config-static-div").hide();
+   $("#cs-wifi-static-div").hide();
   }
  });
- $("#cs-config-static-div").hide();
- $('#cs-config-station-div').hide();
+ $("#cs-wifi-static-div").hide();
+ $('#cs-wifi-station-div').hide();
  $('#ssid-connect-confirm').hide();
- $('#cs-config-connect').on('vclick', function() {
+ $('#cs-wifi-connect').on('vclick', function() {
   $('#ssid-connect-rescan').show();
   $('#ssid-manual-entry').hide();
   $('#ssid-list tbody').empty();

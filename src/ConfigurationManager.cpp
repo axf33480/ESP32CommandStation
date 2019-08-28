@@ -49,7 +49,7 @@ static const char* const OLD_CONFIG_DIR = CS_CONFIG_FILESYSTEM "/DCCppESP32";
 unique_ptr<Esp32WiFiManager> wifiManager;
 
 // holder of the parsed command station configuration.
-json commandStationConfig;
+json csConfig;
 
 void recursiveWalkTree(const string &path, bool remove=false)
 {
@@ -182,8 +182,13 @@ ConfigurationManager::ConfigurationManager(const esp32cs::Esp32ConfigDef &cfg)
   if (exists(ESP32_CS_CONFIG_JSON))
   {
     LOG(INFO, "[Config] Found existing CS config file, attempting to load...");
-    commandStationConfig = json::parse(load(ESP32_CS_CONFIG_JSON));
-    if (validateConfiguration())
+
+    csConfig = json::parse(load(ESP32_CS_CONFIG_JSON)     // content to parse
+                         , nullptr                        // callback (unused)
+                         , false);                        // disable exceptions
+
+    if (!csConfig.is_discarded() && // parse failure will set root to discarded
+        validateConfiguration())
     {
       LOG(INFO
         , "[Config] Existing configuration successfully loaded and validated.");
@@ -191,12 +196,12 @@ ConfigurationManager::ConfigurationManager(const esp32cs::Esp32ConfigDef &cfg)
       // Check for any missing default configuration settings.
       persist_config = seedDefaultConfigSections();
       // Check if we need to force a reset of the LCC config (node id change)
-      auto lccConfig = commandStationConfig[JSON_LCC_NODE];
+      auto lccConfig = csConfig[JSON_LCC_NODE];
       if (lccConfig.contains(JSON_LCC_FORCE_RESET_NODE) &&
           lccConfig[JSON_LCC_FORCE_RESET_NODE].get<bool>())
       {
         LOG(WARNING, "[Config] LCC force factory_reset flag is ENABLED!");
-        commandStationConfig[JSON_LCC_NODE][JSON_LCC_FORCE_RESET_NODE] = false;
+        csConfig[JSON_LCC_NODE][JSON_LCC_FORCE_RESET_NODE] = false;
         persist_config = true;
         lcc_factory_reset = true;
       }
@@ -205,7 +210,8 @@ ConfigurationManager::ConfigurationManager(const esp32cs::Esp32ConfigDef &cfg)
     {
       LOG_ERROR("[Config] Existing configuration failed one (or more) "
                 "validation(s) and will be regenerated!");
-      LOG_ERROR("[Config] Old config: %s", commandStationConfig.dump().c_str());
+      LOG(VERBOSE, "[Config] Old config: %s", csConfig.dump().c_str());
+      factory_reset_config = true;
     }
   }
   else
@@ -218,7 +224,7 @@ ConfigurationManager::ConfigurationManager(const esp32cs::Esp32ConfigDef &cfg)
     LOG(INFO, "[Config] Generating default configuration...");
     // TODO: break this up so it starts with an empty config and makes calls to
     // various "getDefaultConfigXXX" for each section.
-    commandStationConfig = {};
+    csConfig = {};
     persist_config = seedDefaultConfigSections();
     // force factory reset of LCC data
     lcc_factory_reset = true;
@@ -228,9 +234,10 @@ ConfigurationManager::ConfigurationManager(const esp32cs::Esp32ConfigDef &cfg)
   if (persist_config)
   {
     LOG(INFO, "[Config] Persisting configuration settings");
-    store(ESP32_CS_CONFIG_JSON, commandStationConfig.dump());
+    store(ESP32_CS_CONFIG_JSON, csConfig.dump());
+    LOG(VERBOSE, "[Config] Updated config: %s", csConfig.dump().c_str());
   }
-  LOG(VERBOSE, "[Config] %s", commandStationConfig.dump().c_str());
+  LOG(VERBOSE, "[Config] %s", csConfig.dump().c_str());
 
   // If we are not currently forcing a factory reset, verify if the LCC config
   // file is the correct size. If it is not the expected size force a factory
@@ -378,13 +385,13 @@ void ConfigurationManager::factory_reset_lcc(bool warn)
 
 NodeID ConfigurationManager::getNodeId()
 {
-  auto lccConfig = commandStationConfig[JSON_LCC_NODE];
+  auto lccConfig = csConfig[JSON_LCC_NODE];
   return (NodeID)lccConfig[JSON_LCC_NODE_ID_NODE].get<uint64_t>();
 }
 
 bool ConfigurationManager::setNodeID(string value)
 {
-  LOG(INFO, "[Config] Current NodeID: %s, updated NodeID: %s"
+  LOG(VERBOSE, "[Config] Current NodeID: %s, updated NodeID: %s"
     , uint64_to_string_hex(getNodeId()).c_str(), value.c_str());
   // remove period characters if present
   value.erase(std::remove(value.begin(), value.end(), '.'), value.end());
@@ -398,9 +405,9 @@ bool ConfigurationManager::setNodeID(string value)
     LOG(INFO
       , "[Config] Persisting NodeID: %s and enabling forced factory_reset."
       , uint64_to_string_hex(new_node_id).c_str());
-    commandStationConfig[JSON_LCC_NODE][JSON_LCC_NODE_ID_NODE] = new_node_id;
-    commandStationConfig[JSON_LCC_NODE][JSON_LCC_FORCE_RESET_NODE] = true;
-    store(ESP32_CS_CONFIG_JSON, commandStationConfig.dump());
+    csConfig[JSON_LCC_NODE][JSON_LCC_NODE_ID_NODE] = new_node_id;
+    csConfig[JSON_LCC_NODE][JSON_LCC_FORCE_RESET_NODE] = true;
+    store(ESP32_CS_CONFIG_JSON, csConfig.dump());
     return true;
   }
   return false;
@@ -408,15 +415,16 @@ bool ConfigurationManager::setNodeID(string value)
 
 void ConfigurationManager::configureLCC(OpenMRN *openmrn)
 {
-  auto lccConfig = commandStationConfig[JSON_LCC_NODE];
+  auto lccConfig = csConfig[JSON_LCC_NODE];
   if (lccConfig.contains(JSON_LCC_CAN_NODE))
   {
     auto canConfig = lccConfig[JSON_LCC_CAN_NODE];
+    bool canEnabled = canConfig[JSON_LCC_CAN_ENABLED_NODE];
     gpio_num_t canRXPin =
       (gpio_num_t)canConfig[JSON_LCC_CAN_RX_NODE].get<uint8_t>();
     gpio_num_t canTXPin =
       (gpio_num_t)canConfig[JSON_LCC_CAN_TX_NODE].get<uint8_t>();
-    if (canRXPin < GPIO_NUM_MAX && canTXPin < GPIO_NUM_MAX)
+    if (canEnabled && canRXPin < GPIO_NUM_MAX && canTXPin < GPIO_NUM_MAX)
     {
       LOG(INFO, "[Config] Enabling LCC CAN interface (rx: %d, tx: %d)"
         , canRXPin, canTXPin);
@@ -446,32 +454,66 @@ void ConfigurationManager::configureLCC(OpenMRN *openmrn)
 #endif // CONFIG_USE_SD
 }
 
+void ConfigurationManager::setLCCHub(bool enabled)
+{
+  cfg_.seg().wifi().hub().enable().write(configFd_, enabled);
+  extern unique_ptr<OpenMRN> openmrn;
+  openmrn->stack()->executor()->add(new CallbackExecutable([]()
+  {
+    openmrn->stack()->config_service()->trigger_update();
+  }));
+}
+
+void ConfigurationManager::setLCCCan(bool enabled)
+{
+  csConfig[JSON_LCC_NODE][JSON_LCC_CAN_NODE][JSON_LCC_CAN_ENABLED_NODE] = enabled;
+  // persist the new config
+  store(ESP32_CS_CONFIG_JSON, csConfig.dump());
+}
+
+bool ConfigurationManager::setWiFiMode(string mode)
+{
+  string current_mode = csConfig[JSON_WIFI_NODE][JSON_WIFI_MODE_NODE];
+  if (current_mode.compare(mode))
+  {
+    LOG(INFO
+      , "[Config] Updating WiFi mode from %s to %s, restart will be required."
+      , current_mode.c_str(), mode.c_str());
+    csConfig[JSON_WIFI_NODE][JSON_WIFI_MODE_NODE] = mode;
+    // persist the new config
+    store(ESP32_CS_CONFIG_JSON, csConfig.dump());
+    return true;
+  }
+  return false;
+}
+
 void ConfigurationManager::setWiFiStationParams(string ssid, string password
                                               , string ip, string gateway
                                               , string subnet)
 {
-  string wifimode = commandStationConfig[JSON_WIFI_NODE][JSON_WIFI_MODE_NODE];
-  if (wifimode.compare(JSON_VALUE_WIFI_MODE_SOFTAP_ONLY))
+  string wifimode = csConfig[JSON_WIFI_NODE][JSON_WIFI_MODE_NODE];
+  if (!wifimode.compare(JSON_VALUE_WIFI_MODE_SOFTAP_ONLY))
   {
     LOG(INFO, "[Config] Current config is SoftAP only, enabling Station mode");
-    commandStationConfig[JSON_WIFI_NODE][JSON_WIFI_MODE_NODE] = JSON_VALUE_WIFI_MODE_SOFTAP_STATION;
+    csConfig[JSON_WIFI_NODE][JSON_WIFI_MODE_NODE] = JSON_VALUE_WIFI_MODE_SOFTAP_STATION;
   }
   LOG(INFO, "[Config] Reconfiguring Station SSID to '%s'", ssid.c_str());
   if (!ssid.empty())
   {
-    commandStationConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_SSID_NODE] = ssid;
-    commandStationConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_PASSWORD_NODE] = password;
+    csConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_SSID_NODE] = ssid;
+    csConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_PASSWORD_NODE] = password;
   }
   if (ip.empty())
   {
-    string ipmode = commandStationConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_MODE_NODE];
-    if (ipmode.compare(JSON_VALUE_STATION_IP_MODE_DHCP))
+    auto station = csConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE];
+    if (!station.contains(JSON_WIFI_MODE_NODE) ||
+        station[JSON_WIFI_MODE_NODE].get<string>().compare(JSON_VALUE_STATION_IP_MODE_DHCP))
     {
       LOG(INFO, "[Config] Reconfiguring Station IP mode to DHCP");
-      commandStationConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_MODE_NODE] = JSON_VALUE_STATION_IP_MODE_DHCP;
-      commandStationConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_STATION_IP_NODE] = "";
-      commandStationConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_STATION_GATEWAY_NODE] = "";
-      commandStationConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_STATION_NETMASK_NODE] = "";
+      csConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_MODE_NODE] = JSON_VALUE_STATION_IP_MODE_DHCP;
+      csConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_STATION_IP_NODE] = "";
+      csConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_STATION_GATEWAY_NODE] = "";
+      csConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_STATION_NETMASK_NODE] = "";
     }
   }
   else
@@ -480,13 +522,13 @@ void ConfigurationManager::setWiFiStationParams(string ssid, string password
       , "[Config] Reconfiguring Station IP mode to STATIC using:\n"
         "ip: %s\n gateway: %s\nsubnet: %s"
       , ip.c_str(), gateway.c_str(), subnet.c_str());
-    commandStationConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_MODE_NODE] = JSON_VALUE_STATION_IP_MODE_STATIC;
-    commandStationConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_STATION_IP_NODE] = ip;
-    commandStationConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_STATION_GATEWAY_NODE] = gateway;
-    commandStationConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_STATION_NETMASK_NODE] = subnet;
+    csConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_MODE_NODE] = JSON_VALUE_STATION_IP_MODE_STATIC;
+    csConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_STATION_IP_NODE] = ip;
+    csConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_STATION_GATEWAY_NODE] = gateway;
+    csConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_STATION_NETMASK_NODE] = subnet;
   }
   // persist the new config
-  store(ESP32_CS_CONFIG_JSON, commandStationConfig.dump());
+  store(ESP32_CS_CONFIG_JSON, csConfig.dump());
 }
 
 string ConfigurationManager::getFilePath(const string &name, bool oldPath)
@@ -500,18 +542,18 @@ string ConfigurationManager::getFilePath(const string &name, bool oldPath)
 
 bool ConfigurationManager::validateConfiguration()
 {
-  if (!commandStationConfig.contains(JSON_WIFI_NODE))
+  if (!csConfig.contains(JSON_WIFI_NODE))
   {
     LOG_ERROR("[Config] WiFi configuration not found.");
     return false;
   }
-  else if (!commandStationConfig.contains(JSON_LCC_NODE))
+  else if (!csConfig.contains(JSON_LCC_NODE))
   {
     LOG_ERROR("[Config] LCC configuration not found.");
     return false;
   }
 
-  auto wifiNode = commandStationConfig[JSON_WIFI_NODE];
+  auto wifiNode = csConfig[JSON_WIFI_NODE];
   LOG(VERBOSE, "[Config] WiFi config: %s", wifiNode.dump().c_str());
 
   // Verify that the wifi operating mode is one of the three supported
@@ -544,7 +586,7 @@ bool ConfigurationManager::validateConfiguration()
   }
 
   // verify LCC configuration
-  auto lccNode = commandStationConfig[JSON_LCC_NODE];
+  auto lccNode = csConfig[JSON_LCC_NODE];
   LOG(VERBOSE, "[Config] LCC config: %s", lccNode.dump().c_str());
 
   if (!lccNode.contains(JSON_LCC_NODE_ID_NODE) ||
@@ -556,7 +598,8 @@ bool ConfigurationManager::validateConfiguration()
 
   if (!lccNode.contains(JSON_LCC_CAN_NODE) ||
       !lccNode[JSON_LCC_CAN_NODE].contains(JSON_LCC_CAN_RX_NODE) ||
-      !lccNode[JSON_LCC_CAN_NODE].contains(JSON_LCC_CAN_TX_NODE))
+      !lccNode[JSON_LCC_CAN_NODE].contains(JSON_LCC_CAN_TX_NODE) ||
+      !lccNode[JSON_LCC_CAN_NODE].contains(JSON_LCC_CAN_ENABLED_NODE))
   {
     LOG_ERROR("[Config] LCC CAN configuration invalid.");
     return false;
@@ -570,13 +613,15 @@ bool ConfigurationManager::seedDefaultConfigSections()
   bool config_updated{false};
 
   // If LCC config is missing default it.
-  if (!commandStationConfig.contains(JSON_LCC_NODE))
+  if (!csConfig.contains(JSON_LCC_NODE))
   {
-    commandStationConfig[JSON_LCC_NODE] =
+    csConfig[JSON_LCC_NODE] =
     {
       { JSON_LCC_NODE_ID_NODE, UINT64_C(LCC_NODE_ID) },
       { JSON_LCC_CAN_NODE,
         {
+          { JSON_LCC_CAN_ENABLED_NODE, (bool)(LCC_CAN_RX_PIN != NOT_A_PIN &&
+                                              LCC_CAN_TX_PIN != NOT_A_PIN) },
           { JSON_LCC_CAN_RX_NODE, LCC_CAN_RX_PIN },
           { JSON_LCC_CAN_TX_NODE, LCC_CAN_TX_PIN },
         }
@@ -586,9 +631,9 @@ bool ConfigurationManager::seedDefaultConfigSections()
     config_updated = true;
   }
   // If LCC config is missing default it.
-  if (!commandStationConfig.contains(JSON_WIFI_NODE))
+  if (!csConfig.contains(JSON_WIFI_NODE))
   {
-    commandStationConfig[JSON_WIFI_NODE] =
+    csConfig[JSON_WIFI_NODE] =
     {
 #if WIFI_ENABLE_SOFT_AP_ONLY
       { JSON_WIFI_MODE_NODE, JSON_VALUE_WIFI_MODE_SOFTAP_ONLY },
@@ -633,9 +678,9 @@ bool ConfigurationManager::seedDefaultConfigSections()
     config_updated = true;
   }
   // If HC12 config is missing default it.
-  if (!commandStationConfig.contains(JSON_HC12_NODE))
+  if (!csConfig.contains(JSON_HC12_NODE))
   {
-    commandStationConfig[JSON_HC12_NODE] =
+    csConfig[JSON_HC12_NODE] =
     {
       { JSON_HC12_ENABLED_NODE, HC12_RADIO_ENABLED },
       { JSON_HC12_UART_NODE, HC12_UART_NUM },
@@ -646,9 +691,9 @@ bool ConfigurationManager::seedDefaultConfigSections()
     config_updated = true;
   }
   // If HBridge config is missing default it.
-  if (!commandStationConfig.contains(JSON_HBRIDGES_NODE))
+  if (!csConfig.contains(JSON_HBRIDGES_NODE))
   {
-    commandStationConfig[JSON_HBRIDGES_NODE] =
+    csConfig[JSON_HBRIDGES_NODE] =
     {
       { "OPS",
         {
@@ -675,9 +720,9 @@ bool ConfigurationManager::seedDefaultConfigSections()
     config_updated = true;
   }
   // If RailCom config is missing default it.
-  if (!commandStationConfig.contains(JSON_RAILCOM_NODE))
+  if (!csConfig.contains(JSON_RAILCOM_NODE))
   {
-    commandStationConfig[JSON_RAILCOM_NODE] =
+    csConfig[JSON_RAILCOM_NODE] =
     {
       { JSON_RAILCOM_ENABLE_PIN_NODE, RAILCOM_ENABLE_PIN },
       { JSON_RAILCOM_BRAKE_PIN_NODE, RAILCOM_BRAKE_ENABLE_PIN },
@@ -693,7 +738,7 @@ bool ConfigurationManager::seedDefaultConfigSections()
 
 void ConfigurationManager::parseWiFiConfig()
 {
-  auto wifiConfig = commandStationConfig[JSON_WIFI_NODE];
+  auto wifiConfig = csConfig[JSON_WIFI_NODE];
   string wifiMode = wifiConfig[JSON_WIFI_MODE_NODE];
   if (!wifiMode.compare(JSON_VALUE_WIFI_MODE_SOFTAP_ONLY))
   {
@@ -752,7 +797,7 @@ void ConfigurationManager::configureEnabledModules(SimpleCanStack *stack)
   // process accessories packets.
   turnoutManager.reset(new TurnoutManager(stack->node()));
 
-  auto hc12Config = commandStationConfig[JSON_HC12_NODE];
+  auto hc12Config = csConfig[JSON_HC12_NODE];
   if (hc12Config[JSON_HC12_ENABLED_NODE].get<bool>())
   {
     LOG(INFO, "[Config] Enabling HC12 Radio");
@@ -792,71 +837,68 @@ void ConfigurationManager::configureEnabledModules(SimpleCanStack *stack)
 
 string ConfigurationManager::getCSConfig()
 {
-  if (!commandStationConfig.contains(JSON_CDI_NODE))
-  {
-    openlcb::TcpClientConfig<openlcb::TcpClientDefaultParams> uplink =
-      cfg_.seg().wifi().uplink();
-    openmrn_arduino::HubConfiguration hub = cfg_.seg().wifi().hub();
-    esp32cs::TrackOutputConfig ops = cfg_.seg().hbridge().entry(0);
-    esp32cs::TrackOutputConfig prog = cfg_.seg().hbridge().entry(1);
+  openlcb::TcpClientConfig<openlcb::TcpClientDefaultParams> uplink =
+    cfg_.seg().wifi().uplink();
+  openmrn_arduino::HubConfiguration hub = cfg_.seg().wifi().hub();
+  esp32cs::TrackOutputConfig ops = cfg_.seg().hbridge().entry(0);
+  esp32cs::TrackOutputConfig prog = cfg_.seg().hbridge().entry(1);
 
-    // load CDI elements that we can modify from web
-    commandStationConfig[JSON_CDI_NODE][JSON_CDI_UPLINK_NODE] =
-    {
-      {JSON_CDI_UPLINK_RECONNECT_NODE,
-       CDI_READ_TRIMMED(uplink.reconnect, configFd_)},
-      {JSON_CDI_UPLINK_MODE_NODE,
-        CDI_READ_TRIMMED(uplink.search_mode, configFd_)},
-      {JSON_CDI_UPLINK_AUTO_HOST_NODE,
-        uplink.auto_address().host_name().read(configFd_)},
-      {JSON_CDI_UPLINK_AUTO_SERVICE_NODE,
-        uplink.auto_address().service_name().read(configFd_)},
-      {JSON_CDI_UPLINK_MANUAL_HOST_NODE,
-        uplink.manual_address().ip_address().read(configFd_)},
-      {JSON_CDI_UPLINK_MANUAL_PORT_NODE,
-        CDI_READ_TRIMMED(uplink.manual_address().port, configFd_)},
-    };
-    commandStationConfig[JSON_CDI_NODE][JSON_CDI_HUB_NODE] =
-    {
-      {JSON_CDI_HUB_ENABLE_NODE, CDI_READ_TRIMMED(hub.enable, configFd_)},
-      {JSON_CDI_HUB_PORT_NODE, CDI_READ_TRIMMED(hub.port, configFd_)},
-      {JSON_CDI_HUB_SERVICE_NODE, hub.service_name().read(configFd_)},
-    };
-    commandStationConfig[JSON_CDI_NODE][JSON_HBRIDGES_NODE] =
-    {
-      {"OPS",
-        {
-          {JSON_DESCRIPTION_NODE, ops.description().read(configFd_)},
-          {JSON_CDI_HBRIDGE_SHORT_EVENT_NODE,
-           uint64_to_string_hex(ops.event_short().read(configFd_))},
-          {JSON_CDI_HBRIDGE_SHORT_CLEAR_EVENT_NODE,
-           uint64_to_string_hex(ops.event_short_cleared().read(configFd_))},
-          {JSON_CDI_HBRIDGE_SHUTDOWN_EVENT_NODE,
-           uint64_to_string_hex(ops.event_shutdown().read(configFd_))},
-          {JSON_CDI_HBRIDGE_SHUTDOWN_CLEAR_EVENT_NODE,
-           uint64_to_string_hex(ops.event_shutdown_cleared().read(configFd_))},
-          {JSON_CDI_HBRIDGE_THERMAL_EVENT_NODE,
-           uint64_to_string_hex(ops.event_thermal_shutdown().read(configFd_))},
-          {JSON_CDI_HBRIDGE_THERMAL_CLEAR_EVENT_NODE,
-           uint64_to_string_hex(ops.event_thermal_shutdown_cleared().read(configFd_))},
-        }
-      },
-      {"PROG",
-        {
-          {JSON_DESCRIPTION_NODE, prog.description().read(configFd_)},
-          {JSON_CDI_HBRIDGE_SHORT_EVENT_NODE,
-           uint64_to_string_hex(prog.event_short().read(configFd_))},
-          {JSON_CDI_HBRIDGE_SHORT_CLEAR_EVENT_NODE,
-           uint64_to_string_hex(prog.event_short_cleared().read(configFd_))},
-          {JSON_CDI_HBRIDGE_SHUTDOWN_EVENT_NODE,
-           uint64_to_string_hex(prog.event_shutdown().read(configFd_))},
-          {JSON_CDI_HBRIDGE_SHUTDOWN_CLEAR_EVENT_NODE,
-           uint64_to_string_hex(prog.event_shutdown_cleared().read(configFd_))},
-        }
-      },
-    };
-  }
-  return commandStationConfig.dump();
+  // load CDI elements that we can modify from web
+  csConfig[JSON_CDI_NODE][JSON_CDI_UPLINK_NODE] =
+  {
+    {JSON_CDI_UPLINK_RECONNECT_NODE,
+      CDI_READ_TRIMMED(uplink.reconnect, configFd_)},
+    {JSON_CDI_UPLINK_MODE_NODE,
+      CDI_READ_TRIMMED(uplink.search_mode, configFd_)},
+    {JSON_CDI_UPLINK_AUTO_HOST_NODE,
+      uplink.auto_address().host_name().read(configFd_)},
+    {JSON_CDI_UPLINK_AUTO_SERVICE_NODE,
+      uplink.auto_address().service_name().read(configFd_)},
+    {JSON_CDI_UPLINK_MANUAL_HOST_NODE,
+      uplink.manual_address().ip_address().read(configFd_)},
+    {JSON_CDI_UPLINK_MANUAL_PORT_NODE,
+      CDI_READ_TRIMMED(uplink.manual_address().port, configFd_)},
+  };
+  csConfig[JSON_CDI_NODE][JSON_CDI_HUB_NODE] =
+  {
+    {JSON_CDI_HUB_ENABLE_NODE, CDI_READ_TRIMMED(hub.enable, configFd_)},
+    {JSON_CDI_HUB_PORT_NODE, CDI_READ_TRIMMED(hub.port, configFd_)},
+    {JSON_CDI_HUB_SERVICE_NODE, hub.service_name().read(configFd_)},
+  };
+  csConfig[JSON_CDI_NODE][JSON_HBRIDGES_NODE] =
+  {
+    {"OPS",
+      {
+        {JSON_DESCRIPTION_NODE, ops.description().read(configFd_)},
+        {JSON_CDI_HBRIDGE_SHORT_EVENT_NODE,
+          uint64_to_string_hex(ops.event_short().read(configFd_))},
+        {JSON_CDI_HBRIDGE_SHORT_CLEAR_EVENT_NODE,
+          uint64_to_string_hex(ops.event_short_cleared().read(configFd_))},
+        {JSON_CDI_HBRIDGE_SHUTDOWN_EVENT_NODE,
+          uint64_to_string_hex(ops.event_shutdown().read(configFd_))},
+        {JSON_CDI_HBRIDGE_SHUTDOWN_CLEAR_EVENT_NODE,
+          uint64_to_string_hex(ops.event_shutdown_cleared().read(configFd_))},
+        {JSON_CDI_HBRIDGE_THERMAL_EVENT_NODE,
+          uint64_to_string_hex(ops.event_thermal_shutdown().read(configFd_))},
+        {JSON_CDI_HBRIDGE_THERMAL_CLEAR_EVENT_NODE,
+          uint64_to_string_hex(ops.event_thermal_shutdown_cleared().read(configFd_))},
+      }
+    },
+    {"PROG",
+      {
+        {JSON_DESCRIPTION_NODE, prog.description().read(configFd_)},
+        {JSON_CDI_HBRIDGE_SHORT_EVENT_NODE,
+          uint64_to_string_hex(prog.event_short().read(configFd_))},
+        {JSON_CDI_HBRIDGE_SHORT_CLEAR_EVENT_NODE,
+          uint64_to_string_hex(prog.event_short_cleared().read(configFd_))},
+        {JSON_CDI_HBRIDGE_SHUTDOWN_EVENT_NODE,
+          uint64_to_string_hex(prog.event_shutdown().read(configFd_))},
+        {JSON_CDI_HBRIDGE_SHUTDOWN_CLEAR_EVENT_NODE,
+          uint64_to_string_hex(prog.event_shutdown_cleared().read(configFd_))},
+      }
+    },
+  };
+  return csConfig.dump();
 }
 
 string ConfigurationManager::getCSFeatures()
@@ -869,7 +911,7 @@ string ConfigurationManager::getCSFeatures()
   , { JSON_OUTPUTS_NODE, ENABLE_OUTPUTS ? JSON_VALUE_TRUE : JSON_VALUE_FALSE }
   , { JSON_SENSORS_NODE, ENABLE_SENSORS ? JSON_VALUE_TRUE : JSON_VALUE_FALSE }
   , { JSON_HC12_NODE
-    , commandStationConfig[JSON_HC12_NODE][JSON_HC12_ENABLED_NODE].get<bool>() }
+    , csConfig[JSON_HC12_NODE][JSON_HC12_ENABLED_NODE].get<bool>() }
   };
   return features.dump();
 }

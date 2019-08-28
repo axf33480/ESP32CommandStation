@@ -105,44 +105,61 @@ public:
 
   UpdateAction apply_configuration(int fd, bool initial_load, BarrierNotifiable *done) override
   {
-      AutoNotify n(done);
-      EventId short_detected = cfg_.event_short().read(fd);
-      EventId short_cleared = cfg_.event_short_cleared().read(fd);
+    AutoNotify n(done);
+    UpdateAction res = UPDATED;
+    EventId short_detected = cfg_.event_short().read(fd);
+    EventId short_cleared = cfg_.event_short_cleared().read(fd);
+    EventId shutdown = cfg_.event_shutdown().read(fd);
+    EventId shutdown_cleared = cfg_.event_shutdown_cleared().read(fd);
+    EventId thermal_shutdown = cfg_.event_thermal_shutdown().read(fd);
+    EventId thermal_shutdown_cleared = cfg_.event_thermal_shutdown_cleared().read(fd);
 
-      EventId shutdown = cfg_.event_shutdown().read(fd);
-      EventId shutdown_cleared = cfg_.event_shutdown_cleared().read(fd);
+    if (initial_load)
+    {
+      start_flow(STATE(init));
+      res = REINIT_NEEDED;
+    }
 
-      EventId thermal_shutdown = cfg_.event_thermal_shutdown().read(fd);
-      EventId thermal_shutdown_cleared = cfg_.event_thermal_shutdown_cleared().read(fd);
-
-      // reinitialize the event producer
-      auto saved_node = shortBit_.node();
+    // reinitialize the event producer
+    auto saved_node = shortBit_.node();
+    if (short_detected != shortBit_.event_on() ||
+        short_cleared != shortBit_.event_off())
+    {
       shortBit_.MemoryBit<uint8_t>::~MemoryBit();
       new (&shortBit_)MemoryBit<uint8_t>(saved_node, short_detected, short_cleared, &state_, STATE_OVERCURRENT);
       shortProducer_.BitEventProducer::~BitEventProducer();
       new (&shortProducer_)BitEventProducer(&shortBit_);
+      res = REINIT_NEEDED;
+    }
 
+    if (shutdown != shortBit_.event_on() ||
+        shutdown_cleared != shortBit_.event_off())
+    {
       saved_node = shutdownBit_.node();
       shutdownBit_.MemoryBit<uint8_t>::~MemoryBit();
       new (&shutdownBit_)MemoryBit<uint8_t>(saved_node, shutdown, shutdown_cleared, &state_, STATE_SHUTDOWN);
       shutdownProducer_.BitEventProducer::~BitEventProducer();
       new (&shutdownProducer_)BitEventProducer(&shutdownBit_);
+      res = REINIT_NEEDED;
+    }
 
+    if (thermal_shutdown != shortBit_.event_on() ||
+        thermal_shutdown_cleared != shortBit_.event_off())
+    {
       saved_node = thermalBit_.node();
       thermalBit_.MemoryBit<uint8_t>::~MemoryBit();
       new (&thermalBit_)MemoryBit<uint8_t>(saved_node, thermal_shutdown, thermal_shutdown_cleared, &state_, STATE_THERMAL_SHUTDOWN);
       thermalProducer_.BitEventProducer::~BitEventProducer();
       new (&thermalProducer_)BitEventProducer(&thermalBit_);
-
-      start_flow(STATE(init));
-
-      return REINIT_NEEDED; // Causes events identify.
+      res = REINIT_NEEDED;
+    }
+    return res;
   }
 
   void factory_reset(int fd) override
   {
-      LOG(VERBOSE, "Factory Reset Helper invoked");
-      cfg_.description().write(fd, StringPrintf("%s Track", name_.c_str()).c_str());
+    LOG(VERBOSE, "Factory Reset Helper invoked");
+    cfg_.description().write(fd, StringPrintf("%s Track", name_.c_str()).c_str());
   }
 
 private:

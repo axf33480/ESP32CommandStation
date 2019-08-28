@@ -83,6 +83,7 @@ constexpr const char * JSON_LCC_NODE = "lcc";
 constexpr const char * JSON_LCC_FORCE_RESET_NODE = "reset";
 constexpr const char * JSON_LCC_NODE_ID_NODE = "id";
 constexpr const char * JSON_LCC_CAN_NODE = "can";
+constexpr const char * JSON_LCC_CAN_ENABLED_NODE = "enable";
 constexpr const char * JSON_LCC_CAN_RX_NODE = "rx";
 constexpr const char * JSON_LCC_CAN_TX_NODE = "tx";
 

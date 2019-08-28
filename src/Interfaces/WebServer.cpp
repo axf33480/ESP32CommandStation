@@ -699,19 +699,28 @@ void ESP32CSWebServer::handleConfig(AsyncWebServerRequest *request)
     wifiManager->clear_ssid_scan_results();
     SEND_JSON_RESPONSE(request, ssid_list.dump())
   }
-  else if (request->hasArg("ssid"))
+  if (request->hasArg("ssid"))
   {
     configStore->setWiFiStationParams(request->arg("ssid").c_str()
                                     , request->arg("password").c_str());
     needReboot = true;
   }
-  else if (request->hasArg("nodeid"))
+  if (request->hasArg("mode"))
   {
-    if (!configStore->setNodeID(request->arg("nodeid").c_str()))
-    {
-      SEND_GENERIC_RESPONSE(request, STATUS_SERVER_ERROR)
-    }
+    needReboot = configStore->setWiFiMode(request->arg("mode").c_str());
+  }
+  if (request->hasArg("nodeid"))
+  {
+    needReboot = configStore->setNodeID(request->arg("nodeid").c_str());
+  }
+  if (request->hasArg("lcc-can"))
+  {
+    configStore->setLCCCan(request->arg("lcc-can").equalsIgnoreCase("true"));
     needReboot = true;
+  }
+  if (request->hasArg("lcc-hub"))
+  {
+    configStore->setLCCHub(request->arg("lcc-hub").equalsIgnoreCase("true"));
   }
 
   if (needReboot)
