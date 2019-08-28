@@ -48,6 +48,11 @@ DEFAULT_CONST_EXPAND_VALUE(lcc_force_factory_reset, LCC_FORCE_FACTORY_RESET_ON_S
 DEFAULT_CONST(lcc_sd_sync_interval_sec, 10);
 
 ///////////////////////////////////////////////////////////////////////////////
+// This flag controls the printing of all LCC GridConnect packets.
+///////////////////////////////////////////////////////////////////////////////
+DEFAULT_CONST_FALSE(lcc_print_all_packets);
+
+///////////////////////////////////////////////////////////////////////////////
 // This flag controls automatic creation of Locomotive roster entries based on
 // the request from the LCC FindProtocolServer -> AllTrainNodes::allocate_node
 // call.

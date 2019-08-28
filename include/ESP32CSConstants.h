@@ -23,6 +23,7 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 DECLARE_CONST(cs_force_factory_reset);
 DECLARE_CONST(lcc_force_factory_reset);
 DECLARE_CONST(lcc_sd_sync_interval_sec);
+DECLARE_CONST(lcc_print_all_packets);
 
 DECLARE_CONST(cs_train_db_auto_create_entries);
 DECLARE_CONST(cs_train_db_auto_persist_sec);

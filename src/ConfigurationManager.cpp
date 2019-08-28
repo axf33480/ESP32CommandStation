@@ -452,6 +452,10 @@ void ConfigurationManager::configureLCC(OpenMRN *openmrn)
                       , configFd_
                       , SEC_TO_USEC(config_lcc_sd_sync_interval_sec())));
 #endif // CONFIG_USE_SD
+  if (config_lcc_print_all_packets() == CONSTANT_TRUE)
+  {
+    openmrn->stack()->print_all_packets();
+  }
 }
 
 void ConfigurationManager::setLCCHub(bool enabled)
