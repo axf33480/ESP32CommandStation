@@ -11,7 +11,7 @@ class SPIFFSEditor: public AsyncWebHandler {
     uint32_t _startTime;
   public:
 #ifdef ESP32
-    SPIFFSEditor(const fs::FS& fs, const String& username=String(), const String& password=String());
+    SPIFFSEditor(const fs::FS& fs, const String& username=String(""), const String& password=String(""));
 #else
     SPIFFSEditor(const String& username=String(), const String& password=String(), const fs::FS& fs=SPIFFS);
 #endif

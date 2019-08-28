@@ -205,7 +205,7 @@ void AsyncStaticWebHandler::handleRequest(AsyncWebServerRequest *request)
       response->addHeader("ETag", etag);
       request->send(response);
     } else {
-      AsyncWebServerResponse * response = new AsyncFileResponse(request->_tempFile, filename, String(), false, _callback);
+      AsyncWebServerResponse * response = new AsyncFileResponse(request->_tempFile, filename, String(""), false, _callback);
       if (_last_modified.length())
         response->addHeader("Last-Modified", _last_modified);
       if (_cache_control.length()){

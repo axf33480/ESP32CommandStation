@@ -26,7 +26,7 @@
 #define os_strlen strlen
 #endif
 
-static const String SharedEmptyString = String();
+static const String SharedEmptyString = String("");
 
 #define __is_param_char(c) ((c) && ((c) != '{') && ((c) != '[') && ((c) != '&') && ((c) != '='))
 
@@ -238,7 +238,7 @@ void AsyncWebServerRequest::_addGetParams(const String& params){
     int equal = params.indexOf('=', start);
     if (equal < 0 || equal > end) equal = end;
     String name = params.substring(start, equal);
-    String value = equal + 1 < end ? params.substring(equal + 1, end) : String();
+    String value = equal + 1 < end ? params.substring(equal + 1, end) : String("");
     _addParam(new AsyncWebParameter(urlDecode(name), urlDecode(value)));
     start = end + 1;
   }
@@ -268,7 +268,7 @@ bool AsyncWebServerRequest::_parseReqHead(){
     _method = HTTP_OPTIONS;
   }
 
-  String g = String();
+  String g = String("");
   index = u.indexOf('?');
   if(index > 0){
     g = u.substring(index +1);
@@ -280,7 +280,7 @@ bool AsyncWebServerRequest::_parseReqHead(){
   if(!_temp.startsWith("HTTP/1.0"))
     _version = 1;
 
-  _temp = String();
+  _temp = String("");
   return true;
 }
 
@@ -342,7 +342,7 @@ bool AsyncWebServerRequest::_parseReqHeader(){
     }
     _headers.add(new AsyncWebHeader(name, value));
   }
-  _temp = String();
+  _temp = String("");
   return true;
 }
 
@@ -357,7 +357,7 @@ void AsyncWebServerRequest::_parsePlainPostChar(uint8_t data){
       value = _temp.substring(_temp.indexOf('=') + 1);
     }
     _addParam(new AsyncWebParameter(urlDecode(name), urlDecode(value), true));
-    _temp = String();
+    _temp = String("");
   }
 }
 
@@ -391,10 +391,10 @@ void AsyncWebServerRequest::_parseMultipartPostByte(uint8_t data, bool last){
 
   if(!_parsedLength){
     _multiParseState = EXPECT_BOUNDARY;
-    _temp = String();
-    _itemName = String();
-    _itemFilename = String();
-    _itemType = String();
+    _temp = String("");
+    _itemName = String("");
+    _itemFilename = String("");
+    _itemType = String("");
   }
 
   if(_multiParseState == WAIT_FOR_RETURN1){
@@ -451,13 +451,13 @@ void AsyncWebServerRequest::_parseMultipartPostByte(uint8_t data, bool last){
             _itemIsFile = true;
           }
         }
-        _temp = String();
+        _temp = String("");
       } else {
         _multiParseState = WAIT_FOR_RETURN1;
         //value starts from here
         _itemSize = 0;
         _itemStartIndex = _parsedLength;
-        _itemValue = String();
+        _itemValue = String("");
         if(_itemIsFile){
           if(_itemBuffer)
             free(_itemBuffer);
@@ -946,7 +946,7 @@ String AsyncWebServerRequest::urlDecode(const String& text) const {
   char temp[] = "0x00";
   unsigned int len = text.length();
   unsigned int i = 0;
-  String decoded = String();
+  String decoded = String("");
   decoded.reserve(len); // Allocate the string internal buffer - never longer from source text
   while (i < len){
     char decodedChar;

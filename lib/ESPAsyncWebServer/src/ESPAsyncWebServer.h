@@ -225,18 +225,18 @@ class AsyncWebServerRequest {
     void redirect(const String& url);
 
     void send(AsyncWebServerResponse *response);
-    void send(int code, const String& contentType=String(), const String& content=String());
-    void send(FS &fs, const String& path, const String& contentType=String(), bool download=false, AwsTemplateProcessor callback=nullptr);
-    void send(File content, const String& path, const String& contentType=String(), bool download=false, AwsTemplateProcessor callback=nullptr);
+    void send(int code, const String& contentType=String(""), const String& content=String(""));
+    void send(FS &fs, const String& path, const String& contentType=String(""), bool download=false, AwsTemplateProcessor callback=nullptr);
+    void send(File content, const String& path, const String& contentType=String(""), bool download=false, AwsTemplateProcessor callback=nullptr);
     void send(Stream &stream, const String& contentType, size_t len, AwsTemplateProcessor callback=nullptr);
     void send(const String& contentType, size_t len, AwsResponseFiller callback, AwsTemplateProcessor templateCallback=nullptr);
     void sendChunked(const String& contentType, AwsResponseFiller callback, AwsTemplateProcessor templateCallback=nullptr);
     void send_P(int code, const String& contentType, const uint8_t * content, size_t len, AwsTemplateProcessor callback=nullptr);
     void send_P(int code, const String& contentType, PGM_P content, AwsTemplateProcessor callback=nullptr);
 
-    AsyncWebServerResponse *beginResponse(int code, const String& contentType=String(), const String& content=String());
-    AsyncWebServerResponse *beginResponse(FS &fs, const String& path, const String& contentType=String(), bool download=false, AwsTemplateProcessor callback=nullptr);
-    AsyncWebServerResponse *beginResponse(File content, const String& path, const String& contentType=String(), bool download=false, AwsTemplateProcessor callback=nullptr);
+    AsyncWebServerResponse *beginResponse(int code, const String& contentType=String(""), const String& content=String(""));
+    AsyncWebServerResponse *beginResponse(FS &fs, const String& path, const String& contentType=String(""), bool download=false, AwsTemplateProcessor callback=nullptr);
+    AsyncWebServerResponse *beginResponse(File content, const String& path, const String& contentType=String(""), bool download=false, AwsTemplateProcessor callback=nullptr);
     AsyncWebServerResponse *beginResponse(Stream &stream, const String& contentType, size_t len, AwsTemplateProcessor callback=nullptr);
     AsyncWebServerResponse *beginResponse(const String& contentType, size_t len, AwsResponseFiller callback, AwsTemplateProcessor templateCallback=nullptr);
     AsyncWebServerResponse *beginChunkedResponse(const String& contentType, AwsResponseFiller callback, AwsTemplateProcessor templateCallback=nullptr);
@@ -296,7 +296,7 @@ class AsyncWebRewrite {
     String _params;
     ArRequestFilterFunction _filter;
   public:
-    AsyncWebRewrite(const char* from, const char* to): _from(from), _toUrl(to), _params(String()), _filter(NULL){
+    AsyncWebRewrite(const char* from, const char* to): _from(from), _toUrl(to), _params(String("")), _filter(NULL){
       int index = _toUrl.indexOf('?');
       if (index > 0) {
         _params = _toUrl.substring(index +1);

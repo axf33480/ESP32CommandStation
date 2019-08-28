@@ -443,7 +443,7 @@ void SPIFFSEditor::handleRequest(AsyncWebServerRequest *request){
 #else
       Dir dir = _fs.openDir(path);
 #endif
-      path = String();
+      path = String("");
       String output = "[";
 #ifdef ESP32
       File entry = dir.openNextFile();
@@ -477,10 +477,10 @@ void SPIFFSEditor::handleRequest(AsyncWebServerRequest *request){
 #endif
       output += "]";
       request->send(200, "application/json", output);
-      output = String();
+      output = String("");
     }
     else if(request->hasParam("edit") || request->hasParam("download")){
-      request->send(request->_tempFile, request->_tempFile.name(), String(), request->hasParam("download"));
+      request->send(request->_tempFile, request->_tempFile.name(), String(""), request->hasParam("download"));
     }
     else {
       const char * buildTime = __DATE__ " " __TIME__ " GMT";

@@ -129,7 +129,7 @@ String AsyncWebServerResponse::_assembleHead(uint8_t version){
     if(_chunked)
       addHeader("Transfer-Encoding","chunked");
   }
-  String out = String();
+  String out = String("");
   int bufSize = 300;
   char buf[bufSize];
 
@@ -220,7 +220,7 @@ size_t AsyncBasicResponse::_ack(AsyncWebServerRequest *request, size_t len, uint
     //we can fit in this packet
     if(space > available){
       _writtenLength += request->client()->write(_content.c_str(), available);
-      _content = String();
+      _content = String("");
       _state = RESPONSE_WAIT_ACK;
       return available;
     }
@@ -332,7 +332,7 @@ size_t AsyncAbstractResponse::_ack(AsyncWebServerRequest *request, size_t len, u
     }
 
     if(headLen){
-        _head = String();
+        _head = String("");
     }
 
     if(outLen){

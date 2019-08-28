@@ -154,14 +154,14 @@ bool checkDigestAuthentication(const char * header, const char * method, const c
     return false;
   }
 
-  String myUsername = String();
-  String myRealm = String();
-  String myNonce = String();
-  String myUri = String();
-  String myResponse = String();
-  String myQop = String();
-  String myNc = String();
-  String myCnonce = String();
+  String myUsername = String("");
+  String myRealm = String("");
+  String myNonce = String("");
+  String myUri = String("");
+  String myResponse = String("");
+  String myQop = String("");
+  String myNc = String("");
+  String myCnonce = String("");
 
   myHeader += ", ";
   do {
