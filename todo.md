@@ -9,15 +9,14 @@ The primary focus of v1.4.0 will be improvements to the DCC signal code and addi
 ### General (misc)
 
 - [x] Split up build_index_header.py into a common py module and PIO script.
-- [ ] Remove usages of WString.
 - [x] Add PCB build types (base, OLED, LCD)
 - [x] Replace ArduinoJson with "JSON for Modern C++"
 - [-] Rework Roster Entry class to contain function id mappings.
-- [ ] Rework Loco Consist to fit with LCC Traction Consist support (and not depend on Locomotive class)
+- [ ] Rework Loco Consist to leverage LCC Traction Consist.
 
 ### Config
 
-- [-] SoftAP support for initial config and "non-home" network. (https://github.com/atanisoft/ESP32CommandStation/issues/4)
+- [x] SoftAP support for initial config and "non-home" network. (https://github.com/atanisoft/ESP32CommandStation/issues/4)
 - [x] Dynamic config for LCC and WiFi stored on SD/SPIFFS.
 
 ### DCC System
@@ -33,6 +32,7 @@ The primary focus of v1.4.0 will be improvements to the DCC signal code and addi
 - [ ] Expose Loco Consist creation.
 - [x] Hide power button for prog track when it is off
 - [x] Configure Station SSID/PW
+- [x] Fixed heap corruption related to String() default args in ESPAsyncWebServer.
 
 ### LCC Integration
 
@@ -40,9 +40,9 @@ The primary focus of v1.4.0 will be improvements to the DCC signal code and addi
 - [x] Refresh OpenMRNLite lib to latest openmrn code.
 - [-] adjust InfoScreen LCC details so they are useful, right now it is a placeholder.
 - [x] implement CV memory space.
-- [-] Traction proxy impl.
+- [x] Traction Protocol integration.
 - [-] TrainSearch protocol.
-- [ ] CS CDI web interface.
+- [-] CS CDI web interface.
 - [x] CS Node ID reset from web interface.
 - [x] Force factory reset when node id changes.
 
