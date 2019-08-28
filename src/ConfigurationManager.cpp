@@ -464,11 +464,16 @@ void ConfigurationManager::setLCCHub(bool enabled)
   }));
 }
 
-void ConfigurationManager::setLCCCan(bool enabled)
+bool ConfigurationManager::setLCCCan(bool enabled)
 {
-  csConfig[JSON_LCC_NODE][JSON_LCC_CAN_NODE][JSON_LCC_CAN_ENABLED_NODE] = enabled;
-  // persist the new config
-  store(ESP32_CS_CONFIG_JSON, csConfig.dump());
+  if (csConfig[JSON_LCC_NODE][JSON_LCC_CAN_NODE][JSON_LCC_CAN_ENABLED_NODE] != enabled)
+  {
+    csConfig[JSON_LCC_NODE][JSON_LCC_CAN_NODE][JSON_LCC_CAN_ENABLED_NODE] = enabled;
+    // persist the new config
+    store(ESP32_CS_CONFIG_JSON, csConfig.dump());
+    return true;
+  }
+  return false;
 }
 
 bool ConfigurationManager::setWiFiMode(string mode)

@@ -707,16 +707,15 @@ void ESP32CSWebServer::handleConfig(AsyncWebServerRequest *request)
   }
   if (request->hasArg("mode"))
   {
-    needReboot = configStore->setWiFiMode(request->arg("mode").c_str());
+    needReboot |= configStore->setWiFiMode(request->arg("mode").c_str());
   }
   if (request->hasArg("nodeid"))
   {
-    needReboot = configStore->setNodeID(request->arg("nodeid").c_str());
+    needReboot |= configStore->setNodeID(request->arg("nodeid").c_str());
   }
   if (request->hasArg("lcc-can"))
   {
-    configStore->setLCCCan(request->arg("lcc-can").equalsIgnoreCase("true"));
-    needReboot = true;
+    needReboot |= configStore->setLCCCan(request->arg("lcc-can").equalsIgnoreCase("true"));
   }
   if (request->hasArg("lcc-hub"))
   {

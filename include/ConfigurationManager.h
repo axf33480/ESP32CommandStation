@@ -60,7 +60,7 @@ public:
     return wifiMode_ == WIFI_MODE_APSTA || wifiMode_ == WIFI_MODE_APSTA;
   }
   void setLCCHub(bool);
-  void setLCCCan(bool);
+  bool setLCCCan(bool);
   bool setWiFiMode(std::string);
   void setWiFiStationParams(std::string ssid, std::string password
                           , std::string ip="", std::string gateway=""

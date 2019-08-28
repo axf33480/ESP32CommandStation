@@ -1413,13 +1413,10 @@ function setupConfig() {
    wantRefresh = false;
   } else if (tablist[section] == "Uplink") {
    url = String.format("/config?uplink-mode={0}&uplink-service={1}&uplink-manual={2}&uplink-manual-port={3}", $('#cs-lcc-uplink-mode').val(), $('#cs-lcc-uplink-auto-service').val(), $('#cs-lcc-uplink-manual-host').val(), $('#cs-lcc-uplink-manual-port').val());
-   wantRefresh = false;
   } else if (tablist[section] == "OPS") {
    url = String.format("/config?ops-short={0}&ops-short-clear={1}&ops-shutdown={2}&ops-shutdown-clear={3}&ops-thermal={4}&ops-thermal-clear={5}", "", "", "", "", "");
-   wantRefresh = false;
   } else if (tablist[section] == "PROG") {
    url = String.format("/config?prog-short={0}&prog-short-clear={1}&prog-shutdown={2}&prog-shutdown-clear={3}", "", "", "", "");
-   wantRefresh = false;
   }
   $.ajax({
    method: 'POST',
