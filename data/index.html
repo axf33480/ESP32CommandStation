@@ -118,12 +118,6 @@
          </thead>
          <tbody>
          </tbody>
-         <tfoot>
-          <tr>
-           <td><label for="cs-power-all">All Districts:</label></td>
-           <td><input type="checkbox" id="cs-power-all" data-role="flipswitch" data-off-text="Off" data-on-text="On"></td>
-          </tr>
-         </tfoot>
         </table>
        </div>
       </div>
@@ -947,16 +941,6 @@ function setupBaseStation() {
  });
 }
 function setupBSStatus() {
- $('#cs-power-all').on('change', function() {
-  if(firePowerEvents) {
-   $.ajax({url: String.format('/power?overallState={0}', this.checked),
-    method: 'PUT',
-    success:function() {
-     BSTabRefresh('Status');
-    }
-   });
-  }
- })
 }
 function setupBSTurnout() {
  $('#cs-turnout-address-mode').on('change', function(event, ui) {
@@ -1432,24 +1416,23 @@ function setupConfig() {
      setTimeout(function () {
       $.mobile.loading('hide');
      }, 1);
-     if(!wantRefresh) {
-      // display new spinner for reboot
-      setTimeout(function () {
-       $.mobile.loading('show', {
-        text: 'Command Station restarting...',
-        textVisible: true,
-        textonly: false});
-      }, 2);
-      // set reload of webpage for 20sec
-      setTimeout(function() {
-       location.reload();
-      }, 20000);
-     }
     }
    },
    success : function (data, status, xhr) {
     if(wantRefresh) {
      csConfigUpdate(data);
+    } else {
+     // display new spinner for reboot
+     setTimeout(function () {
+      $.mobile.loading('show', {
+      text: 'Command Station restarting...',
+      textVisible: true,
+      textonly: false});
+     }, 2);
+     // set reload of webpage for 20sec
+     setTimeout(function() {
+      location.reload();
+     }, 20000);
     }
    },
    error : function(xhr, status, error) {
@@ -1540,13 +1523,6 @@ function BSTabRefresh(section) {
       success:function() {
        BSTabRefresh('Status');
      }});
-    });
-    $.get({url: '/power?overall=true',
-     success:function(data, status, jqxhr) {
-      firePowerEvents = false;
-      $('#cs-power-all').prop("checked", data.state === 'true').flipswitch("refresh");
-      firePowerEvents = true;
-     }
     });
    }
   });
