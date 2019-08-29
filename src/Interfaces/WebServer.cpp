@@ -701,6 +701,8 @@ void ESP32CSWebServer::handleConfig(AsyncWebServerRequest *request)
   }
   if (request->hasArg("ssid"))
   {
+    // Setting the WiFi SSID will always require a restart as this is
+    // configured when the Esp32WiFiManager is constructed.
     configStore->setWiFiStationParams(request->arg("ssid").c_str()
                                     , request->arg("password").c_str());
     needReboot = true;
@@ -721,12 +723,42 @@ void ESP32CSWebServer::handleConfig(AsyncWebServerRequest *request)
   {
     configStore->setLCCHub(request->arg("lcc-hub").equalsIgnoreCase("true"));
   }*/
+  if (request->hasArg("uplink-mode") && request->hasArg("uplink-service") &&
+      request->hasArg("uplink-manual") && request->hasArg("uplink-manual-port"))
+  {
+    // WiFi uplink settings do not require a reboot
+    configStore->setWiFiUplinkParams((SocketClientParams::SearchMode)request->arg("uplink-mode").toInt()
+                                    , request->arg("uplink-service").c_str()
+                                    , request->arg("uplink-manual").c_str()
+                                    , request->arg("uplink-manual-port").toInt());
+  }
+  if (request->hasArg("ops-short") && request->hasArg("ops-short-clear") &&
+      request->hasArg("ops-shutdown") && request->hasArg("ops-shutdown-clear") &&
+      request->hasArg("ops-thermal") && request->hasArg("ops-thermal-clear"))
+  {
+    configStore->setHBridgeEvents(OPS_CDI_TRACK_OUTPUT_INDEX
+                                , request->arg("ops-short").c_str()
+                                , request->arg("ops-short-clear").c_str()
+                                , request->arg("ops-shutdown").c_str()
+                                , request->arg("ops-shutdown-clear").c_str()
+                                , request->arg("ops-thermal").c_str()
+                                , request->arg("ops-thermal-clear").c_str());
+  }
+  if (request->hasArg("prog-short") && request->hasArg("prog-short-clear") &&
+      request->hasArg("prog-shutdown") && request->hasArg("prog-shutdown-clear"))
+  {
+    configStore->setHBridgeEvents(PROG_CDI_TRACK_OUTPUT_INDEX
+                                , request->arg("prog-short").c_str()
+                                , request->arg("prog-short-clear").c_str()
+                                , request->arg("prog-shutdown").c_str()
+                                , request->arg("prog-shutdown-clear").c_str());
+  }
 
   if (needReboot)
   {
     // send a string back to the client rather than SEND_GENERIC_RESPONSE
     // so we don't return prior to calling reboot.
-    SEND_TEXT_RESPONSE(request, STATUS_OK, "ESP32CommandStation Restarting!")
+    SEND_TEXT_RESPONSE(request, STATUS_OK, "{restart:\"ESP32CommandStation Restarting!\"}")
     reboot();
   }
 

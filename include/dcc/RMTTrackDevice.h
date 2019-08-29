@@ -35,6 +35,9 @@ COPYRIGHT (c) 2019 Mike Dunston
 #include "dcc/can_ioctl.h"
 #include "dcc/MonitoredHBridge.h"
 
+static constexpr uint8_t OPS_CDI_TRACK_OUTPUT_INDEX = 0;
+static constexpr uint8_t PROG_CDI_TRACK_OUTPUT_INDEX = 1;
+
 class RMTTrackDevice : public dcc::PacketFlowInterface
                      , public openlcb::BitEventInterface
 {

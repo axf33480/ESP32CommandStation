@@ -51,6 +51,43 @@ unique_ptr<Esp32WiFiManager> wifiManager;
 // holder of the parsed command station configuration.
 json csConfig;
 
+// CDI Helper which sets the provided path if it is different than the value
+// passed in.
+#define CDI_COMPARE_AND_SET(PATH, fd, value, updated) \
+  {                                                   \
+    auto current = PATH().read(fd);                   \
+    if (current != value)                             \
+    {                                                 \
+      PATH().write(fd, value);                        \
+      updated = true;                                 \
+    }                                                 \
+  }
+
+// Helper which will trigger a config reload event to be queued when
+// updated is true.
+#define MAYBE_TRIGGER_UPDATE(updated)                             \
+  if (updated)                                                    \
+  {                                                               \
+    extern unique_ptr<OpenMRN> openmrn;                           \
+    openmrn->stack()->executor()->add(new CallbackExecutable([]() \
+    {                                                             \
+      openmrn->stack()->config_service()->trigger_update();       \
+    }));                                                          \
+  }
+
+// Helper which converts a string to a uint64 value.
+static inline uint64_t string_to_uint64(string value)
+{
+  // remove period characters if present
+  value.erase(std::remove(value.begin(), value.end(), '.'), value.end());
+  // convert the string to a uint64_t value
+  uint64_t decoded{0};
+  std::stringstream stream;
+  stream << std::hex << value;
+  stream >> decoded;
+  return decoded;
+}
+
 void recursiveWalkTree(const string &path, bool remove=false)
 {
   DIR *dir = opendir(path.c_str());
@@ -393,13 +430,7 @@ bool ConfigurationManager::setNodeID(string value)
 {
   LOG(VERBOSE, "[Config] Current NodeID: %s, updated NodeID: %s"
     , uint64_to_string_hex(getNodeId()).c_str(), value.c_str());
-  // remove period characters if present
-  value.erase(std::remove(value.begin(), value.end(), '.'), value.end());
-  // convert the string to a uint64_t value
-  uint64_t new_node_id{0};
-  std::stringstream stream;
-  stream << std::hex << value;
-  stream >> new_node_id;
+  uint64_t new_node_id = string_to_uint64(value);
   if (new_node_id != getNodeId())
   {
     LOG(INFO
@@ -460,12 +491,9 @@ void ConfigurationManager::configureLCC(OpenMRN *openmrn)
 
 void ConfigurationManager::setLCCHub(bool enabled)
 {
-  cfg_.seg().wifi().hub().enable().write(configFd_, enabled);
-  extern unique_ptr<OpenMRN> openmrn;
-  openmrn->stack()->executor()->add(new CallbackExecutable([]()
-  {
-    openmrn->stack()->config_service()->trigger_update();
-  }));
+  bool upd = false;
+  CDI_COMPARE_AND_SET(cfg_.seg().wifi().hub().enable, configFd_, enabled, upd);
+  MAYBE_TRIGGER_UPDATE(upd);
 }
 
 bool ConfigurationManager::setLCCCan(bool enabled)
@@ -538,6 +566,50 @@ void ConfigurationManager::setWiFiStationParams(string ssid, string password
   }
   // persist the new config
   store(ESP32_CS_CONFIG_JSON, csConfig.dump());
+}
+
+void ConfigurationManager::setWiFiUplinkParams(SocketClientParams::SearchMode mode
+                                             , string uplink_service_name
+                                             , string manual_hostname
+                                             , uint16_t manual_port)
+{
+  auto wifi = cfg_.seg().wifi();
+  bool upd = false;
+  CDI_COMPARE_AND_SET(wifi.uplink().search_mode, configFd_, mode, upd);
+  CDI_COMPARE_AND_SET(wifi.uplink().auto_address().service_name, configFd_
+                    , uplink_service_name, upd);
+  CDI_COMPARE_AND_SET(wifi.uplink().manual_address().ip_address, configFd_
+                    , manual_hostname, upd);
+  CDI_COMPARE_AND_SET(wifi.uplink().manual_address().port, configFd_
+                    , manual_port, upd);
+
+  MAYBE_TRIGGER_UPDATE(upd);
+}
+
+void ConfigurationManager::setHBridgeEvents(uint8_t index
+                                          , string evt_short_on, string evt_short_off
+                                          , string evt_shutdown_on, string evt_shutdown_off
+                                          , string evt_thermal_on, string evt_thermal_off)
+{
+  bool upd = false;
+  auto hbridge = cfg_.seg().hbridge().entry(index);
+  CDI_COMPARE_AND_SET(hbridge.event_short, configFd_
+                    , string_to_uint64(evt_short_on), upd);
+  CDI_COMPARE_AND_SET(hbridge.event_short_cleared, configFd_
+                    , string_to_uint64(evt_short_off), upd);
+  CDI_COMPARE_AND_SET(hbridge.event_shutdown, configFd_
+                    , string_to_uint64(evt_shutdown_on), upd);
+  CDI_COMPARE_AND_SET(hbridge.event_shutdown_cleared, configFd_
+                    , string_to_uint64(evt_shutdown_off), upd);
+  // only OPS has the thermal pin
+  if (index == OPS_CDI_TRACK_OUTPUT_INDEX)
+  {
+    CDI_COMPARE_AND_SET(hbridge.event_thermal_shutdown, configFd_
+                      , string_to_uint64(evt_thermal_on), upd);
+    CDI_COMPARE_AND_SET(hbridge.event_thermal_shutdown_cleared, configFd_
+                      , string_to_uint64(evt_thermal_off), upd);
+  }
+  MAYBE_TRIGGER_UPDATE(upd);
 }
 
 string ConfigurationManager::getFilePath(const string &name, bool oldPath)

@@ -640,6 +640,18 @@ var online = true;
 var webSocket;
 var bsTabRefreshInterval = null;
 var s88SensorIDBase = 512;
+function showSpinner(text, refresh) {
+ refresh = typeof refresh !== 'undefined' ? refresh : false;
+ setTimeout(function () { $.mobile.loading('show', {text: text,textVisible: true,textonly: false});}, 2);
+ if(refresh) {setTimeout(function() {location.reload();}, 20000);}
+}
+function hideSpinner() {
+ setTimeout(function () { $.mobile.loading('hide'); }, 1);
+}
+function showErrorDialog(text, error) {
+  error = typeof error !== 'undefined' ? error : "";
+ setTimeout(function() {alert(text);console.log(text, error);}, 500);
+}
 function connectWebSocket() {
  var socketUrl = $.mobile.path.getDocumentBase().replace("http", "ws");
  if(socketUrl.indexOf('#') > 0) {
@@ -700,17 +712,8 @@ function initPage() {
  if(!$.mobile.path.getDocumentBase().startsWith("file://")) {
   $.ajax({
    url: '/features',
-   beforeSend: function() {
-    $.mobile.loading('show', {
-     text: 'Connecting to Command Station...',
-     textVisible: true,
-     textonly: false});
-   },
-   complete: function() {
-    setTimeout(function () {
-     $.mobile.loading('hide');
-    }, 1);
-   },
+   beforeSend: function() { showSpinner('Connecting to Command Station...');},
+   complete: hideSpinner,
    success : function (data, status, xhr) {
     if(data.sensors === 'false') {
      $('[id^=cs-sensors]').hide();
@@ -723,15 +726,10 @@ function initPage() {
     } else {
      s88SensorIDBase = data.sensorIDBase;
     }
-   },
-   error : function (xhr, status, error) {
-    sensors=false;
    }
   });
  } else {
   online=false;
-  sensors=false;
-  outputs=false;
  }
  $('#clock').clock({"timeFormat":"H:i:s"});
  setupThrottle();
@@ -895,45 +893,11 @@ function setupBaseStation() {
  $('#cs-ota-upload').on('vclick', function(event, ui) {
   if($('#cs-ota-firmware').val() != '') {
    var data = new FormData($('#cs-ota-form')[0]);
-   $.ajax({
-    url: '/update',
-    enctype: 'multipart/form-data',
-    type: 'POST',
-    data: data,
-    cache: false,
-    processData: false,
-    contentType: false,
-    timeout: 120000,
-    beforeSend: function() {
-     $.mobile.loading('show', {
-      text: 'Firmware upload in progress...',
-      textVisible: true,
-      textonly: false});
-    },
-    complete: function(request, status) {
-     console.log(request, status);
-     setTimeout(function () {
-      $.mobile.loading('hide');
-     }, 1);
-     if(status == 'success') {
-      // display new spinner for reboot
-      setTimeout(function () {
-       $.mobile.loading('show', {
-        text: 'Firmware upload Successful! Command Station restarting...',
-        textVisible: true,
-        textonly: false});
-      }, 2);
-      // set reload of webpage for 20sec
-      setTimeout(function() {
-       location.reload();
-      }, 20000);
-     } else {
-      // something failed
-      setTimeout(function() {
-       alert('Firmware update failed: ' + request.responseText);
-      }, 500);
-     }
-    }
+   $.ajax({url: '/update',enctype: 'multipart/form-data',type: 'POST',data: data,cache: false,processData: false,contentType: false,timeout: 120000,
+    beforeSend: function() {showSpinner('Firmware upload in progress...');},
+    complete: hideSpinner,
+    success: function() {showSpinner('Firmware upload Successful! Command Station restarting...', true);},
+    error: function(req, status) {showErrorDialog('Firmware update failed: ' + req.responseText);}
    })
   } else {
    alert('Firmware image not provided!');
@@ -1139,130 +1103,38 @@ function setupProgrammer() {
  $('#cs-prog-execute').on('vclick', function() {
   $('#cs-prog-result').val('pending...');
   if($('#cs-prog-action').val() === 'read') {
-   $.ajax({url: '/programmer',
-    timeout: 15000,
-    type: 'GET',
-    dataType: 'json',
-    data: {
-     'pom' : 'false',
-     'cv': $('#cs-prog-cv').val()
-    },
-    beforeSend: function() {
-     $.mobile.loading('show', {
-      text: String.format('Retrieving CV {0}...', $('#cs-prog-cv').val()),
-      textVisible: true,
-      textonly: false});
-    },
-    success: function(data, status, xhr) {
-     setTimeout(function () {
-      $.mobile.loading('hide');
-      }, 1);
-     $('#cs-prog-result').val(String.format('CV {0} has value {1}', data['cv'], data['value']));
-    },
-    error: function() {
-     setTimeout(function () {
-      $.mobile.loading('hide');
-      }, 1);
-     $('#cs-prog-result').val(String.format('CV {0} read was not successful', $('#cs-prog-cv').val()));
-    }
+   $.ajax({url: '/programmer',timeout:15000,dataType:'json',
+    data: {'pom':'false','cv': $('#cs-prog-cv').val()},
+    beforeSend: function() {showSpinner(String.format('Retrieving CV {0}...', $('#cs-prog-cv').val()));},
+    complete: hideSpinner,
+    success: function(data, status, xhr) {$('#cs-prog-result').val(String.format('CV {0} has value {1}', data['cv'], data['value']));},
+    error: function() {$('#cs-prog-result').val(String.format('CV {0} read was not successful', $('#cs-prog-cv').val()));}
    });
   } else if($('#cs-prog-action').val() === 'write') {
    if($('#cs-prog-mode').prop('checked')) {
-    $.ajax({url: '/programmer',
-     timeout: 15000,
-     type: 'POST',
-     dataType: 'json',
-     data: {
-      'cv': $('#cs-prog-cv').val(),
-      'pom': $('#cs-prog-target').prop('checked'),
-      'address': $('#cs-prog-addr').val(),
-      'bit' : $('#cs-prog-cv-bit').val(),
-      'value' : $('#cs-prog-cv-bit-value').prop('checked')
-     },
-     beforeSend: function() {
-      $.mobile.loading('show', {
-       text: String.format('Writing CV {0}...', $('#cs-prog-cv').val()),
-       textVisible: true,
-       textonly: false});
-     },
-     success: function(data, status, xhr) {
-      setTimeout(function () {
-       $.mobile.loading('hide');
-       }, 1);
-      $('#cs-prog-result').val(String.format('CV {0} bit {1} written successfully', $('#cs-prog-cv').val(), $('#cs-prog-cv-bit').val()));
-     },
-     error: function() {
-      setTimeout(function () {
-       $.mobile.loading('hide');
-       }, 1);
-      $('#cs-prog-result').val(String.format('CV {0} bit {1} was not written successfully', $('#cs-prog-cv').val(), $('#cs-prog-cv-bit').val()));
-     }
+    $.ajax({method:'POST',url: '/programmer',timeout:15000,dataType:'json',
+     data: {'cv':$('#cs-prog-cv').val(),'pom':$('#cs-prog-target').prop('checked'),'address':$('#cs-prog-addr').val(),'bit':$('#cs-prog-cv-bit').val(),'value':$('#cs-prog-cv-bit-value').prop('checked')},
+     beforeSend: function() {showSpinner(String.format('Writing CV {0}...', $('#cs-prog-cv').val()));},
+     complete: hideSpinner,
+     success: function(data, status, xhr) {$('#cs-prog-result').val(String.format('CV {0} bit {1} written successfully', $('#cs-prog-cv').val(), $('#cs-prog-cv-bit').val()));},
+     error: function() {$('#cs-prog-result').val(String.format('CV {0} bit {1} was not written successfully', $('#cs-prog-cv').val(), $('#cs-prog-cv-bit').val()));}
     });
    } else {
-    $.ajax({url: '/programmer',
-     timeout: 15000,
-     type: 'POST',
-     dataType: 'json',
-     data: {
-      'cv': $('#cs-prog-cv').val(),
-      'pom': $('#cs-prog-target').prop('checked'),
-      'address': $('#cs-prog-addr').val(),
-      'value' : $('#cs-prog-cv-value').val()
-     },
-     beforeSend: function() {
-      $.mobile.loading('show', {
-       text: String.format('Writing CV {0}...', $('#cs-prog-cv').val()),
-       textVisible: true,
-       textonly: false});
-     },
-     success: function(data, status, xhr) {
-      setTimeout(function () {
-       $.mobile.loading('hide');
-       }, 1);
-      $('#cs-prog-result').val(String.format('CV {0} written successfully', $('#cs-prog-cv').val()));
-     },
-     error: function() {
-      setTimeout(function () {
-       $.mobile.loading('hide');
-       }, 1);
-      $('#cs-prog-result').val(String.format('CV {0} was not written successfully', $('#cs-prog-cv').val()));
-     }
+    $.ajax({method:'POST',url: '/programmer',timeout:15000,dataType:'json',
+     data: {'cv':$('#cs-prog-cv').val(),'pom':$('#cs-prog-target').prop('checked'),'address':$('#cs-prog-addr').val(),'value':$('#cs-prog-cv-value').val()},
+     beforeSend: function() {showSpinner(String.format('Writing CV {0}...', $('#cs-prog-cv').val()));},
+     complete: hideSpinner,
+     success: function() {$('#cs-prog-result').val(String.format('CV {0} written successfully', $('#cs-prog-cv').val()));},
+     error: function() {$('#cs-prog-result').val(String.format('CV {0} was not written successfully', $('#cs-prog-cv').val()));}
     });
    }
   } else {
-   $.ajax({url: '/programmer',
-    timeout: 15000,
-    type: 'GET',
-    dataType: 'json',
-    data: {
-     'pom' : 'false',
-     'identify' : 'true',
-     'create' : $('#cs-prog-create-roster').prop('checked')
-    },
-    beforeSend: function() {
-      $.mobile.loading('show', {
-       text: 'Identifying decoder',
-       textVisible: true,
-       textonly: false});
-     },
-    success: function(data, status, xhr) {
-     setTimeout(function () {
-      $.mobile.loading('hide');
-      }, 1);
-     if(data.hasOwnProperty('loco')) {
-      $('#cs-prog-result').val(String.format('Identified the decoder as having address {0} ({1}), speed table {2}.\nRoster entry has been created for the {3}',
-       data['address'], data['addressMode'], data['speedTable'], data['loco']['type']));
-     } else {
-      $('#cs-prog-result').val(String.format('Identified the decoder as having address {0} ({1}), speed table {2}',
-       data['address'], data['addressMode'], data['speedTable']));
-     }
-    },
-    error: function() {
-     setTimeout(function () {
-      $.mobile.loading('hide');
-      }, 1);
-     $('#cs-prog-result').val('Unable to identify the decoder');
-    }
+   $.ajax({url:'/programmer',timeout:15000,dataType:'json',
+    data: {'pom':'false','identify':'true','create':$('#cs-prog-create-roster').prop('checked')},
+    beforeSend: function() {showSpinner('Identifying decoder');},
+    complete: hideSpinner,
+    success: function(data, status, xhr) {if(data.hasOwnProperty('loco')) {$('#cs-prog-result').val(String.format('Identified the decoder as having address {0} ({1}), speed table {2}.\nRoster entry has been created for the {3}',data.address, data.addressMode, data.speedTable, data.loco.type));} else {$('#cs-prog-result').val(String.format('Identified the decoder as having address {0} ({1}), speed table {2}',data.address, data.addressMode, data.speedTable));}},
+    error: function() {$('#cs-prog-result').val('Unable to identify the decoder');}
    });
   }
  });
@@ -1270,13 +1142,8 @@ function setupProgrammer() {
  $('#cs-prog-div-bit').hide();
  $('#cs-prog-div-create-roster').hide();
 }
-function int_to_hex(value, length) {
-  return pad_hex(value.toString(16), length);
-}
-function pad_hex(str, length) {
-  var hex = new Array(length + 1).join('0') + str;
-  return hex.substr(-length).match(/.{1,2}/g).join('.');
-}
+function int_to_hex(value, length) {return pad_hex(value.toString(16), length);}
+function pad_hex(str, length) {var hex = new Array(length + 1).join('0') + str;return hex.substr(-length).match(/.{1,2}/g).join('.');}
 function csConfigUpdate(data) {
  $('#cs-lcc-node-id').val(int_to_hex(data.lcc.id, 12));
  $('#cs-lcc-can').prop('checked', (data.lcc.can.enable && data.lcc.can.rx !== -1 && data.lcc.can.tx !== -1)).flipswitch('refresh');
@@ -1320,24 +1187,10 @@ function refreshSSIDList() {
  $('#ssid-manual-entry').hide();
  $('#ssid-connect-rescan').show();
  refreshTable({table: '#ssid-list', url: '/config?scan=true',
- fields: ['ssid', 'rssi', function(record) {
-   if(record.auth === 0) {
-    return 'None';
-   } else if(record.auth === 1) {
-    return 'WEP';
-   } else if(record.auth === 2) {
-    return 'WPA';
-   } else if(record.auth === 3) {
-    return 'WPA2';
-   } else if(record.auth === 4) {
-    return 'WPA/WPA2';
-   } else if(record.auth === 5) {
-    return 'WPA2 Enterprise';
-   }
-   return 'Unknown';
-  }, function(record) {
-   return createButton({type:'gear', id:String.format("cs-ssid-{0}-{1}", record.ssid, record.auth), title:'Connect'});
-  }],
+ fields: ['ssid','rssi',
+  function(record) {var values=['None','WEP','WPA','WPA2','WPA/WPA2','WPA2 Enterprise'];if(record.auth > 5) {return 'Unknown';}return values[record.auth];},
+  function(record) {return createButton({type:'gear', id:String.format("cs-ssid-{0}-{1}", record.ssid, record.auth), title:'Connect'});}
+  ],
   refreshCallback:function() {
    $('#ssid-list tr td [id^=cs-ssid-]').button();
    $('#ssid-list tr td [id^=cs-ssid-]').on('vclick', function(event, ui) {
@@ -1353,7 +1206,7 @@ function refreshSSIDList() {
      $('#ssid-connect').popup('reposition', {positionTo:'window'});
     } else {
      $('#ssid-connect').popup('close');
-     $.ajax({method:'PUT',url:String.format('/config?ssid={0}&pass={1}', idParts[3], $('#ssid-manual-password').val())});
+     $.ajax({method:'POST',url:String.format('/config?ssid={0}&pass={1}', idParts[3], $('#ssid-manual-password').val())});
     }
    });
    $('#ssid-list').show();
@@ -1370,31 +1223,16 @@ function setupConfig() {
   }
  });
  $('#cs-factory-reset').on("vclick", function() {
-  $.ajax({url: '/config?reset',
-   method: 'POST',
-   beforeSend: function() {
-    $.mobile.loading('show', {
-     text: 'Initiating Factory Reset...',
-     textVisible: true,
-     textonly: false});
-   },
-   complete: function() {
-    setTimeout(function () {
-     $.mobile.loading('hide');
-    }, 1);
-   },
-  });
+  $.ajax({url: '/config?reset',method: 'POST',beforeSend: function() {showSpinner('Initiating Factory Reset...', true);},});
  });
  $("#cs-persist-config").on("vclick", function() {
   var tablist = ["WiFi", "LCC", "Uplink", "OPS", "PROG"];
   var section = $("#cs-config-tabs").tabs("option", "active");
   var url = "/config?persist";
-  var wantRefresh = true;
   if (tablist[section] == "WiFi") {
    url = String.format("/config?mode={0}", $('#cs-wifi-mode').val());
   } else if (tablist[section] == "LCC") {
    url = String.format("/config?nodeid={0}&lcc-hub={1}&lcc-can={2}", $('#cs-lcc-node-id').val(), $('#cs-lcc-hub').prop('checked'), $('#cs-lcc-can').prop('checked'));
-   wantRefresh = false;
   } else if (tablist[section] == "Uplink") {
    url = String.format("/config?uplink-mode={0}&uplink-service={1}&uplink-manual={2}&uplink-manual-port={3}", $('#cs-lcc-uplink-mode').val(), $('#cs-lcc-uplink-auto-service').val(), $('#cs-lcc-uplink-manual-host').val(), $('#cs-lcc-uplink-manual-port').val());
   } else if (tablist[section] == "OPS") {
@@ -1402,59 +1240,18 @@ function setupConfig() {
   } else if (tablist[section] == "PROG") {
    url = String.format("/config?prog-short={0}&prog-short-clear={1}&prog-shutdown={2}&prog-shutdown-clear={3}", "", "", "", "");
   }
-  $.ajax({
-   method: 'POST',
-   url: url,
-   beforeSend: function() {
-    $.mobile.loading('show', {
-     text: 'Saving Configuration...',
-     textVisible: true,
-     textonly: false});
-   },
-   complete: function(request, status) {
-    if(status == 'success') {
-     setTimeout(function () {
-      $.mobile.loading('hide');
-     }, 1);
-    }
-   },
-   success : function (data, status, xhr) {
-    if(wantRefresh) {
-     csConfigUpdate(data);
-    } else {
-     // display new spinner for reboot
-     setTimeout(function () {
-      $.mobile.loading('show', {
-      text: 'Command Station restarting...',
-      textVisible: true,
-      textonly: false});
-     }, 2);
-     // set reload of webpage for 20sec
-     setTimeout(function() {
-      location.reload();
-     }, 20000);
-    }
-   },
-   error : function(xhr, status, error) {
-    alert("The command station reported a failure saving configuration data");
-    console.log("The command station reported a failure saving configuration data:", error);
-   }
+  $.ajax({method: 'POST',url: url,
+   beforeSend: function() {showSpinner('Saving Configuration...');},
+   complete: hideSpinner,
+   success : function (data, status, xhr) {if(!data.hasOwnProperty('restart')) {csConfigUpdate(data);} else {showSpinner(data.state, true);}},
+   error : function(xhr, status, error) {showErrorDialog("The command station reported a failure saving configuration data", error);}
   });
  });
  $("#cs-clear-config").on("vclick", function() {
-  $.ajax({url: '/config?clear',
-   method: 'POST',
-   beforeSend: function() {
-    $.mobile.loading('show', {
-     text: 'Clearing Configuration...',
-     textVisible: true,
-     textonly: false});
-   },
-   complete: function() {
-    setTimeout(function () {
-     $.mobile.loading('hide');
-    }, 1);
-   },
+  $.ajax({method: 'POST',url: '/config?clear',
+   beforeSend: function() {showSpinner('Clearing Configuration...');},
+   complete: hideSpinner,
+   error : function(xhr, status, error) {showErrorDialog("The command station reported a failure clearing configuration data", error);}
   });
  });
  $('#cs-wifi-mode').on('change', function() {
@@ -1518,11 +1315,7 @@ function BSTabRefresh(section) {
     $('#cs-table-power tr td [id^=cs-power-]').button();
     $('#cs-table-power tr td [id^=cs-power-]').on('vclick', function(event, ui) {
      var idParts = $(this).attr('id').split('-');
-     $.ajax({url: String.format('/power?name={0}&state={1}', idParts[2], idParts[3]),
-      method: 'PUT',
-      success:function() {
-       BSTabRefresh('Status');
-     }});
+     $.ajax({method: 'PUT',url: String.format('/power?name={0}&state={1}', idParts[2], idParts[3]),success:function() {BSTabRefresh('Status');}});
     });
    }
   });
@@ -1538,11 +1331,7 @@ function BSTabRefresh(section) {
     $('#cs-table-locomotives tr td [id^=loco-]').on('vclick', function(event, ui) {
      var idParts = $(this).attr('id').split('-');
      if(idParts[2] === 'delete') {
-      $.ajax({url: String.format('/locomotive?address={0}', idParts[1]),
-       method: 'DELETE',
-       success:function() {
-        BSTabRefresh('Status');
-      }});
+      $.ajax({method: 'DELETE',url: String.format('/locomotive?address={0}', idParts[1]),success:function() {BSTabRefresh('Status');}});
      } else if(idParts[2] === 'stop') {
       sendCommand(String.format('<tex {0} 0 -1>', idParts[1]));
       BSTabRefresh('Status');
@@ -1579,11 +1368,7 @@ function BSTabRefresh(section) {
     $('#cs-table-turnouts tr td [id^=turnout-]').on('vclick', function(event, ui) {
      var idParts = $(this).attr('id').split('-');
      if(idParts[2] === 'delete') {
-      $.ajax({url: String.format('/turnouts?id={0}', idParts[1]),
-       method: 'DELETE',
-       success: function() {
-        BSTabRefresh('Turnouts');
-      }});
+      $.ajax({method: 'DELETE',url: String.format('/turnouts?id={0}', idParts[1]),success: function() {BSTabRefresh('Turnouts');}});
      } else if(idParts[2] === 'edit') {
       $.ajax({url: String.format('/turnouts?id={0}', idParts[1]),
        success:function(data, status, jqxhr) {
@@ -1599,7 +1384,8 @@ function BSTabRefresh(section) {
          $('#cs-turnout-address-mode').val('dcc').change();
         }
         $('#cs-turnout-editor').popup('open', {positionTo:'window'});
-       }
+       },
+       error:function(req, status) {showErrorDialog(String.format('Unable to edit turnout {0}', idParts[1]), status);}
       });
      } else {
       sendCommand(String.format('<Tex {0}>', idParts[1]));
@@ -1623,11 +1409,7 @@ function BSTabRefresh(section) {
     $('#cs-table-sensors tr td [id^=sensor-]').on('vclick', function(event, ui) {
      var idParts = $(this).attr('id').split('-');
      if(idParts[2] === 'delete') {
-      $.ajax({url: String.format('/sensors?id={0}', idParts[1]),
-       method: 'DELETE',
-       success:function() {
-        BSTabRefresh('Sensors');
-      }});
+      $.ajax({method: 'DELETE',url: String.format('/sensors?id={0}', idParts[1]),success:function() {BSTabRefresh('Sensors');}});
      } else if(idParts[2] === 'edit') {
       $.ajax({url: String.format('/sensors?id={0}', idParts[1]),
        success:function(data, status, jqxhr) {
@@ -1636,7 +1418,8 @@ function BSTabRefresh(section) {
         $('#cs-sensor-pin').val(data.pin);
         $('#cs-sensor-pullUp').prop('checked', data.pullUp === 'true');
         $('#cs-sensor-editor').popup('open', {positionTo:'window'});
-       }
+       },
+       error:function(req, status) {showErrorDialog(String.format('Unable to edit sensor {0}', idParts[1]), status);}
       });
      }
     });
@@ -1671,11 +1454,7 @@ function BSTabRefresh(section) {
     $('#cs-table-sensors-s88 tr td [id^=s88sensor-]').on('vclick', function(event, ui) {
      var idParts = $(this).attr('id').split('-');
      if(idParts[2] === 'delete') {
-      $.ajax({url: String.format('/s88sensors?id={0}', idParts[1]),
-       method: 'DELETE',
-       success:function() {
-        BSTabRefresh('Sensors (S88)');
-      }});
+      $.ajax({method: 'DELETE',url: String.format('/s88sensors?id={0}', idParts[1]),success:function() {BSTabRefresh('Sensors (S88)');}});
      } else if(idParts[2] === 'edit') {
       $.ajax({url: String.format('/s88sensors?id={0}', idParts[1]),
        success:function(data, status, jqxhr) {
@@ -1685,7 +1464,8 @@ function BSTabRefresh(section) {
         $('#cs-sensor-s88-pin').val(data.dataPin);
         $('#cs-sensor-s88-count').val(data.count);
         $('#cs-sensor-s88-editor').popup('open', {positionTo:'window'});
-       }
+       },
+       error:function(req, status) {showErrorDialog(String.format('Unable to edit sensor {0}', idParts[1]), status);}
       });
      }
     });
@@ -1709,11 +1489,7 @@ function BSTabRefresh(section) {
     $('#cs-table-outputs tr td [id^=output-]').on('vclick', function(event, ui) {
      var idParts = $(this).attr('id').split('-');
      if(idParts[2] === 'delete') {
-      $.ajax({url: String.format('/outputs?id={0}', idParts[1]),
-       method: 'DELETE',
-       success:function() {
-        BSTabRefresh('Outputs');
-      }});
+      $.ajax({method: 'DELETE',url: String.format('/outputs?id={0}', idParts[1]),success:function() {BSTabRefresh('Outputs');}});
      } else if(idParts[2] === 'edit') {
       $.ajax({url: String.format('/outputs?id={0}', idParts[1]),
        success:function(data, status, jqxhr) {
@@ -1724,7 +1500,8 @@ function BSTabRefresh(section) {
         $('#cs-output-startup-state').prop('checked', data.flags.includes('force'));
         $('#cs-output-default-state').prop('checked', data.flags.includes('force(on)'));
         $('#cs-output-editor').popup('open', {positionTo:'window'});
-       }
+       },
+       error:function(req, status) {showErrorDialog(String.format('Unable to edit output {0}', idParts[1]), status);}
       });
      } else {
       sendCommand(String.format('<Zex {0}>', idParts[1]));
@@ -1756,11 +1533,7 @@ function BSTabRefresh(section) {
     $('#cs-table-loco-roster tr td [id^=roster-]').on('vclick', function(event, ui) {
      var idParts = $(this).attr('id').split('-');
      if(idParts[2] === 'delete') {
-      $.ajax({url: String.format('/locomotive/roster?address={0}', idParts[1]),
-       method: 'DELETE',
-       success: function() {
-        BSTabRefresh('Locomotive Roster');
-       }});
+      $.ajax({method: 'DELETE',url: String.format('/locomotive/roster?address={0}', idParts[1]),success: function() {BSTabRefresh('Locomotive Roster');}});
      } else if(idParts[2] === 'edit') {
       $.ajax({url: String.format('/locomotive/roster?address={0}', idParts[1]),
        success:function(data, status, jqxhr) {
@@ -1771,54 +1544,36 @@ function BSTabRefresh(section) {
         $('#cs-loco-idle').prop('checked', data.idleOnStartup === 'true');
         $('#cs-loco-default').prop('checked', data.defaultOnThrottles === 'true');
         $('#cs-loco-editor').popup('open', {positionTo:'window'});
-       }
+       },
+       error:function(req, status) {showErrorDialog(String.format('Unable to edit roster entry {0}', idParts[1]), status);}
       });
      } else if(idParts[2] === 'idle') {
-      $.ajax({url: String.format('/locomotive/roster?address={0}&idleOnStartup={1}', idParts[1], idParts[3] === 'off'),
-       method: 'PUT',
-       success:function() {
-        BSTabRefresh('Locomotive Roster');
-       }});
+      $.ajax({method: 'PUT',url: String.format('/locomotive/roster?address={0}&idleOnStartup={1}', idParts[1], idParts[3] === 'off'),
+       success:function() {BSTabRefresh('Locomotive Roster');},
+       error: function(req, status) {showErrorDialog(String.format('Failed to update loco {0}', idPArts[1]), status);}
+      });
      } else if(idParts[2] === 'default') {
-      $.ajax({url: String.format('/locomotive/roster?address={0}&defaultOnThrottles={1}', idParts[1], idParts[3] === 'off'),
-       method: 'PUT',
-       success:function() {
-        BSTabRefresh('Locomotive Roster');
-       }});
+      $.ajax({method: 'PUT',url: String.format('/locomotive/roster?address={0}&defaultOnThrottles={1}', idParts[1], idParts[3] === 'off'),
+       success:function() {BSTabRefresh('Locomotive Roster');},
+       error: function(req, status) {showErrorDialog(String.format('Failed to update loco {0}', idPArts[1]), status);}
+      });
      }
     });
    }
   });
  } else if(section === 'Configuration') {
-  $.ajax({url: '/config',
-   timeout: 5000,
-   type: 'GET',
-   beforeSend: function() {
-    $.mobile.loading('show', {
-     text: 'Loading Configuration...',
-     textVisible: true,
-     textonly: false});
-   },
-   complete: function() {
-    setTimeout(function () {
-     $.mobile.loading('hide');
-    }, 1);
-   },
-   success : function (data, status, xhr) {
-    csConfigUpdate(data);
-   },
-   error : function(xhr, status, error) {
-    alert("The command station reported a failure retrieving configuration data");
-    console.log("The command station reported a failure retrieving configuration data:", error);
-   }
+  $.ajax({url: '/config',timeout: 5000,
+   beforeSend: function() {showSpinner('Loading Configuration...');},
+   complete: hideSpinner,
+   success : function (data, status, xhr) {csConfigUpdate(data);},
+   error : function(xhr, status, error) {showErrorDialog('The command station reported a failure retrieving configuration data', error);}
   });
  }
 }
 function changeLocomotive(newAddress) {
  if(newAddress !== "") {
   console.log("selected loco:", newAddress);
-  $.get({
-   url: '/locomotive?address=' + newAddress,
+  $.ajax({url: '/locomotive?address=' + newAddress,
    success : function (data, status, xhr) {
     console.log(data);
     fireLocoEvents = false;
@@ -1832,26 +1587,14 @@ function changeLocomotive(newAddress) {
     fireLocoEvents = true;
     enableTrackPower();
    },
-   error : function(xhr, status, error) {
-    alert("The command station reported a failure in aquiring locomotive:" + newAddress);
-    console.log("Failed to retrieve locomotive details from command station:", error);
-   }
+   error : function(xhr, status, error) {showErrorDialog(String.format('Unable to acquire locomotive: {0}', newAddress), error);}
   });
  }
 }
-function refreshTable({table, url, fields, filter=function() {return true;}, failureHandler=function() {}, refreshCallback=function() {}} = {}) {
+function refreshTable({table, url, fields, filter=function() {return true;}, failureHandler=function(xhr, status) {showErrorDialog(String.format('Failed to load url:', url), status);}, refreshCallback=function() {}} = {}) {
  console.log('refreshing table:', table, 'using url:', url, 'and fields:', fields)
- $.ajax({
-  url: url,
-  dataType:'json',
-  error: failureHandler,
-  beforeSend: function() {
-   $.mobile.loading('show', { text: 'Refreshing data', textVisible: true, textonly: false});
-   $(table + ' tbody').empty();
-  },
-  complete: function() {
-   setTimeout(function () { $.mobile.loading('hide'); }, 1);
-  },
+ $.ajax({url: url,dataType:'json',error: failureHandler,complete: hideSpinner,
+  beforeSend: function() {showSpinner('Refreshing data');$(table + ' tbody').empty();},
   success: function(data, status, jqxhr) {
    var tableBody = $(table + ' tbody');
    $.each(data, function(id, record) {
@@ -1871,9 +1614,6 @@ function refreshTable({table, url, fields, filter=function() {return true;}, fai
    });
    $(table).table('refresh');
    refreshCallback();
-  },
-  error: function(xhr, status) {
-   console.log(status);
   }
  });
 }

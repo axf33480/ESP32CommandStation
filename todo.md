@@ -28,7 +28,7 @@ The primary focus of v1.4.0 will be improvements to the DCC signal code and addi
 
 ### Web Interface
 
-- [-] add dialog for failed CS requests.
+- [x] add dialog for failed CS requests.
 - [ ] Expose Loco Consist creation.
 - [x] Hide power button for prog track when it is off
 - [x] Configure Station SSID/PW

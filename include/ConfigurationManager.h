@@ -18,6 +18,7 @@ COPYRIGHT (c) 2018-2019 Mike Dunston
 #ifndef CONFIG_MGR_H_
 #define CONFIG_MGR_H_
 
+#include <openlcb/ConfiguredTcpConnection.hxx>
 #include <openlcb/Defs.hxx>
 #include "cdi/CSConfigDescriptor.h"
 #include "stateflows/FreeRTOSTaskMonitor.h"
@@ -62,9 +63,14 @@ public:
   void setLCCHub(bool);
   bool setLCCCan(bool);
   bool setWiFiMode(std::string);
-  void setWiFiStationParams(std::string ssid, std::string password
-                          , std::string ip="", std::string gateway=""
-                          , std::string subnet="");
+  void setWiFiStationParams(std::string, std::string, std::string=""
+                          , std::string="", std::string="");
+  void setWiFiUplinkParams(
+    SocketClientParams::SearchMode=SocketClientParams::SearchMode::AUTO_MANUAL
+  , std::string="", std::string=""
+  , uint16_t=openlcb::TcpClientDefaultParams::DEFAULT_PORT);
+  void setHBridgeEvents(uint8_t, std::string, std::string, std::string
+                      , std::string, std::string="", std::string="");
 private:
   std::string getFilePath(const std::string &, bool=false);
   bool validateConfiguration();

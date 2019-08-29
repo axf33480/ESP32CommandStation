@@ -188,10 +188,10 @@ extern "C" void app_main()
   railComHub.reset(new RailcomHubFlow(openmrn->stack()->service()));
 
   // Initialize Track Signal Device (both OPS and PROG)
-  trackSignal.reset(new RMTTrackDevice(openmrn->stack()
-                                     , railComHub.get()
-                                     , cfg.seg().hbridge().entry(0)
-                                     , cfg.seg().hbridge().entry(1)));
+  trackSignal.reset(
+    new RMTTrackDevice(openmrn->stack(), railComHub.get()
+                     , cfg.seg().hbridge().entry(OPS_CDI_TRACK_OUTPUT_INDEX)
+                     , cfg.seg().hbridge().entry(PROG_CDI_TRACK_OUTPUT_INDEX)));
 
   // Initialize Local Track inteface.
   trackInterface.reset(new LocalTrackIf(openmrn->stack()->service()
