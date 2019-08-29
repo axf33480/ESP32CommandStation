@@ -24,28 +24,37 @@ const char * buildTime = __DATE__ " " __TIME__;
 // Traction protocol CDI/FDI needs.
 OVERRIDE_CONST(num_memory_spaces, 10);
 
-// Allow usage of ::select() for GridConnect TCP connections.
-OVERRIDE_CONST_TRUE(gridconnect_tcp_use_select);
+// Allow usage of ::select() for GridConnect TCP connections. This is not on by
+// default for the esp32 due to instability in the ::select() implementation in
+// esp-idf. More debugging is required before this can be enabled.
+// OVERRIDE_CONST_TRUE(gridconnect_tcp_use_select);
 
-// Increased GridConnect buffer size (improves performance).
-OVERRIDE_CONST(gridconnect_buffer_size, 3512);
+// Increase the GridConnect buffer size to improve performance by bundling more
+// than one GridConnect packet into the same send() call to the socket.
+OVERRIDE_CONST(gridconnect_buffer_size, CONFIG_TCP_MSS);
 
-// Increased delay in flushing the GridConnect TCP data.
+// This will allow up to 1000 usec for the buffer to fill up before sending it
+// out over the socket connection.
 OVERRIDE_CONST(gridconnect_buffer_delay_usec, 1000);
 
-// Generate newlines after GridConnect packets on TCP.
+// This limites the number of outbound GridConnect packets which limits the
+// memory used by the BufferPort.
+OVERRIDE_CONST(gridconnect_bridge_max_outgoing_packets, 2);
+
+// This will generate newlines after GridConnect each packet being sent.
 // OVERRIDE_CONST_TRUE(gc_generate_newlines);
 
-// Increased number of state flows to invoke before checking for ::select
-// timeouts
-OVERRIDE_CONST(executor_select_prescaler, 30);
+// This increases number of state flows to invoke before checking for any FDs
+// that have pending data.
+OVERRIDE_CONST(executor_select_prescaler, 60);
 
-// Increased number of outbound GridConnect packets to queue.
-// OVERRIDE_CONST(gridconnect_bridge_max_outgoing_packets, 5);
-
-// Increased number of local nodes to account for TrainNode proxy nodes
+// This increases the number of local nodes and aliases available for the LCC
+// stack. This is needed to allow for virtual train nodes.
 OVERRIDE_CONST(local_nodes_count, 30);
 OVERRIDE_CONST(local_alias_cache_size, 30);
+
+// This will print all GridConnect packets to the serial console.
+// OVERRIDE_CONST_TRUE(lcc_print_all_packets);
 
 // Uncomment to have all railcom data printed as it is received.
 // OVERRIDE_CONST_TRUE(enable_railcom_packet_dump);
@@ -259,13 +268,16 @@ extern "C" void app_main()
     LOG(INFO, "[OpenMRN] Starting loop task on core:%d", APP_CPU_NUM);
     xTaskCreatePinnedToCore(openmrn_loop_task, "OpenMRN"
                           , openmrn_arduino::OPENMRN_STACK_SIZE, nullptr
-                          , tskIDLE_PRIORITY + 1
+                          , openmrn_arduino::OPENMRN_TASK_PRIORITY
                           , nullptr, APP_CPU_NUM);
   }));
 
   LOG(INFO, "\n\nESP32 Command Station Startup complete!\n");
   Singleton<InfoScreen>::instance()->replaceLine(
     INFO_SCREEN_ROTATING_STATUS_LINE, "ESP32-CS Started");
+
+  // Increase task priority prior to handing our task to the executor.
+  vTaskPrioritySet(NULL, openmrn_arduino::OPENMRN_TASK_PRIORITY);
 
   // donate our task thread to OpenMRN executor.
   openmrn->loop_executor();
