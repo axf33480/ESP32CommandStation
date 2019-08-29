@@ -717,10 +717,10 @@ void ESP32CSWebServer::handleConfig(AsyncWebServerRequest *request)
   {
     needReboot |= configStore->setLCCCan(request->arg("lcc-can").equalsIgnoreCase("true"));
   }
-  if (request->hasArg("lcc-hub"))
+  /*if (request->hasArg("lcc-hub"))
   {
     configStore->setLCCHub(request->arg("lcc-hub").equalsIgnoreCase("true"));
-  }
+  }*/
 
   if (needReboot)
   {
