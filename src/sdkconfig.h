@@ -212,8 +212,8 @@
 #define CONFIG_FATFS_MAX_LFN 255
 #define CONFIG_FATFS_LFN_STACK 1
 
-/* TCP/IP configuration */
-// TCP/IP task is configured to float across cores as needed
+/* TCP/IP configuration
+TCP/IP task is configured to float across cores as needed */
 #define CONFIG_TCPIP_TASK_AFFINITY_NO_AFFINITY 1
 #define CONFIG_TCPIP_TASK_AFFINITY 0x7FFFFFFF
 #define CONFIG_TCPIP_TASK_STACK_SIZE 3072
