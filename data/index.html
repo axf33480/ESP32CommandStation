@@ -715,6 +715,7 @@ function initPage() {
    beforeSend: function() { showSpinner('Connecting to Command Station...');},
    complete: hideSpinner,
    success : function (data, status, xhr) {
+    connectWebSocket();
     if(data.sensors === 'false') {
      $('[id^=cs-sensors]').hide();
     }
