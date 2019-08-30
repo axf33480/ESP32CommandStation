@@ -51,6 +51,75 @@ enum HTTP_STATUS_CODES
 Atomic webSocketAtomic;
 vector<unique_ptr<WebSocketClient>> webSocketClients;
 
+class WebSocketExecutable : public Executable
+{
+public:
+  WebSocketExecutable(AsyncWebSocketClient *client, AwsEventType type
+                    , uint8_t *data, size_t len)
+  : clientId_(client->id()), clientIp_(client->remoteIP()), type_(type)
+  {
+    if (data && len)
+    {
+      for(size_t index = 0; index < len; index++)
+      {
+        data_.push_back(data[index]);
+      }
+    }
+  }
+
+  void run() override
+  {
+    AtomicHolder h(&webSocketAtomic);
+    if (type_ == WS_EVT_CONNECT)
+    {
+      webSocketClients.emplace_back(new WebSocketClient(clientId_, clientIp_));
+      Singleton<InfoScreen>::instance()->replaceLine(
+        INFO_SCREEN_CLIENTS_LINE, "TCP Conn: %02d"
+      , webSocketClients.size() + jmriClients.size());
+    }
+    else if (type_ == WS_EVT_DISCONNECT)
+    {
+      auto const &elem = std::find_if(webSocketClients.begin()
+                                    , webSocketClients.end()
+      , [&](unique_ptr<WebSocketClient> & clientNode) -> bool
+        {
+          return clientNode->getID() == clientId_;
+        }
+      );
+      if (elem != webSocketClients.end())
+      {
+        webSocketClients.erase(elem);
+      }
+      Singleton<InfoScreen>::instance()->replaceLine(
+        INFO_SCREEN_CLIENTS_LINE, "TCP Conn: %02d",
+        webSocketClients.size() + jmriClients.size());
+    }
+    else if (type_ == WS_EVT_DATA)
+    {
+      auto ent = std::find_if(webSocketClients.begin(), webSocketClients.end()
+      , [&](unique_ptr<WebSocketClient> & clientNode) -> bool
+        {
+          return (clientNode->getID() == clientId_);
+        }
+      );
+      if (ent != webSocketClients.end())
+      {
+        auto res = (*ent)->feed(data_.data(), data_.size());
+        if (res.length())
+        {
+          webSocket.text(clientId_, res.c_str());
+        }
+      }
+    }
+    delete this;
+  }
+private:
+  int clientId_;
+  uint32_t clientIp_;
+  AwsEventType type_;
+  std::vector<uint8_t> data_;
+};
+
 void handleWsEvent(AsyncWebSocket * server,
                    AsyncWebSocketClient * client,
                    AwsEventType type,
@@ -58,87 +127,51 @@ void handleWsEvent(AsyncWebSocket * server,
                    uint8_t *data,
                    size_t len)
 {
-  AtomicHolder h(&webSocketAtomic);
-  if (type == WS_EVT_CONNECT)
-  {
-    webSocketClients.emplace_back(
-      new WebSocketClient(client->id(), ntohl(client->remoteIP())));
-    Singleton<InfoScreen>::instance()->replaceLine(
-      INFO_SCREEN_CLIENTS_LINE, "TCP Conn: %02d"
-    , webSocketClients.size() + jmriClients.size());
-  }
-  else if (type == WS_EVT_DISCONNECT)
-  {
-    auto const &elem = std::find_if(webSocketClients.begin(), webSocketClients.end(),
-      [client](unique_ptr<WebSocketClient> & clientNode) -> bool
-      {
-        return clientNode->getID() == client->id();
-      }
-    );
-    if (elem != webSocketClients.end())
-    {
-      webSocketClients.erase(elem);
-    }
-    Singleton<InfoScreen>::instance()->replaceLine(INFO_SCREEN_CLIENTS_LINE, "TCP Conn: %02d",
-                            webSocketClients.size() + jmriClients.size());
-  }
-  else if (type == WS_EVT_DATA)
-  {
-    auto const &elem = std::find_if(webSocketClients.begin(), webSocketClients.end(),
-      [client](unique_ptr<WebSocketClient> & clientNode) -> bool
-      {
-        return clientNode->getID() == client->id();
-      }
-    );
-    if (elem != webSocketClients.end())
-    {
-      string res = elem->get()->feed(data, len);
-      if (!res.empty())
-      {
-        client->text(res.c_str());
-      }
-    }
-  }
+  extern unique_ptr<OpenMRN> openmrn;
+  openmrn->stack()->executor()->add(
+    new WebSocketExecutable(client, type, data, len));
 }
 
 ESP32CSWebServer::ESP32CSWebServer(MDNS *mdns) : mdns_(mdns)
 {
 }
 
+using namespace std::placeholders;
+
 #define BUILTIN_URI(uri) \
   webServer.on(uri \
              , HTTP_GET \
-             , std::bind(&ESP32CSWebServer::streamResource, this, std::placeholders::_1));
+             , std::bind(&ESP32CSWebServer::streamResource, this, _1));
 
 #define GET_URI(uri, method) \
   webServer.on(uri \
              , HTTP_GET \
-             , std::bind(&ESP32CSWebServer::method, this, std::placeholders::_1));
+             , std::bind(&ESP32CSWebServer::method, this, _1));
 
 #define GET_POST_URI(uri, method) \
   webServer.on(uri \
              , HTTP_GET | HTTP_POST \
-             , std::bind(&ESP32CSWebServer::method, this, std::placeholders::_1));
+             , std::bind(&ESP32CSWebServer::method, this, _1));
 
 #define GET_PUT_URI(uri, method) \
   webServer.on(uri \
              , HTTP_GET | HTTP_PUT \
-             , std::bind(&ESP32CSWebServer::method, this, std::placeholders::_1));
+             , std::bind(&ESP32CSWebServer::method, this, _1));
 
 #define GET_POST_DELETE_URI(uri, method) \
   webServer.on(uri \
              , HTTP_GET | HTTP_POST | HTTP_DELETE \
-             , std::bind(&ESP32CSWebServer::method, this, std::placeholders::_1));
+             , std::bind(&ESP32CSWebServer::method, this, _1));
 
 #define GET_POST_PUT_DELETE_URI(uri, method) \
   webServer.on(uri \
              , HTTP_GET | HTTP_POST | HTTP_PUT | HTTP_DELETE \
-             , std::bind(&ESP32CSWebServer::method, this, std::placeholders::_1));
+             , std::bind(&ESP32CSWebServer::method, this, _1));
 
 #define POST_UPLOAD_URI(uri, method, callback) \
   webServer.on(uri \
              , HTTP_POST \
-             , std::bind(&ESP32CSWebServer::method, this, std::placeholders::_1) \
+             , std::bind(&ESP32CSWebServer::method, this, _1) \
              , callback);
 
 #define SEND_GENERIC_RESPONSE(request, code) \
@@ -832,6 +865,40 @@ string convert_loco_to_json(TrainImpl *t)
   return j.dump();
 }
 
+#define DELETE_LOCO_VIA_EXECUTOR(address, wait)             \
+{                                                           \
+  SyncNotifiable n;                                         \
+  extern unique_ptr<OpenMRN> openmrn;                       \
+  openmrn->stack()->executor()->add(new CallbackExecutable( \
+    [&]()                                                   \
+    {                                                       \
+      trainNodes->remove_train_impl(address);               \
+      if (wait)                                             \
+      {                                                     \
+        n.notify();                                         \
+      }                                                     \
+    }));                                                    \
+    if (wait)                                               \
+    {                                                       \
+    n.wait_for_notification();                              \
+    }                                                       \
+}
+
+#define GET_LOCO_VIA_EXECUTOR(NAME, address)                                          \
+  TrainImpl *NAME = nullptr;                                                          \
+  {                                                                                   \
+    SyncNotifiable n;                                                                 \
+    extern unique_ptr<OpenMRN> openmrn;                                               \
+    openmrn->stack()->executor()->add(new CallbackExecutable(                         \
+    [&]()                                                                             \
+    {                                                                                 \
+      NAME = trainNodes->get_train_impl(commandstation::DccMode::DCC_128_LONG_ADDRESS \
+                                      , address);                                     \
+      n.notify();                                                                     \
+    }));                                                                              \
+    n.wait_for_notification();                                                        \
+  }
+
 void ESP32CSWebServer::handleLocomotive(AsyncWebServerRequest *request)
 {
   // method - url pattern - meaning
@@ -906,10 +973,10 @@ void ESP32CSWebServer::handleLocomotive(AsyncWebServerRequest *request)
       string res = "[";
       for (size_t id = 0; id < trainNodes->size(); id++)
       {
-        auto nodeid(trainNodes->get_train_node_id(id));
+        auto nodeid = trainNodes->get_train_node_id(id);
         if (nodeid)
         {
-          auto loco(trainNodes->get_train_impl(nodeid));
+          auto loco = trainNodes->get_train_impl(nodeid);
           res += convert_loco_to_json(loco);
           res += ",";
         }
@@ -922,7 +989,7 @@ void ESP32CSWebServer::handleLocomotive(AsyncWebServerRequest *request)
       uint16_t address = request->arg(JSON_ADDRESS_NODE).toInt();
       if(request->method() == HTTP_PUT || request->method() == HTTP_POST)
       {
-        auto loco = trainNodes->get_train_impl(commandstation::DccMode::DCC_128_LONG_ADDRESS, address);
+        GET_LOCO_VIA_EXECUTOR(loco, address);
         auto upd_speed = loco->get_speed();
         // Creation / Update of active locomotive
         if(request->hasArg(JSON_IDLE_NODE))
@@ -953,8 +1020,7 @@ void ESP32CSWebServer::handleLocomotive(AsyncWebServerRequest *request)
       }
       else if(request->method() == HTTP_DELETE)
       {
-        // Removal of an active locomotive
-        trainNodes->remove_train_impl(address);
+        DELETE_LOCO_VIA_EXECUTOR(address, false);
 #if NEXTION_ENABLED
         static_cast<NextionThrottlePage *>(nextionPages[THROTTLE_PAGE])->invalidateLocomotive(address);
 #endif
@@ -962,9 +1028,7 @@ void ESP32CSWebServer::handleLocomotive(AsyncWebServerRequest *request)
       }
       else
       {
-        auto loco =
-          trainNodes->get_train_impl(commandstation::DccMode::DCC_128_LONG_ADDRESS
-                                   , address);
+        GET_LOCO_VIA_EXECUTOR(loco, address);
         SEND_JSON_RESPONSE(request, convert_loco_to_json(loco))
       }
     }
