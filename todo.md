@@ -32,17 +32,20 @@ The primary focus of v1.4.0 will be improvements to the DCC signal code and addi
 - [ ] Expose Loco Consist creation.
 - [x] Hide power button for prog track when it is off
 - [x] Configure Station SSID/PW
-- [x] Fixed heap corruption related to String() default args in ESPAsyncWebServer.
+- [ ] ESPAsyncWebServer can trigger heap corruption in the request processing when disconnecting the tcp client.
+- [ ] WebSockets can crash with ISR WDT, cause TBD.
+- [x] Auto-connect WebSocket from initPage()
+- [x] Remove overall power on/off as it no longer makes sense.
 
 ### LCC Integration
 
 - [x] migrate to Esp32WiFiManager instead of Arduino WiFi library.
 - [x] Refresh OpenMRNLite lib to latest openmrn code.
-- [-] adjust InfoScreen LCC details so they are useful, right now it is a placeholder.
+- [x] adjust InfoScreen LCC details so they are useful, right now it is a placeholder.
 - [x] implement CV memory space.
 - [x] Traction Protocol integration.
 - [-] TrainSearch protocol.
-- [-] CS CDI web interface.
+- [x] CS CDI web interface.
 - [x] CS Node ID reset from web interface.
 - [x] Force factory reset when node id changes.
 
