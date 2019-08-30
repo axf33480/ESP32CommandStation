@@ -35,13 +35,15 @@ StateFlowBase::Action FreeRTOSTaskMonitor::report()
   uint32_t ulTotalRunTime{0};
   UBaseType_t taskCount = uxTaskGetNumberOfTasks();
   LOG(INFO,
-      "[TaskMon] uptime: %02d:%02d:%02d freeHeap: %u, largest free block: %u, tasks: %d"
+      "[TaskMon] uptime: %02d:%02d:%02d freeHeap: %u, largest free block: %u, "
+      "tasks: %d, mainBufferPool: %zu"
     , (uint32_t)(USEC_TO_SEC(esp_timer_get_time()) / 3600)
     , (uint32_t)(USEC_TO_SEC(esp_timer_get_time()) % 3600) / 60
     , (uint32_t)(USEC_TO_SEC(esp_timer_get_time()) % 60 )
     , heap_caps_get_free_size(MALLOC_CAP_INTERNAL)
     , heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)
     , taskCount
+    , mainBufferPool->total_size()
   );
   // exit early if we do not need to report task state
   if (config_cs_task_list_report() == CONSTANT_FALSE)
