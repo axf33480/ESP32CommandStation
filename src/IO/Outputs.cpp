@@ -94,7 +94,7 @@ or GUI program.
 
 **********************************************************************/
 #if ENABLE_OUTPUTS
-LinkedList<Output *> outputs([](Output *output) {delete output; });
+vector<unique_ptr<Output>> outputs;
 
 static constexpr const char * OUTPUTS_JSON_FILE = "outputs.json";
 
@@ -110,15 +110,15 @@ void OutputManager::init()
     for(auto output : root[JSON_OUTPUTS_NODE])
     {
       string data = output.dump();
-      outputs.add(new Output(data));
+      outputs.emplace_back(new Output(data));
     }
   }
-  LOG(INFO, "[Output] Loaded %d outputs", outputs.length());
+  LOG(INFO, "[Output] Loaded %d outputs", outputs.size());
 }
 
 void OutputManager::clear()
 {
-  outputs.free();
+  outputs.clear();
 }
 
 uint16_t OutputManager::store()
@@ -149,25 +149,25 @@ string OutputManager::set(uint16_t id, bool active)
 
 Output *OutputManager::getOutput(uint16_t id)
 {
-  for (const auto& output : outputs)
+  auto ent = std::find_if(outputs.begin(), outputs.end(),
+  [id](const unique_ptr<Output> output) -> bool
   {
-    if(output->getID() == id)
-    {
-      return output;
-    }
+    return output->getID() == id;
+  });
+  if (ent != outputs.end())
+  {
+    return ent->get();
   }
   return nullptr;
 }
 
 bool OutputManager::toggle(uint16_t id)
 {
-  for (const auto& output : outputs)
+  auto output = getOutput(id);
+  if (output)
   {
-    if(output->getID() == id)
-    {
-      output->set(!output->isActive());
-      return true;
-    }
+    output->set(!output->isActive());
+    return true;
   }
   return false;
 }
@@ -208,24 +208,21 @@ bool OutputManager::createOrUpdate(const uint16_t id, const uint8_t pin, const u
   {
     return false;
   }
-  outputs.add(new Output(id, pin, flags));
+  outputs.emplace_back(new Output(id, pin, flags));
   return true;
 }
 
 bool OutputManager::remove(const uint16_t id)
 {
-  Output *outputToRemove = nullptr;
-  for (const auto& output : outputs)
+  auto ent = std::find_if(outputs.begin(), outputs.end(),
+  [id](const unique_ptr<Output> output) -> bool
   {
-    if(output->getID() == id)
-    {
-      outputToRemove = output;
-    }
-  }
-  if(outputToRemove != nullptr)
+    return output->getID() == id;
+  });
+  if (ent != outputs.end())
   {
-    LOG(INFO, "[Output] Removing Output(%d)", outputToRemove->getID());
-    outputs.remove(outputToRemove);
+    LOG(INFO, "[Output] Removing Output(%d)", (*ent)->getID());
+    outputs.erase(ent);
     return true;
   }
   return false;
