@@ -73,6 +73,7 @@ public:
   static bool createOrUpdate(const uint16_t, const uint8_t, const bool);
   static bool remove(const uint16_t);
   static int8_t getSensorPin(const uint16_t);
+  static std::string get_state_for_dccpp();
 private:
   static TaskHandle_t _taskHandle;
   static OSMutex _lock;

@@ -589,7 +589,6 @@ DCC_PROTOCOL_COMMAND_HANDLER(AccessoryCommand,
 })
 
 #if ENABLE_SENSORS
-extern LinkedList<Sensor *> sensors;
 DECLARE_DCC_PROTOCOL_COMMAND_CLASS(SensorCommandAdapter, "S")
 DCC_PROTOCOL_COMMAND_HANDLER(SensorCommandAdapter,
 [](const vector<string> arguments)
@@ -597,11 +596,11 @@ DCC_PROTOCOL_COMMAND_HANDLER(SensorCommandAdapter,
   if(arguments.empty())
   {
     // list all sensors
-    string status;
-    for (const auto& sensor : sensors)
-    {
-      status += sensor->get_state_for_dccpp();
-    }
+    string status = SensorManager::get_state_for_dccpp();
+#if S88_ENABLED
+    status += S88BusManager::get_state_for_dccpp();
+#endif
+    status += RemoteSensorManager::get_state_for_dccpp();
     return status;
   }
   else
@@ -656,13 +655,8 @@ DCC_PROTOCOL_COMMAND_HANDLER(S88BusCommandAdapter,
 {
   if(arguments.empty())
   {
-    string status;
     // list all sensor groups
-    for (const auto& sensorBus : s88SensorBus)
-    {
-      status += sensorBus->get_state_for_dccpp();
-    }
-    return status;
+    return S88BusManager::get_state_for_dccpp();
   }
   else
   {

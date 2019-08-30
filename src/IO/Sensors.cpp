@@ -75,7 +75,7 @@ Depending on whether the physical sensor is acting as an "event-trigger" or a
 **********************************************************************/
 
 #if ENABLE_SENSORS
-LinkedList<Sensor *> sensors([](Sensor *sensor) {delete sensor; });
+vector<unique_ptr<Sensor>> sensors;
 
 TaskHandle_t SensorManager::_taskHandle;
 OSMutex SensorManager::_lock;
@@ -96,16 +96,16 @@ void SensorManager::init()
     for(auto sensor : root[JSON_SENSORS_NODE])
     {
       string data = sensor.dump();
-      sensors.add(new Sensor(data));
+      sensors.emplace_back(new Sensor(data));
     }
   }
-  LOG(INFO, "[Sensors] Loaded %d sensors", sensors.length());
+  LOG(INFO, "[Sensors] Loaded %d sensors", sensors.size());
   xTaskCreate(sensorTask, "SensorManager", SENSOR_TASK_STACK_SIZE, NULL, SENSOR_TASK_PRIORITY, &_taskHandle);
 }
 
 void SensorManager::clear()
 {
-  sensors.free();
+  sensors.clear();
 }
 
 uint16_t SensorManager::store()
@@ -156,7 +156,7 @@ Sensor *SensorManager::getSensor(uint16_t id)
   {
     if(sensor->getID() == id && sensor->getPin() != -1)
     {
-      return sensor;
+      return sensor.get();
     }
   }
   return nullptr;
@@ -178,26 +178,22 @@ bool SensorManager::createOrUpdate(const uint16_t id, const uint8_t pin, const b
   {
     return false;
   }
-  sensors.add(new Sensor(id, pin, pullUp));
+  sensors.emplace_back(new Sensor(id, pin, pullUp));
   return true;
 }
 
 bool SensorManager::remove(const uint16_t id)
 {
   OSMutexLock l(&_lock);
-  Sensor *sensorToRemove = nullptr;
-  // check for duplicate ID or PIN
-  for (const auto& sensor : sensors)
+  auto ent = std::find_if(sensors.begin(), sensors.end(),
+  [id](const unique_ptr<Sensor> sensor)
   {
-    if(sensor->getID() == id)
-    {
-      sensorToRemove = sensor;
-    }
-  }
-  if(sensorToRemove != nullptr)
+    return sensor->getID() == id;
+  });
+  if (ent != sensors.end())
   {
-    LOG(INFO, "[Sensors] Removing Sensor(%d)", sensorToRemove->getID());
-    sensors.remove(sensorToRemove);
+    LOG(INFO, "[Sensors] Removing Sensor(%d)", (*ent)->getID());
+    sensors.erase(ent);
     return true;
   }
   return false;
@@ -205,14 +201,26 @@ bool SensorManager::remove(const uint16_t id)
 
 int8_t SensorManager::getSensorPin(const uint16_t id)
 {
-  for (const auto& sensor : sensors)
+  auto ent = std::find_if(sensors.begin(), sensors.end(),
+  [id](const unique_ptr<Sensor> sensor)
   {
-    if(sensor->getID() == id)
-    {
-      return sensor->getPin();
-    }
+    return sensor->getID() == id;
+  });
+  if (ent != sensors.end())
+  {
+    return (*ent)->getPin();
   }
   return -1;
+}
+
+string SensorManager::get_state_for_dccpp()
+{
+  string res;
+  for (const auto &sensor : sensors)
+  {
+    res += sensor->get_state_for_dccpp();
+  }
+  return res;
 }
 
 Sensor::Sensor(uint16_t sensorID, int8_t pin, bool pullUp, bool announce) : _sensorID(sensorID), _pin(pin), _pullUp(pullUp), _lastState(false)

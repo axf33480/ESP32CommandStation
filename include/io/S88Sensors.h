@@ -93,6 +93,7 @@ public:
   static bool createOrUpdateBus(const uint8_t, const uint8_t, const uint16_t);
   static bool removeBus(const uint8_t);
   static std::string getStateAsJson();
+  static std::string get_state_for_dccpp();
 private:
   static TaskHandle_t _taskHandle;
   static OSMutex _s88SensorLock;

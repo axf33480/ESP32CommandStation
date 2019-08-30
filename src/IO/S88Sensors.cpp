@@ -67,8 +67,6 @@ constexpr uint16_t S88_SENSOR_READ_TIME = 25;
 // This is the interval at which sensors will be checked
 constexpr TickType_t S88_SENSOR_CHECK_DELAY = pdMS_TO_TICKS(50);
 
-extern LinkedList<Sensor *> sensors;
-
 static constexpr const char * S88_SENSORS_JSON_FILE = "s88.json";
 
 TaskHandle_t S88BusManager::_taskHandle;
@@ -77,12 +75,7 @@ OSMutex S88BusManager::_s88SensorLock;
 static constexpr UBaseType_t S88_SENSOR_TASK_PRIORITY = 1;
 static constexpr uint32_t S88_SENSOR_TASK_STACK_SIZE = 2048;
 
-LinkedList<S88SensorBus *> s88SensorBus([](S88SensorBus *sensorBus)
-{
-  sensorBus->removeSensors(-1);
-  LOG(INFO, "[S88 Bus-%d] Removed", sensorBus->getID());
-  delete sensorBus;
-});
+vector<unique_ptr<S88SensorBus>> s88SensorBus;
 
 void S88BusManager::init()
 {
@@ -113,7 +106,7 @@ void S88BusManager::init()
 
 void S88BusManager::clear()
 {
-  s88SensorBus.free();
+  s88SensorBus.clear();
 }
 
 uint8_t S88BusManager::store()
@@ -199,24 +192,21 @@ bool S88BusManager::createOrUpdateBus(const uint8_t id, const uint8_t dataPin, c
     LOG_ERROR("[S88] Attempt to use a restricted pin: %d", dataPin);
     return false;
   }
-  s88SensorBus.add(new S88SensorBus(id, dataPin, sensorCount));
+  s88SensorBus.emplace_back(new S88SensorBus(id, dataPin, sensorCount));
   return true;
 }
 
 bool S88BusManager::removeBus(const uint8_t id)
 {
   OSMutexLock l(&_s88SensorLock);
-  S88SensorBus *sensorBusToRemove = nullptr;
-  for (const auto& sensorBus : s88SensorBus)
+  auto ent = std::find_if(s88SensorBus.begin(), s88SensorBus.end(),
+  [id](const unique_ptr<S88SensorBus> bus)
   {
-    if(sensorBus->getID() == id)
-    {
-      sensorBusToRemove = sensorBus;
-    }
-  }
-  if(sensorBusToRemove != nullptr)
+    return bus->getID() == id;
+  });
+  if (ent != s88SensorBus.end())
   {
-    s88SensorBus.remove(sensorBusToRemove);
+    s88SensorBus.erase(ent);
     return true;
   }
   return false;
@@ -232,6 +222,16 @@ string S88BusManager::getStateAsJson()
   }
   state += "]";
   return state;
+}
+
+string S88BusManager::get_state_for_dccpp()
+{
+  string res;
+  for (const auto& sensorBus : s88SensorBus)
+  {
+    res += sensorBus->get_state_for_dccpp();
+  }
+  return res;
 }
 
 S88SensorBus::S88SensorBus(const uint8_t id, const uint8_t dataPin, const uint16_t sensorCount) :
@@ -305,9 +305,7 @@ void S88SensorBus::addSensors(int16_t sensorCount)
   const uint16_t startingIndex = _sensors.size();
   for(uint8_t id = 0; id < sensorCount; id++)
   {
-    S88Sensor *newSensor = new S88Sensor(_lastSensorID++, startingIndex + id);
-    _sensors.push_back(newSensor);
-    sensors.add(newSensor);
+    _sensors.push_back(new S88Sensor(_lastSensorID++, startingIndex + id));
   }
 }
 
@@ -318,7 +316,6 @@ void S88SensorBus::removeSensors(int16_t sensorCount)
     for (const auto& sensor : _sensors)
     {
       LOG(VERBOSE, "[S88] Sensor(%d) removed", sensor->getID());
-      sensors.remove(sensor);
     }
     _sensors.clear();
   }
@@ -326,10 +323,8 @@ void S88SensorBus::removeSensors(int16_t sensorCount)
   {
     for(uint8_t id = 0; id < sensorCount; id++)
     {
-      S88Sensor *removedSensor = _sensors.back();
-      LOG(VERBOSE, "[S88] Sensor(%d) removed", removedSensor->getID());
+      LOG(VERBOSE, "[S88] Sensor(%d) removed", _sensors.back()->getID());
       _sensors.pop_back();
-      sensors.remove(removedSensor);
     }
   }
 }

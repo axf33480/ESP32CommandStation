@@ -51,6 +51,7 @@ where
 **********************************************************************/
 
 #if ENABLE_SENSORS
+// TODO: merge this into the base SensorManager code.
 
 // sanity check to ensure configuration has been setup correctly, default
 // any missing parameters
@@ -67,13 +68,7 @@ where
 #define SCAN_REMOTE_SENSORS_ON_STARTUP false
 #endif
 
-extern LinkedList<Sensor *> sensors;
-LinkedList<RemoteSensor *> remoteSensors([](RemoteSensor *sensor)
-{
-  LOG(VERBOSE, "[RemoteSensors] RemoteSensor(%d) removed", sensor->getID());
-  // NOTE: No delete is being done here as the sensors cleanup handler will
-  // handle the actual delete.
-});
+vector<unique_ptr<RemoteSensor>> remoteSensors;
 
 void RemoteSensorManager::init()
 {
@@ -118,26 +113,19 @@ void RemoteSensorManager::createOrUpdate(const uint16_t id, const uint16_t value
       return;
     }
   }
-  RemoteSensor *newSensor = new RemoteSensor(id, value);
-  remoteSensors.add(newSensor);
-  sensors.add(newSensor);
+  remoteSensors.emplace_back(new RemoteSensor(id, value));
 }
 
 bool RemoteSensorManager::remove(const uint16_t id)
 {
   RemoteSensor *sensorToRemove = nullptr;
-  // check for duplicate ID or PIN
-  for (const auto& sensor : remoteSensors)
+  auto ent = std::find_if(remoteSensors.begin(), remoteSensors.end(),
+  [id](const unique_ptr<RemoteSensor> sensor){
+    return sensor->getID() == id;
+  });
+  if (ent != remoteSensors.end())
   {
-    if(sensor->getRawID() == id)
-    {
-      sensorToRemove = sensor;
-    }
-  }
-  if(sensorToRemove != nullptr)
-  {
-    remoteSensors.remove(sensorToRemove);
-    sensors.remove(sensorToRemove);
+    remoteSensors.erase(ent);
     return true;
   }
   return false;
@@ -157,7 +145,7 @@ string RemoteSensorManager::getStateAsJson()
 
 string RemoteSensorManager::get_state_for_dccpp()
 {
-  if (remoteSensors.isEmpty())
+  if (remoteSensors.empty())
   {
     return COMMAND_FAILED_RESPONSE;
   }
