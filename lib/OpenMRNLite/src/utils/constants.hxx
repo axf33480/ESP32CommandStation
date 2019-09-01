@@ -94,7 +94,7 @@
 #else  // native C
 
 #define DECLARE_CONST(name)                                                    \
-    EXTERNC extern void _sym_##name(void);                                     \
+    EXTERNC extern char _sym_##name;                                           \
     EXTERNCEND typedef unsigned char                                           \
     _do_not_add_declare_and_default_const_to_the_same_file_for_##name;         \
     static inline ptrdiff_t config_##name(void)                                \
@@ -115,25 +115,25 @@
 
 #endif // native C
 
-/// We cannot compare constants to zero, so we use 4 and 8 as constant values
+/// We cannot compare constants to zero, so we use 1 and 2 as constant values
 /// for booleans.
-#define CONSTANT_TRUE 4
-/// We cannot compare constants to zero, so we use 4 and 8 as constant values
+#define CONSTANT_TRUE 1
+/// We cannot compare constants to zero, so we use 1 and 2 as constant values
 /// for booleans.
-#define CONSTANT_FALSE 8
+#define CONSTANT_FALSE 2
 
 /// Sets the default value of a boolean constant to true.
 /// @param name is the name of the constant to set.
-#define DEFAULT_CONST_TRUE(name) DEFAULT_CONST(name, 4)
+#define DEFAULT_CONST_TRUE(name) DEFAULT_CONST(name, 1)
 /// Sets the default value of a boolean constant to false.
 /// @param name is the name of the constant to set.
-#define DEFAULT_CONST_FALSE(name) DEFAULT_CONST(name, 8)
+#define DEFAULT_CONST_FALSE(name) DEFAULT_CONST(name, 2)
 
 /// Overrides the value of a boolean constant to true.
 /// @param name is the name of the constant to set.
-#define OVERRIDE_CONST_TRUE(name) OVERRIDE_CONST(name, 4)
+#define OVERRIDE_CONST_TRUE(name) OVERRIDE_CONST(name, 1)
 /// Overrides the value of a boolean constant to false.
 /// @param name is the name of the constant to set.
-#define OVERRIDE_CONST_FALSE(name) OVERRIDE_CONST(name, 8)
+#define OVERRIDE_CONST_FALSE(name) OVERRIDE_CONST(name, 2)
 
 #endif // _UTILS_CONSTANTS_HXX_
