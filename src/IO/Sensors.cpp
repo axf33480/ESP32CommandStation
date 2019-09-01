@@ -152,41 +152,45 @@ string SensorManager::getStateAsJson()
 
 Sensor *SensorManager::getSensor(uint16_t id)
 {
-  for (const auto& sensor : sensors)
+  OSMutexLock l(&_lock);
+  const auto & ent = std::find_if(sensors.begin(), sensors.end(),
+  [id](unique_ptr<Sensor> & sensor) -> bool
   {
-    if(sensor->getID() == id && sensor->getPin() != -1)
-    {
-      return sensor.get();
-    }
+    return sensor->getID() == id;
+  });
+  if (ent != sensors.end())
+  {
+    return ent->get();
   }
   return nullptr;
 }
 
 bool SensorManager::createOrUpdate(const uint16_t id, const uint8_t pin, const bool pullUp)
 {
-  OSMutexLock l(&_lock);
-  // check for duplicate ID or PIN
-  for (const auto& sensor : sensors)
-  {
-    if(sensor->getID() == id)
-    {
-      sensor->update(pin, pullUp);
-      return true;
-    }
-  }
   if(is_restricted_pin(pin))
   {
     return false;
   }
-  sensors.emplace_back(new Sensor(id, pin, pullUp));
+  auto sens = getSensor(id);
+  if (sens)
+  {
+    OSMutexLock l(&_lock);
+    sens->update(pin, pullUp);
+    return true;
+  }
+  // add the new sensor
+  {
+    OSMutexLock l(&_lock);
+    sensors.emplace_back(new Sensor(id, pin, pullUp));
+  }
   return true;
 }
 
 bool SensorManager::remove(const uint16_t id)
 {
   OSMutexLock l(&_lock);
-  auto ent = std::find_if(sensors.begin(), sensors.end(),
-  [id](const unique_ptr<Sensor> sensor)
+  const auto & ent = std::find_if(sensors.begin(), sensors.end(),
+  [id](unique_ptr<Sensor> & sensor) -> bool
   {
     return sensor->getID() == id;
   });
@@ -201,14 +205,10 @@ bool SensorManager::remove(const uint16_t id)
 
 int8_t SensorManager::getSensorPin(const uint16_t id)
 {
-  auto ent = std::find_if(sensors.begin(), sensors.end(),
-  [id](const unique_ptr<Sensor> sensor)
+  auto sens = getSensor(id);
+  if (sens)
   {
-    return sensor->getID() == id;
-  });
-  if (ent != sensors.end())
-  {
-    return (*ent)->getPin();
+    return sens->getPin();
   }
   return -1;
 }

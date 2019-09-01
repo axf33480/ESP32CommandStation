@@ -118,9 +118,9 @@ void RemoteSensorManager::createOrUpdate(const uint16_t id, const uint16_t value
 
 bool RemoteSensorManager::remove(const uint16_t id)
 {
-  RemoteSensor *sensorToRemove = nullptr;
   auto ent = std::find_if(remoteSensors.begin(), remoteSensors.end(),
-  [id](const unique_ptr<RemoteSensor> sensor){
+  [id](unique_ptr<RemoteSensor> & sensor) -> bool
+  {
     return sensor->getID() == id;
   });
   if (ent != remoteSensors.end())

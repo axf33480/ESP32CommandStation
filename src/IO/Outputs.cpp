@@ -149,8 +149,8 @@ string OutputManager::set(uint16_t id, bool active)
 
 Output *OutputManager::getOutput(uint16_t id)
 {
-  auto ent = std::find_if(outputs.begin(), outputs.end(),
-  [id](const unique_ptr<Output> output) -> bool
+  auto const &ent = std::find_if(outputs.begin(), outputs.end(),
+  [id](unique_ptr<Output> & output) -> bool
   {
     return output->getID() == id;
   });
@@ -214,8 +214,8 @@ bool OutputManager::createOrUpdate(const uint16_t id, const uint8_t pin, const u
 
 bool OutputManager::remove(const uint16_t id)
 {
-  auto ent = std::find_if(outputs.begin(), outputs.end(),
-  [id](const unique_ptr<Output> output) -> bool
+  const auto & ent = std::find_if(outputs.begin(), outputs.end(),
+  [id](unique_ptr<Output> & output) -> bool
   {
     return output->getID() == id;
   });

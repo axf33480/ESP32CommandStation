@@ -199,8 +199,8 @@ bool S88BusManager::createOrUpdateBus(const uint8_t id, const uint8_t dataPin, c
 bool S88BusManager::removeBus(const uint8_t id)
 {
   OSMutexLock l(&_s88SensorLock);
-  auto ent = std::find_if(s88SensorBus.begin(), s88SensorBus.end(),
-  [id](const unique_ptr<S88SensorBus> bus)
+  const auto & ent = std::find_if(s88SensorBus.begin(), s88SensorBus.end(),
+  [id](unique_ptr<S88SensorBus> & bus) -> bool
   {
     return bus->getID() == id;
   });
