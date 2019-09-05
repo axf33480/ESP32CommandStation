@@ -11,10 +11,6 @@ jobs:
       matrix:
         target: [esp32, pcb, pcb_oled_sh1106, pcb_oled_ssd1306, pcb_lcd_20x4, pcb_lcd_16x2]
     steps:
-    - name: Dump matrix context
-      env:
-        MATRIX_CONTEXT: ${{ toJson(matrix) }}
-      run: echo "$MATRIX_CONTEXT"
     - uses: actions/checkout@v1
     - name: Install Python Wheel
       run: pip install wheel
@@ -24,8 +20,8 @@ jobs:
       run: python -m platformio platform install https://github.com/platformio/platform-espressif32.git#feature/stage
     - name: Compile
       run: |
-        mkdir build
         python -m platformio run -e ${{ matrix.target }}
+        mkdir build
         cp .pio/build/${{ matrix.target }}/firmware.bin build/${{ matrix.target }}.bin
     - name: Package binaries
       uses: actions/upload-artifact@v1
