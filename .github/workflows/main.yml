@@ -1,7 +1,6 @@
-name: Test Build
+name: Build
 
 on: [push, pull_request]
-
 
 jobs:
   build:
@@ -10,7 +9,6 @@ jobs:
       max-parallel: 2
       matrix:
         target: [esp32, pcb, pcb_oled_sh1106, pcb_oled_ssd1306, pcb_lcd_20x4, pcb_lcd_16x2]
-    name: Build (${{ matrix.target }})
     steps:
     - uses: actions/checkout@v1
     - name: Install Python Wheel
