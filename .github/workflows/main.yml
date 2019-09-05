@@ -4,25 +4,12 @@ on: [push, pull_request]
 
 jobs:
   build:
-    name: Build using PIO env ${{ matrix.target }}
+    name: Build ${{ matrix.target }}
     runs-on: ubuntu-latest
     strategy:
       max-parallel: 2
       matrix:
-        os: [esp32, pcb, pcb_oled_sh1106, pcb_oled_ssd1306, pcb_lcd_20x4, pcb_lcd_16x2]
-        include:
-          - os: esp32
-            target: esp32
-          - os: pcb
-            target: pcb
-          - os: pcb_oled_sh1106
-            target: pcb_oled_sh1106
-          - os: pcb_oled_ssd1306
-            target: pcb_oled_ssd1306
-          - os: pcb_lcd_20x4
-            target: pcb_lcd_20x4
-          - os: pcb_lcd_16x2
-            target: pcb_lcd_16x2
+        target: [esp32, pcb, pcb_oled_sh1106, pcb_oled_ssd1306, pcb_lcd_20x4, pcb_lcd_16x2]
     steps:
     - name: Dump matrix context
       env:
