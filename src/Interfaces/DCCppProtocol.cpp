@@ -174,8 +174,9 @@ DECLARE_DCC_PROTOCOL_COMMAND_CLASS(StatusCommand, "s")
 DCC_PROTOCOL_COMMAND_HANDLER(StatusCommand,
 [](const vector<string> arguments)
 {
-  string status = StringPrintf("<iDCC++ ESP32 Command Station: V-%s / %s %s>"
-                , ESP32CS_VERSION
+  string status = StringPrintf("<iDCC++ %s: V-%s / %s %s>"
+                , PROJECT_NAME
+                , PROJECT_VER
                 , __DATE__
                 , __TIME__);
   status += trackSignal->get_state_for_dccpp();

@@ -1194,7 +1194,7 @@ void ESP32CSWebServer::notFoundHandler(AsyncWebServerRequest *request)
             , request->url().c_str());
           SEND_HTML_RESPONSE(request, STATUS_OK,
                         StringPrintf(CAPTIVE_PORTAL_HTML
-                                   , ESP32CS_VERSION
+                                   , PROJECT_VER
                                    , softAPAddress_.c_str()
                                    , softAPAddress_.c_str()
                         ).c_str())

@@ -74,7 +74,7 @@ void InfoScreen::replaceLine(int row, const std::string &format, ...)
 StateFlowBase::Action InfoScreen::init()
 {
 #if INFO_SCREEN_ENABLED
-  replaceLine(INFO_SCREEN_STATION_INFO_LINE, "ESP32-CS: v%s", ESP32CS_VERSION);
+  replaceLine(INFO_SCREEN_STATION_INFO_LINE, "ESP32-CS: v%s", PROJECT_VER);
   replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Starting Up");
 
   LOG(INFO, "[InfoScreen] Detecting display...");

@@ -123,7 +123,7 @@ public:
 protected:
   void init() override
   {
-    _versionText.setText(ESP32CS_VERSION);
+    _versionText.setText(PROJECT_VER);
   }
   void displayPage() override {}
 private:
@@ -292,7 +292,7 @@ protected:
   void init() override {}
   void displayPage() override
   {
-    _versionText.setText(ESP32CS_VERSION);
+    _versionText.setText(PROJECT_VER);
     _ssidText.setText(SSID_NAME);
     tcpip_adapter_ip_info_t ip;
     tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_STA, &ip);

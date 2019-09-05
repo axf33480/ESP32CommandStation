@@ -83,9 +83,9 @@ namespace openlcb {
   const SimpleNodeStaticValues SNIP_STATIC_DATA = {
     4,
     "github.com/atanisoft (Mike Dunston)",
-    "ESP32 Command Station",
+    PROJECT_NAME,
     "ESP32-v1",
-    ESP32CS_VERSION
+    PROJECT_VER
   };
 }
 
@@ -156,7 +156,7 @@ extern "C" void app_main()
   uart_param_config(UART_NUM_0, &uart0);
   uart_driver_install(UART_NUM_0, 1024, 1024, 0, NULL, 0);
 
-  LOG(INFO, "\n\nESP32 Command Station v%s starting up...", ESP32CS_VERSION);
+  LOG(INFO, "\n\n%s v%s starting up...", PROJECT_NAME, PROJECT_VER);
   LOG(INFO, "ESP32 Command Station uses the OpenMRN library\n"
             "Copyright (c) 2019, OpenMRN\nAll rights reserved.");
 
