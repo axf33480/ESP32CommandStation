@@ -6,7 +6,6 @@ jobs:
   build:
     name: Build on PlatformIO
     runs-on: ubuntu-latest
-    
     steps:
     - uses: actions/checkout@v1
     - name: Install Python Wheel
@@ -18,12 +17,59 @@ jobs:
     - name: Compile Base
       run: python -m platformio run
     - name: Compile PCB
-      run: python -m platformio run -e pcb
+      run: |
+        python -m platformio run -e pcb
+        mv .pio/build/pcb/firmware.bin .pio/build/pcb/pcb-no-opts.bin
     - name: Compile PCB (OLED sh1106)
-      run: python -m platformio run -e pcb_oled_sh1106
+      run: |
+        python -m platformio run -e pcb_oled_sh1106
+        mv .pio/build/pcb_oled_sh1106/firmware.bin .pio/build/pcb-oled-sh1106.bin
     - name: Compile PCB (OLED ssd1306)
-      run: python -m platformio run -e pcb_oled_ssd1306
+      run: |
+        python -m platformio run -e pcb_oled_ssd1306
+        mv .pio/build/pcb_oled_ssd1306/firmware.bin .pio/build/pcb-oled-ssd1306.bin
     - name: Compile PCB (LCD 16x2)
-      run: python -m platformio run -e pcb_lcd_16x2
+      run: |
+        python -m platformio run -e pcb_lcd_16x2
+        mv .pio/build/pcb_lcd_16x2/firmware.bin .pio/build/pcb-lcd-16x2.bin
     - name: Compile PCB (LCD 20x4)
-      run: python -m platformio run -e pcb_lcd_20x4
+      run: |
+        python -m platformio run -e pcb_lcd_20x4
+        mv .pio/build/pcb_lcd_20x4/firmware.bin .pio/build/pcb-lcd-20x4.bin
+    - name: Package binaries (PCB no options)
+      uses: actions/upload-artifact@v1
+      with:
+        name: pcb-no-opts
+        path: .pio/build/pcb-no-opts.bin
+      if: success() && (github.event_name != 'pull_request')
+    - name: Package binaries (PCB + OLED sh1106)
+      uses: actions/upload-artifact@v1
+      with:
+        name: pcb-oled-sh1106
+        path: .pio/build/pcb-oled-sh1106.bin
+      if: success() && (github.event_name != 'pull_request')
+    - name: Package binaries (PCB + OLED ssd1306)
+      uses: actions/upload-artifact@v1
+      with:
+        name: pcb-oled-ssd1306
+        path: .pio/build/pcb-oled-ssd1306.bin
+      if: success() && (github.event_name != 'pull_request')
+    - name: Package binaries (PCB LCD 16x2)
+      uses: actions/upload-artifact@v1
+      with:
+        name: pcb-lcd-16x2
+        path: .pio/build/pcb-lcd-16x2.bin
+      if: success() && (github.event_name != 'pull_request')
+    - name: Package binaries (PCB LCD 20x4)
+      uses: actions/upload-artifact@v1
+      with:
+        name: pcb-lcd-20x4
+        path: .pio/build/pcb-lcd-20x4.bin
+      if: success() && (github.event_name != 'pull_request')
+    - name: Upload Binaries
+      uses: docker://softprops/action-gh-release
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: .pio/build/*.bin
+      env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
