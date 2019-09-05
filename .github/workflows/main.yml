@@ -8,7 +8,7 @@ jobs:
     strategy:
       max-parallel: 2
       matrix:
-        os: [esp32, pcb, pcb_oled_sh1106, pcb_oled_ssd1306, pcb_lcd_20x4, pcb_lcd_16x2]
+        target: [esp32, pcb, pcb_oled_sh1106, pcb_oled_ssd1306, pcb_lcd_20x4, pcb_lcd_16x2]
     steps:
     - uses: actions/checkout@v1
     - name: Install Python Wheel
@@ -20,18 +20,18 @@ jobs:
     - name: Compile
       run: |
         mkdir build
-        python -m platformio run -e ${{ matrix.os }}
-        cp .pio/build/${{ matrix.os }}/firmware.bin build/${{ matrix.os }}.bin
+        python -m platformio run -e ${{ strategy.matrix.target }}
+        cp .pio/build/${{ strategy.matrix.target }}/firmware.bin build/${{ strategy.matrix.target }}.bin
     - name: Package binaries
       uses: actions/upload-artifact@v1
       with:
-        name: ${{ matrix.os }}
-        path: build/${{ matrix.os }}.bin
-      if: success() && (github.event_name != 'pull_request') && (${{ matrix.os }} != 'esp32')
+        name: ${{ strategy.matrix.target }}
+        path: build/${{ strategy.matrix.target }}.bin
+      if: success() && (github.event_name != 'pull_request') && (${{ strategy.matrix.target }} != 'esp32')
     - name: Upload Binaries
       uses: docker://softprops/action-gh-release
-      if: success() && startsWith(github.ref, 'refs/tags/') && (${{ matrix.os }} != 'esp32')
+      if: success() && startsWith(github.ref, 'refs/tags/') && (${{ strategy.matrix.target }} != 'esp32')
       with:
-        files: build/${{ matrix.os }}.bin
+        files: build/${{ strategy.matrix.target }}.bin
       env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
