@@ -4,6 +4,7 @@ on: [push, pull_request]
 
 jobs:
   build:
+    name: Build using PIO env ${{ matrix.target }}
     runs-on: ubuntu-latest
     strategy:
       max-parallel: 2
@@ -23,6 +24,10 @@ jobs:
           - os: pcb_lcd_16x2
             target: pcb_lcd_16x2
     steps:
+    - name: Dump matrix context
+      env:
+        MATRIX_CONTEXT: ${{ toJson(matrix) }}
+      run: echo "$MATRIX_CONTEXT"
     - uses: actions/checkout@v1
     - name: Install Python Wheel
       run: pip install wheel
