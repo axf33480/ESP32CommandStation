@@ -2,13 +2,13 @@ name: Test Build
 
 on: [push, pull_request]
 
-strategy:
-  matrix:
-    env: [esp32, pcb, pcb_oled_sh1106, pcb_oled_ssd1306, pcb_lcd_20x4, pcb_lcd_16x2]
 
 jobs:
   build:
-    name: Build (${{ matrix.env }})
+    strategy:
+      matrix:
+        env: [esp32, pcb, pcb_oled_sh1106, pcb_oled_ssd1306, pcb_lcd_20x4, pcb_lcd_16x2]
+    name: Build
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v1
