@@ -61,3 +61,5 @@ def process_all(sourceDirectory, outputDirectory):
            os.path.join(outputDirectory, 'jq_clock.h'), 'jqClockGz')
   embed(os.path.join(sourceDirectory, 'ajax-loader.gif'),
         os.path.join(outputDirectory, 'ajax_loader.h'), 'ajaxLoader')
+  embed(os.path.join(sourceDirectory, 'loco-32x32.png'),
+        os.path.join(outputDirectory, 'loco_32x32.h'), 'loco32x32')
