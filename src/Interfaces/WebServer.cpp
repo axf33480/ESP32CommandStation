@@ -19,6 +19,8 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 #include "interfaces/CaptivePortalDNSD.h"
 
+#include "interfaces/httpd/Httpd.h"
+
 // generated web content
 #include "generated/index_html.h"
 #include "generated/jquery_min_js.h"
@@ -27,10 +29,12 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #include "generated/jquery_simple_websocket.h"
 #include "generated/jq_clock.h"
 #include "generated/ajax_loader.h"
+#include "generated/loco_32x32.h"
 
 AsyncWebServer webServer(80);
 unique_ptr<CaptivePortalDNSD> dnsServer;
 AsyncWebSocket webSocket("/ws");
+unique_ptr<esp32cs::httpd::Httpd> httpd;
 
 static constexpr const char * const APPLICATION_JSON_TYPE = "application/json";
 
@@ -264,8 +268,54 @@ ota_failure:
   Singleton<OTAMonitorFlow>::instance()->report_failure(res);
 }
 
+using esp32cs::httpd::Httpd;
+using esp32cs::httpd::HttpRequest;
+using esp32cs::httpd::AbstractHttpResponse;
+using esp32cs::httpd::StringResponse;
+using esp32cs::httpd::MIME_TYPE_TEXT_HTML;
+using esp32cs::httpd::MIME_TYPE_TEXT_CSS;
+using esp32cs::httpd::MIME_TYPE_IMAGE_PNG;
+using esp32cs::httpd::MIME_TYPE_IMAGE_GIF;
+using esp32cs::httpd::MIME_TYPE_TEXT_JAVASCRIPT;
+using esp32cs::httpd::MIME_TYPE_APPLICATION_JSON;
+using esp32cs::httpd::HTTP_ENCODING_GZIP;
+
 void ESP32CSWebServer::begin()
 {
+  httpd.reset(new Httpd(81));
+  httpd->register_redirected_uri("/", "/index.html");
+  httpd->register_static_uri("/index.html", indexHtmlGz
+                           , indexHtmlGz_size, MIME_TYPE_TEXT_HTML
+                           , HTTP_ENCODING_GZIP);
+  httpd->register_static_uri("/loco-32x32.png", loco32x32
+                           , loco32x32_size, MIME_TYPE_IMAGE_PNG);
+  httpd->register_static_uri("/jquery.min.js", jqueryJsGz
+                           , jqueryJsGz_size, MIME_TYPE_TEXT_JAVASCRIPT
+                           , HTTP_ENCODING_GZIP);
+  httpd->register_static_uri("/jquery.mobile-1.5.0-rc1.min.js"
+                           , jqueryMobileJsGz, jqueryMobileJsGz_size
+                           , MIME_TYPE_TEXT_JAVASCRIPT
+                           , HTTP_ENCODING_GZIP);
+  httpd->register_static_uri("/jquery.mobile-1.5.0-rc1.min.css"
+                           , jqueryMobileCssGz, jqueryMobileCssGz_size
+                           , MIME_TYPE_TEXT_CSS, HTTP_ENCODING_GZIP);
+  httpd->register_static_uri("/jquery.simple.websocket.min.js"
+                           , jquerySimpleWebSocketGz
+                           , jquerySimpleWebSocketGz_size
+                           , MIME_TYPE_TEXT_JAVASCRIPT, HTTP_ENCODING_GZIP);
+  httpd->register_static_uri("/jqClock-lite.min.js", jqClockGz
+                           , jqClockGz_size, MIME_TYPE_TEXT_JAVASCRIPT
+                           , HTTP_ENCODING_GZIP);
+  httpd->register_static_uri("/images/ajax-loader.gif", ajaxLoader
+                           , ajaxLoader_size, MIME_TYPE_IMAGE_GIF);
+  httpd->register_uri("/features"
+    , [&](const HttpRequest *req, shared_ptr<AbstractHttpResponse> &response
+        , uint8_t *data, uint32_t len, uint32_t offs)
+  {
+    response = std::make_shared<StringResponse>(configStore->getCSFeatures()
+                                              , MIME_TYPE_APPLICATION_JSON);
+  });
+
   if (configStore->isAPEnabled())
   {
     LOG(INFO, "[WebSrv] SoftAP mode enabled, starting DNS server");
@@ -283,6 +333,7 @@ void ESP32CSWebServer::begin()
   BUILTIN_URI("/jquery.simple.websocket.min.js")
   BUILTIN_URI("/jqClock-lite.min.js")
   BUILTIN_URI("/images/ajax-loader.gif")
+  BUILTIN_URI("/loco-32x32.png")
   BUILTIN_URI("/index.html")
 
   GET_URI("/features", handleFeatures)
@@ -1092,6 +1143,8 @@ void ESP32CSWebServer::streamResource(AsyncWebServerRequest *request)
   {
     STREAM_RESOURCE_NO_REDIRECT(request, "/index.html", "text/html"
                               , indexHtmlGz_size, indexHtmlGz)
+    STREAM_RESOURCE_NO_REDIRECT(request, "/loco-32x32.png", "image/png"
+                              , loco32x32_size, loco32x32)
     STREAM_RESOURCE(request, "/jquery.min.js"
                   , "https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"
                   , "text/javascript", jqueryJsGz_size, jqueryJsGz)

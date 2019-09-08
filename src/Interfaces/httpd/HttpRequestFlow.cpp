@@ -1,0 +1,360 @@
+/**********************************************************************
+ESP32 COMMAND STATION
+
+COPYRIGHT (c) 2019 Mike Dunston
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see http://www.gnu.org/licenses
+**********************************************************************/
+
+#include "ESP32CommandStation.h"
+#include "interfaces/httpd/Httpd.h"
+
+namespace esp32cs
+{
+namespace httpd
+{
+
+HttpdRequestFlow::HttpdRequestFlow(Httpd *server, int fd)
+  : StateFlowBase(server), server_(server), fd_(fd)
+{
+  struct timeval tm;
+  tm.tv_sec = 0;
+  tm.tv_usec = MSEC_TO_USEC(config_httpd_socket_receive_timeout_ms());
+  ERRNOCHECK("setsockopt_timeout",
+      setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tm, sizeof(tm)));
+
+  start_flow(STATE(start_request));
+  LOG(VERBOSE, "[Httpd fd:%d] Connected.", fd_);
+}
+
+HttpdRequestFlow::~HttpdRequestFlow()
+{
+  req_.reset();
+  if (close_)
+  {
+    LOG(VERBOSE, "[Httpd fd:%d] Closed", fd_);
+    ::close(fd_);
+  }
+}
+
+StateFlowBase::Action HttpdRequestFlow::start_request()
+{
+  LOG(VERBOSE, "[Httpd fd:%d] reading header", fd_);
+  req_.reset();
+  raw_header_.assign("");
+  start_time_ = esp_timer_get_time();
+  buf_.resize(config_httpd_header_chunk_size());
+  return read_repeated_with_timeout(&helper_
+                                  , MSEC_TO_NSEC(config_httpd_req_timeout_ms())
+                                  , fd_, buf_.data()
+                                  , config_httpd_header_chunk_size()
+                                  , STATE(parse_header_data));
+}
+
+StateFlowBase::Action HttpdRequestFlow::parse_header_data()
+{
+  if (helper_.hasError_)
+  {
+    req_.set_error();
+    return call_immediately(STATE(request_complete));
+  }
+  else if (helper_.remaining_ == config_httpd_header_chunk_size())
+  {
+    return call_immediately(STATE(read_more_data));
+  }
+
+  raw_header_.append((char *)buf_.data()
+                    , config_httpd_header_chunk_size() - helper_.remaining_);
+
+  // if we don't have an EOL string in the data yet, get more data
+  if (raw_header_.find(HTML_EOL) == string::npos)
+  {
+    return call_immediately(STATE(read_more_data));
+  }
+
+  // parse the data we have into delimited lines of header data, this will
+  // leave some data in the raw_header_ which will need to be pushed back
+  // into the buf_ after we reach the body segment.
+  vector<string> lines;
+  size_t parsed = tokenize(raw_header_, lines, HTML_EOL, false);
+
+  // drop whatever has been tokenized so we don't process it again
+  raw_header_.erase(0, parsed);
+
+  // the first line is always the request line
+  if (!req_.is_valid())
+  {
+    vector<string> request;
+    tokenize(lines[0], request, " ");
+    if (request.size() != 3)
+    {
+      req_.set_error();
+      LOG_ERROR("[Httpd fd:%d] Malformed request: %s.", fd_
+              , lines[0].c_str());
+      res_.reset(new AbstractHttpResponse(HTTP_STATUS_CODE::STATUS_BAD_REQUEST));
+      return call_immediately(STATE(send_response_headers));
+    }
+    req_.set_method(request[0]);
+    vector<string> uri_parts;
+    tokenize(request[1], uri_parts, "?");
+    req_.set_uri(uri_parts[0]);
+    uri_parts.erase(uri_parts.begin());
+    for (string &part : uri_parts)
+    {
+      vector<string> params;
+      tokenize(part, params, "&");
+      for (auto param : params)
+      {
+        req_.add_param(break_string(param, "="));
+      }
+    }
+    if (server_->is_request_too_large(&req_))
+    {
+      LOG_ERROR("[Httpd fd:%d,uri:%s] Request body is too large (%d bytes), "
+                "aborting with status 400", fd_, req_.get_uri().c_str()
+              , req_.get_header_uint32(HTTP_HEADER_CONTENT_LENGTH));
+      res_.reset(new AbstractHttpResponse(HTTP_STATUS_CODE::STATUS_BAD_REQUEST));
+      return call_immediately(STATE(send_response_headers));
+    }
+    else if (!server_->is_known_uri(&req_))
+    {
+      LOG_ERROR("[Httpd fd:%d,uri:%s] Unknown URI, sending 404", fd_
+              , req_.get_uri().c_str());
+      res_.reset(new UriNotFoundResponse(req_.get_uri()));
+      return call_immediately(STATE(send_response_headers));
+    }
+
+    // remove the first line since we processed it
+    lines.erase(lines.begin());
+  }
+
+  // process any remaining lines as headers until we reach a blank line
+  for (auto &line : lines)
+  {
+    // check if we have reached a blank line, this is immediately after the
+    // last header in the request.
+    if (line.empty())
+    {
+      return call_immediately(STATE(process_request));
+    }
+    else
+    {
+      // it appears to be a header entry, break it and store it in the request
+      req_.add_header(break_string(line, ": "));
+    }
+  }
+
+  return call_immediately(STATE(read_more_data));
+}
+
+StateFlowBase::Action HttpdRequestFlow::process_request()
+{
+  LOG(VERBOSE, "[Httpd fd:%d] req:%s", fd_, req_.to_string().c_str());
+
+  // if it is a PUT or POST and there is a content-length header we need to
+  // read the body of the message in chunks and pass it off to the request
+  // handler.
+  if ((!req_.get_method().compare(HTTP_METHOD_POST) ||
+       !req_.get_method().compare(HTTP_METHOD_PUT)) &&
+      req_.get_header_uint32(HTTP_HEADER_CONTENT_LENGTH))
+  {
+    // resize the buffer for max chunk size
+    buf_.resize(config_httpd_body_chunk_size());
+    buf_.clear();
+
+    // extract the body length from the content length header
+    body_len_ = req_.get_header_uint32(HTTP_HEADER_CONTENT_LENGTH);
+    size_t requested_size = config_httpd_body_chunk_size();
+    if (body_len_ < requested_size)
+    {
+      body_len_ = requested_size;
+    }
+    if (!raw_header_.empty())
+    {
+      size_t offs = raw_header_.length();
+      // we have some of the body already read in
+      requested_size -= offs;
+      // move the raw unparsed header bits back to the buffer
+      std::move(raw_header_.begin(), raw_header_.end()
+              , std::back_inserter(buf_));
+      // we have received the entire body already, start processing it
+      if (requested_size <= 0)
+      {
+        return call_immediately(STATE(process_body_chunk));
+      }
+      // we don't have the payload, try to get more data before processing
+      return read_repeated_with_timeout(&helper_
+                                      , MSEC_TO_NSEC(config_httpd_req_timeout_ms())
+                                      , fd_, buf_.data() + offs, requested_size
+                                      , STATE(process_body_chunk));
+    }
+    // read the payload and process it in chunks
+    return read_repeated_with_timeout(&helper_
+                                    , MSEC_TO_NSEC(config_httpd_req_timeout_ms())
+                                    , fd_, buf_.data(), requested_size
+                                    , STATE(process_body_chunk));
+  }
+  else if (server_->can_send_known_response(req_.get_uri()))
+  {
+    res_ = server_->get_known_response(req_.get_uri());
+    LOG(VERBOSE, "[Httpd fd:%d,uri:%s] Sending known response (%d bytes)", fd_
+      , req_.get_uri().c_str(), res_->get_body_length());
+  }
+  else
+  {
+    RequestProcessor handler = server_->get_handler_for_uri(req_.get_uri());
+    handler(&req_, res_, nullptr, 0, 0);
+  }
+
+  return call_immediately(STATE(send_response_headers));
+}
+
+StateFlowBase::Action HttpdRequestFlow::read_more_data()
+{
+  // we need more data to parse the request
+  LOG(VERBOSE, "[Httpd fd:%d] Requesting more data to process request", fd_);
+  return read_repeated_with_timeout(&helper_
+                              , MSEC_TO_NSEC(config_httpd_req_timeout_ms())
+                              , fd_, buf_.data()
+                              , config_httpd_header_chunk_size()
+                              , STATE(parse_header_data));
+}
+
+StateFlowBase::Action HttpdRequestFlow::process_body_chunk()
+{
+  RequestProcessor handler = server_->get_handler_for_uri(req_.get_uri());
+  if (helper_.hasError_)
+  {
+    req_.set_error();
+    return call_immediately(STATE(request_complete));
+  }
+  body_offs_ += config_httpd_body_chunk_size() - helper_.remaining_;
+  handler(&req_, res_, buf_.data(), body_offs_, body_len_);
+  if (body_offs_ < body_len_)
+  {
+    size_t requested_size = config_httpd_body_chunk_size();
+    if ((body_len_ - body_offs_) < requested_size)
+    {
+      requested_size = body_len_ - body_offs_;
+    }
+    return read_repeated_with_timeout(&helper_
+                                    , MSEC_TO_NSEC(config_httpd_req_timeout_ms())
+                                    , fd_, buf_.data(), requested_size
+                                    , STATE(process_body_chunk));
+  }
+  return call_immediately(STATE(send_response_headers));
+}
+
+StateFlowBase::Action HttpdRequestFlow::send_response_headers()
+{
+  if (!res_)
+  {
+    LOG_ERROR("[Httpd fd:%d] No response created, terminating request", fd_);
+    return call_immediately(STATE(request_complete));
+  }
+  size_t len = 0;
+  bool keep_alive = req_.keep_alive() &&
+                    req_count_ < config_httpd_max_req_per_connection();
+  uint8_t * payload = res_->get_headers(&len, keep_alive);
+  LOG(VERBOSE, "[Httpd fd:%d,uri:%s] Sending %d bytes", fd_
+    , req_.get_uri().c_str(), len);
+  return write_repeated(&helper_, fd_, payload, len
+                      , STATE(send_response_body));
+}
+
+StateFlowBase::Action HttpdRequestFlow::send_response_body()
+{
+  if (!req_.get_method().compare(HTTP_METHOD_HEAD))
+  {
+    LOG(VERBOSE, "[Httpd fd:%d,uri:%s] HEAD request, no body required", fd_
+      , req_.get_uri().c_str());
+  }
+  else if (res_->get_body_length())
+  {
+    // check if we can send the entire response in one call or not.
+    if (res_->get_body_length() > config_httpd_response_chunk_size())
+    {
+      LOG(VERBOSE, "[Httpd fd:%d,uri:%s] Converting to chunked response", fd_
+        , req_.get_uri().c_str());
+      response_body_offs_ = 0;
+      LOG(VERBOSE, "[Httpd fd:%d,uri:%s] Sending [%d-%d/%d]", fd_
+        , req_.get_uri().c_str(), response_body_offs_
+        , config_httpd_response_chunk_size(), res_->get_body_length());
+      return write_repeated(&helper_, fd_, res_->get_body()
+                          , config_httpd_response_chunk_size()
+                          , STATE(send_response_body_split));
+    }
+
+    LOG(VERBOSE, "[Httpd fd:%d,uri:%s] Sending %d bytes", fd_
+      , req_.get_uri().c_str(), res_->get_body_length());
+    return write_repeated(&helper_, fd_, res_->get_body()
+                        , res_->get_body_length(), STATE(request_complete));
+  }
+  return call_immediately(STATE(request_complete));
+}
+
+StateFlowBase::Action HttpdRequestFlow::send_response_body_split()
+{
+  // check if there has been an error and abort if needed
+  if (helper_.hasError_)
+  {
+    LOG(WARNING, "[Httpd fd:%d,uri:%s] Error reported during write", fd_
+      , req_.get_uri().c_str());
+    req_.set_error();
+    return call_immediately(STATE(request_complete));
+  }
+  response_body_offs_ += (config_httpd_response_chunk_size() - helper_.remaining_);
+  if (response_body_offs_ >= res_->get_body_length())
+  {
+    // the body has been sent fully
+    return call_immediately(STATE(request_complete));
+  }
+  size_t remaining = res_->get_body_length() - response_body_offs_;
+  if (remaining > config_httpd_response_chunk_size())
+  {
+    remaining = config_httpd_response_chunk_size();
+  }
+  LOG(VERBOSE, "[Httpd fd:%d,uri:%s] Sending [%d-%d/%d]", fd_
+    , req_.get_uri().c_str(), response_body_offs_
+    , response_body_offs_ + remaining, res_->get_body_length());
+  return write_repeated(&helper_, fd_, res_->get_body() + response_body_offs_
+                      , remaining, STATE(send_response_body_split));
+}
+
+StateFlowBase::Action HttpdRequestFlow::request_complete()
+{
+  uint32_t proc_time = (esp_timer_get_time() - start_time_) / 1000ULL;
+  if (!req_.get_uri().empty())
+  {
+    LOG(VERBOSE, "[Httpd fd:%d,uri:%s] Processed in %d ms.", fd_
+      , req_.get_uri().c_str(), proc_time);
+  }
+  req_count_++;
+  if (!req_.keep_alive() || req_.has_error() ||
+      req_count_ >= config_httpd_max_req_per_connection() ||
+      req_.get_uri().empty())
+  {
+    return delete_this();
+  }
+  return call_immediately(STATE(start_request));
+}
+
+StateFlowBase::Action HttpdRequestFlow::upgrade_to_websocket()
+{
+  // keep the socket open since we will reuse it as the websocket
+  close_ = false;
+  new WebsocketFlow(server_, fd_);
+  return delete_this();
+}
+
+} // namespace httpd
+} // namespace esp32cs

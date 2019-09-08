@@ -115,3 +115,16 @@ DEFAULT_CONST_EXPAND_VALUE(status_led_pin, STATUS_LED_DATA_PIN);
 DEFAULT_CONST_EXPAND_VALUE(status_led_brightness, STATUS_LED_BRIGHTNESS);
 
 DEFAULT_CONST(status_led_update_interval_msec, 450);
+
+///////////////////////////////////////////////////////////////////////////////
+// Httpd constants
+///////////////////////////////////////////////////////////////////////////////
+DEFAULT_CONST(httpd_server_stack_size, 4096);
+DEFAULT_CONST(httpd_server_priority, 0);
+DEFAULT_CONST(httpd_header_chunk_size, 256);
+DEFAULT_CONST(httpd_body_chunk_size, 3072);
+DEFAULT_CONST(httpd_response_chunk_size, 2048);
+DEFAULT_CONST(httpd_max_req_size, 4194304);
+DEFAULT_CONST(httpd_max_req_per_connection, 2);
+DEFAULT_CONST(httpd_req_timeout_ms, 5);
+DEFAULT_CONST(httpd_socket_receive_timeout_ms, 100);
