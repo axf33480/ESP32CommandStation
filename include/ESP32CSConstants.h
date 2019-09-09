@@ -35,6 +35,7 @@ DECLARE_CONST(cs_task_list_list_interval_sec);
 DECLARE_CONST(cs_cpu_reporting);
 
 DECLARE_CONST(enable_railcom_packet_dump);
+DECLARE_CONST(cs_railcom_enabled);
 
 DECLARE_CONST(cs_track_pool_size);
 
@@ -60,5 +61,7 @@ DECLARE_CONST(httpd_max_req_size);
 DECLARE_CONST(httpd_max_req_per_connection);
 DECLARE_CONST(httpd_req_timeout_ms);
 DECLARE_CONST(httpd_socket_receive_timeout_ms);
+DECLARE_CONST(httpd_websocket_timeout_ms);
+DECLARE_CONST(httpd_websocket_max_frame_size);
 
 #endif

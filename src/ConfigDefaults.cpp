@@ -89,6 +89,11 @@ DEFAULT_CONST(cs_track_pool_size, 5);
 DEFAULT_CONST_FALSE(enable_railcom_packet_dump);
 
 ///////////////////////////////////////////////////////////////////////////////
+// This controls the ability to enable RailCom via configuration parameters.
+///////////////////////////////////////////////////////////////////////////////
+DEFAULT_CONST_FALSE(cs_railcom_enabled);
+
+///////////////////////////////////////////////////////////////////////////////
 // This is the number of pending dcc::Packet objects that the RMT driver will
 // allow to be queued for outbound delivery.
 ///////////////////////////////////////////////////////////////////////////////
@@ -128,3 +133,5 @@ DEFAULT_CONST(httpd_max_req_size, 4194304);
 DEFAULT_CONST(httpd_max_req_per_connection, 2);
 DEFAULT_CONST(httpd_req_timeout_ms, 5);
 DEFAULT_CONST(httpd_socket_receive_timeout_ms, 100);
+DEFAULT_CONST(httpd_websocket_timeout_ms, 500);
+DEFAULT_CONST(httpd_websocket_max_frame_size, 256);

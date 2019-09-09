@@ -36,10 +36,19 @@ Httpd::~Httpd()
 {
   listener_.shutdown();
   exec_.shutdown();
+  handlers_.clear();
+  static_uris_.clear();
+  redirect_uris_.clear();
+  websocket_uris_.clear();
 }
 
 void Httpd::on_new_connection(int fd)
 {
+  sockaddr_in source;
+  socklen_t source_len = sizeof(sockaddr_in);
+  ERRNOCHECK("getpeername", getpeername(fd, (sockaddr *)&source, &source_len));
+  LOG(INFO, "[Httpd fd:%d/%s] Connected", fd
+    , ipv4_to_string(ntohl(source.sin_addr.s_addr)).c_str());
   new HttpdRequestFlow(this, fd);
 }
 
@@ -51,11 +60,20 @@ void Httpd::register_uri(const std::string &uri, RequestProcessor handler)
 RequestProcessor Httpd::get_handler_for_uri(const std::string &uri)
 {
   LOG(VERBOSE, "[Httpd] Searching for URI handler: %s", uri.c_str());
-  if (handlers_.find(uri) != handlers_.end())
+  if (handlers_.count(uri))
   {
     return handlers_[uri];
   }
   LOG(VERBOSE, "[Httpd] No handler found");
+  return nullptr;
+}
+
+WebSocketHandler Httpd::get_websocket_handler_for_uri(const string &uri)
+{
+  if (websocket_uris_.count(uri))
+  {
+    return websocket_uris_[uri];
+  }
   return nullptr;
 }
 
@@ -75,6 +93,11 @@ void Httpd::register_static_uri(const string &uri, const uint8_t *payload
     std::make_pair(std::move(uri)
                  , std::make_shared<StaticBodyResponse>(payload, length, type
                                                       , encoding)));
+}
+
+void Httpd::register_websocket_uri(const string &uri, WebSocketHandler handler)
+{
+  websocket_uris_.emplace(std::make_pair(std::move(uri), std::move(handler)));
 }
 
 bool Httpd::can_send_known_response(const string &uri)
@@ -113,10 +136,17 @@ bool Httpd::is_request_too_large(HttpRequest *req)
 bool Httpd::is_known_uri(HttpRequest *req)
 {
   HASSERT(req);
+
+  // check for known URI responses
   if (!req->get_method().compare(HTTP_METHOD_GET) &&
       can_send_known_response(req->get_uri()))
   {
-    // check for known URI responses
+    return true;
+  }
+
+  // check if it is a websocket endpoint
+  if (websocket_uris_.count(req->get_uri()))
+  {
     return true;
   }
 

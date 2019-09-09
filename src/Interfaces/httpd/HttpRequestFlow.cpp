@@ -158,7 +158,21 @@ StateFlowBase::Action HttpdRequestFlow::parse_header_data()
 
 StateFlowBase::Action HttpdRequestFlow::process_request()
 {
-  LOG(VERBOSE, "[Httpd fd:%d] req:%s", fd_, req_.to_string().c_str());
+  LOG(VERBOSE, "[Httpd fd:%d] %s", fd_, req_.to_string().c_str());
+
+  if (!req_.get_header(HTTP_HEADER_UPGRADE).compare(HTTP_UPGRADE_HEADER_WEBSOCKET))
+  {
+    // upgrade to websocket!
+    if (!req_.has_header(WEBSOCKET_HEADER_VERSION) ||
+        !req_.has_header(WEBSOCKET_HEADER_KEY))
+    {
+      LOG_ERROR("[Httpd fd:%d,uri:%s] Missing required websocket header(s)\n%s"
+              , fd_, req_.get_uri().c_str(), req_.to_string().c_str());
+      res_.reset(new AbstractHttpResponse(HTTP_STATUS_CODE::STATUS_BAD_REQUEST));
+      return call_immediately(STATE(send_response_headers));
+    }
+    return call_immediately(STATE(upgrade_to_websocket));
+  }
 
   // if it is a PUT or POST and there is a content-length header we need to
   // read the body of the message in chunks and pass it off to the request
@@ -206,13 +220,13 @@ StateFlowBase::Action HttpdRequestFlow::process_request()
   else if (server_->can_send_known_response(req_.get_uri()))
   {
     res_ = server_->get_known_response(req_.get_uri());
-    LOG(VERBOSE, "[Httpd fd:%d,uri:%s] Sending known response (%d bytes)", fd_
+    LOG(INFO, "[Httpd fd:%d,uri:%s] Processing response (%d bytes)", fd_
       , req_.get_uri().c_str(), res_->get_body_length());
   }
   else
   {
     RequestProcessor handler = server_->get_handler_for_uri(req_.get_uri());
-    handler(&req_, res_, nullptr, 0, 0);
+    handler(&req_, res_, nullptr, 0);
   }
 
   return call_immediately(STATE(send_response_headers));
@@ -231,14 +245,19 @@ StateFlowBase::Action HttpdRequestFlow::read_more_data()
 
 StateFlowBase::Action HttpdRequestFlow::process_body_chunk()
 {
-  RequestProcessor handler = server_->get_handler_for_uri(req_.get_uri());
   if (helper_.hasError_)
   {
     req_.set_error();
     return call_immediately(STATE(request_complete));
   }
-  body_offs_ += config_httpd_body_chunk_size() - helper_.remaining_;
-  handler(&req_, res_, buf_.data(), body_offs_, body_len_);
+  size_t data_len = config_httpd_body_chunk_size() - helper_.remaining_;
+  // if we received some data pass it on to the handler
+  if (data_len)
+  {
+    RequestProcessor handler = server_->get_handler_for_uri(req_.get_uri());
+    body_offs_ += data_len;
+    handler(&req_, res_, buf_.data(), data_len);
+  }
   if (body_offs_ < body_len_)
   {
     size_t requested_size = config_httpd_body_chunk_size();
@@ -335,7 +354,7 @@ StateFlowBase::Action HttpdRequestFlow::request_complete()
   uint32_t proc_time = (esp_timer_get_time() - start_time_) / 1000ULL;
   if (!req_.get_uri().empty())
   {
-    LOG(VERBOSE, "[Httpd fd:%d,uri:%s] Processed in %d ms.", fd_
+    LOG(INFO, "[Httpd fd:%d,uri:%s] Processed in %d ms.", fd_
       , req_.get_uri().c_str(), proc_time);
   }
   req_count_++;
@@ -352,7 +371,9 @@ StateFlowBase::Action HttpdRequestFlow::upgrade_to_websocket()
 {
   // keep the socket open since we will reuse it as the websocket
   close_ = false;
-  new WebsocketFlow(server_, fd_);
+  new WebsocketFlow(server_, fd_, req_.get_header(WEBSOCKET_HEADER_KEY)
+                  , req_.get_header(WEBSOCKET_HEADER_VERSION)
+                  , server_->get_websocket_handler_for_uri(req_.get_uri()));
   return delete_this();
 }
 

@@ -279,6 +279,7 @@ using esp32cs::httpd::MIME_TYPE_IMAGE_GIF;
 using esp32cs::httpd::MIME_TYPE_TEXT_JAVASCRIPT;
 using esp32cs::httpd::MIME_TYPE_APPLICATION_JSON;
 using esp32cs::httpd::HTTP_ENCODING_GZIP;
+using esp32cs::httpd::WebSocketEvent;
 
 void ESP32CSWebServer::begin()
 {
@@ -310,10 +311,58 @@ void ESP32CSWebServer::begin()
                            , ajaxLoader_size, MIME_TYPE_IMAGE_GIF);
   httpd->register_uri("/features"
     , [&](const HttpRequest *req, shared_ptr<AbstractHttpResponse> &response
-        , uint8_t *data, uint32_t len, uint32_t offs)
+        , const uint8_t *data, uint32_t len)
   {
     response = std::make_shared<StringResponse>(configStore->getCSFeatures()
                                               , MIME_TYPE_APPLICATION_JSON);
+  });
+  httpd->register_websocket_uri("/ws"
+                              , [](int id, WebSocketEvent event, bool text
+                                 , const uint8_t *data, size_t data_len)
+  {
+    AtomicHolder h(&webSocketAtomic);
+    if (event == WebSocketEvent::CONNECT)
+    {
+      webSocketClients.emplace_back(new WebSocketClient(id, 0));
+      Singleton<InfoScreen>::instance()->replaceLine(
+        INFO_SCREEN_CLIENTS_LINE, "TCP Conn: %02d"
+      , webSocketClients.size() + jmriClients.size());
+    }
+    else if (event == WebSocketEvent::DISCONNECT)
+    {
+      auto const &elem = std::find_if(webSocketClients.begin()
+                                    , webSocketClients.end()
+      , [&](unique_ptr<WebSocketClient> & clientNode) -> bool
+        {
+          return clientNode->getID() == id;
+        }
+      );
+      if (elem != webSocketClients.end())
+      {
+        webSocketClients.erase(elem);
+      }
+      Singleton<InfoScreen>::instance()->replaceLine(
+        INFO_SCREEN_CLIENTS_LINE, "TCP Conn: %02d",
+        webSocketClients.size() + jmriClients.size());
+    }
+    else if (event == WebSocketEvent::MESSAGE)
+    {
+      auto ent = std::find_if(webSocketClients.begin(), webSocketClients.end()
+      , [&](unique_ptr<WebSocketClient> & clientNode) -> bool
+        {
+          return (clientNode->getID() == id);
+        }
+      );
+      if (ent != webSocketClients.end())
+      {
+        // TODO: remove cast that drops const
+        auto res = (*ent)->feed((uint8_t *)data, data_len);
+        if (res.length())
+        {
+          webSocket.text(id, res.c_str());
+        }
+      }
+    }
   });
 
   if (configStore->isAPEnabled())
@@ -803,10 +852,10 @@ void ESP32CSWebServer::handleConfig(AsyncWebServerRequest *request)
   {
     needReboot |= configStore->setLCCCan(request->arg("lcc-can").equalsIgnoreCase("true"));
   }
-  /*if (request->hasArg("lcc-hub"))
+  if (request->hasArg("lcc-hub"))
   {
     configStore->setLCCHub(request->arg("lcc-hub").equalsIgnoreCase("true"));
-  }*/
+  }
   if (request->hasArg("uplink-mode") && request->hasArg("uplink-service") &&
       request->hasArg("uplink-manual") && request->hasArg("uplink-manual-port"))
   {

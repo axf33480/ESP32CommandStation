@@ -21,11 +21,11 @@ COPYRIGHT (c) 2019 Mike Dunston
 #include <map>
 #include <stdint.h>
 
-#include <hwcrypto/sha.h>
-#include <mbedtls/base64.h>
+#include <mbedtls/sha1.h>
 
 #include <executor/Service.hxx>
 #include <executor/StateFlow.hxx>
+#include <utils/Base64.hxx>
 #include <utils/Singleton.hxx>
 #include <utils/socket_listener.hxx>
 
@@ -97,6 +97,8 @@ static constexpr const char * HTTP_HEADER_CONTENT_TYPE = "Content-Type";
 static constexpr const char * HTTP_HEADER_CONTENT_LENGTH = "Content-Length";
 static constexpr const char * HTTP_HEADER_HOST = "Host";
 static constexpr const char * HTTP_HEADER_LOCATION = "Location";
+static constexpr const char * HTTP_HEADER_ORIGIN = "Origin";
+static constexpr const char * HTTP_HEADER_UPGRADE = "Upgrade";
 
 // Values for Cache-Control
 static constexpr const char * HTTP_CACHE_CONTROL_NO_CACHE = "no-cache";
@@ -110,6 +112,9 @@ static constexpr const char * HTTP_CACHE_CONTROL_MUST_REVALIDATE = "must-revalid
 // Values for Connection header
 static constexpr const char * HTTP_CONNECTION_CLOSE = "close";
 static constexpr const char * HTTP_CONNECTION_KEEP_ALIVE = "keep-alive";
+static constexpr const char * HTTP_CONNECTION_UPGRADE = "Upgrade";
+
+static constexpr const char * HTTP_UPGRADE_HEADER_WEBSOCKET = "websocket";
 
 // HTTP end of line characters
 static constexpr const char * HTML_EOL = "\r\n";
@@ -125,13 +130,23 @@ static constexpr const char * MIME_TYPE_APPLICATION_JSON = "application/json";
 
 static constexpr const char * HTTP_ENCODING_GZIP = "gzip";
 
+// WebSocket specific headers, these are only two that are mandatory to be used
+// in the WebSocket server side, others do exist but they are not used today.
+static constexpr const char * WEBSOCKET_HEADER_VERSION = "Sec-WebSocket-Version";
+static constexpr const char * WEBSOCKET_HEADER_KEY = "Sec-WebSocket-Key";
+static constexpr const char * WEBSOCKET_HEADER_ACCEPT = "Sec-WebSocket-Accept";
+
+// This is the WebSocket UUID it is used as part of the handshake process.
+static constexpr const char * WEBSOCKET_UUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+
 class AbstractHttpResponse
 {
 public:
   AbstractHttpResponse(HTTP_STATUS_CODE code=STATUS_NOT_FOUND
                      , const std::string &mime_type=MIME_TYPE_TEXT_HTML);
   virtual ~AbstractHttpResponse();
-  uint8_t *get_headers(size_t *len, bool keep_alive=false);
+  uint8_t *get_headers(size_t *len, bool keep_alive=false
+                     , bool add_keep_alive=true);
   virtual const uint8_t *get_body()
   {
     return nullptr;
@@ -247,8 +262,24 @@ private:
   bool error_;
 };
 
-typedef std::function<void(const HttpRequest *, std::shared_ptr<AbstractHttpResponse> &
-                         , uint8_t *, uint32_t, uint32_t)> RequestProcessor;
+typedef enum
+{
+  CONNECT
+, DISCONNECT
+, MESSAGE
+} WebSocketEvent;
+
+typedef std::function<void(const HttpRequest *                    /* request */
+                         , std::shared_ptr<AbstractHttpResponse> &/* response */
+                         , const uint8_t *                        /* data */
+                         , size_t                                 /* data length */
+                         )> RequestProcessor;
+typedef std::function<void(int              /* id */
+                         , WebSocketEvent   /* event */
+                         , bool             /* text [true] or binary [false] */
+                         , uint8_t *        /* data */
+                         , size_t           /* data len */
+                         )> WebSocketHandler;
 
 class Httpd : public Service, public Singleton<Httpd>
 {
@@ -261,7 +292,9 @@ public:
   void register_static_uri(const std::string &uri, const uint8_t *payload
                          , const size_t len, const std::string &type
                          , const std::string &encoding="");
+  void register_websocket_uri(const std::string &uri, WebSocketHandler handler);
   RequestProcessor get_handler_for_uri(const std::string &uri);
+  WebSocketHandler get_websocket_handler_for_uri(const std::string &uri);
   bool can_send_known_response(const std::string &uri);
   std::shared_ptr<AbstractHttpResponse> get_known_response(const std::string &uri);
   bool is_request_too_large(HttpRequest *req);
@@ -273,6 +306,7 @@ private:
   std::map<std::string, RequestProcessor> handlers_;
   std::map<std::string, std::shared_ptr<AbstractHttpResponse>> static_uris_;
   std::map<std::string, std::shared_ptr<AbstractHttpResponse>> redirect_uris_;
+  std::map<std::string, WebSocketHandler> websocket_uris_;
   DISALLOW_COPY_AND_ASSIGN(Httpd);
 };
 
@@ -314,19 +348,49 @@ private:
 class WebsocketFlow : public StateFlowBase
 {
 public:
-  WebsocketFlow(Httpd *server, int fd) : StateFlowBase(server), fd_(fd)
-  {
-    start_flow(STATE(read_packet));
-  }
+  WebsocketFlow(Httpd *server, int fd, const std::string &ws_key
+              , const std::string &ws_version, WebSocketHandler handler);
+  ~WebsocketFlow();
 private:
+  StateFlowTimedSelectHelper helper_{this};
   int fd_;
+  const uint64_t timeout_;
+  const uint64_t max_frame_size_;
+  AbstractHttpResponse handshake_;
+  WebSocketHandler handler_;
+  bool sent_connect_{false};
+  bool sent_disconnect_{false};
+  uint16_t header_;
+  uint8_t opcode_;
+  bool masked_;
+  uint8_t frameLenType_;
+  uint16_t frameLength16_;
+  uint64_t frameLength_;
+  uint32_t maskingKey_;
+  std::vector<uint8_t> frameBuf_;
+  size_t frameBufOffs_;
 
-  STATE_FLOW_STATE(read_packet);
-  STATE_FLOW_STATE(send_packet);
-  STATE_FLOW_STATE(packet_received);
+  // helper for fully reading a data block with a timeout so we can close the
+  // socket if there are too many timeout errors
+  uint8_t *buf_{nullptr};
+  size_t buf_size_;
+  size_t buf_offs_;
+  size_t buf_remain_;
+  uint8_t timeouts_remaining_;
+  Callback buf_next_;
+  Action read_fully_with_timeout(void *buf, size_t size, Callback c);
+  STATE_FLOW_STATE(data_chunk_received);
+
+  STATE_FLOW_STATE(start_handshake);
+  STATE_FLOW_STATE(read_frame_header);
+  STATE_FLOW_STATE(frame_header_received);
+  STATE_FLOW_STATE(frame_data_len_received);
+  STATE_FLOW_STATE(read_frame_data);
+  STATE_FLOW_STATE(frame_data_received);
 };
 
-static inline std::pair<std::string, std::string> break_string(std::string &str, const std::string& delim)
+static inline std::pair<std::string, std::string> break_string(std::string &str
+                                                             , const std::string& delim)
 {
   size_t pos = str.find(delim);
   if (pos == std::string::npos)
@@ -339,7 +403,7 @@ static inline std::pair<std::string, std::string> break_string(std::string &str,
 template <class ContainerT>
 std::string::size_type tokenize(const std::string& str, ContainerT& tokens
                               , const std::string& delimeter = " "
-                              , bool keepIncomplete=true
+                              , bool keepIncomplete = true
                               , bool dropEmpty = false)
 {
   std::string::size_type pos, lastPos = 0;
@@ -369,7 +433,8 @@ std::string::size_type tokenize(const std::string& str, ContainerT& tokens
   return lastPos;
 }
 
-static inline std::string string_join(const std::vector<std::string>& strings, const std::string& delim = "")
+static inline std::string string_join(const std::vector<std::string>& strings
+                                    , const std::string& delim = "")
 {
   std::string result;
 
