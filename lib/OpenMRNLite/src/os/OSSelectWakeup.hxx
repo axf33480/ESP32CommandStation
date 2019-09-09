@@ -225,8 +225,8 @@ public:
         }
 #endif //ESP32
         struct timeval timeout;
-        timeout.tv_sec = deadline_nsec / 1000000000;
-        timeout.tv_usec = (deadline_nsec / 1000) % 1000000;
+        timeout.tv_sec = NSEC_TO_SEC(deadline_nsec);
+        timeout.tv_usec = NSEC_TO_USEC(deadline_nsec) % SEC_TO_USEC(1);
         int ret =
             ::select(nfds, readfds, writefds, exceptfds, &timeout);
 #elif !defined(OPENMRN_FEATURE_SINGLE_THREADED)
