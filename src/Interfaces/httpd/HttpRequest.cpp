@@ -30,6 +30,7 @@ bool HttpRequest::is_valid()
 
 void HttpRequest::set_method(const string &value)
 {
+  LOG(VERBOSE, "[HttpReq %p] Setting Method: %s", this, value.c_str());
   method_.assign(std::move(value));
 }
 
@@ -45,18 +46,21 @@ const string &HttpRequest::get_uri()
 
 void HttpRequest::set_uri(const string &value)
 {
+  LOG(VERBOSE, "[HttpReq %p] Setting URI: %s", this, value.c_str());
   uri_.assign(std::move(value));
 }
 
 void HttpRequest::add_param(const std::pair<string, string> &value)
 {
-  LOG(VERBOSE, "[param] %s: %s", value.first.c_str(), value.second.c_str());
+  LOG(VERBOSE, "[HttpReq %p] Adding Param: %s: %s", this, value.first.c_str()
+    , value.second.c_str());
   params_.emplace(std::move(value));
 }
 
 void HttpRequest::add_header(const std::pair<std::string, std::string> &value)
 {
-  LOG(VERBOSE, "[header] %s: %s", value.first.c_str(), value.second.c_str());
+  LOG(VERBOSE, "[HttpReq %p] Adding Header: %s: %s", this, value.first.c_str()
+    , value.second.c_str());
   headers_.emplace(value);
 }
 
@@ -80,7 +84,7 @@ uint32_t HttpRequest::get_header_uint32(const string &name)
   {
     return 0;
   }
-  return std::stoi(headers_[name]);
+  return std::stoul(headers_[name]);
 }
 
 bool HttpRequest::get_header_bool(const string &name)
@@ -102,6 +106,7 @@ bool HttpRequest::get_header_bool(const string &name)
 
 void HttpRequest::reset()
 {
+  LOG(VERBOSE, "[HttpReq %p] Resetting to blank request", this);
   headers_.clear();
   params_.clear();
   method_.clear();
@@ -120,6 +125,7 @@ bool HttpRequest::keep_alive()
 
 void HttpRequest::set_error(bool value)
 {
+  LOG(VERBOSE, "[HttpReq %p] Setting error flag to %d", this, value);
   error_ = value;
 }
 
@@ -130,8 +136,23 @@ bool HttpRequest::has_error()
 
 string HttpRequest::to_string()
 {
-  return StringPrintf("method:%s,uri:%s,params:%d,headers:%d", method_.c_str(), uri_.c_str(), (int)params_.size()
-    , (int)headers_.size());
+  string res = StringPrintf("[HttpReq %p] method:%s uri:%s,error:%d,"
+                            "header-count:%zu,param-count:%zu"
+                          , this, method_.c_str(), uri_.c_str(), error_
+                          , headers_.size(), params_.size());
+  for (auto &ent : headers_)
+  {
+    res.append(
+      StringPrintf("\nheader: %s: %s%s", ent.first.c_str(), ent.second.c_str()
+                  , HTML_EOL));
+  }
+  for (auto &ent : params_)
+  {
+    res.append(
+      StringPrintf("\nparam: %s: %s%s", ent.first.c_str(), ent.second.c_str()
+                  , HTML_EOL));
+  }
+  return res;
 }
 
 } // namespace httpd
