@@ -519,7 +519,8 @@ void Esp32WiFiManager::process_wifi_event(system_event_t *event)
             // track that we were connected previously.
             was_previously_connected = true;
 
-            LOG(INFO, "[WiFi] Lost connection to SSID: %s", ssid_);
+            LOG(INFO, "[WiFi] Lost connection to SSID: %s (reason:%d)", ssid_
+              , event->event_info.disconnected.reason);
             // Clear the flag that indicates we are connected to the SSID.
             xEventGroupClearBits(wifiStatusEventGroup_, WIFI_CONNECTED_BIT);
             // Clear the flag that indicates we have an IPv4 address.
