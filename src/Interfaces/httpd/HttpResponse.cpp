@@ -86,7 +86,8 @@ AbstractHttpResponse::~AbstractHttpResponse()
   headers_.clear();
 }
 
-uint8_t *AbstractHttpResponse::get_headers(size_t *len, bool keep_alive)
+uint8_t *AbstractHttpResponse::get_headers(size_t *len, bool keep_alive
+                                         , bool add_keep_alive)
 {
   encoded_headers_.assign(StringPrintf("HTTP/1.1 %d %s%s", code_
                                       , http_code_strings[code_].c_str()
@@ -99,14 +100,13 @@ uint8_t *AbstractHttpResponse::get_headers(size_t *len, bool keep_alive)
       StringPrintf("%s: %s%s", ent.first.c_str(), ent.second.c_str()
                   , HTML_EOL));
   }
-  LOG(VERBOSE, "[resp-header] %s -> %zu", HTTP_HEADER_CONTENT_LENGTH
-    , get_body_length());
-  encoded_headers_.append(
-    StringPrintf("%s: %zu%s", HTTP_HEADER_CONTENT_LENGTH, get_body_length()
-                , HTML_EOL));
-
   if (get_body_length())
   {
+    LOG(VERBOSE, "[resp-header] %s -> %zu", HTTP_HEADER_CONTENT_LENGTH
+      , get_body_length());
+    encoded_headers_.append(
+      StringPrintf("%s: %zu%s", HTTP_HEADER_CONTENT_LENGTH, get_body_length()
+                  , HTML_EOL));
     LOG(VERBOSE, "[resp-header] %s -> %s", HTTP_HEADER_CONTENT_TYPE
       , get_body_mime_type().c_str());
     encoded_headers_.append(
@@ -114,12 +114,16 @@ uint8_t *AbstractHttpResponse::get_headers(size_t *len, bool keep_alive)
                   , get_body_mime_type().c_str(), HTML_EOL));
   }
 
-  string connection = keep_alive ? HTTP_CONNECTION_CLOSE
-                                 : HTTP_CONNECTION_KEEP_ALIVE;
-  LOG(VERBOSE, "[resp-header] %s -> %s", HTTP_HEADER_CONNECTION, connection.c_str());
-  encoded_headers_.append(
-    StringPrintf("%s: %s%s", HTTP_HEADER_CONNECTION, connection.c_str()
-                , HTML_EOL));
+  if (add_keep_alive)
+  {
+    string connection = keep_alive ? HTTP_CONNECTION_CLOSE
+                                  : HTTP_CONNECTION_KEEP_ALIVE;
+    LOG(VERBOSE, "[resp-header] %s -> %s", HTTP_HEADER_CONNECTION
+      , connection.c_str());
+    encoded_headers_.append(
+      StringPrintf("%s: %s%s", HTTP_HEADER_CONNECTION, connection.c_str()
+                  , HTML_EOL));
+  }
 
   // leave blank line after headers before the body
   encoded_headers_.append(HTML_EOL);
