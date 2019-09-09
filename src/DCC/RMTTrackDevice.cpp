@@ -325,9 +325,7 @@ static inline uint8_t _uart_read(uart_port_t uart_num)
 ///////////////////////////////////////////////////////////////////////////////
 static inline bool _uart_available(uart_port_t uart_num)
 {
-  return UART[uart_num]->status.rxfifo_cnt != 0 ||
-        (UART[uart_num]->mem_rx_status.wr_addr !=
-         UART[uart_num]->mem_rx_status.rd_addr);
+  return UART[uart_num]->status.rxfifo_cnt != 0;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -343,7 +341,7 @@ static inline void _uart_flush(uart_port_t uart_num)
 {
   while(_uart_available(uart_num))
   {
-    READ_PERI_REG(UART_FIFO_REG(uart_num));
+    _uart_read(uart_num);
   }
 }
 
@@ -536,7 +534,8 @@ RMTTrackDevice::RMTTrackDevice(SimpleCanStack *stack
   // hook into the RMT ISR to have callbacks when TX completes
   rmt_register_tx_end_callback(rmt_tx_complete_isr_callback, this);
 
-  if (railComEnablePin_ != NOT_A_PIN)
+  if (railComEnablePin_ != NOT_A_PIN &&
+      config_cs_railcom_enabled() == CONSTANT_TRUE)
   {
     LOG(INFO
       , "[OPS] Initializing RailCom detector using UART %d on data pin: %d, "

@@ -35,7 +35,7 @@ OVERRIDE_CONST(gridconnect_buffer_size, CONFIG_TCP_MSS);
 
 // This will allow up to 1000 usec for the buffer to fill up before sending it
 // out over the socket connection.
-OVERRIDE_CONST(gridconnect_buffer_delay_usec, 1000);
+OVERRIDE_CONST(gridconnect_buffer_delay_usec, 500);
 
 // This limites the number of outbound GridConnect packets which limits the
 // memory used by the BufferPort.
@@ -56,15 +56,20 @@ OVERRIDE_CONST(local_alias_cache_size, 30);
 // This will print all GridConnect packets to the serial console.
 // OVERRIDE_CONST_TRUE(lcc_print_all_packets);
 
-// Uncomment to have all railcom data printed as it is received.
-// OVERRIDE_CONST_TRUE(enable_railcom_packet_dump);
-
 // Uncomment to list task statistics periodically.
 // OVERRIDE_CONST_TRUE(cs_task_list_report);
 
 // Uncomment to force a factory reset of all configuration data on startup.
 // WARNING: THIS WILL CLEAR *ALL* PERSISTENT DATA!
 // OVERRIDE_CONST_TRUE(cs_force_factory_reset);
+
+// Uncomment to have all railcom data printed as it is received.
+// OVERRIDE_CONST_TRUE(enable_railcom_packet_dump);
+
+// This enables RailCom support in conjunction with the required configuration
+// settings. There are a few issues with enabling this that still need to be
+// resolved thus it is disabled by default.
+// OVERRIDE_CONST_TRUE(cs_railcom_enabled);
 
 std::unique_ptr<OpenMRN> openmrn;
 // note the dummy string below is required due to a bug in the GCC compiler
