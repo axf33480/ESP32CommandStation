@@ -320,7 +320,7 @@ StateFlowBase::Action WebSocketFlow::send_frame_header()
     data_size_ = textToSend_.length();
     send_size = data_size_ + 4;
   }
-  else if (textToSend_.length() < data_size_ - 4)
+  else if (textToSend_.length() < max_frame_size_ - 4)
   {
     data_[0] = 0x80 | TEXT;
     data_[1] = 0;// use extended length
