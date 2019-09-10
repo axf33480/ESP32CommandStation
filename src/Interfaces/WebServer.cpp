@@ -318,7 +318,6 @@ void ESP32CSWebServer::begin()
     AtomicHolder h(&webSocketAtomic);
     if (event == WebSocketEvent::CONNECT)
     {
-      LOG(INFO, "ws:%d connect", id);
       webSocketClients.push_back(esp32cs::make_unique<WebSocketClient>(id, remote_ip));
       Singleton<InfoScreen>::instance()->replaceLine(
         INFO_SCREEN_CLIENTS_LINE, "TCP Conn: %02d"
@@ -326,7 +325,6 @@ void ESP32CSWebServer::begin()
     }
     else if (event == WebSocketEvent::DISCONNECT)
     {
-      LOG(INFO, "ws:%d disconnect", id);
       webSocketClients.erase(std::remove_if(webSocketClients.begin(), webSocketClients.end(),
         [id](unique_ptr<WebSocketClient> &client) -> bool
         {
