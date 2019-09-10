@@ -113,7 +113,7 @@ void RemoteSensorManager::createOrUpdate(const uint16_t id, const uint16_t value
       return;
     }
   }
-  remoteSensors.emplace_back(new RemoteSensor(id, value));
+  remoteSensors.push_back(esp32cs::make_unique<RemoteSensor>(id, value));
 }
 
 bool RemoteSensorManager::remove(const uint16_t id)

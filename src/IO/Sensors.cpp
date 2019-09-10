@@ -96,7 +96,7 @@ void SensorManager::init()
     for(auto sensor : root[JSON_SENSORS_NODE])
     {
       string data = sensor.dump();
-      sensors.emplace_back(new Sensor(data));
+      sensors.push_back(esp32cs::make_unique<Sensor>(data));
     }
   }
   LOG(INFO, "[Sensors] Loaded %d sensors", sensors.size());
@@ -181,7 +181,7 @@ bool SensorManager::createOrUpdate(const uint16_t id, const uint8_t pin, const b
   // add the new sensor
   {
     OSMutexLock l(&_lock);
-    sensors.emplace_back(new Sensor(id, pin, pullUp));
+    sensors.push_back(esp32cs::make_unique<Sensor>(id, pin, pullUp));
   }
   return true;
 }

@@ -110,7 +110,7 @@ void OutputManager::init()
     for(auto output : root[JSON_OUTPUTS_NODE])
     {
       string data = output.dump();
-      outputs.emplace_back(new Output(data));
+      outputs.push_back(esp32cs::make_unique<Output>(data));
     }
   }
   LOG(INFO, "[Output] Loaded %d outputs", outputs.size());
@@ -208,7 +208,7 @@ bool OutputManager::createOrUpdate(const uint16_t id, const uint8_t pin, const u
   {
     return false;
   }
-  outputs.emplace_back(new Output(id, pin, flags));
+  outputs.push_back(esp32cs::make_unique<Output>(id, pin, flags));
   return true;
 }
 

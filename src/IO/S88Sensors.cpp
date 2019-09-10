@@ -192,7 +192,7 @@ bool S88BusManager::createOrUpdateBus(const uint8_t id, const uint8_t dataPin, c
     LOG_ERROR("[S88] Attempt to use a restricted pin: %d", dataPin);
     return false;
   }
-  s88SensorBus.emplace_back(new S88SensorBus(id, dataPin, sensorCount));
+  s88SensorBus.push_back(esp32cs::make_unique<S88SensorBus>(id, dataPin, sensorCount));
   return true;
 }
 

@@ -37,12 +37,12 @@ TurnoutManager::TurnoutManager(openlcb::Node *node)
   json root = json::parse(configStore->load(TURNOUTS_JSON_FILE));
   for (auto turnout : root)
   {
-    turnouts_.emplace_back(
-      new Turnout(turnout[JSON_ID_NODE].get<int>()
-                , turnout[JSON_ADDRESS_NODE].get<int>()
-                , turnout[JSON_SUB_ADDRESS_NODE].get<int>()
-                , turnout[JSON_STATE_NODE].get<int>()
-                , (TurnoutType)turnout[JSON_TYPE_NODE].get<int>()));
+    turnouts_.push_back(
+      esp32cs::make_unique<Turnout>(turnout[JSON_ID_NODE].get<int>()
+                                  , turnout[JSON_ADDRESS_NODE].get<int>()
+                                  , turnout[JSON_SUB_ADDRESS_NODE].get<int>()
+                                  , turnout[JSON_STATE_NODE].get<int>()
+                                  , (TurnoutType)turnout[JSON_TYPE_NODE].get<int>()));
   }
   LOG(INFO, "[Turnout] Loaded %d DCC turnout(s)", turnouts_.size());
 
@@ -94,7 +94,7 @@ string TurnoutManager::setByAddress(uint16_t address, bool thrown
   }
 
   // we didn't find it, create it and set it
-  turnouts_.emplace_back(new Turnout(turnouts_.size() + 1, address, -1));
+  turnouts_.push_back(esp32cs::make_unique<Turnout>(turnouts_.size() + 1, address, -1));
   return setByAddress(address, thrown, sendDCC);
 }
 
@@ -128,7 +128,7 @@ string TurnoutManager::toggleByAddress(uint16_t address)
   }
 
   // we didn't find it, create it and throw it
-  turnouts_.emplace_back(new Turnout(turnouts_.size() + 1, address, -1));
+  turnouts_.push_back(esp32cs::make_unique<Turnout>(turnouts_.size() + 1, address, -1));
   return toggleByAddress(address);
 }
 
@@ -147,6 +147,10 @@ string TurnoutManager::getStateAsJson(bool readableStrings)
 string TurnoutManager::get_state_for_dccpp()
 {
   AtomicHolder h(this);
+  if (turnouts_.empty())
+  {
+    return COMMAND_FAILED_RESPONSE;
+  }
   string status;
   for (auto& turnout : turnouts_)
   {
@@ -173,7 +177,7 @@ Turnout *TurnoutManager::createOrUpdate(const uint16_t id
     return elem->get();
   }
   // we didn't find it, create it!
-  turnouts_.emplace_back(new Turnout(id, address, index, false, type));
+  turnouts_.push_back(esp32cs::make_unique<Turnout>(id, address, index, false, type));
   return turnouts_.back().get();
 }
 
