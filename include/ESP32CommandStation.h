@@ -195,4 +195,15 @@ void initializeLocoNet();
 // ALLOW_USAGE_OF_RESTRICTED_GPIO_PINS is enabled.
 bool is_restricted_pin(int8_t);
 
+namespace esp32cs
+{
+  // C++ 11 does not have std::make_unique so adding an implementation here to
+  // prevent leaking memory when adding a ptr to a container.
+  template<typename T, typename... Args>
+  static inline std::unique_ptr<T> make_unique(Args&&... args)
+  {
+      return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
+  }
+}
+
 #endif // ESP32_CS_H_
