@@ -33,6 +33,12 @@ typedef enum
 , PONG         = 0xA // Pong Frame
 } WebSocketOpcode;
 
+static constexpr uint8_t WEBSOCKET_FINAL_FRAME = 0x80;
+static constexpr uint8_t WEBSOCKET_FRAME_IS_MASKED = 0x80;
+static constexpr uint8_t WEBSOCKET_FRAME_LEN_SINGLE = 126;
+static constexpr uint8_t WEBSOCKET_FRAME_LEN_UINT16 = 126;
+static constexpr uint8_t WEBSOCKET_FRAME_LEN_UINT64 = 127;
+
 WebSocketFlow::WebSocketFlow(Httpd *server, int fd, uint32_t remote_ip
                            , const string &ws_key, const string &ws_version
                            , WebSocketHandler handler)
@@ -176,17 +182,17 @@ StateFlowBase::Action WebSocketFlow::read_frame_header()
 StateFlowBase::Action WebSocketFlow::frame_header_received()
 {
   opcode_ = static_cast<WebSocketOpcode>(header_ & 0x0F);
-  masked_ = ((header_ >> 8) & 0x80);
+  masked_ = ((header_ >> 8) & WEBSOCKET_FRAME_IS_MASKED);
   uint8_t len = ((header_ >> 8) & 0x7F);
   LOG(VERBOSE, "[WebSocket fd:%d] opc: %d, masked: %d, len: %d", fd_, opcode_
     , masked_, len);
-  if (len < 126)
+  if (len < WEBSOCKET_FRAME_LEN_SINGLE)
   {
     frameLenType_ = 0;
     frameLength_ = len;
     return call_immediately(STATE(frame_data_len_received));
   }
-  else if (len == 126)
+  else if (len == WEBSOCKET_FRAME_LEN_UINT16)
   {
     frameLenType_ = 1;
     frameLength_ = 0;
@@ -196,7 +202,7 @@ StateFlowBase::Action WebSocketFlow::frame_header_received()
                                  , STATE(frame_data_len_received)
                                  , STATE(shutdown_connection));
   }
-  else if (len == 127)
+  else if (len == WEBSOCKET_FRAME_LEN_UINT64)
   {
     frameLenType_ = 2;
     // retrieve the payload length as a 64 bit number
@@ -312,9 +318,9 @@ StateFlowBase::Action WebSocketFlow::send_frame_header()
   }
   bzero(data_, max_frame_size_);
   size_t send_size = 0;
-  if (textToSend_.length() < 126)
+  if (textToSend_.length() < WEBSOCKET_FRAME_LEN_SINGLE)
   {
-    data_[0] = 0x80 | TEXT;
+    data_[0] = WEBSOCKET_FINAL_FRAME | TEXT;
     data_[1] = textToSend_.length();
     memcpy(data_ + 2, textToSend_.data(), textToSend_.length());
     data_size_ = textToSend_.length();
@@ -322,19 +328,24 @@ StateFlowBase::Action WebSocketFlow::send_frame_header()
   }
   else if (textToSend_.length() < max_frame_size_ - 4)
   {
-    data_[0] = 0x80 | TEXT;
-    data_[1] = 0;// use extended length
-    data_[2] = textToSend_.length() & 0xFF;
-    data_[3] = (textToSend_.length() >> 8) & 0xFF;
-    memcpy(data_+ 4, textToSend_.data(), textToSend_.length());
     data_size_ = textToSend_.length();
+    data_[0] = WEBSOCKET_FINAL_FRAME | TEXT;
+    data_[1] = WEBSOCKET_FRAME_LEN_UINT16;
+    data_[2] = data_size_ & 0xFF;
+    data_[3] = (data_size_ >> 8) & 0xFF;
+    memcpy(data_+ 4, textToSend_.data(), textToSend_.length());
     send_size = data_size_ + 4;
   }
   else
   {
-    LOG_ERROR("[WebSocket fd:%d] text to send is too long, discarding", fd_);
-    textToSend_.clear();
-    return yield_and_call(STATE(read_frame_header));
+    // size is greater than our max frame, send it as fragments
+    data_size_ = max_frame_size_ - 4;
+    data_[0] = CONTINUATION;
+    data_[1] = WEBSOCKET_FRAME_LEN_UINT16;
+    data_[2] = data_size_ & 0xFF;
+    data_[3] = (data_size_ >> 8) & 0xFF;
+    memcpy(data_+ 4, textToSend_.data(), data_size_);
+    send_size = data_size_ + 4;
   }
   return write_repeated(&helper_, fd_, data_, send_size, STATE(frame_sent));
 }
