@@ -54,14 +54,14 @@ void HttpRequest::add_param(const std::pair<string, string> &value)
 {
   LOG(VERBOSE, "[HttpReq %p] Adding Param: %s: %s", this, value.first.c_str()
     , value.second.c_str());
-  params_.emplace(std::move(value));
+  params_.insert(std::move(value));
 }
 
 void HttpRequest::add_header(const std::pair<std::string, std::string> &value)
 {
   LOG(VERBOSE, "[HttpReq %p] Adding Header: %s: %s", this, value.first.c_str()
     , value.second.c_str());
-  headers_.emplace(value);
+  headers_.insert(value);
 }
 
 bool HttpRequest::has_header(const string &name)

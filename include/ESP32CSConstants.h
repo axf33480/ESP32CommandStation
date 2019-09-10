@@ -63,5 +63,7 @@ DECLARE_CONST(httpd_req_timeout_ms);
 DECLARE_CONST(httpd_socket_receive_timeout_ms);
 DECLARE_CONST(httpd_websocket_timeout_ms);
 DECLARE_CONST(httpd_websocket_max_frame_size);
+DECLARE_CONST(httpd_websocket_max_read_attempts);
+DECLARE_CONST(httpd_websocket_max_write_attempts);
 
 #endif

@@ -76,7 +76,7 @@ public:
     AtomicHolder h(&webSocketAtomic);
     if (type_ == WS_EVT_CONNECT)
     {
-      webSocketClients.emplace_back(new WebSocketClient(clientId_, clientIp_));
+      webSocketClients.push_back(esp32cs::make_unique<WebSocketClient>(clientId_, clientIp_));
       Singleton<InfoScreen>::instance()->replaceLine(
         INFO_SCREEN_CLIENTS_LINE, "TCP Conn: %02d"
       , webSocketClients.size() + jmriClients.size());
@@ -284,63 +284,54 @@ using esp32cs::httpd::WebSocketEvent;
 void ESP32CSWebServer::begin()
 {
   httpd.reset(new Httpd(81));
-  httpd->register_redirected_uri("/", "/index.html");
-  httpd->register_static_uri("/index.html", indexHtmlGz
-                           , indexHtmlGz_size, MIME_TYPE_TEXT_HTML
-                           , HTTP_ENCODING_GZIP);
-  httpd->register_static_uri("/loco-32x32.png", loco32x32
-                           , loco32x32_size, MIME_TYPE_IMAGE_PNG);
-  httpd->register_static_uri("/jquery.min.js", jqueryJsGz
-                           , jqueryJsGz_size, MIME_TYPE_TEXT_JAVASCRIPT
-                           , HTTP_ENCODING_GZIP);
-  httpd->register_static_uri("/jquery.mobile-1.5.0-rc1.min.js"
-                           , jqueryMobileJsGz, jqueryMobileJsGz_size
-                           , MIME_TYPE_TEXT_JAVASCRIPT
-                           , HTTP_ENCODING_GZIP);
-  httpd->register_static_uri("/jquery.mobile-1.5.0-rc1.min.css"
-                           , jqueryMobileCssGz, jqueryMobileCssGz_size
-                           , MIME_TYPE_TEXT_CSS, HTTP_ENCODING_GZIP);
-  httpd->register_static_uri("/jquery.simple.websocket.min.js"
-                           , jquerySimpleWebSocketGz
-                           , jquerySimpleWebSocketGz_size
-                           , MIME_TYPE_TEXT_JAVASCRIPT, HTTP_ENCODING_GZIP);
-  httpd->register_static_uri("/jqClock-lite.min.js", jqClockGz
-                           , jqClockGz_size, MIME_TYPE_TEXT_JAVASCRIPT
-                           , HTTP_ENCODING_GZIP);
-  httpd->register_static_uri("/images/ajax-loader.gif", ajaxLoader
-                           , ajaxLoader_size, MIME_TYPE_IMAGE_GIF);
-  httpd->register_uri("/features"
+  httpd->redirected_uri("/", "/index.html");
+  httpd->static_uri("/index.html", indexHtmlGz, indexHtmlGz_size
+                  , MIME_TYPE_TEXT_HTML, HTTP_ENCODING_GZIP);
+  httpd->static_uri("/loco-32x32.png", loco32x32, loco32x32_size
+                  , MIME_TYPE_IMAGE_PNG);
+  httpd->static_uri("/jquery.min.js", jqueryJsGz, jqueryJsGz_size
+                  , MIME_TYPE_TEXT_JAVASCRIPT, HTTP_ENCODING_GZIP);
+  httpd->static_uri("/jquery.mobile-1.5.0-rc1.min.js", jqueryMobileJsGz
+                  , jqueryMobileJsGz_size, MIME_TYPE_TEXT_JAVASCRIPT
+                  , HTTP_ENCODING_GZIP);
+  httpd->static_uri("/jquery.mobile-1.5.0-rc1.min.css", jqueryMobileCssGz
+                  , jqueryMobileCssGz_size, MIME_TYPE_TEXT_CSS
+                  , HTTP_ENCODING_GZIP);
+  httpd->static_uri("/jquery.simple.websocket.min.js"
+                  , jquerySimpleWebSocketGz, jquerySimpleWebSocketGz_size
+                  , MIME_TYPE_TEXT_JAVASCRIPT, HTTP_ENCODING_GZIP);
+  httpd->static_uri("/jqClock-lite.min.js", jqClockGz, jqClockGz_size
+                  , MIME_TYPE_TEXT_JAVASCRIPT, HTTP_ENCODING_GZIP);
+  httpd->static_uri("/images/ajax-loader.gif", ajaxLoader, ajaxLoader_size
+                  , MIME_TYPE_IMAGE_GIF);
+  httpd->uri("/features"
     , [&](const HttpRequest *req, shared_ptr<AbstractHttpResponse> &response
         , const uint8_t *data, uint32_t len)
   {
     response = std::make_shared<StringResponse>(configStore->getCSFeatures()
                                               , MIME_TYPE_APPLICATION_JSON);
   });
-  httpd->register_websocket_uri("/ws"
-                              , [](int id, WebSocketEvent event, bool text
-                                 , const uint8_t *data, size_t data_len)
+  httpd->websocket_uri("/ws"
+                         , [](int id, uint32_t remote_ip, WebSocketEvent event
+                         , bool text, const uint8_t *data, size_t data_len)
   {
     AtomicHolder h(&webSocketAtomic);
     if (event == WebSocketEvent::CONNECT)
     {
-      webSocketClients.emplace_back(new WebSocketClient(id, 0));
+      LOG(INFO, "ws:%d connect", id);
+      webSocketClients.push_back(esp32cs::make_unique<WebSocketClient>(id, remote_ip));
       Singleton<InfoScreen>::instance()->replaceLine(
         INFO_SCREEN_CLIENTS_LINE, "TCP Conn: %02d"
       , webSocketClients.size() + jmriClients.size());
     }
     else if (event == WebSocketEvent::DISCONNECT)
     {
-      auto const &elem = std::find_if(webSocketClients.begin()
-                                    , webSocketClients.end()
-      , [&](unique_ptr<WebSocketClient> & clientNode) -> bool
+      LOG(INFO, "ws:%d disconnect", id);
+      webSocketClients.erase(std::remove_if(webSocketClients.begin(), webSocketClients.end(),
+        [id](unique_ptr<WebSocketClient> &client) -> bool
         {
-          return clientNode->getID() == id;
-        }
-      );
-      if (elem != webSocketClients.end())
-      {
-        webSocketClients.erase(elem);
-      }
+          return client->getID() == id;
+        }));
       Singleton<InfoScreen>::instance()->replaceLine(
         INFO_SCREEN_CLIENTS_LINE, "TCP Conn: %02d",
         webSocketClients.size() + jmriClients.size());
@@ -359,7 +350,7 @@ void ESP32CSWebServer::begin()
         auto res = (*ent)->feed((uint8_t *)data, data_len);
         if (res.length())
         {
-          webSocket.text(id, res.c_str());
+          Singleton<Httpd>::instance()->send_websocket_text(id, res);
         }
       }
     }
@@ -407,7 +398,6 @@ void ESP32CSWebServer::begin()
   webServer.onNotFound(std::bind(&ESP32CSWebServer::notFoundHandler
                                , this
                                , std::placeholders::_1));
-
   webSocket.onEvent(handleWsEvent);
   webServer.addHandler(&webSocket);
   webServer.begin();

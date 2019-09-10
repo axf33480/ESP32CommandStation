@@ -23,22 +23,19 @@ namespace esp32cs
 namespace httpd
 {
 
-HttpdRequestFlow::HttpdRequestFlow(Httpd *server, int fd)
-  : StateFlowBase(server), server_(server), fd_(fd)
+HttpdRequestFlow::HttpdRequestFlow(Httpd *server, int fd
+                                 , uint32_t remote_ip)
+                                 : StateFlowBase(server)
+                                 , server_(server)
+                                 , fd_(fd)
+                                 , remote_ip_(remote_ip)
 {
-  struct timeval tm;
-  tm.tv_sec = 0;
-  tm.tv_usec = MSEC_TO_USEC(config_httpd_socket_receive_timeout_ms());
-  ERRNOCHECK("setsockopt_timeout",
-      setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tm, sizeof(tm)));
-
   start_flow(STATE(start_request));
   LOG(VERBOSE, "[Httpd fd:%d] Connected.", fd_);
 }
 
 HttpdRequestFlow::~HttpdRequestFlow()
 {
-  req_.reset();
   if (close_)
   {
     LOG(VERBOSE, "[Httpd fd:%d] Closed", fd_);
@@ -65,11 +62,11 @@ StateFlowBase::Action HttpdRequestFlow::parse_header_data()
   if (helper_.hasError_)
   {
     req_.set_error();
-    return call_immediately(STATE(request_complete));
+    return yield_and_call(STATE(request_complete));
   }
   else if (helper_.remaining_ == config_httpd_header_chunk_size())
   {
-    return call_immediately(STATE(read_more_data));
+    return yield_and_call(STATE(read_more_data));
   }
 
   raw_header_.append((char *)buf_.data()
@@ -78,7 +75,7 @@ StateFlowBase::Action HttpdRequestFlow::parse_header_data()
   // if we don't have an EOL string in the data yet, get more data
   if (raw_header_.find(HTML_EOL) == string::npos)
   {
-    return call_immediately(STATE(read_more_data));
+    return yield_and_call(STATE(read_more_data));
   }
 
   // parse the data we have into delimited lines of header data, this will
@@ -101,7 +98,7 @@ StateFlowBase::Action HttpdRequestFlow::parse_header_data()
       LOG_ERROR("[Httpd fd:%d] Malformed request: %s.", fd_
               , lines[0].c_str());
       res_.reset(new AbstractHttpResponse(HTTP_STATUS_CODE::STATUS_BAD_REQUEST));
-      return call_immediately(STATE(send_response_headers));
+      return yield_and_call(STATE(send_response_headers));
     }
     req_.set_method(request[0]);
     vector<string> uri_parts;
@@ -123,14 +120,14 @@ StateFlowBase::Action HttpdRequestFlow::parse_header_data()
                 "aborting with status 400", fd_, req_.get_uri().c_str()
               , req_.get_header_uint32(HTTP_HEADER_CONTENT_LENGTH));
       res_.reset(new AbstractHttpResponse(HTTP_STATUS_CODE::STATUS_BAD_REQUEST));
-      return call_immediately(STATE(send_response_headers));
+      return yield_and_call(STATE(send_response_headers));
     }
     else if (!server_->is_known_uri(&req_))
     {
       LOG_ERROR("[Httpd fd:%d,uri:%s] Unknown URI, sending 404", fd_
               , req_.get_uri().c_str());
       res_.reset(new UriNotFoundResponse(req_.get_uri()));
-      return call_immediately(STATE(send_response_headers));
+      return yield_and_call(STATE(send_response_headers));
     }
 
     // remove the first line since we processed it
@@ -144,7 +141,7 @@ StateFlowBase::Action HttpdRequestFlow::parse_header_data()
     // last header in the request.
     if (line.empty())
     {
-      return call_immediately(STATE(process_request));
+      return yield_and_call(STATE(process_request));
     }
     else
     {
@@ -153,7 +150,7 @@ StateFlowBase::Action HttpdRequestFlow::parse_header_data()
     }
   }
 
-  return call_immediately(STATE(read_more_data));
+  return yield_and_call(STATE(read_more_data));
 }
 
 StateFlowBase::Action HttpdRequestFlow::process_request()
@@ -169,9 +166,9 @@ StateFlowBase::Action HttpdRequestFlow::process_request()
       LOG_ERROR("[Httpd fd:%d,uri:%s] Missing required websocket header(s)\n%s"
               , fd_, req_.get_uri().c_str(), req_.to_string().c_str());
       res_.reset(new AbstractHttpResponse(HTTP_STATUS_CODE::STATUS_BAD_REQUEST));
-      return call_immediately(STATE(send_response_headers));
+      return yield_and_call(STATE(send_response_headers));
     }
-    return call_immediately(STATE(upgrade_to_websocket));
+    return yield_and_call(STATE(upgrade_to_websocket));
   }
 
   // if it is a PUT or POST and there is a content-length header we need to
@@ -203,7 +200,7 @@ StateFlowBase::Action HttpdRequestFlow::process_request()
       // we have received the entire body already, start processing it
       if (requested_size <= 0)
       {
-        return call_immediately(STATE(process_body_chunk));
+        return yield_and_call(STATE(process_body_chunk));
       }
       // we don't have the payload, try to get more data before processing
       return read_repeated_with_timeout(&helper_
@@ -229,7 +226,7 @@ StateFlowBase::Action HttpdRequestFlow::process_request()
     handler(&req_, res_, nullptr, 0);
   }
 
-  return call_immediately(STATE(send_response_headers));
+  return yield_and_call(STATE(send_response_headers));
 }
 
 StateFlowBase::Action HttpdRequestFlow::read_more_data()
@@ -248,7 +245,7 @@ StateFlowBase::Action HttpdRequestFlow::process_body_chunk()
   if (helper_.hasError_)
   {
     req_.set_error();
-    return call_immediately(STATE(request_complete));
+    return yield_and_call(STATE(request_complete));
   }
   size_t data_len = config_httpd_body_chunk_size() - helper_.remaining_;
   // if we received some data pass it on to the handler
@@ -270,7 +267,7 @@ StateFlowBase::Action HttpdRequestFlow::process_body_chunk()
                                     , fd_, buf_.data(), requested_size
                                     , STATE(process_body_chunk));
   }
-  return call_immediately(STATE(send_response_headers));
+  return yield_and_call(STATE(send_response_headers));
 }
 
 StateFlowBase::Action HttpdRequestFlow::send_response_headers()
@@ -278,7 +275,7 @@ StateFlowBase::Action HttpdRequestFlow::send_response_headers()
   if (!res_)
   {
     LOG_ERROR("[Httpd fd:%d] No response created, terminating request", fd_);
-    return call_immediately(STATE(request_complete));
+    return yield_and_call(STATE(request_complete));
   }
   size_t len = 0;
   bool keep_alive = req_.keep_alive() &&
@@ -318,7 +315,7 @@ StateFlowBase::Action HttpdRequestFlow::send_response_body()
     return write_repeated(&helper_, fd_, res_->get_body()
                         , res_->get_body_length(), STATE(request_complete));
   }
-  return call_immediately(STATE(request_complete));
+  return yield_and_call(STATE(request_complete));
 }
 
 StateFlowBase::Action HttpdRequestFlow::send_response_body_split()
@@ -329,13 +326,13 @@ StateFlowBase::Action HttpdRequestFlow::send_response_body_split()
     LOG(WARNING, "[Httpd fd:%d,uri:%s] Error reported during write", fd_
       , req_.get_uri().c_str());
     req_.set_error();
-    return call_immediately(STATE(request_complete));
+    return yield_and_call(STATE(request_complete));
   }
   response_body_offs_ += (config_httpd_response_chunk_size() - helper_.remaining_);
   if (response_body_offs_ >= res_->get_body_length())
   {
     // the body has been sent fully
-    return call_immediately(STATE(request_complete));
+    return yield_and_call(STATE(request_complete));
   }
   size_t remaining = res_->get_body_length() - response_body_offs_;
   if (remaining > config_httpd_response_chunk_size())
@@ -362,18 +359,20 @@ StateFlowBase::Action HttpdRequestFlow::request_complete()
       req_count_ >= config_httpd_max_req_per_connection() ||
       req_.get_uri().empty())
   {
+    req_.reset();
     return delete_this();
   }
-  return call_immediately(STATE(start_request));
+  return yield_and_call(STATE(start_request));
 }
 
 StateFlowBase::Action HttpdRequestFlow::upgrade_to_websocket()
 {
   // keep the socket open since we will reuse it as the websocket
   close_ = false;
-  new WebsocketFlow(server_, fd_, req_.get_header(WEBSOCKET_HEADER_KEY)
+  new WebSocketFlow(server_, fd_, remote_ip_, req_.get_header(WEBSOCKET_HEADER_KEY)
                   , req_.get_header(WEBSOCKET_HEADER_VERSION)
                   , server_->get_websocket_handler_for_uri(req_.get_uri()));
+  req_.reset();
   return delete_this();
 }
 

@@ -89,6 +89,14 @@ AbstractHttpResponse::~AbstractHttpResponse()
 uint8_t *AbstractHttpResponse::get_headers(size_t *len, bool keep_alive
                                          , bool add_keep_alive)
 {
+  to_string(false, keep_alive, add_keep_alive);
+  *len = encoded_headers_.size();
+  return (uint8_t *)encoded_headers_.c_str();
+}
+
+string AbstractHttpResponse::to_string(bool include_body, bool keep_alive
+                                     , bool add_keep_alive)
+{
   encoded_headers_.assign(StringPrintf("HTTP/1.1 %d %s%s", code_
                                       , http_code_strings[code_].c_str()
                                       , HTML_EOL));
@@ -128,8 +136,7 @@ uint8_t *AbstractHttpResponse::get_headers(size_t *len, bool keep_alive
   // leave blank line after headers before the body
   encoded_headers_.append(HTML_EOL);
 
-  *len = encoded_headers_.size();
-  return (uint8_t *)encoded_headers_.c_str();
+  return encoded_headers_;
 }
 
 void AbstractHttpResponse::add_header(const string &header, const string &value)

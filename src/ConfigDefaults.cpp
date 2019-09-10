@@ -135,3 +135,5 @@ DEFAULT_CONST(httpd_req_timeout_ms, 5);
 DEFAULT_CONST(httpd_socket_receive_timeout_ms, 100);
 DEFAULT_CONST(httpd_websocket_timeout_ms, 500);
 DEFAULT_CONST(httpd_websocket_max_frame_size, 256);
+DEFAULT_CONST(httpd_websocket_max_read_attempts, 5);
+DEFAULT_CONST(httpd_websocket_max_write_attempts, 5);

@@ -120,6 +120,7 @@ static constexpr const char * HTTP_UPGRADE_HEADER_WEBSOCKET = "websocket";
 static constexpr const char * HTML_EOL = "\r\n";
 
 // Common mime-types
+static constexpr const char * MIME_TYPE_NONE = "";
 static constexpr const char * MIME_TYPE_TEXT_CSS = "text/css";
 static constexpr const char * MIME_TYPE_TEXT_HTML = "text/html";
 static constexpr const char * MIME_TYPE_TEXT_PLAIN = "text/plain";
@@ -143,10 +144,12 @@ class AbstractHttpResponse
 {
 public:
   AbstractHttpResponse(HTTP_STATUS_CODE code=STATUS_NOT_FOUND
-                     , const std::string &mime_type=MIME_TYPE_TEXT_HTML);
+                     , const std::string &mime_type=MIME_TYPE_NONE);
   virtual ~AbstractHttpResponse();
   uint8_t *get_headers(size_t *len, bool keep_alive=false
                      , bool add_keep_alive=true);
+  std::string to_string(bool include_body=false, bool keep_alive=false
+                      , bool add_keep_alive=true);
   virtual const uint8_t *get_body()
   {
     return nullptr;
@@ -275,50 +278,61 @@ typedef std::function<void(const HttpRequest *                    /* request */
                          , size_t                                 /* data length */
                          )> RequestProcessor;
 typedef std::function<void(int              /* id */
+                         , uint32_t         /* remote ip */
                          , WebSocketEvent   /* event */
                          , bool             /* text [true] or binary [false] */
                          , uint8_t *        /* data */
                          , size_t           /* data len */
                          )> WebSocketHandler;
 
+class WebSocketFlow;
+class HttpdRequestFlow;
+
 class Httpd : public Service, public Singleton<Httpd>
 {
 public:
   Httpd(uint16_t port);
   virtual ~Httpd();
-  void register_uri(const std::string &uri, RequestProcessor handler);
-  void register_redirected_uri(const std::string &source_uri
-                             , const std::string &target_uri);
-  void register_static_uri(const std::string &uri, const uint8_t *payload
-                         , const size_t len, const std::string &type
-                         , const std::string &encoding="");
-  void register_websocket_uri(const std::string &uri, WebSocketHandler handler);
+  void uri(const std::string &uri, RequestProcessor handler);
+  void redirected_uri(const std::string &source, const std::string &target);
+  void static_uri(const std::string &uri, const uint8_t *payload
+                , const size_t len, const std::string &type
+                , const std::string &encoding="");
+  void websocket_uri(const std::string &uri, WebSocketHandler handler);
+  void send_websocket_binary(int id, uint8_t *data, size_t len);
+  void send_websocket_text(int id, std::string &text);
+private:
+  friend class WebSocketFlow;
+  friend class HttpdRequestFlow;
+  void on_new_connection(int fd);
+  void add_websocket(int id, WebSocketFlow *ws);
+  void remove_websocket(int id);
   RequestProcessor get_handler_for_uri(const std::string &uri);
   WebSocketHandler get_websocket_handler_for_uri(const std::string &uri);
   bool can_send_known_response(const std::string &uri);
   std::shared_ptr<AbstractHttpResponse> get_known_response(const std::string &uri);
   bool is_request_too_large(HttpRequest *req);
   bool is_known_uri(HttpRequest *req);
-private:
-  void on_new_connection(int fd);
   Executor<1> exec_;
   SocketListener listener_;
   std::map<std::string, RequestProcessor> handlers_;
   std::map<std::string, std::shared_ptr<AbstractHttpResponse>> static_uris_;
   std::map<std::string, std::shared_ptr<AbstractHttpResponse>> redirect_uris_;
   std::map<std::string, WebSocketHandler> websocket_uris_;
+  std::map<int, WebSocketFlow *> websockets_;
   DISALLOW_COPY_AND_ASSIGN(Httpd);
 };
 
-class HttpdRequestFlow : public StateFlowBase
+class HttpdRequestFlow : private StateFlowBase
 {
 public:
-  HttpdRequestFlow(Httpd *server, int fd);
+  HttpdRequestFlow(Httpd *server, int fd, uint32_t remote_ip);
   virtual ~HttpdRequestFlow();
 private:
   StateFlowTimedSelectHelper helper_{this};
   Httpd *server_;
   int fd_;
+  uint32_t remote_ip_;
   HttpRequest req_;
   // flag to close the socket on termination of the request
   bool close_{true};
@@ -345,21 +359,25 @@ private:
   STATE_FLOW_STATE(upgrade_to_websocket);
 };
 
-class WebsocketFlow : public StateFlowBase
+class WebSocketFlow : private StateFlowBase
 {
 public:
-  WebsocketFlow(Httpd *server, int fd, const std::string &ws_key
-              , const std::string &ws_version, WebSocketHandler handler);
-  ~WebsocketFlow();
+  WebSocketFlow(Httpd *server, int fd, uint32_t remote_ip
+              , const std::string &ws_key, const std::string &ws_version
+              , WebSocketHandler handler);
+  ~WebSocketFlow();
+  void send_text(std::string &text);
 private:
+  Httpd *server_;
   StateFlowTimedSelectHelper helper_{this};
   int fd_;
+  uint32_t remote_ip_;
   const uint64_t timeout_;
   const uint64_t max_frame_size_;
-  AbstractHttpResponse handshake_;
+  uint8_t *data_;
+  size_t data_size_;
+  std::string handshake_;
   WebSocketHandler handler_;
-  bool sent_connect_{false};
-  bool sent_disconnect_{false};
   uint16_t header_;
   uint8_t opcode_;
   bool masked_;
@@ -367,8 +385,8 @@ private:
   uint16_t frameLength16_;
   uint64_t frameLength_;
   uint32_t maskingKey_;
-  std::vector<uint8_t> frameBuf_;
-  size_t frameBufOffs_;
+  OSMutex textLock_;
+  std::string textToSend_;
 
   // helper for fully reading a data block with a timeout so we can close the
   // socket if there are too many timeout errors
@@ -376,17 +394,25 @@ private:
   size_t buf_size_;
   size_t buf_offs_;
   size_t buf_remain_;
-  uint8_t timeouts_remaining_;
+  uint8_t buf_attempts_;
   Callback buf_next_;
-  Action read_fully_with_timeout(void *buf, size_t size, Callback c);
-  STATE_FLOW_STATE(data_chunk_received);
+  Callback buf_next_timeout_;
+  Action read_fully_with_timeout(void *buf, size_t size, size_t attempts
+                               , Callback success, Callback timeout);
+  STATE_FLOW_STATE(data_received);
 
-  STATE_FLOW_STATE(start_handshake);
+  // Internal state flow for reading a websocket frame of data and sending back
+  // a response, possibly broken into chunks.
+  STATE_FLOW_STATE(send_handshake);
+  STATE_FLOW_STATE(handshake_sent);
   STATE_FLOW_STATE(read_frame_header);
   STATE_FLOW_STATE(frame_header_received);
   STATE_FLOW_STATE(frame_data_len_received);
-  STATE_FLOW_STATE(read_frame_data);
-  STATE_FLOW_STATE(frame_data_received);
+  STATE_FLOW_STATE(start_recv_frame_data);
+  STATE_FLOW_STATE(recv_frame_data);
+  STATE_FLOW_STATE(shutdown_connection);
+  STATE_FLOW_STATE(send_frame_header);
+  STATE_FLOW_STATE(frame_sent);
 };
 
 static inline std::pair<std::string, std::string> break_string(std::string &str

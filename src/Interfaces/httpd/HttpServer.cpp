@@ -42,62 +42,83 @@ Httpd::~Httpd()
   websocket_uris_.clear();
 }
 
-void Httpd::on_new_connection(int fd)
+void Httpd::uri(const std::string &uri, RequestProcessor handler)
 {
-  sockaddr_in source;
-  socklen_t source_len = sizeof(sockaddr_in);
-  ERRNOCHECK("getpeername", getpeername(fd, (sockaddr *)&source, &source_len));
-  LOG(INFO, "[Httpd fd:%d/%s] Connected", fd
-    , ipv4_to_string(ntohl(source.sin_addr.s_addr)).c_str());
-  new HttpdRequestFlow(this, fd);
+  handlers_.insert(std::make_pair(std::move(uri), std::move(handler)));
 }
 
-void Httpd::register_uri(const std::string &uri, RequestProcessor handler)
+void Httpd::redirected_uri(const string &source, const string &target)
 {
-  handlers_.emplace(std::make_pair(std::move(uri), std::move(handler)));
+  redirect_uris_.insert(
+    std::make_pair(std::move(source)
+                 , std::make_shared<RedirectResponse>(target)));
 }
 
-RequestProcessor Httpd::get_handler_for_uri(const std::string &uri)
+void Httpd::static_uri(const string &uri, const uint8_t *payload
+                     , const size_t length, const string &type
+                     , const string &encoding)
 {
-  LOG(VERBOSE, "[Httpd] Searching for URI handler: %s", uri.c_str());
-  if (handlers_.count(uri))
-  {
-    return handlers_[uri];
-  }
-  LOG(VERBOSE, "[Httpd] No handler found");
-  return nullptr;
-}
-
-WebSocketHandler Httpd::get_websocket_handler_for_uri(const string &uri)
-{
-  if (websocket_uris_.count(uri))
-  {
-    return websocket_uris_[uri];
-  }
-  return nullptr;
-}
-
-void Httpd::register_redirected_uri(const string &source_uri
-                                  , const string &target_uri)
-{
-  redirect_uris_.emplace(
-    std::make_pair(std::move(source_uri)
-                 , std::make_shared<RedirectResponse>(target_uri)));
-}
-
-void Httpd::register_static_uri(const string &uri, const uint8_t *payload
-                              , const size_t length, const string &type
-                              , const string &encoding)
-{
-  static_uris_.emplace(
+  static_uris_.insert(
     std::make_pair(std::move(uri)
                  , std::make_shared<StaticBodyResponse>(payload, length, type
                                                       , encoding)));
 }
 
-void Httpd::register_websocket_uri(const string &uri, WebSocketHandler handler)
+void Httpd::websocket_uri(const string &uri, WebSocketHandler handler)
 {
-  websocket_uris_.emplace(std::make_pair(std::move(uri), std::move(handler)));
+  websocket_uris_.insert(std::make_pair(std::move(uri), std::move(handler)));
+}
+
+void Httpd::send_websocket_binary(int id, uint8_t *data, size_t len)
+{
+  if (!websockets_.count(id))
+  {
+    LOG_ERROR("[Httpd] Attempt to send data to unknown websocket:%d, "
+              "discarding.", id);
+    return;
+  }
+  //websockets_[id]->send_binary(data, len);
+}
+
+void Httpd::send_websocket_text(int id, std::string &text)
+{
+  if (!websockets_.count(id))
+  {
+    LOG_ERROR("[Httpd] Attempt to send text to unknown websocket:%d, "
+              "discarding text.", id);
+    return;
+  }
+  websockets_[id]->send_text(text);
+}
+
+void Httpd::on_new_connection(int fd)
+{
+  sockaddr_in source;
+  socklen_t source_len = sizeof(sockaddr_in);
+  if (getpeername(fd, (sockaddr *)&source, &source_len))
+  {
+    source.sin_addr.s_addr = 0;
+  }
+  LOG(INFO, "[Httpd fd:%d/%s] Connected", fd
+    , ipv4_to_string(ntohl(source.sin_addr.s_addr)).c_str());
+  struct timeval tm;
+  tm.tv_sec = 0;
+  tm.tv_usec = MSEC_TO_USEC(config_httpd_socket_receive_timeout_ms());
+  ERRNOCHECK("setsockopt_recv_timeout",
+      setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tm, sizeof(tm)));
+  ERRNOCHECK("setsockopt_send_timeout",
+      setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tm, sizeof(tm)));
+  new HttpdRequestFlow(this, fd, ntohl(source.sin_addr.s_addr));
+}
+
+void Httpd::add_websocket(int id, WebSocketFlow *ws)
+{
+  websockets_[id] = ws;
+}
+
+void Httpd::remove_websocket(int id)
+{
+  websockets_.erase(id);
 }
 
 bool Httpd::can_send_known_response(const string &uri)
@@ -152,6 +173,26 @@ bool Httpd::is_known_uri(HttpRequest *req)
 
   // default to checking if we have a handler
   return handlers_.count(req->get_uri());
+}
+
+RequestProcessor Httpd::get_handler_for_uri(const std::string &uri)
+{
+  LOG(VERBOSE, "[Httpd] Searching for URI handler: %s", uri.c_str());
+  if (handlers_.count(uri))
+  {
+    return handlers_[uri];
+  }
+  LOG(VERBOSE, "[Httpd] No handler found");
+  return nullptr;
+}
+
+WebSocketHandler Httpd::get_websocket_handler_for_uri(const string &uri)
+{
+  if (websocket_uris_.count(uri))
+  {
+    return websocket_uris_[uri];
+  }
+  return nullptr;
 }
 
 } // namespace httpd
