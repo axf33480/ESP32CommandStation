@@ -41,8 +41,9 @@ RailCom support. The secondary focus is tighter integration with LCC.
 
 ### Web Interface
 
+- [ ] Replace webserver code with StateFlow based server.
 - [x] add dialog for failed CS requests.
-- [x] Hide power button for prog track when it is off
+- [x] Hide power button for prog track when it is off.
 - [x] Configure Station SSID/PW
 - [ ] ESPAsyncWebServer can trigger heap corruption in the request processing
   when disconnecting the tcp client.
