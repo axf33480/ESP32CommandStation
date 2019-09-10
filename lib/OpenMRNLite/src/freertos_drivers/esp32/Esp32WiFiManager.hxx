@@ -42,6 +42,7 @@
 #include "openlcb/TcpDefs.hxx"
 #include "utils/ConfigUpdateListener.hxx"
 #include "utils/GcTcpHub.hxx"
+#include "utils/Singleton.hxx"
 #include "utils/SocketClient.hxx"
 #include "utils/SocketClientParams.hxx"
 #include "utils/macros.h"
@@ -69,6 +70,7 @@ namespace openmrn_arduino
 /// OpenMRN::begin() which will trigger the loading of the node configuration
 /// which will trigger the management of the hub and uplink functionality.
 class Esp32WiFiManager : public DefaultConfigUpdateListener
+                       , public Singleton<Esp32WiFiManager>
 {
 public:
     /// Constructor.
