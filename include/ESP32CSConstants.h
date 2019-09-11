@@ -52,18 +52,4 @@ DECLARE_CONST(status_led_pin);
 DECLARE_CONST(status_led_brightness);
 DECLARE_CONST(status_led_update_interval_msec);
 
-DECLARE_CONST(httpd_server_stack_size);
-DECLARE_CONST(httpd_server_priority);
-DECLARE_CONST(httpd_header_chunk_size);
-DECLARE_CONST(httpd_body_chunk_size);
-DECLARE_CONST(httpd_response_chunk_size);
-DECLARE_CONST(httpd_max_req_size);
-DECLARE_CONST(httpd_max_req_per_connection);
-DECLARE_CONST(httpd_req_timeout_ms);
-DECLARE_CONST(httpd_socket_receive_timeout_ms);
-DECLARE_CONST(httpd_websocket_timeout_ms);
-DECLARE_CONST(httpd_websocket_max_frame_size);
-DECLARE_CONST(httpd_websocket_max_read_attempts);
-DECLARE_CONST(httpd_websocket_max_write_attempts);
-
 #endif

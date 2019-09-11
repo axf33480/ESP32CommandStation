@@ -132,11 +132,12 @@ void WiFiInterface::init()
 #endif
     }
   });
+  esp32csWebServer.init();
 }
 
 string WiFiInterface::get_state_for_dccpp()
 {
-  return StringPrintf("<N1: " IPSTR " >", IP2STR(&ip_.ip));
+  return StringPrintf("<N1: " IPSTR ">", IP2STR(&ip_.ip));
 }
 
 void *jmriClientHandler(void *arg)

@@ -20,22 +20,44 @@ COPYRIGHT (c) 2019 Mike Dunston
 
 namespace esp32cs
 {
-namespace httpd
+namespace http
 {
 
-Httpd::Httpd(uint16_t port) : Service(&exec_)
-                            , exec_("httpd", config_httpd_server_priority()
-                                  , config_httpd_server_stack_size())
-                            , listener_(port
-                                      , std::bind(&Httpd::on_new_connection
-                                      , this, std::placeholders::_1))
+Httpd::Httpd(const std::string &name, uint16_t port)
+  : Service(&executor_)
+  , executor_(name.c_str(), config_httpd_server_priority()
+            , config_httpd_server_stack_size())
+  , port_(port)
 {
+  Singleton<Esp32WiFiManager>::instance()->add_event_callback(
+  [&](system_event_t *event)
+  {
+    if (event->event_id == SYSTEM_EVENT_STA_GOT_IP ||
+        event->event_id == SYSTEM_EVENT_AP_START)
+    {
+      listener_.emplace(port_
+                      , std::bind(&Httpd::on_new_connection
+                                , Singleton<Httpd>::instance()
+                                , std::placeholders::_1));
+      active_ = true;
+    }
+    else if (event->event_id == SYSTEM_EVENT_STA_LOST_IP ||
+             event->event_id == SYSTEM_EVENT_AP_STOP)
+    {
+      listener_.reset();
+      active_ = false;
+    }
+  });
 }
 
 Httpd::~Httpd()
 {
-  listener_.shutdown();
-  exec_.shutdown();
+  if (active_)
+  {
+    listener_->shutdown();
+    listener_.reset();
+  }
+  executor_.shutdown();
   handlers_.clear();
   static_uris_.clear();
   redirect_uris_.clear();
@@ -47,7 +69,7 @@ void Httpd::uri(const std::string &uri, RequestProcessor handler)
   handlers_.insert(std::make_pair(std::move(uri), std::move(handler)));
 }
 
-void Httpd::redirected_uri(const string &source, const string &target)
+void Httpd::redirect_uri(const string &source, const string &target)
 {
   redirect_uris_.insert(
     std::make_pair(std::move(source)
@@ -55,13 +77,13 @@ void Httpd::redirected_uri(const string &source, const string &target)
 }
 
 void Httpd::static_uri(const string &uri, const uint8_t *payload
-                     , const size_t length, const string &type
+                     , const size_t length, const string &mime_type
                      , const string &encoding)
 {
   static_uris_.insert(
     std::make_pair(std::move(uri)
-                 , std::make_shared<StaticBodyResponse>(payload, length, type
-                                                      , encoding)));
+                 , std::make_shared<StaticResponse>(payload, length, mime_type
+                                                  , encoding)));
 }
 
 void Httpd::websocket_uri(const string &uri, WebSocketHandler handler)
@@ -103,12 +125,12 @@ void Httpd::on_new_connection(int fd)
     , ipv4_to_string(ntohl(source.sin_addr.s_addr)).c_str());
   struct timeval tm;
   tm.tv_sec = 0;
-  tm.tv_usec = MSEC_TO_USEC(config_httpd_socket_receive_timeout_ms());
+  tm.tv_usec = MSEC_TO_USEC(config_httpd_socket_timeout_ms());
   ERRNOCHECK("setsockopt_recv_timeout",
       setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tm, sizeof(tm)));
   ERRNOCHECK("setsockopt_send_timeout",
       setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tm, sizeof(tm)));
-  new HttpdRequestFlow(this, fd, ntohl(source.sin_addr.s_addr));
+  new HttpRequestFlow(this, fd, ntohl(source.sin_addr.s_addr));
 }
 
 void Httpd::add_websocket(int id, WebSocketFlow *ws)
@@ -121,12 +143,12 @@ void Httpd::remove_websocket(int id)
   websockets_.erase(id);
 }
 
-bool Httpd::can_send_known_response(const string &uri)
+bool Httpd::have_known_response(const string &uri)
 {
   return static_uris_.count(uri) || redirect_uris_.count(uri);
 }
 
-shared_ptr<AbstractHttpResponse> Httpd::get_known_response(const string &uri)
+shared_ptr<AbstractHttpResponse> Httpd::response(const string &uri)
 {
   if (static_uris_.count(uri))
   {
@@ -142,40 +164,45 @@ shared_ptr<AbstractHttpResponse> Httpd::get_known_response(const string &uri)
 bool Httpd::is_request_too_large(HttpRequest *req)
 {
   HASSERT(req);
-  uint32_t req_body_len = req->get_header_uint32(HTTP_HEADER_CONTENT_LENGTH);
-  if (req_body_len > config_httpd_max_req_size())
+
+  // if the request doesn't have the content-length header we can try to
+  // process it but it likely will fail.
+  if (req->has_header(HttpHeader::CONTENT_LENGTH))
   {
-    LOG_ERROR("[Httpd uri:%s] Request body too large %d > %d!"
-            , req->get_uri().c_str(), req_body_len
-            , config_httpd_max_req_size());
-    // request size too big
-    return true;
+    uint32_t len = std::stoul(req->header(HttpHeader::CONTENT_LENGTH));
+    if (len > config_httpd_max_req_size())
+    {
+      LOG_ERROR("[Httpd uri:%s] Request body too large %d > %d!"
+              , req->uri().c_str(), len, config_httpd_max_req_size());
+      // request size too big
+      return true;
+    }
   }
+  else
+  {
+    LOG(VERBOSE, "[Httpd] Request does not have Content-Length header:\n%s"
+      , req->to_string().c_str());
+  }
+
   return false;
 }
 
-bool Httpd::is_known_uri(HttpRequest *req)
+bool Httpd::is_servicable_uri(HttpRequest *req)
 {
   HASSERT(req);
 
-  // check for known URI responses
-  if (!req->get_method().compare(HTTP_METHOD_GET) &&
-      can_send_known_response(req->get_uri()))
+  // check if it is a GET of a known URI or if it is a Websocket URI
+  if ((req->method() == HttpMethod::GET && have_known_response(req->uri())) ||
+      websocket_uris_.count(req->uri()))
   {
     return true;
   }
 
-  // check if it is a websocket endpoint
-  if (websocket_uris_.count(req->get_uri()))
-  {
-    return true;
-  }
-
-  // default to checking if we have a handler
-  return handlers_.count(req->get_uri());
+  // Check if we have a handler for the provided URI
+  return handlers_.count(req->uri());
 }
 
-RequestProcessor Httpd::get_handler_for_uri(const std::string &uri)
+RequestProcessor Httpd::handler(const std::string &uri)
 {
   LOG(VERBOSE, "[Httpd] Searching for URI handler: %s", uri.c_str());
   if (handlers_.count(uri))
@@ -186,7 +213,7 @@ RequestProcessor Httpd::get_handler_for_uri(const std::string &uri)
   return nullptr;
 }
 
-WebSocketHandler Httpd::get_websocket_handler_for_uri(const string &uri)
+WebSocketHandler Httpd::ws_handler(const string &uri)
 {
   if (websocket_uris_.count(uri))
   {
@@ -195,5 +222,5 @@ WebSocketHandler Httpd::get_websocket_handler_for_uri(const string &uri)
   return nullptr;
 }
 
-} // namespace httpd
+} // namespace http
 } // namespace esp32cs

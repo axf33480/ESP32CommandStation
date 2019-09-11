@@ -20,17 +20,17 @@ COPYRIGHT (c) 2019 Mike Dunston
 
 namespace esp32cs
 {
-namespace httpd
+namespace http
 {
 
 typedef enum
 {
-  CONTINUATION = 0x0 // Continuation Frame
-, TEXT         = 0x1 // Text Frame
-, BINARY       = 0x2 // Binary Frame
-, CLOSE        = 0x8 // Connection Close Frame
-, PING         = 0x9 // Ping Frame
-, PONG         = 0xA // Pong Frame
+  OP_CONTINUATION = 0x0, // Continuation Frame
+  OP_TEXT         = 0x1, // Text Frame
+  OP_BINARY       = 0x2, // Binary Frame
+  OP_CLOSE        = 0x8, // Connection Close Frame
+  OP_PING         = 0x9, // Ping Frame
+  OP_PONG         = 0xA, // Pong Frame
 } WebSocketOpcode;
 
 static constexpr uint8_t WEBSOCKET_FINAL_FRAME = 0x80;
@@ -38,6 +38,9 @@ static constexpr uint8_t WEBSOCKET_FRAME_IS_MASKED = 0x80;
 static constexpr uint8_t WEBSOCKET_FRAME_LEN_SINGLE = 126;
 static constexpr uint8_t WEBSOCKET_FRAME_LEN_UINT16 = 126;
 static constexpr uint8_t WEBSOCKET_FRAME_LEN_UINT64 = 127;
+
+// This is the WebSocket UUID it is used as part of the handshake process.
+static constexpr const char * WEBSOCKET_UUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
 WebSocketFlow::WebSocketFlow(Httpd *server, int fd, uint32_t remote_ip
                            , const string &ws_key, const string &ws_version
@@ -61,11 +64,11 @@ WebSocketFlow::WebSocketFlow(Httpd *server, int fd, uint32_t remote_ip
                       , key_sha1))
   {
     AbstractHttpResponse resp(STATUS_SWITCH_PROTOCOL);
-    resp.add_header(HTTP_HEADER_CONNECTION, HTTP_CONNECTION_UPGRADE);
-    resp.add_header(HTTP_HEADER_UPGRADE, HTTP_UPGRADE_HEADER_WEBSOCKET);
-    resp.add_header(WEBSOCKET_HEADER_VERSION, ws_version);
-    resp.add_header(WEBSOCKET_HEADER_ACCEPT
-                  , base64_encode(string((char *)key_sha1, 20)));
+    resp.header(HttpHeader::CONNECTION, HTTP_CONNECTION_UPGRADE);
+    resp.header(HttpHeader::UPGRADE, HTTP_UPGRADE_HEADER_WEBSOCKET);
+    resp.header(HttpHeader::WS_VERSION, ws_version);
+    resp.header(HttpHeader::WS_ACCEPT
+              , base64_encode(string((char *)key_sha1, 20)));
     handshake_.assign(std::move(resp.to_string()));
 
     // Allocate buffer for frame data.
@@ -99,6 +102,21 @@ void WebSocketFlow::send_text(string &text)
 {
   OSMutexLock l(&textLock_);
   textToSend_.append(text);
+}
+
+int WebSocketFlow::get_id()
+{
+  return fd_;
+}
+
+uint32_t WebSocketFlow::get_remote_ip()
+{
+  return remote_ip_;
+}
+
+void WebSocketFlow::request_close()
+{
+  close_requested_ = true;
 }
 
 StateFlowBase::Action WebSocketFlow::read_fully_with_timeout(void *buf
@@ -159,12 +177,17 @@ StateFlowBase::Action WebSocketFlow::handshake_sent()
     LOG(INFO, "[WebSocket fd:%d] read-error, disconnecting", fd_);
     return yield_and_call(STATE(shutdown_connection));
   }
-  handler_(fd_, remote_ip_, CONNECT, false, nullptr, 0);
+  handler_(this, WebSocketEvent::WS_EVENT_CONNECT, nullptr, 0);
   return yield_and_call(STATE(read_frame_header));
 }
 
 StateFlowBase::Action WebSocketFlow::read_frame_header()
 {
+  // Check if there has been a request to shutdown the connection
+  if (close_requested_)
+  {
+    return yield_and_call(STATE(shutdown_connection));
+  }
   // reset frame state to defaults
   header_ = 0;
   opcode_ = 0;
@@ -277,16 +300,19 @@ StateFlowBase::Action WebSocketFlow::recv_frame_data()
         data_[idx] ^= mask[idx % 4];
       }
     }
-    if (opcode_ == PING)
+    if (opcode_ == OP_PING)
     {
       // send PONG
     }
-    else if (opcode_ == TEXT || opcode_ == BINARY)
+    else if (opcode_ == OP_TEXT)
     {
-      handler_(fd_, remote_ip_, MESSAGE, opcode_ == TEXT, data_
-             , received_len);
+      handler_(this, WebSocketEvent::WS_EVENT_TEXT, data_, received_len);
     }
-    else if (opcode_ == CLOSE)
+    else if (opcode_ == OP_BINARY)
+    {
+      handler_(this, WebSocketEvent::WS_EVENT_BINARY, data_, received_len);
+    }
+    if (opcode_ == OP_CLOSE || close_requested_)
     {
       return yield_and_call(STATE(shutdown_connection));
     }
@@ -305,12 +331,13 @@ StateFlowBase::Action WebSocketFlow::recv_frame_data()
 
 StateFlowBase::Action WebSocketFlow::shutdown_connection()
 {
-  handler_(fd_, remote_ip_, DISCONNECT, false, nullptr, 0);
+  handler_(this, WebSocketEvent::WS_EVENT_DISCONNECT, nullptr, 0);
   return delete_this();
 }
 
 StateFlowBase::Action WebSocketFlow::send_frame_header()
 {
+  // TODO: add binary message sending support
   OSMutexLock l(&textLock_);
   if (textToSend_.empty())
   {
@@ -320,7 +347,7 @@ StateFlowBase::Action WebSocketFlow::send_frame_header()
   size_t send_size = 0;
   if (textToSend_.length() < WEBSOCKET_FRAME_LEN_SINGLE)
   {
-    data_[0] = WEBSOCKET_FINAL_FRAME | TEXT;
+    data_[0] = WEBSOCKET_FINAL_FRAME | OP_TEXT;
     data_[1] = textToSend_.length();
     memcpy(data_ + 2, textToSend_.data(), textToSend_.length());
     data_size_ = textToSend_.length();
@@ -329,7 +356,7 @@ StateFlowBase::Action WebSocketFlow::send_frame_header()
   else if (textToSend_.length() < max_frame_size_ - 4)
   {
     data_size_ = textToSend_.length();
-    data_[0] = WEBSOCKET_FINAL_FRAME | TEXT;
+    data_[0] = WEBSOCKET_FINAL_FRAME | OP_TEXT;
     data_[1] = WEBSOCKET_FRAME_LEN_UINT16;
     data_[2] = data_size_ & 0xFF;
     data_[3] = (data_size_ >> 8) & 0xFF;
@@ -340,7 +367,7 @@ StateFlowBase::Action WebSocketFlow::send_frame_header()
   {
     // size is greater than our max frame, send it as fragments
     data_size_ = max_frame_size_ - 4;
-    data_[0] = CONTINUATION;
+    data_[0] = OP_CONTINUATION;
     data_[1] = WEBSOCKET_FRAME_LEN_UINT16;
     data_[2] = data_size_ & 0xFF;
     data_[3] = (data_size_ >> 8) & 0xFF;
@@ -365,5 +392,5 @@ StateFlowBase::Action WebSocketFlow::frame_sent()
   return yield_and_call(STATE(send_frame_header));
 }
 
-} // namespace httpd
+} // namespace http
 } // namespace esp32cs

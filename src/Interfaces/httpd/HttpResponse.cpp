@@ -20,10 +20,12 @@ COPYRIGHT (c) 2019 Mike Dunston
 
 namespace esp32cs
 {
-namespace httpd
+namespace http
 {
 
-static std::map<HTTP_STATUS_CODE, string> http_code_strings =
+extern std::map<HttpHeader, string> well_known_http_headers;
+
+static std::map<HttpStatusCode, string> http_code_strings =
 {
   {STATUS_CONTINUE, "Continue"},
   {STATUS_SWITCH_PROTOCOL, "Switching Protocols"},
@@ -71,13 +73,13 @@ static std::map<HTTP_STATUS_CODE, string> http_code_strings =
   {STATUS_HTTP_VERSION_UNSUPPORTED, "HTTP Version not supported"}
 };
 
-AbstractHttpResponse::AbstractHttpResponse(HTTP_STATUS_CODE code
+AbstractHttpResponse::AbstractHttpResponse(HttpStatusCode code
                                          , const string &mime_type)
                                          : code_(code), mime_type_(mime_type)
                                          , encoded_headers_("")
 {
   // seed default headers
-  add_header(HTTP_HEADER_CACHE_CONTROL, HTTP_CACHE_CONTROL_NO_CACHE);
+  header(HttpHeader::CACHE_CONTROL, HTTP_CACHE_CONTROL_NO_CACHE);
 }
 
 AbstractHttpResponse::~AbstractHttpResponse()
@@ -108,29 +110,36 @@ string AbstractHttpResponse::to_string(bool include_body, bool keep_alive
       StringPrintf("%s: %s%s", ent.first.c_str(), ent.second.c_str()
                   , HTML_EOL));
   }
+
   if (get_body_length())
   {
-    LOG(VERBOSE, "[resp-header] %s -> %zu", HTTP_HEADER_CONTENT_LENGTH
+    LOG(VERBOSE, "[resp-header] %s -> %zu"
+      , well_known_http_headers[HttpHeader::CONTENT_LENGTH].c_str()
       , get_body_length());
     encoded_headers_.append(
-      StringPrintf("%s: %zu%s", HTTP_HEADER_CONTENT_LENGTH, get_body_length()
-                  , HTML_EOL));
-    LOG(VERBOSE, "[resp-header] %s -> %s", HTTP_HEADER_CONTENT_TYPE
+      StringPrintf("%s: %zu%s"
+                 , well_known_http_headers[HttpHeader::CONTENT_LENGTH].c_str()
+                 , get_body_length(), HTML_EOL));
+    LOG(VERBOSE, "[resp-header] %s -> %s"
+      , well_known_http_headers[HttpHeader::CONTENT_TYPE].c_str()
       , get_body_mime_type().c_str());
     encoded_headers_.append(
-      StringPrintf("%s: %s%s", HTTP_HEADER_CONTENT_TYPE
-                  , get_body_mime_type().c_str(), HTML_EOL));
+      StringPrintf("%s: %s%s"
+                 , well_known_http_headers[HttpHeader::CONTENT_TYPE].c_str()
+                 , get_body_mime_type().c_str(), HTML_EOL));
   }
 
   if (add_keep_alive)
   {
     string connection = keep_alive ? HTTP_CONNECTION_CLOSE
                                   : HTTP_CONNECTION_KEEP_ALIVE;
-    LOG(VERBOSE, "[resp-header] %s -> %s", HTTP_HEADER_CONNECTION
+    LOG(VERBOSE, "[resp-header] %s -> %s"
+      , well_known_http_headers[HttpHeader::CONNECTION].c_str()
       , connection.c_str());
     encoded_headers_.append(
-      StringPrintf("%s: %s%s", HTTP_HEADER_CONNECTION, connection.c_str()
-                  , HTML_EOL));
+      StringPrintf("%s: %s%s"
+                 , well_known_http_headers[HttpHeader::CONNECTION].c_str()
+                 , connection.c_str(), HTML_EOL));
   }
 
   // leave blank line after headers before the body
@@ -139,22 +148,27 @@ string AbstractHttpResponse::to_string(bool include_body, bool keep_alive
   return encoded_headers_;
 }
 
-void AbstractHttpResponse::add_header(const string &header, const string &value)
+void AbstractHttpResponse::header(const string &header, const string &value)
 {
   headers_[header] = std::move(value);
 }
 
-RedirectResponse::RedirectResponse(const string &target_uri)
-  : AbstractHttpResponse(HTTP_STATUS_CODE::STATUS_FOUND)
+void AbstractHttpResponse::header(const HttpHeader header, const string &value)
 {
-  add_header(HTTP_HEADER_LOCATION, target_uri);
+  headers_[well_known_http_headers[header]] = std::move(value);
+}
+
+RedirectResponse::RedirectResponse(const string &target_uri)
+  : AbstractHttpResponse(HttpStatusCode::STATUS_FOUND)
+{
+  header(HttpHeader::LOCATION, target_uri);
 }
 
 StringResponse::StringResponse(const string &response, const string &mime_type)
-  : AbstractHttpResponse(HTTP_STATUS_CODE::STATUS_OK, mime_type)
+  : AbstractHttpResponse(HttpStatusCode::STATUS_OK, mime_type)
   , response_(std::move(response))
 {
 }
 
-} // namespace httpd
+} // namespace http
 } // namespace esp32cs

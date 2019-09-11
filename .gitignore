@@ -5,3 +5,6 @@
 utils/*.pyc
 include/generated/*
 *.code-workspace
+docs/html
+docs/esp32cs.tag
+docs/warnings

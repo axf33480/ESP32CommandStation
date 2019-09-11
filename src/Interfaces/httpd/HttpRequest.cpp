@@ -20,44 +20,92 @@ COPYRIGHT (c) 2019 Mike Dunston
 
 namespace esp32cs
 {
-namespace httpd
+namespace http
 {
 
-bool HttpRequest::is_valid()
-{
-  return !method_.empty() && !uri_.empty();
-}
+static constexpr const char * HTTP_METHOD_DELETE = "DELETE";
+static constexpr const char * HTTP_METHOD_GET = "GET";
+static constexpr const char * HTTP_METHOD_HEAD = "HEAD";
+static constexpr const char * HTTP_METHOD_POST = "POST";
+static constexpr const char * HTTP_METHOD_PATCH = "PATCH";
+static constexpr const char * HTTP_METHOD_PUT = "PUT";
 
-void HttpRequest::set_method(const string &value)
+std::map<HttpHeader, string> well_known_http_headers =
+{
+  { ACCEPT, "Accept" }
+, { CACHE_CONTROL, "Cache-Control" }
+, { CONNECTION, "Connection" }
+, { CONTENT_ENCODING, "Content-Encoding" }
+, { CONTENT_TYPE, "Content-Type" }
+, { CONTENT_LENGTH, "Content-Length" }
+, { HOST, "Host" }
+, { LOCATION, "Location" }
+, { ORIGIN, "Origin" }
+, { UPGRADE, "Upgrade" }
+, { WS_VERSION, "Sec-WebSocket-Version" }
+, { WS_KEY, "Sec-WebSocket-Key" }
+, { WS_ACCEPT, "Sec-WebSocket-Accept"}
+};
+
+void HttpRequest::method(const string &value)
 {
   LOG(VERBOSE, "[HttpReq %p] Setting Method: %s", this, value.c_str());
-  method_.assign(std::move(value));
+  raw_method_.assign(std::move(value));
+  if (!raw_method_.compare(HTTP_METHOD_DELETE))
+  {
+    method_ = HttpMethod::DELETE;
+  }
+  else if (!raw_method_.compare(HTTP_METHOD_GET))
+  {
+    method_ = HttpMethod::GET;
+  }
+  else if (!raw_method_.compare(HTTP_METHOD_HEAD))
+  {
+    method_ = HttpMethod::HEAD;
+  }
+  else if (!raw_method_.compare(HTTP_METHOD_POST))
+  {
+    method_ = HttpMethod::POST;
+  }
+  else if (!raw_method_.compare(HTTP_METHOD_PATCH))
+  {
+    method_ = HttpMethod::PATCH;
+  }
+  else if (!raw_method_.compare(HTTP_METHOD_PUT))
+  {
+    method_ = HttpMethod::PUT;
+  }
 }
 
-const string &HttpRequest::get_method()
+HttpMethod HttpRequest::method()
 {
   return method_;
 }
 
-const string &HttpRequest::get_uri()
+const string &HttpRequest::raw_method()
+{
+  return raw_method_;
+}
+
+const string &HttpRequest::uri()
 {
   return uri_;
 }
 
-void HttpRequest::set_uri(const string &value)
+void HttpRequest::uri(const string &value)
 {
   LOG(VERBOSE, "[HttpReq %p] Setting URI: %s", this, value.c_str());
   uri_.assign(std::move(value));
 }
 
-void HttpRequest::add_param(const std::pair<string, string> &value)
+void HttpRequest::param(const std::pair<string, string> &value)
 {
   LOG(VERBOSE, "[HttpReq %p] Adding Param: %s: %s", this, value.first.c_str()
     , value.second.c_str());
   params_.insert(std::move(value));
 }
 
-void HttpRequest::add_header(const std::pair<std::string, std::string> &value)
+void HttpRequest::header(const std::pair<std::string, std::string> &value)
 {
   LOG(VERBOSE, "[HttpReq %p] Adding Header: %s: %s", this, value.first.c_str()
     , value.second.c_str());
@@ -69,39 +117,23 @@ bool HttpRequest::has_header(const string &name)
   return headers_.find(name) != headers_.end();
 }
 
-const string &HttpRequest::get_header(const string &name)
+bool HttpRequest::has_header(const HttpHeader name)
+{
+  return has_header(well_known_http_headers[name]);
+}
+
+const string &HttpRequest::header(const string name)
 {
   if (!has_header(name))
   {
-    return blank_header_;
+    return no_value_;
   }
   return headers_[name];
 }
 
-uint32_t HttpRequest::get_header_uint32(const string &name)
+const string &HttpRequest::header(const HttpHeader name)
 {
-  if (!has_header(name))
-  {
-    return 0;
-  }
-  return std::stoul(headers_[name]);
-}
-
-bool HttpRequest::get_header_bool(const string &name)
-{
-  if (!has_header(name))
-  {
-    return false;
-  }
-  if (!headers_[name].compare("true"))
-  {
-    return true;
-  }
-  else if (!headers_[name].compare("false"))
-  {
-    return true;
-  }
-  return get_header_uint32(name);
+  return header(well_known_http_headers[name]);
 }
 
 void HttpRequest::reset()
@@ -109,27 +141,28 @@ void HttpRequest::reset()
   LOG(VERBOSE, "[HttpReq %p] Resetting to blank request", this);
   headers_.clear();
   params_.clear();
-  method_.clear();
+  raw_method_.clear();
+  method_ = HttpMethod::UNKNOWN;
   uri_.clear();
   error_ = false;
 }
 
 bool HttpRequest::keep_alive()
 {
-  if (!has_header(HTTP_HEADER_CONNECTION))
+  if (!has_header(HttpHeader::CONNECTION))
   {
     return false;
   }
-  return headers_[HTTP_HEADER_CONNECTION].compare(HTTP_CONNECTION_CLOSE);
+  return header(HttpHeader::CONNECTION).compare(HTTP_CONNECTION_CLOSE);
 }
 
-void HttpRequest::set_error(bool value)
+void HttpRequest::error(bool value)
 {
   LOG(VERBOSE, "[HttpReq %p] Setting error flag to %d", this, value);
   error_ = value;
 }
 
-bool HttpRequest::has_error()
+bool HttpRequest::error()
 {
   return error_;
 }
@@ -138,7 +171,7 @@ string HttpRequest::to_string()
 {
   string res = StringPrintf("[HttpReq %p] method:%s uri:%s,error:%d,"
                             "header-count:%zu,param-count:%zu"
-                          , this, method_.c_str(), uri_.c_str(), error_
+                          , this, raw_method_.c_str(), uri_.c_str(), error_
                           , headers_.size(), params_.size());
   for (auto &ent : headers_)
   {
@@ -155,5 +188,5 @@ string HttpRequest::to_string()
   return res;
 }
 
-} // namespace httpd
+} // namespace http
 } // namespace esp32cs

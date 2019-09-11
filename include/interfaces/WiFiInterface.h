@@ -40,6 +40,7 @@ class ESP32CSWebServer
 public:
   ESP32CSWebServer(MDNS *mdns);
   void begin();
+  void init();
 private:
   MDNS *mdns_;
   std::string softAPAddress_;

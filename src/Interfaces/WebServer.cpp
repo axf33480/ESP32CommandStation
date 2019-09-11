@@ -31,10 +31,25 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #include "generated/ajax_loader.h"
 #include "generated/loco_32x32.h"
 
+using esp32cs::http::Httpd;
+using esp32cs::http::HttpRequest;
+using esp32cs::http::AbstractHttpResponse;
+using esp32cs::http::StringResponse;
+using esp32cs::http::WebSocketFlow;
+using esp32cs::http::MIME_TYPE_TEXT_HTML;
+using esp32cs::http::MIME_TYPE_TEXT_CSS;
+using esp32cs::http::MIME_TYPE_IMAGE_PNG;
+using esp32cs::http::MIME_TYPE_IMAGE_GIF;
+using esp32cs::http::MIME_TYPE_TEXT_JAVASCRIPT;
+using esp32cs::http::MIME_TYPE_APPLICATION_JSON;
+using esp32cs::http::HTTP_ENCODING_GZIP;
+using esp32cs::http::WebSocketEvent;
+
+
 AsyncWebServer webServer(80);
 unique_ptr<CaptivePortalDNSD> dnsServer;
 AsyncWebSocket webSocket("/ws");
-unique_ptr<esp32cs::httpd::Httpd> httpd;
+unique_ptr<Httpd> httpd;
 
 static constexpr const char * const APPLICATION_JSON_TYPE = "application/json";
 
@@ -268,23 +283,10 @@ ota_failure:
   Singleton<OTAMonitorFlow>::instance()->report_failure(res);
 }
 
-using esp32cs::httpd::Httpd;
-using esp32cs::httpd::HttpRequest;
-using esp32cs::httpd::AbstractHttpResponse;
-using esp32cs::httpd::StringResponse;
-using esp32cs::httpd::MIME_TYPE_TEXT_HTML;
-using esp32cs::httpd::MIME_TYPE_TEXT_CSS;
-using esp32cs::httpd::MIME_TYPE_IMAGE_PNG;
-using esp32cs::httpd::MIME_TYPE_IMAGE_GIF;
-using esp32cs::httpd::MIME_TYPE_TEXT_JAVASCRIPT;
-using esp32cs::httpd::MIME_TYPE_APPLICATION_JSON;
-using esp32cs::httpd::HTTP_ENCODING_GZIP;
-using esp32cs::httpd::WebSocketEvent;
-
-void ESP32CSWebServer::begin()
+void ESP32CSWebServer::init()
 {
-  httpd.reset(new Httpd(81));
-  httpd->redirected_uri("/", "/index.html");
+  httpd.reset(new Httpd("httpd", 81));
+  httpd->redirect_uri("/", "/index.html");
   httpd->static_uri("/index.html", indexHtmlGz, indexHtmlGz_size
                   , MIME_TYPE_TEXT_HTML, HTTP_ENCODING_GZIP);
   httpd->static_uri("/loco-32x32.png", loco32x32, loco32x32_size
@@ -305,41 +307,43 @@ void ESP32CSWebServer::begin()
   httpd->static_uri("/images/ajax-loader.gif", ajaxLoader, ajaxLoader_size
                   , MIME_TYPE_IMAGE_GIF);
   httpd->uri("/features"
-    , [&](const HttpRequest *req, shared_ptr<AbstractHttpResponse> &response
-        , const uint8_t *data, uint32_t len)
+    , [&](const HttpRequest *req, const uint8_t *data, uint32_t len)
   {
-    response = std::make_shared<StringResponse>(configStore->getCSFeatures()
-                                              , MIME_TYPE_APPLICATION_JSON);
+    return new StringResponse(configStore->getCSFeatures()
+                            , MIME_TYPE_APPLICATION_JSON);
   });
   httpd->websocket_uri("/ws"
-                         , [](int id, uint32_t remote_ip, WebSocketEvent event
-                         , bool text, const uint8_t *data, size_t data_len)
+                         , [](WebSocketFlow *client, WebSocketEvent event
+                         , const uint8_t *data, size_t data_len)
   {
     AtomicHolder h(&webSocketAtomic);
-    if (event == WebSocketEvent::CONNECT)
+    if (event == WebSocketEvent::WS_EVENT_CONNECT)
     {
-      webSocketClients.push_back(esp32cs::make_unique<WebSocketClient>(id, remote_ip));
+      webSocketClients.push_back(
+        esp32cs::make_unique<WebSocketClient>(client->get_id()
+                                            , client->get_remote_ip()));
       Singleton<InfoScreen>::instance()->replaceLine(
         INFO_SCREEN_CLIENTS_LINE, "TCP Conn: %02d"
       , webSocketClients.size() + jmriClients.size());
     }
-    else if (event == WebSocketEvent::DISCONNECT)
+    else if (event == WebSocketEvent::WS_EVENT_DISCONNECT)
     {
-      webSocketClients.erase(std::remove_if(webSocketClients.begin(), webSocketClients.end(),
-        [id](unique_ptr<WebSocketClient> &client) -> bool
+      webSocketClients.erase(std::remove_if(webSocketClients.begin()
+                                          , webSocketClients.end()
+      , [client](unique_ptr<WebSocketClient> &inst) -> bool
         {
-          return client->getID() == id;
+          return inst->getID() == client->get_id();
         }));
       Singleton<InfoScreen>::instance()->replaceLine(
         INFO_SCREEN_CLIENTS_LINE, "TCP Conn: %02d",
         webSocketClients.size() + jmriClients.size());
     }
-    else if (event == WebSocketEvent::MESSAGE)
+    else if (event == WebSocketEvent::WS_EVENT_TEXT)
     {
       auto ent = std::find_if(webSocketClients.begin(), webSocketClients.end()
-      , [&](unique_ptr<WebSocketClient> & clientNode) -> bool
+      , [client](unique_ptr<WebSocketClient> &inst) -> bool
         {
-          return (clientNode->getID() == id);
+          return inst->getID() == client->get_id();
         }
       );
       if (ent != webSocketClients.end())
@@ -348,12 +352,15 @@ void ESP32CSWebServer::begin()
         auto res = (*ent)->feed((uint8_t *)data, data_len);
         if (res.length())
         {
-          Singleton<Httpd>::instance()->send_websocket_text(id, res);
+          client->send_text(res);
         }
       }
     }
   });
+}
 
+void ESP32CSWebServer::begin()
+{
   if (configStore->isAPEnabled())
   {
     LOG(INFO, "[WebSrv] SoftAP mode enabled, starting DNS server");
