@@ -22,6 +22,9 @@ and has been adapter for use in ESP32 COMMAND STATION.
 
 #include "ESP32CommandStation.h"
 
+#include <esp_wifi.h>
+#include <esp_wifi_types.h>
+
 vector<unique_ptr<DCCPPProtocolCommand>> registeredCommands;
 
 // <e> command handler, this command will clear all stored Turnouts, Outputs,
@@ -174,13 +177,13 @@ DECLARE_DCC_PROTOCOL_COMMAND_CLASS(StatusCommand, "s")
 DCC_PROTOCOL_COMMAND_HANDLER(StatusCommand,
 [](const vector<string> arguments)
 {
+  wifi_mode_t mode;
   string status = StringPrintf("<iDCC++ %s: V-%s / %s %s>"
                 , PROJECT_NAME
                 , PROJECT_VER
                 , __DATE__
                 , __TIME__);
   status += trackSignal->get_state_for_dccpp();
-  status += wifiInterface.get_state_for_dccpp();
   for (size_t id = 0; id < trainNodes->size(); id++)
   {
     auto nodeid = trainNodes->get_train_node_id(id);
@@ -194,6 +197,26 @@ DCC_PROTOCOL_COMMAND_HANDLER(StatusCommand,
 #if ENABLE_OUTPUTS
   status += OutputManager::get_state_for_dccpp();
 #endif
+  if (esp_wifi_get_mode(&mode) == ESP_OK)
+  {
+    tcpip_adapter_ip_info_t ip_info;
+    if (mode == WIFI_MODE_STA || mode == WIFI_MODE_APSTA)
+    {
+      if (tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_STA, &ip_info) == ESP_OK)
+      {
+        status += StringPrintf("<N1: " IPSTR ">", IP2STR(&ip_info.ip));
+      }
+      if (tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_AP, &ip_info) == ESP_OK)
+      {
+        status += StringPrintf("<N1: " IPSTR ">", IP2STR(&ip_info.ip));
+      }
+    }
+    else if (mode != WIFI_MODE_NULL &&
+             tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_AP, &ip_info) == ESP_OK)
+    {
+      status += StringPrintf("<N1: " IPSTR ">", IP2STR(&ip_info.ip));
+    }
+  }
   return status;
 })
 

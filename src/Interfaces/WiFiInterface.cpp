@@ -65,7 +65,6 @@ void WiFiInterface::init()
           StatusLED::LED::WIFI, StatusLED::COLOR::GREEN);
         tcpip_adapter_ip_info_t ip_info;
         tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_STA, &ip_info);
-        wifiInterface.setIP(ip_info);
         Singleton<InfoScreen>::instance()->replaceLine(INFO_SCREEN_IP_ADDR_LINE
 #if (INFO_SCREEN_LCD && INFO_SCREEN_LCD_COLUMNS >= 20) || INFO_SCREEN_OLED
                               , "IP: " IPSTR
@@ -133,11 +132,6 @@ void WiFiInterface::init()
     }
   });
   esp32csWebServer.init();
-}
-
-string WiFiInterface::get_state_for_dccpp()
-{
-  return StringPrintf("<N1: " IPSTR ">", IP2STR(&ip_.ip));
 }
 
 void *jmriClientHandler(void *arg)

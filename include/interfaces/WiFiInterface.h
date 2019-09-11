@@ -23,14 +23,6 @@ class WiFiInterface
 public:
   WiFiInterface();
   void init();
-  void showConfiguration();
-  std::string get_state_for_dccpp();
-  void setIP(tcpip_adapter_ip_info_t ip)
-  {
-    ip_.ip = ip.ip;
-  }
-private:
-  tcpip_adapter_ip_info_t ip_;
 };
 
 extern WiFiInterface wifiInterface;
