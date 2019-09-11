@@ -17,7 +17,7 @@ jobs:
     - name: Install PlatformIO Core
       run: pip install -U https://github.com/platformio/platformio/archive/develop.zip
     - name: Install PlatformIO Espressif32 platform
-      run: python -m platformio platform install https://github.com/platformio/platform-espressif32.git#feature/stage
+      run: python -m platformio platform install https://github.com/platformio/platform-espressif32.git
     - name: Compile
       run: |
         python -m platformio run -e ${{ matrix.target }}
