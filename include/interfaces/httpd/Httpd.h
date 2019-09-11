@@ -688,6 +688,12 @@ private:
   /// Gives @ref HttpRequestFlow access to protected/private members.
   friend class HttpRequestFlow;
 
+  /// Starts the HTTP socket listener.
+  void start_listener();
+
+  /// Stops the HTTP socket listener.
+  void stop_listener();
+
   /// Registers a new @ref WebSocketFlow with the server to allow sending
   /// text or binary messages based on the WebSocket ID.
   ///

@@ -57,50 +57,27 @@ Httpd::Httpd(MDNS *mdns, uint16_t port, const string &name, const string service
     if (event->event_id == SYSTEM_EVENT_STA_GOT_IP ||
         event->event_id == SYSTEM_EVENT_AP_START)
     {
-      listener_.emplace(port_, incoming_http_connection);
-      active_ = true;
-      if (mdns_)
-      {
-        mdns_->publish(name_.c_str(), mdns_service_.c_str(), port_);
-      }
+      start_listener();
     }
     else if (event->event_id == SYSTEM_EVENT_STA_LOST_IP ||
              event->event_id == SYSTEM_EVENT_AP_STOP)
     {
-      listener_.reset();
-      active_ = false;
-      if (mdns_)
-      {
-        mdns_unpublish(mdns_service_.c_str());
-      }
+      stop_listener();
     }
   });
 #else
-  listener_.emplace(port_, incoming_http_connection);
-  active_ = true;
-  if (mdns_)
-  {
-    mdns_->publish(name_.c_str(), mdns_service_.c_str(), port_);
-  }
+  start_listener();
 #endif // ESP32
 }
 
 Httpd::~Httpd()
 {
-  if (active_)
-  {
-    listener_->shutdown();
-    listener_.reset();
-  }
+  stop_listener();
   executor_.shutdown();
   handlers_.clear();
   static_uris_.clear();
   redirect_uris_.clear();
   websocket_uris_.clear();
-  if (mdns_)
-  {
-    mdns_unpublish(mdns_service_.c_str());
-  }
 }
 
 void Httpd::uri(const std::string &uri, RequestProcessor handler)
@@ -170,6 +147,37 @@ void Httpd::new_connection(int fd)
   ERRNOCHECK("setsockopt_send_timeout",
       setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tm, sizeof(tm)));
   new HttpRequestFlow(this, fd, ntohl(source.sin_addr.s_addr));
+}
+
+void Httpd::start_listener()
+{
+  if (active_)
+  {
+    return;
+  }
+  LOG(INFO, "[%s] Starting HTTP listener on port %d", name_.c_str(), port_);
+  listener_.emplace(port_, incoming_http_connection);
+  active_ = true;
+  if (mdns_)
+  {
+    mdns_->publish(name_.c_str(), mdns_service_.c_str(), port_);
+  }
+}
+
+void Httpd::stop_listener()
+{
+  if (active_)
+  {
+    LOG(INFO, "[%s] Shutting down HTTP listener", name_.c_str());
+    listener_.reset();
+    active_ = false;
+#ifdef ESP32
+    if (mdns_)
+    {
+      mdns_unpublish(mdns_service_.c_str());
+    }
+#endif
+  }
 }
 
 void Httpd::add_websocket(int id, WebSocketFlow *ws)
