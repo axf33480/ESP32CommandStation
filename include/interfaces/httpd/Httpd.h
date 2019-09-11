@@ -27,6 +27,7 @@ COPYRIGHT (c) 2019 Mike Dunston
 
 #include <executor/Service.hxx>
 #include <executor/StateFlow.hxx>
+#include <os/MDNS.hxx>
 #include <utils/Base64.hxx>
 #include <utils/constants.hxx>
 #include <utils/Singleton.hxx>
@@ -610,9 +611,15 @@ class Httpd : public Service, public Singleton<Httpd>
 public:
   /// Constructor.
   ///
-  /// @param name is the name to use for the executor.
-  /// @param port is the port to listen for HTTP requests on.
-  Httpd(const std::string &name = "httpd", uint16_t port = DEFAULT_HTTP_PORT);
+  /// @param mdns is the @ref MDNS instance to use for publishing mDNS records
+  /// when the server is active. This is disabled by default.
+  /// @param port is the port to listen for HTTP requests on, default is 80.
+  /// @param name is the name to use for the executor, default is "httpd".
+  /// @param service_name is the mDNS service name to advertise when the server
+  /// is active, default is _http._tcp.
+  Httpd(MDNS *mdns = nullptr, uint16_t port = DEFAULT_HTTP_PORT
+      , const std::string &name = "httpd"
+      , const std::string service_name = "_http._tcp");
   
   /// Destructor.
   virtual ~Httpd();
@@ -669,17 +676,17 @@ public:
   /// @param text is the text to send to the WebSocket client.
   void send_websocket_text(int id, std::string &text);
 
+  /// Creates a new @ref HttpRequestFlow for the provided socket handle.
+  ///
+  /// @param fd is the socket handle.
+  void new_connection(int fd);
+
 private:
   /// Gives @ref WebSocketFlow access to protected/private members.
   friend class WebSocketFlow;
 
   /// Gives @ref HttpRequestFlow access to protected/private members.
   friend class HttpRequestFlow;
-
-  /// Callback for a newly accepted socket connection.
-  ///
-  /// @param fd is the socket handle.
-  void on_new_connection(int fd);
 
   /// Registers a new @ref WebSocketFlow with the server to allow sending
   /// text or binary messages based on the WebSocket ID.
@@ -714,6 +721,16 @@ private:
 
   /// @return true if the @param request can be serviced by this @ref Httpd.
   bool is_servicable_uri(HttpRequest *request);
+
+  /// Name to use for the @ref Httpd server.
+  const std::string name_;
+
+  /// @ref MDNS instance to use for publishing mDNS records when the @ref Httpd
+  /// server is active;
+  MDNS *mdns_;
+
+  /// mDNS service name to advertise when the @ref Httpd Server is running.
+  const std::string mdns_service_;
 
   /// @ref Executor that manages all @ref StateFlow for the @ref Httpd server.
   Executor<1> executor_;

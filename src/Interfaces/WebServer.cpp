@@ -285,7 +285,7 @@ ota_failure:
 
 void ESP32CSWebServer::init()
 {
-  httpd.reset(new Httpd("httpd", 81));
+  httpd.reset(new Httpd(mdns_, 81));
   httpd->redirect_uri("/", "/index.html");
   httpd->static_uri("/index.html", indexHtmlGz, indexHtmlGz_size
                   , MIME_TYPE_TEXT_HTML, HTTP_ENCODING_GZIP);

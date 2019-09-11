@@ -18,36 +18,71 @@ COPYRIGHT (c) 2019 Mike Dunston
 #include "ESP32CommandStation.h"
 #include "interfaces/httpd/Httpd.h"
 
+#ifdef ESP32
+
+// this method is not exposed via the MDNS class today, declare it here so we
+// can call it if needed. This is implemented inside Esp32WiFiManager.cxx.
+void mdns_unpublish(const char *service);
+
+#endif // ESP32
+
 namespace esp32cs
 {
 namespace http
 {
 
-Httpd::Httpd(const std::string &name, uint16_t port)
+/// Callback for a newly accepted socket connection.
+///
+/// @param fd is the socket handle.
+void incoming_http_connection(int fd)
+{
+  Singleton<Httpd>::instance()->new_connection(fd);
+}
+
+Httpd::Httpd(MDNS *mdns, uint16_t port, const string &name, const string service_name)
   : Service(&executor_)
+  , name_(name)
+  , mdns_(mdns)
+  , mdns_service_(service_name)
   , executor_(name.c_str(), config_httpd_server_priority()
             , config_httpd_server_stack_size())
   , port_(port)
 {
+#ifdef ESP32
+  // Hook into the Esp32WiFiManager to start/stop the listener automatically
+  // based on the AP/Station interface status.
   Singleton<Esp32WiFiManager>::instance()->add_event_callback(
   [&](system_event_t *event)
   {
     if (event->event_id == SYSTEM_EVENT_STA_GOT_IP ||
         event->event_id == SYSTEM_EVENT_AP_START)
     {
-      listener_.emplace(port_
-                      , std::bind(&Httpd::on_new_connection
-                                , Singleton<Httpd>::instance()
-                                , std::placeholders::_1));
+      listener_.emplace(port_, incoming_http_connection);
       active_ = true;
+      if (mdns_)
+      {
+        mdns_->publish(name_.c_str(), mdns_service_.c_str(), port_);
+      }
     }
     else if (event->event_id == SYSTEM_EVENT_STA_LOST_IP ||
              event->event_id == SYSTEM_EVENT_AP_STOP)
     {
       listener_.reset();
       active_ = false;
+      if (mdns_)
+      {
+        mdns_unpublish(mdns_service_.c_str());
+      }
     }
   });
+#else
+  listener_.emplace(port_, incoming_http_connection);
+  active_ = true;
+  if (mdns_)
+  {
+    mdns_->publish(name_.c_str(), mdns_service_.c_str(), port_);
+  }
+#endif // ESP32
 }
 
 Httpd::~Httpd()
@@ -62,6 +97,10 @@ Httpd::~Httpd()
   static_uris_.clear();
   redirect_uris_.clear();
   websocket_uris_.clear();
+  if (mdns_)
+  {
+    mdns_unpublish(mdns_service_.c_str());
+  }
 }
 
 void Httpd::uri(const std::string &uri, RequestProcessor handler)
@@ -113,7 +152,7 @@ void Httpd::send_websocket_text(int id, std::string &text)
   websockets_[id]->send_text(text);
 }
 
-void Httpd::on_new_connection(int fd)
+void Httpd::new_connection(int fd)
 {
   sockaddr_in source;
   socklen_t source_len = sizeof(sockaddr_in);
@@ -121,7 +160,7 @@ void Httpd::on_new_connection(int fd)
   {
     source.sin_addr.s_addr = 0;
   }
-  LOG(INFO, "[Httpd fd:%d/%s] Connected", fd
+  LOG(INFO, "[%s fd:%d/%s] Connected", name_.c_str(), fd
     , ipv4_to_string(ntohl(source.sin_addr.s_addr)).c_str());
   struct timeval tm;
   tm.tv_sec = 0;
