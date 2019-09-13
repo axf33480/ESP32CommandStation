@@ -17,9 +17,8 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 #include "ESP32CommandStation.h"
 
-#include "interfaces/CaptivePortalDNSD.h"
-
-#include "interfaces/httpd/Httpd.h"
+#include "interfaces/http/Dnsd.h"
+#include "interfaces/http/Http.h"
 
 // generated web content
 #include "generated/index_html.h"
@@ -32,7 +31,9 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #include "generated/loco_32x32.h"
 
 using esp32cs::http::Httpd;
+using esp32cs::http::HttpMethod;
 using esp32cs::http::HttpRequest;
+using esp32cs::http::HttpStatusCode;
 using esp32cs::http::AbstractHttpResponse;
 using esp32cs::http::StringResponse;
 using esp32cs::http::WebSocketFlow;
@@ -45,9 +46,21 @@ using esp32cs::http::MIME_TYPE_APPLICATION_JSON;
 using esp32cs::http::HTTP_ENCODING_GZIP;
 using esp32cs::http::WebSocketEvent;
 
+// Captive Portal landing page
+static constexpr const char * const CAPTIVE_PORTAL_HTML =
+  "<html>"
+  "<title>ESP32 Command Station v%s</title>"
+  "<meta http-equiv=\"refresh\" content=\"30;url='/captiveauth'\" /> "
+  "<body>"
+  "<h1>Welcome to the ESP32 Command Station</h1>"
+  "<h2>Open your browser and navigate to any website and it will open the "
+  "ESP32 Command Station</h2>"
+  "<p>Click <a href=\"/captiveauth\">here</a> to close this portal "
+  "page if it does not automatically close.</p>" 
+  "</body>"
+  "</html>";
 
 AsyncWebServer webServer(80);
-unique_ptr<CaptivePortalDNSD> dnsServer;
 AsyncWebSocket webSocket("/ws");
 unique_ptr<Httpd> httpd;
 
@@ -285,8 +298,13 @@ ota_failure:
 
 void ESP32CSWebServer::init()
 {
-  httpd.reset(new Httpd(mdns_, 81));
+  httpd.reset(new Httpd(mdns_));
   httpd->redirect_uri("/", "/index.html");
+  // if the soft AP interface is enabled, setup the captive portal
+  if (configStore->isAPEnabled())
+  {
+    httpd->captive_portal(StringPrintf(CAPTIVE_PORTAL_HTML, PROJECT_VER));
+  }
   httpd->static_uri("/index.html", indexHtmlGz, indexHtmlGz_size
                   , MIME_TYPE_TEXT_HTML, HTTP_ENCODING_GZIP);
   httpd->static_uri("/loco-32x32.png", loco32x32, loco32x32_size
@@ -306,15 +324,28 @@ void ESP32CSWebServer::init()
                   , MIME_TYPE_TEXT_JAVASCRIPT, HTTP_ENCODING_GZIP);
   httpd->static_uri("/images/ajax-loader.gif", ajaxLoader, ajaxLoader_size
                   , MIME_TYPE_IMAGE_GIF);
-  httpd->uri("/features"
-    , [&](const HttpRequest *req, const uint8_t *data, uint32_t len)
+  httpd->uri("/features", [&](HttpRequest *req)
   {
     return new StringResponse(configStore->getCSFeatures()
                             , MIME_TYPE_APPLICATION_JSON);
   });
+  httpd->uri("/power", HttpMethod::GET | HttpMethod::PUT
+           , std::bind(&ESP32CSWebServer::handlePower, this
+                     , std::placeholders::_1));
+  httpd->uri("/update", HttpMethod::POST, nullptr
+    , [&](HttpRequest *req, const std::string &filename, size_t size
+        , const uint8_t * data, size_t length, size_t offset, bool final
+        , bool *abort)
+  {
+    if (final)
+    {
+      req->set_status(HttpStatusCode::STATUS_OK);
+    }
+    return nullptr;
+  });
   httpd->websocket_uri("/ws"
-                         , [](WebSocketFlow *client, WebSocketEvent event
-                         , const uint8_t *data, size_t data_len)
+    , [](WebSocketFlow *client, WebSocketEvent event, const uint8_t *data
+       , size_t data_len)
   {
     AtomicHolder h(&webSocketAtomic);
     if (event == WebSocketEvent::WS_EVENT_CONNECT)
@@ -361,52 +392,6 @@ void ESP32CSWebServer::init()
 
 void ESP32CSWebServer::begin()
 {
-  if (configStore->isAPEnabled())
-  {
-    LOG(INFO, "[WebSrv] SoftAP mode enabled, starting DNS server");
-    tcpip_adapter_ip_info_t ip_info;
-    tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_AP, &ip_info);
-    // store the IP address for use in the 404 handler
-    softAPAddress_ = StringPrintf(IPSTR, IP2STR(&ip_info.ip));
-    // start the async dns on the softap address
-    dnsServer.reset(new CaptivePortalDNSD(ip_info.ip, "CaptiveDNS"));
-  }
-
-  BUILTIN_URI("/jquery.min.js")
-  BUILTIN_URI("/jquery.mobile-1.5.0-rc1.min.js")
-  BUILTIN_URI("/jquery.mobile-1.5.0-rc1.min.css")
-  BUILTIN_URI("/jquery.simple.websocket.min.js")
-  BUILTIN_URI("/jqClock-lite.min.js")
-  BUILTIN_URI("/images/ajax-loader.gif")
-  BUILTIN_URI("/loco-32x32.png")
-  BUILTIN_URI("/index.html")
-
-  GET_URI("/features", handleFeatures)
-  GET_POST_URI("/programmer", handleProgrammer)
-  GET_PUT_URI("/power", handlePower)
-  GET_POST_URI("/config", handleConfig)
-  GET_POST_PUT_DELETE_URI("/locomotive", handleLocomotive)
-  GET_POST_PUT_DELETE_URI("/turnouts", handleTurnouts)
-  POST_UPLOAD_URI("/update", handleOTA, otaUploadCallback)
-
-#if ENABLE_OUTPUTS
-  GET_POST_PUT_DELETE_URI("/outputs", handleOutputs)
-#endif
-#if ENABLE_SENSORS
-  GET_POST_DELETE_URI("/sensors", handleSensors)
-  GET_POST_DELETE_URI("/remoteSensors", handleRemoteSensors)
-#if S88_ENABLED
-  GET_POST_DELETE_URI("/s88sensors", handleS88Sensors)
-#endif
-#endif
-
-  webServer.onNotFound(std::bind(&ESP32CSWebServer::notFoundHandler
-                               , this
-                               , std::placeholders::_1));
-  webSocket.onEvent(handleWsEvent);
-  webServer.addHandler(&webSocket);
-  webServer.begin();
-  mdns_->publish("websvr", "_http._tcp", 80);
 }
 
 void ESP32CSWebServer::handleProgrammer(AsyncWebServerRequest *request)
@@ -560,27 +545,26 @@ void ESP32CSWebServer::handleProgrammer(AsyncWebServerRequest *request)
   SEND_GENERIC_RESPONSE(request, STATUS_OK)
  }
 
-void ESP32CSWebServer::handlePower(AsyncWebServerRequest *request)
+AbstractHttpResponse *ESP32CSWebServer::handlePower(HttpRequest *request)
 {
-  if (request->method() == HTTP_GET)
+  if (request->method() == HttpMethod::GET)
   {
     if (request->params())
     {
-      SEND_JSON_RESPONSE(request
-                       , StringPrintf("{\"%s\":\"%s\"}"
-                                    , JSON_STATE_NODE
-                                    , trackSignal->is_enabled() ?
-                                        JSON_VALUE_TRUE : JSON_VALUE_FALSE));
+      return new StringResponse(
+        StringPrintf("{\"%s\":\"%s\"}", JSON_STATE_NODE
+                   , trackSignal->is_enabled() ?JSON_VALUE_TRUE : JSON_VALUE_FALSE)
+        , MIME_TYPE_APPLICATION_JSON);
     }
     else
     {
-      SEND_JSON_RESPONSE(request, trackSignal->generate_status_json())
+      return new StringResponse(trackSignal->generate_status_json()
+                              , MIME_TYPE_APPLICATION_JSON);
     }
-    return;
   }
-  else if (request->method() == HTTP_PUT)
+  else if (request->method() == HttpMethod::PUT)
   {
-    if (request->arg(JSON_STATE_NODE).equalsIgnoreCase(JSON_VALUE_TRUE))
+    if (!request->param(JSON_STATE_NODE).compare(JSON_VALUE_TRUE))
     {
       trackSignal->enable_ops_output();
     }
@@ -589,11 +573,12 @@ void ESP32CSWebServer::handlePower(AsyncWebServerRequest *request)
       trackSignal->disable_ops_output();
       trackSignal->disable_prog_output();
     }
-    SEND_GENERIC_RESPONSE(request, STATUS_OK)
-    return;
+    request->set_status(HttpStatusCode::STATUS_OK);
+    return nullptr;
   }
-  SEND_GENERIC_RESPONSE(request, STATUS_BAD_REQUEST)
- }
+  request->set_status(HttpStatusCode::STATUS_BAD_REQUEST);
+  return nullptr;
+}
 
 void ESP32CSWebServer::handleOutputs(AsyncWebServerRequest *request)
 {
@@ -1227,20 +1212,6 @@ static string portalCheckRedirect[] =
   "/kindle-wifi/wifistub.html"      // Kindle
 };
 
-// Captive Portal landing page
-static constexpr const char * const CAPTIVE_PORTAL_HTML =
-  "<html>"
-  "<title>ESP32 Command Station v%s</title>"
-  "<meta http-equiv=\"refresh\" content=\"30;url='http://%s/captiveauth'\" /> "
-  "<body>"
-  "<h1>Welcome to the ESP32 Command Station</h1>"
-  "<h2>Open your browser and navigate to any website and it will open the "
-  "ESP32 Command Station</h2>"
-  "<p>Click <a href=\"http://%s/captiveauth\">here</a> to close this portal "
-  "page if it does not automatically close.</p>" 
-  "</body>"
-  "</html>";
-
 // iOS success page content
 static constexpr const char * const CAPTIVE_SUCCESS_200_HTML = 
   "<HTML><HEAD><TITLE>Success</TITLE></HEAD><BODY>Success</BODY></HTML>";
@@ -1291,10 +1262,7 @@ void ESP32CSWebServer::notFoundHandler(AsyncWebServerRequest *request)
             , request->url().c_str());
           SEND_HTML_RESPONSE(request, STATUS_OK,
                         StringPrintf(CAPTIVE_PORTAL_HTML
-                                   , PROJECT_VER
-                                   , softAPAddress_.c_str()
-                                   , softAPAddress_.c_str()
-                        ).c_str())
+                                   , PROJECT_VER).c_str())
         }
         return;
       }

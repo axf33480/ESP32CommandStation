@@ -16,7 +16,7 @@ COPYRIGHT (c) 2019 Mike Dunston
 **********************************************************************/
 
 #include "ESP32CommandStation.h"
-#include "interfaces/httpd/Httpd.h"
+#include "interfaces/http/Http.h"
 
 namespace esp32cs
 {

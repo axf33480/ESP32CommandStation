@@ -15,20 +15,31 @@ COPYRIGHT (c) 2019 Mike Dunston
   along with this program.  If not, see http://www.gnu.org/licenses
 **********************************************************************/
 
-#ifndef DNS_SERVER_H_
-#define DNS_SERVER_H_
+#ifndef DNSD_H_
+#define DNSD_H_
 
 #include <stdint.h>
 #include "os/OS.hxx"
 
-class CaptivePortalDNSD
+namespace esp32cs
+{
+namespace http
+{
+
+DECLARE_CONST(dnsd_stack_size);
+DECLARE_CONST(dnsd_buffer_size);
+
+static constexpr uint16_t DEFAULT_DNS_PORT = 53;
+
+class Dnsd : public Singleton<Dnsd>
 {
 public:
-  CaptivePortalDNSD(ip4_addr_t, string="dnsd", uint16_t=53);
-  ~CaptivePortalDNSD();
+  Dnsd(uint32_t local_ip, std::string name = "dnsd"
+     , uint16_t port = DEFAULT_DNS_PORT);
+  ~Dnsd();
   void dns_process_thread();
 private:
-  ip4_addr_t local_ip_;
+  uint32_t local_ip_;
   std::string name_;
   uint16_t port_;
   OSThread dns_thread_;
@@ -66,10 +77,9 @@ private:
     uint16_t length;
     uint32_t address;
   } __attribute__((packed));
-
-  static constexpr uint32_t DNS_TASK_STACK_SIZE = 3*1024;
-  static constexpr uint16_t DNS_REQ_BUFFER_SIZE = 512;
 };
 
+} // namespace http
+} // namespace esp32
 
-#endif // DNS_SERVER_H_
+#endif // DNSD_H_

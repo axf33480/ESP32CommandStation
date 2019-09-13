@@ -18,6 +18,8 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #ifndef WIFI_INTERFACE_H_
 #define WIFI_INTERFACE_H_
 
+#include "interfaces/http/Http.h"
+
 class WiFiInterface
 {
 public:
@@ -39,7 +41,7 @@ private:
   std::vector<uint32_t> captiveIPs_;
   void handleESPInfo(AsyncWebServerRequest *);
   void handleProgrammer(AsyncWebServerRequest *);
-  void handlePower(AsyncWebServerRequest *);
+  esp32cs::http::AbstractHttpResponse *handlePower(esp32cs::http::HttpRequest *);
   void handleOutputs(AsyncWebServerRequest *);
   void handleTurnouts(AsyncWebServerRequest *);
   void handleSensors(AsyncWebServerRequest *);

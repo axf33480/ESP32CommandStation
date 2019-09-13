@@ -15,10 +15,10 @@ COPYRIGHT (c) 2019 Mike Dunston
   along with this program.  If not, see http://www.gnu.org/licenses
 **********************************************************************/
 
-/// @file Definitions of the esp32cs::http namespace members.
+/// @file HTTP server with Captive Portal support.
 
-#ifndef HTTPD_H_
-#define HTTPD_H_
+#ifndef HTTP_H_
+#define HTTP_H_
 
 #include <map>
 #include <stdint.h>
@@ -28,11 +28,14 @@ COPYRIGHT (c) 2019 Mike Dunston
 #include <executor/Service.hxx>
 #include <executor/StateFlow.hxx>
 #include <os/MDNS.hxx>
+#include <os/os.h>
 #include <utils/Base64.hxx>
 #include <utils/constants.hxx>
 #include <utils/Singleton.hxx>
 #include <utils/socket_listener.hxx>
 #include <utils/Uninitialized.hxx>
+
+#include "Dnsd.h"
 
 /// Namespace for all ESP32 Command Station functionality.
 namespace esp32cs
@@ -58,6 +61,10 @@ DECLARE_CONST(httpd_body_chunk_size);
 /// Max number of bytes to write in a single chunk when sending the HTTP
 /// response to the client.
 DECLARE_CONST(httpd_response_chunk_size);
+
+/// Maximum size of the HTTP headers before which the request will be aborted
+/// with a BAD_REQUEST (400) error code.
+DECLARE_CONST(httpd_max_header_size);
 
 /// Maximum size of the HTTP request body payload. Any request which exceeds
 /// this limit will be forcibly aborted.
@@ -148,19 +155,19 @@ static constexpr uint16_t DEFAULT_HTTP_PORT = 80;
 enum HttpMethod
 {
   /// Request is for deleting a resource.
-  DELETE,
+  DELETE          = BIT(1),
   /// Request is for retrieving a resource.
-  GET,
+  GET             = BIT(2),
   /// Request is for retrieving the headers for a resource. 
-  HEAD,
+  HEAD            = BIT(3),
   /// Request is for creating a resource.
-  POST,
+  POST            = BIT(4),
   /// Request is for patching an existing resource.
-  PATCH,
+  PATCH           = BIT(5),
   /// Request is for applying an update to an existing resource.
-  PUT,
+  PUT             = BIT(6),
   /// Request type was not understood by the server.
-  UNKNOWN,
+  UNKNOWN_METHOD  = BIT(7),
 };
 
 /// Commonly used and well-known HTTP headers
@@ -172,6 +179,8 @@ enum HttpHeader
   CONTENT_ENCODING,
   CONTENT_TYPE,
   CONTENT_LENGTH,
+  CONTENT_DISPOSITION,
+  EXPECT,
   HOST,
   LOCATION,
   ORIGIN,
@@ -181,7 +190,37 @@ enum HttpHeader
   WS_ACCEPT,
 };
 
+/// Commonly used and well-known values for the Content-Type HTTP header.
+///
+/// These are currently only used for POST and PUT HTTP requests. All other
+/// types will receive a stream of the body of the HTTP request.
+enum ContentType
+{
+  MULTIPART_FORMDATA,
+  FORM_URLENCODED,
+  UNKNOWN_TYPE
+};
+
+/// WebSocket events for the @ref WebSocketHandler callback.
+typedef enum
+{
+  /// A new Websocket connection has been established.
+  WS_EVENT_CONNECT,
+  
+  /// A WebSocket connection has been closed.
+  WS_EVENT_DISCONNECT,
+
+  /// A TEXT message has been received from a WebSocket. Note that it may be
+  /// sent to the handler in pieces.
+  WS_EVENT_TEXT,
+  
+  /// A BINARY message has been received from a WebSocket. Note that it may be
+  /// sent to the handler in pieces.
+  WS_EVENT_BINARY
+} WebSocketEvent;
+
 // Values for Cache-Control
+// TODO: introduce enum constants for these
 static constexpr const char * HTTP_CACHE_CONTROL_NO_CACHE = "no-cache";
 static constexpr const char * HTTP_CACHE_CONTROL_NO_STORE = "no-store";
 static constexpr const char * HTTP_CACHE_CONTROL_NO_TRANSFORM = "no-transform";
@@ -191,16 +230,19 @@ static constexpr const char * HTTP_CACHE_CONTROL_PRIVATE = "private";
 static constexpr const char * HTTP_CACHE_CONTROL_MUST_REVALIDATE = "must-revalidate";
 
 // Values for Connection header
+// TODO: introduce enum constants for these
 static constexpr const char * HTTP_CONNECTION_CLOSE = "close";
 static constexpr const char * HTTP_CONNECTION_KEEP_ALIVE = "keep-alive";
 static constexpr const char * HTTP_CONNECTION_UPGRADE = "Upgrade";
 
+// TODO: introduce enum constant for this value
 static constexpr const char * HTTP_UPGRADE_HEADER_WEBSOCKET = "websocket";
 
 // HTTP end of line characters
 static constexpr const char * HTML_EOL = "\r\n";
 
 // Common mime-types
+// TODO: introduce enum constants for these
 static constexpr const char * MIME_TYPE_NONE = "";
 static constexpr const char * MIME_TYPE_TEXT_CSS = "text/css";
 static constexpr const char * MIME_TYPE_TEXT_HTML = "text/html";
@@ -209,7 +251,9 @@ static constexpr const char * MIME_TYPE_TEXT_JAVASCRIPT = "text/javascript";
 static constexpr const char * MIME_TYPE_IMAGE_GIF = "image/gif";
 static constexpr const char * MIME_TYPE_IMAGE_PNG = "image/png";
 static constexpr const char * MIME_TYPE_APPLICATION_JSON = "application/json";
+static constexpr const char * MIME_TYPE_OCTET_STREAM = "application/octet-stream";
 
+// TODO: introduce enum constants for these
 static constexpr const char * HTTP_ENCODING_NONE = "";
 static constexpr const char * HTTP_ENCODING_GZIP = "gzip";
 
@@ -236,7 +280,7 @@ public:
   /// @param mime_type is the mime type to send as part of the Content-Type
   /// header.
   AbstractHttpResponse(HttpStatusCode code=STATUS_NOT_FOUND
-                     , const std::string &mime_type=MIME_TYPE_NONE);
+                     , const std::string &mime_type=MIME_TYPE_TEXT_PLAIN);
 
   /// Destructor.
   virtual ~AbstractHttpResponse();
@@ -360,7 +404,6 @@ public:
   }
 
 private:
-
   /// Temporary storage for the response body.
   const std::string body_;
 };
@@ -490,6 +533,25 @@ public:
   /// @return true if the request could not be parsed successfully.
   bool error();
 
+  /// @return the parsed @ref ContentType for this request.
+  ContentType content_type();
+
+  /// Sets the request response status code.
+  ///
+  /// @param code is the @ref HttpStatusCode to respond with upon conclusion of
+  /// this @ref HttpRequest.
+  ///
+  /// This can be used by the @ref RequestProcessor to set the response code
+  /// when no response body is required.
+  void set_status(HttpStatusCode code);
+
+  /// @return number of parameters to this @ref HttpRequest.
+  size_t params();
+
+  /// @return parameter value or a blank string if parameter is not present.
+  /// @param name is the name of the parameter to return.
+  std::string param(std::string name);
+
   /// @return string form of the request, this is headers only.
   std::string to_string();
 
@@ -518,6 +580,12 @@ private:
   ///
   /// @param value is a pair<string, string> of the key:value pair.
   void header(const std::pair<std::string, std::string> &value);
+
+  /// Adds/replaces a HTTP Header to the request.
+  ///
+  /// @param header is the @ref HttpHeader to add/replace.
+  /// @param value is the value for the header.
+  void header(HttpHeader header, std::string value);
 
   /// Resets the internal state of the @ref HttpRequest to defaults so it can
   /// be reused for subsequent requests.
@@ -549,38 +617,38 @@ private:
 
   /// Parse error flag.
   bool error_;
+
+  /// @ref HttpStatusCode to return by default when this @ref HttpRequest has
+  /// completed and there is no @ref AbstractHttpResponse to return.
+  HttpStatusCode status_{HttpStatusCode::STATUS_SERVER_ERROR};
 };
 
-/// WebSocket events for the @ref WebSocketHandler callback.
-typedef enum
-{
-  /// A new Websocket connection has been established.
-  WS_EVENT_CONNECT,
-  
-  /// A WebSocket connection has been closed.
-  WS_EVENT_DISCONNECT,
-
-  /// A TEXT message has been received from a WebSocket. Note that it may be
-  /// sent to the handler in pieces.
-  WS_EVENT_TEXT,
-  
-  /// A BINARY message has been received from a WebSocket. Note that it may be
-  /// sent to the handler in pieces.
-  WS_EVENT_BINARY
-} WebSocketEvent;
-
-/// URI processing handler.
+/// URI processing handler that will be invoked for requests which have no body
+/// payload to stream. Currently the only requests which have a body payload 
 ///
-/// The method that implements this interface will be called for any access to
-/// the assigned URI. When the request has a body payload it will be streamed
-/// to this handler in chunks based on the constant httpd_body_chunk_size.
+/// When this function is invoked it has the option to return a pointer to a
+/// @ref AbstractHttpResponse which will be sent to the client or it can call
+/// @ref HttpRequest::set_status if no response body is required.
+typedef std::function<
+  AbstractHttpResponse *(HttpRequest * /** request*/)> RequestProcessor;
+
+/// URI processing handler which will be invoked for POST/PUT requests that
+/// have a body payload.
 ///
-/// The return value from this function call will be sent as the response to
-/// the request. A value of nullptr will result in no response being sent.
-typedef std::function<AbstractHttpResponse *(const HttpRequest *  /* request */
-                                           , const uint8_t *      /* data */
-                                           , size_t               /* length */
-                                           )> RequestProcessor;
+/// When this function is invoked the "abort" parameter can be set to true and
+/// the request will be aborted immediately and an error returned to the
+/// client. The function has the same option of calling
+/// @ref HttpRequest::set_status or returning a pointer to a
+/// @ref AbstractHttpResponse.
+typedef std::function<AbstractHttpResponse *(HttpRequest *       /** request */
+                                           , const std::string & /** filename*/
+                                           , size_t              /** size    */
+                                           , const uint8_t *     /** data    */
+                                           , size_t              /** length  */
+                                           , size_t              /** offset  */
+                                           , bool                /** final   */
+                                           , bool *              /** abort   */
+                                           )> StreamProcessor;
 
 /// WebSocket processing Handler.
 ///
@@ -623,12 +691,30 @@ public:
   
   /// Destructor.
   virtual ~Httpd();
-  
+
   /// Registers a URI with the provided handler.
   ///
   /// @param uri is the URI to call the provided handler for.
+  /// @param method_mask is the @ref HttpMethod for this URI, when multiple
+  /// @ref HttpMethod values are required they must be ORed together.
   /// @param handler is the @ref RequestProcessor to invoke when this URI is
-  /// requested.
+  /// requested. When there is a request body and the method is POST/PUT this
+  /// function will not be invoked.
+  /// @param stream_handler is the @ref StreamProcessor to invoke when this URI
+  /// is requested as POST/PUT and the request has a body payload.
+  void uri(const std::string &uri, const size_t method_mask
+         , RequestProcessor handler
+         , StreamProcessor stream_handler = nullptr);
+
+  /// Registers a URI with the provided handler that can process all
+  /// @ref HttpMethod values. Note that any request with a body payload will
+  /// result in an error being returned to the client for this URI since there
+  /// is no stream handler defined by this method.
+  ///
+  /// @param uri is the URI to call the provided handler for.
+  /// @param handler is the @ref RequestProcessor to invoke when this URI is
+  /// requested. When there is a request body and the method is POST/PUT this
+  /// function will not be invoked.
   void uri(const std::string &uri, RequestProcessor handler);
 
   /// Registers a URI to redirect to another location.
@@ -681,6 +767,39 @@ public:
   /// @param fd is the socket handle.
   void new_connection(int fd);
 
+  /// Enables processing of known captive portal endpoints.
+  ///
+  /// @param first_access_response is the HTML response to send upon first
+  /// access from a client.
+  /// @param auth_uri is the callback URI that the client should access to
+  /// bypass the captive portal redirection. Note this URI will be processed
+  /// internally by @ref Httpd before invoking the @ref RequestProcessor. If
+  /// there is no @ref RequestProcessor for this URI a redirect to / will be
+  /// sent instead.
+  /// @param auth_timeout is the number of seconds to cache the source IP
+  /// address for a client before forcing a re-authentication to occur. A value
+  /// of UINT32_MAX will disable the timeout.
+  ///
+  /// The following URIs will be processed as captive portal endpoints and
+  /// force redirect to the captive portal when accessed and the source IP
+  /// has not previously accessed the auth_uri:
+  /// | URI | Environment |
+  /// | --- | ----------- |
+  /// | /generate_204 | Android |
+  /// | /gen_204 | Android 9.0 |
+  /// | /mobile/status.php | Android 8.0 (Samsung s9+) |
+  /// | /ncsi.txt | Windows |
+  /// | /success.txt | OSX / FireFox |
+  /// | /hotspot-detect.html | iOS 8/9 |
+  /// | /hotspotdetect.html | iOS 8/9 |
+  /// | /library/test/success.html | iOS 8/9 |
+  /// | /kindle-wifi/wifiredirect.html | Kindle |
+  /// | /kindle-wifi/wifistub.html | Kindle |
+  ///
+  void captive_portal(std::string first_access_response
+                    , std::string auth_uri = "/captiveauth"
+                    , uint64_t auth_timeout = UINT32_MAX);
+
 private:
   /// Gives @ref WebSocketFlow access to protected/private members.
   friend class WebSocketFlow;
@@ -689,10 +808,19 @@ private:
   friend class HttpRequestFlow;
 
   /// Starts the HTTP socket listener.
-  void start_listener();
+  void start_http_listener();
 
-  /// Stops the HTTP socket listener.
-  void stop_listener();
+  /// Starts the DNS socket listener.
+  ///
+  /// @param ip is the IP address to redirect all DNS requests to. This should
+  /// be in HOST native order, the DNS server will convert to network order.
+  void start_dns_listener(uint32_t ip);
+
+  /// Stops the HTTP socket listener (if active).
+  void stop_http_listener();
+
+  /// Stops the DNS socket listener (if active).
+  void stop_dns_listener();
 
   /// Registers a new @ref WebSocketFlow with the server to allow sending
   /// text or binary messages based on the WebSocket ID.
@@ -708,7 +836,11 @@ private:
 
   /// @return the @ref RequestProcessor for a URI.
   /// @param uri is the URI to retrieve the @ref RequestProcessor for.
-  RequestProcessor handler(const std::string &uri);
+  RequestProcessor handler(HttpMethod method, const std::string &uri);
+
+  /// @return the @ref StreamProcessor for a URI.
+  /// @param uri is the URI to retrieve the @ref StreamProcessor for.
+  StreamProcessor stream_handler(const std::string &uri);
 
   /// @return the @ref WebSocketHandler for the provided URI.
   /// @param uri is the URI to retrieve the @ref WebSocketHandler for.
@@ -748,11 +880,20 @@ private:
   /// the @ref Httpd when a new client is available.
   uninitialized<SocketListener> listener_;
 
+  /// @ref Dnsd that will serve DNS responses when enabled.
+  uninitialized<Dnsd> dns_;
+
   /// Internal state flag for the listener_ being active.
-  bool active_{false};
+  bool http_active_{false};
+
+  /// Internal state flag for the dns_ being active.
+  bool dns_active_{false};
 
   /// Internal map of all registered @ref RequestProcessor handlers.
-  std::map<std::string, RequestProcessor> handlers_;
+  std::map<std::string, std::pair<size_t, RequestProcessor>> handlers_;
+
+  /// Internal map of all registered @ref RequestProcessor handlers.
+  std::map<std::string, StreamProcessor> stream_handlers_;
 
   /// Internal map of all registered static URIs.
   std::map<std::string, std::shared_ptr<AbstractHttpResponse>> static_uris_;
@@ -765,6 +906,21 @@ private:
 
   /// Internal map of active @ref WebSocketFlow instances.
   std::map<int, WebSocketFlow *> websockets_;
+
+  /// Internal holder for captive portal response.
+  std::string captive_response_;
+
+  /// Internal holder for captive portal response.
+  std::string captive_auth_uri_;
+
+  /// Timeout for captive portal authenticated clients.
+  uint32_t captive_timeout_{UINT32_MAX};
+
+  /// Internal state flag for the captive portal.
+  bool captive_active_{false};
+
+  /// Tracking entries for authenticated captive portal clients.
+  std::map<uint32_t, uint64_t> captive_auth_;
 
   DISALLOW_COPY_AND_ASSIGN(Httpd);
 };
@@ -786,6 +942,16 @@ private:
   /// @ref StateFlowTimedSelectHelper which assists in reading/writing of the
   /// request data stream.
   StateFlowTimedSelectHelper helper_{this};
+
+  /// Timeout value to use for reading data while processing the request.
+  const long long timeout_{MSEC_TO_NSEC(config_httpd_req_timeout_ms())};
+
+  /// Maximum read size for a single read() call when processing the headers.
+  const size_t header_read_size_{(size_t)config_httpd_header_chunk_size()};
+
+  /// Maximum read size for a single read() call when processing the request
+  /// body.
+  const size_t body_read_size_{(size_t)config_httpd_body_chunk_size()};
 
   /// @ref Httpd instance that owns this request.
   Httpd *server_;
@@ -828,17 +994,57 @@ private:
   /// Current request number for this client connection.
   uint8_t req_count_{0};
 
+  /// Count of multipart/form-data segments that have been encountered and
+  /// processing started.
+  size_t part_count_{0};
+
+  /// Temporary storage of multipart encoded form data boundary.
+  std::string part_boundary_;
+
+  /// Internal flag to indicate we have found the boundary marker for a
+  /// multipart/form-data encoded POST/PUT body payload.
+  bool found_part_boundary_{false};
+
+  /// Internal flag to indicate we should process the body segment of a
+  /// multipart/form-data encoded POST/PUT body payload.
+  bool process_part_body_{false};
+
+  /// Temporary storage of the filename for the multipart/form-data part.
+  std::string part_filename_;
+
+  /// Temporary storage of the content-type for a multipart/form-data part.
+  std::string part_type_;
+
+  /// Temporary storage of the length for a multipart/form-data part.
+  size_t part_len_{0};
+
+  /// Index into @ref buf_ for partial reads for a multipart/form-data part.
+  size_t part_offs_{0};
+
+  /// Temporary holder of the @ref StreamProcessor to avoid subsequent lookups
+  /// during streaming of the parts.
+  StreamProcessor part_stream_{nullptr};
+
+  /// Response to send when a PUT/POST of multipart/form-data is received this
+  /// needs to be sent before the client will send the content to be processed.
+  std::string multipart_res_{"HTTP/1.1 100 Continue\r\n\r\n"};
+
   STATE_FLOW_STATE(start_request);
   STATE_FLOW_STATE(read_more_data);
   STATE_FLOW_STATE(parse_header_data);
   STATE_FLOW_STATE(process_request);
-  STATE_FLOW_STATE(process_body_chunk);
+  STATE_FLOW_STATE(stream_body);
+  STATE_FLOW_STATE(start_multipart_processing);
+  STATE_FLOW_STATE(parse_multipart_headers);
+  STATE_FLOW_STATE(read_multipart_headers);
+  STATE_FLOW_STATE(stream_multipart_body);
   STATE_FLOW_STATE(send_response);
   STATE_FLOW_STATE(send_response_headers);
   STATE_FLOW_STATE(send_response_body);
   STATE_FLOW_STATE(send_response_body_split);
   STATE_FLOW_STATE(request_complete);
   STATE_FLOW_STATE(upgrade_to_websocket);
+  STATE_FLOW_STATE(abort_request);
 };
 
 /// WebSocket processor implementing the @ref StateFlowBase interface.
@@ -983,12 +1189,17 @@ private:
 static inline std::pair<std::string, std::string> break_string(std::string &str
                                                              , const std::string& delim)
 {
-  size_t pos = str.find(delim);
+  size_t pos = str.find_first_of(delim);
   if (pos == std::string::npos)
   {
     return std::make_pair(str, "");
   }
-  return std::make_pair(str.substr(0, pos), str.substr(pos + delim.length()));
+  size_t end_pos = pos + delim.length();
+  if (end_pos > str.length())
+  {
+    end_pos = pos;
+  }
+  return std::make_pair(str.substr(0, pos), str.substr(end_pos));
 }
 
 /// Helper which will break a string into multiple pieces based on a provided
@@ -1014,7 +1225,7 @@ std::string::size_type tokenize(const std::string& str, ContainerT& tokens
 
   while(lastPos < str.length())
   {
-    pos = str.find(delimeter, lastPos);
+    pos = str.find_first_of(delimeter, lastPos);
     if (pos == std::string::npos)
     {
       if (!keep_incomplete)
@@ -1043,7 +1254,6 @@ static inline std::string string_join(const std::vector<std::string>& strings
                                     , const std::string& delimeter = "")
 {
   std::string result;
-
   for (auto piece : strings)
   {
     if (!result.empty())
@@ -1055,7 +1265,22 @@ static inline std::string string_join(const std::vector<std::string>& strings
   return result;
 }
 
+/// Helper which joins a vector<string> using a first and last iterator.
+///
+/// @param first is the starting iterator position.
+/// @param last is the starting iterator position.
+/// @param delimeter is the string to join the segments with.
+/// @return the joined string.
+static inline std::string string_join(const std::vector<std::string>::iterator first
+                                    , const std::vector<std::string>::iterator last
+                                    , const std::string& delimeter = "")
+{
+  vector<std::string> vec(first, last);
+  return string_join(vec, delimeter);
+}
+
 } // namespace http
 } // namespace esp32cs
 
-#endif // HTTPD_H_
+#endif // HTTP_H_
+

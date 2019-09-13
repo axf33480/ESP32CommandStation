@@ -16,7 +16,7 @@ COPYRIGHT (c) 2019 Mike Dunston
 **********************************************************************/
 
 #include "ESP32CommandStation.h"
-#include "interfaces/httpd/Httpd.h"
+#include "interfaces/http/Http.h"
 
 #ifdef ESP32
 
@@ -57,22 +57,29 @@ Httpd::Httpd(MDNS *mdns, uint16_t port, const string &name, const string service
     if (event->event_id == SYSTEM_EVENT_STA_GOT_IP ||
         event->event_id == SYSTEM_EVENT_AP_START)
     {
-      start_listener();
+      // If it is the SoftAP interface, start the dns server
+      if (event->event_id == SYSTEM_EVENT_AP_START)
+      {
+        tcpip_adapter_ip_info_t ip_info;
+        tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_AP, &ip_info);
+        start_dns_listener(ntohl(ip_info.ip.addr));
+      }
+      start_http_listener();
     }
     else if (event->event_id == SYSTEM_EVENT_STA_LOST_IP ||
              event->event_id == SYSTEM_EVENT_AP_STOP)
     {
-      stop_listener();
+      stop_http_listener();
+      stop_dns_listener();
     }
   });
-#else
-  start_listener();
 #endif // ESP32
 }
 
 Httpd::~Httpd()
 {
-  stop_listener();
+  stop_http_listener();
+  stop_dns_listener();
   executor_.shutdown();
   handlers_.clear();
   static_uris_.clear();
@@ -80,9 +87,20 @@ Httpd::~Httpd()
   websocket_uris_.clear();
 }
 
+void Httpd::uri(const std::string &uri, const size_t method_mask
+              , RequestProcessor handler, StreamProcessor stream_handler)
+{
+  handlers_.insert(
+    std::make_pair(uri, std::make_pair(method_mask, std::move(handler))));
+  if (stream_handler)
+  {
+    stream_handlers_.insert(std::make_pair(uri, std::move(stream_handler)));
+  }
+}
+
 void Httpd::uri(const std::string &uri, RequestProcessor handler)
 {
-  handlers_.insert(std::make_pair(std::move(uri), std::move(handler)));
+  this->uri(uri, 0xFFFF, handler, nullptr);
 }
 
 void Httpd::redirect_uri(const string &source, const string &target)
@@ -149,34 +167,64 @@ void Httpd::new_connection(int fd)
   new HttpRequestFlow(this, fd, ntohl(source.sin_addr.s_addr));
 }
 
-void Httpd::start_listener()
+void Httpd::captive_portal(string first_access_response
+                         , string auth_uri, uint64_t auth_timeout)
 {
-  if (active_)
+  captive_response_.assign(std::move(first_access_response));
+  captive_auth_uri_.assign(std::move(auth_uri));
+  captive_timeout_ = auth_timeout;
+  captive_active_ = true;
+}
+
+void Httpd::start_http_listener()
+{
+  if (http_active_)
   {
     return;
   }
   LOG(INFO, "[%s] Starting HTTP listener on port %d", name_.c_str(), port_);
   listener_.emplace(port_, incoming_http_connection);
-  active_ = true;
+  http_active_ = true;
   if (mdns_)
   {
     mdns_->publish(name_.c_str(), mdns_service_.c_str(), port_);
   }
 }
 
-void Httpd::stop_listener()
+void Httpd::start_dns_listener(uint32_t ip)
 {
-  if (active_)
+  if (dns_active_)
+  {
+    return;
+  }
+  LOG(INFO, "[%s] Starting DNS listener", name_.c_str());
+  dns_.emplace(ip);
+  dns_active_ = true;
+}
+
+void Httpd::stop_http_listener()
+{
+  if (http_active_)
   {
     LOG(INFO, "[%s] Shutting down HTTP listener", name_.c_str());
     listener_.reset();
-    active_ = false;
+    http_active_ = false;
 #ifdef ESP32
     if (mdns_)
     {
       mdns_unpublish(mdns_service_.c_str());
     }
 #endif
+  }
+}
+
+void Httpd::stop_dns_listener()
+{
+  if (dns_active_)
+  {
+    LOG(INFO, "[%s] Shutting down HTTP listener", name_.c_str());
+    dns_.reset();
+    dns_active_ = false;
   }
 }
 
@@ -245,18 +293,40 @@ bool Httpd::is_servicable_uri(HttpRequest *req)
     return true;
   }
 
+  // check if it is a POST/PUT and there is a body payload
+  if ((req->method() & (HttpMethod::POST | HttpMethod::PUT)) &&
+      req->has_header(HttpHeader::CONTENT_LENGTH))
+  {
+    return stream_handler(req->uri()) != nullptr;
+  }
+
   // Check if we have a handler for the provided URI
-  return handlers_.count(req->uri());
+  return handler(req->method(), req->uri()) != nullptr;
 }
 
-RequestProcessor Httpd::handler(const std::string &uri)
+RequestProcessor Httpd::handler(HttpMethod method, const std::string &uri)
 {
-  LOG(VERBOSE, "[Httpd] Searching for URI handler: %s", uri.c_str());
+  LOG(VERBOSE, "[Httpd uri:%s] Searching for URI handler", uri.c_str());
   if (handlers_.count(uri))
   {
-    return handlers_[uri];
+    auto handler = handlers_[uri];
+    if (method & handler.first)
+    {
+      return handler.second;
+    }
   }
-  LOG(VERBOSE, "[Httpd] No handler found");
+  LOG(VERBOSE, "[Httpd uri:%s] No suitable handler found", uri.c_str());
+  return nullptr;
+}
+
+StreamProcessor Httpd::stream_handler(const std::string &uri)
+{
+  LOG(VERBOSE, "[Httpd uri:%s] Searching for URI stream handler", uri.c_str());
+  if (stream_handlers_.count(uri))
+  {
+    return stream_handlers_[uri];
+  }
+  LOG(VERBOSE, "[Httpd uri:%s] No suitable stream handler found", uri.c_str());
   return nullptr;
 }
 

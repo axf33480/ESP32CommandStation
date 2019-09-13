@@ -16,23 +16,30 @@ COPYRIGHT (c) 2019 Mike Dunston
 **********************************************************************/
 
 #include "ESP32CommandStation.h"
-#include "interfaces/CaptivePortalDNSD.h"
+#include "interfaces/http/Dnsd.h"
 #include <sys/socket.h>
 #include <iomanip>
 
+namespace esp32cs
+{
+
+namespace http
+{
+
 static void* dns_thread_start(void* arg)
 {
-  static_cast<CaptivePortalDNSD *>(arg)->dns_process_thread();
+  Singleton<Dnsd>::instance()->dns_process_thread();
   return nullptr;
 }
 
-CaptivePortalDNSD::CaptivePortalDNSD(ip4_addr_t ip, string name, uint16_t port)
+Dnsd::Dnsd(uint32_t ip, string name, uint16_t port)
   : local_ip_(ip), name_(name), port_(port)
-  , dns_thread_(name_.c_str(), 1, DNS_TASK_STACK_SIZE, dns_thread_start, this)
+  , dns_thread_(name_.c_str(), 1, config_dnsd_stack_size(), dns_thread_start
+              , nullptr)
 {
 }
 
-CaptivePortalDNSD::~CaptivePortalDNSD()
+Dnsd::~Dnsd()
 {
   shutdown_ = true;
   while(!shutdownComplete_)
@@ -41,7 +48,7 @@ CaptivePortalDNSD::~CaptivePortalDNSD()
   }
 }
 
-void CaptivePortalDNSD::dns_process_thread()
+void Dnsd::dns_process_thread()
 {
   struct sockaddr_in addr;
   int fd;
@@ -58,8 +65,8 @@ void CaptivePortalDNSD::dns_process_thread()
              ::bind(fd, (struct sockaddr *) &addr, sizeof(addr)));
 
   LOG(INFO, "[%s] Listening on port %d, fd %d, using %s for local IP"
-    , name_.c_str(), port_, fd, ipv4_to_string(ntohl(local_ip_.addr)).c_str());
-  vector<uint8_t> receiveBuffer(DNS_REQ_BUFFER_SIZE, 0);
+    , name_.c_str(), port_, fd, ipv4_to_string(local_ip_).c_str());
+  vector<uint8_t> receiveBuffer(config_dnsd_buffer_size(), 0);
   vector<uint8_t> responseBuffer;
 
   while (!shutdown_)
@@ -68,7 +75,7 @@ void CaptivePortalDNSD::dns_process_thread()
     sockaddr_in source;
     socklen_t source_len = sizeof(sockaddr_in);
     // This will block the thread until it receives a message on the socket.
-    int len = ::recvfrom(fd, receiveBuffer.data(), DNS_REQ_BUFFER_SIZE, 0
+    int len = ::recvfrom(fd, receiveBuffer.data(), config_dnsd_buffer_size(), 0
                        , (sockaddr *)&source, &source_len);
     if(len >= sizeof(DNSHeader))
     {
@@ -132,14 +139,14 @@ void CaptivePortalDNSD::dns_process_thread()
         , .classes = htons(1)
         , .ttl = htonl(60)
         , .length = htons(sizeof(uint32_t))
-        , .address = local_ip_.addr
+        , .address = htonl(local_ip_)
         };
         responseBuffer.resize(len + sizeof(DNSResponse));
         memcpy(responseBuffer.data(), receiveBuffer.data(), len);
         memcpy(responseBuffer.data() + len, &response, sizeof(DNSResponse));
         LOG(VERBOSE, "[%s ->%s] %s -> %s", name_.c_str()
           , inet_ntoa(source.sin_addr), parsed_domain_name.c_str()
-          , ipv4_to_string(ntohl(local_ip_.addr)).c_str());
+          , ipv4_to_string(local_ip_).c_str());
         ERRNOCHECK("sendto", sendto(fd, responseBuffer.data()
                                   , responseBuffer.size(), 0
                                   , (const sockaddr*)&source
@@ -158,3 +165,6 @@ void CaptivePortalDNSD::dns_process_thread()
   }
   shutdownComplete_ = true;
 }
+
+} // namespace http
+} // namespace esp32cs

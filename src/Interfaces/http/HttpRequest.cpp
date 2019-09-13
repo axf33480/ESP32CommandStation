@@ -16,7 +16,7 @@ COPYRIGHT (c) 2019 Mike Dunston
 **********************************************************************/
 
 #include "ESP32CommandStation.h"
-#include "interfaces/httpd/Httpd.h"
+#include "interfaces/http/Http.h"
 
 namespace esp32cs
 {
@@ -38,6 +38,8 @@ std::map<HttpHeader, string> well_known_http_headers =
 , { CONTENT_ENCODING, "Content-Encoding" }
 , { CONTENT_TYPE, "Content-Type" }
 , { CONTENT_LENGTH, "Content-Length" }
+, { CONTENT_DISPOSITION, "Content-Disposition" }
+, { EXPECT, "Expect" }
 , { HOST, "Host" }
 , { LOCATION, "Location" }
 , { ORIGIN, "Origin" }
@@ -100,16 +102,32 @@ void HttpRequest::uri(const string &value)
 
 void HttpRequest::param(const std::pair<string, string> &value)
 {
-  LOG(VERBOSE, "[HttpReq %p] Adding Param: %s: %s", this, value.first.c_str()
+  LOG(VERBOSE, "[HttpReq %p] Adding param: %s: %s", this, value.first.c_str()
     , value.second.c_str());
   params_.insert(std::move(value));
 }
 
 void HttpRequest::header(const std::pair<std::string, std::string> &value)
 {
-  LOG(VERBOSE, "[HttpReq %p] Adding Header: %s: %s", this, value.first.c_str()
+  LOG(VERBOSE, "[HttpReq %p] Adding header: %s: %s", this, value.first.c_str()
     , value.second.c_str());
   headers_.insert(value);
+}
+
+void HttpRequest::header(HttpHeader header, std::string value)
+{
+  if (has_header(header))
+  {
+    LOG(VERBOSE, "[HttpReq %p] Replacing header: %s: %s (old: %s)", this
+      , well_known_http_headers[header].c_str(), value.c_str()
+      , headers_[well_known_http_headers[header]].c_str());
+  }
+  else
+  {
+    LOG(VERBOSE, "[HttpReq %p] Adding header: %s: %s", this
+      , well_known_http_headers[header].c_str(), value.c_str());
+  }
+  headers_[well_known_http_headers[header]] = value;
 }
 
 bool HttpRequest::has_header(const string &name)
@@ -142,7 +160,7 @@ void HttpRequest::reset()
   headers_.clear();
   params_.clear();
   raw_method_.clear();
-  method_ = HttpMethod::UNKNOWN;
+  method_ = HttpMethod::UNKNOWN_METHOD;
   uri_.clear();
   error_ = false;
 }
@@ -165,6 +183,43 @@ void HttpRequest::error(bool value)
 bool HttpRequest::error()
 {
   return error_;
+}
+
+ContentType HttpRequest::content_type()
+{
+  static const string MULTIPART_FORM = "multipart/form-data";
+  static const string FORM_URLENCODED = "application/x-www-form-urlencoded";
+  // For a multipart/form-data the Content-Type value will look like:
+  // multipart/form-data; boundary=----WebKitFormBoundary4Aq7x8166jGWkA0q
+  if (!header(HttpHeader::CONTENT_TYPE).compare(0, MULTIPART_FORM.size()
+                                              , MULTIPART_FORM))
+  {
+    return ContentType::MULTIPART_FORMDATA;
+  }
+  if (!header(HttpHeader::CONTENT_TYPE).compare(FORM_URLENCODED))
+  {
+    return ContentType::FORM_URLENCODED;
+  }
+  return ContentType::UNKNOWN_TYPE;
+}
+
+void HttpRequest::set_status(HttpStatusCode code)
+{
+  status_ = code;
+}
+
+size_t HttpRequest::params()
+{
+  return params_.size();
+}
+
+string HttpRequest::param(string name)
+{
+  if (params_.count(name))
+  {
+    return params_[name];
+  }
+  return no_value_;
 }
 
 string HttpRequest::to_string()
