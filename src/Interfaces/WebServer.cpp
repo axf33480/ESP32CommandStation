@@ -134,7 +134,7 @@ void init_webserver(MDNS *dns)
   httpd->uri("/outputs"
            , HttpMethod::GET | HttpMethod::POST |
              HttpMethod::PUT | HttpMethod::DELETE
-           , process_output);
+           , process_outputs);
 #endif // ENABLE_OUTPUTS
 #if ENABLE_SENSORS
   httpd->uri("/sensors"
@@ -556,7 +556,7 @@ HTTP_HANDLER_IMPL(process_config, request)
 }
 
 #if ENABLE_OUTPUTS
-HTTP_HANDLER_IMPL(process_output, request)
+HTTP_HANDLER_IMPL(process_outputs, request)
 {
   if (request->method() == HttpMethod::GET && !request->params())
   {
