@@ -25,7 +25,6 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 void *jmriClientHandler(void *arg);
 
 MDNS mDNS;
-ESP32CSWebServer esp32csWebServer(&mDNS);
 OSMutex jmriClientsMux;
 vector<int> jmriClients;
 unique_ptr<SocketListener> JMRIListener;
@@ -42,6 +41,7 @@ WiFiInterface::WiFiInterface()
 
 void WiFiInterface::init()
 {
+  init_webserver(&mDNS);
 #if NEXTION_ENABLED
   auto nextionTitlePage = static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE]);
   nextionTitlePage->setStatusText(0, "Initializing WiFi");
@@ -100,7 +100,6 @@ void WiFiInterface::init()
             INFO_SCREEN_CLIENTS_LINE, "TCP Conn: %02d", clientCount);
         }));
         mDNS.publish("jmri", "_esp32cs._tcp", JMRI_LISTENER_PORT);
-        esp32csWebServer.begin();
       }
 #if NEXTION_ENABLED
       nextionTitlePage->clearStatusText();
@@ -131,7 +130,6 @@ void WiFiInterface::init()
 #endif
     }
   });
-  esp32csWebServer.init();
 }
 
 void *jmriClientHandler(void *arg)

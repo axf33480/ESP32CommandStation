@@ -2,12 +2,13 @@
 This document tracks features and bug fixes that are planned.
 
 ## v1.5.0
-The primary focus of v1.5.0 is improvements to the DCC signal code and adding
-RailCom support. The secondary focus is tighter integration with LCC.
+The primary focus of v1.5.0 is improvements to the DCC signal code, adding
+RailCom support, tighter LCC integration and general stability improvements.
 
 ### JMRI Interface
 
 - [x] Replaced WiFiServer code with socket_listener from OpenMRNLite.
+- [ ] Convert JMRI interface to StateFlow pattern.
 
 ### General (misc)
 
@@ -41,13 +42,10 @@ RailCom support. The secondary focus is tighter integration with LCC.
 
 ### Web Interface
 
-- [ ] Replace webserver code with StateFlow based server.
+- [x] Replace webserver code with StateFlow based server.
 - [x] add dialog for failed CS requests.
 - [x] Hide power button for prog track when it is off.
 - [x] Configure Station SSID/PW
-- [ ] ESPAsyncWebServer can trigger heap corruption in the request processing
-  when disconnecting the tcp client.
-- [ ] WebSockets crash with ISR WDT, cause TBD.
 - [x] Auto-connect WebSocket from initPage()
 - [x] Remove overall power on/off as it no longer makes sense.
 - [x] Add space in footer for clock so date/time are not smashed together.

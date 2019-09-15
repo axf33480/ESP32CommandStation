@@ -41,6 +41,8 @@ std::map<HttpHeader, string> well_known_http_headers =
 , { CONTENT_DISPOSITION, "Content-Disposition" }
 , { EXPECT, "Expect" }
 , { HOST, "Host" }
+, { IF_MODIFIED_SINCE, "If-Modified-Since" }
+, { LAST_MODIFIED, "Last-Modified" }
 , { LOCATION, "Location" }
 , { ORIGIN, "Origin" }
 , { UPGRADE, "Upgrade" }
@@ -220,6 +222,11 @@ string HttpRequest::param(string name)
     return params_[name];
   }
   return no_value_;
+}
+
+bool HttpRequest::has_param(string name)
+{
+  return params_.count(name);
 }
 
 string HttpRequest::to_string()

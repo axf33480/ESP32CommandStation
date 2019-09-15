@@ -38,6 +38,7 @@ using esp32cs::http::AbstractHttpResponse;
 using esp32cs::http::StringResponse;
 using esp32cs::http::WebSocketFlow;
 using esp32cs::http::MIME_TYPE_TEXT_HTML;
+using esp32cs::http::MIME_TYPE_TEXT_PLAIN;
 using esp32cs::http::MIME_TYPE_TEXT_CSS;
 using esp32cs::http::MIME_TYPE_IMAGE_PNG;
 using esp32cs::http::MIME_TYPE_IMAGE_GIF;
@@ -60,245 +61,24 @@ static constexpr const char * const CAPTIVE_PORTAL_HTML =
   "</body>"
   "</html>";
 
-AsyncWebServer webServer(80);
-AsyncWebSocket webSocket("/ws");
-unique_ptr<Httpd> httpd;
-
-static constexpr const char * const APPLICATION_JSON_TYPE = "application/json";
-
-enum HTTP_STATUS_CODES
-{
-  STATUS_OK = 200
-, STATUS_NO_CONTENT = 204
-, STATUS_NOT_MODIFIED = 304
-, STATUS_BAD_REQUEST = 400
-, STATUS_NOT_FOUND = 404
-, STATUS_NOT_ALLOWED = 405
-, STATUS_NOT_ACCEPTABLE = 406
-, STATUS_CONFLICT = 409
-, STATUS_PRECONDITION_FAILED = 412
-, STATUS_SERVER_ERROR = 500
-};
-
+uninitialized<Httpd> httpd;
 Atomic webSocketAtomic;
 vector<unique_ptr<WebSocketClient>> webSocketClients;
+WEBSOCKET_STREAM_HANDLER(process_websocket_event);
+HTTP_STREAM_HANDLER(process_ota);
+HTTP_HANDLER(process_power);
+HTTP_HANDLER(process_config);
+HTTP_HANDLER(process_prog);
+HTTP_HANDLER(process_outputs);
+HTTP_HANDLER(process_sensors);
+HTTP_HANDLER(process_remote_sensors);
+HTTP_HANDLER(process_s88);
+HTTP_HANDLER(process_turnouts);
+HTTP_HANDLER(process_loco);
 
-class WebSocketExecutable : public Executable
+void init_webserver(MDNS *dns)
 {
-public:
-  WebSocketExecutable(AsyncWebSocketClient *client, AwsEventType type
-                    , uint8_t *data, size_t len)
-  : clientId_(client->id()), clientIp_(client->remoteIP()), type_(type)
-  {
-    if (data && len)
-    {
-      for(size_t index = 0; index < len; index++)
-      {
-        data_.push_back(data[index]);
-      }
-    }
-  }
-
-  void run() override
-  {
-    AtomicHolder h(&webSocketAtomic);
-    if (type_ == WS_EVT_CONNECT)
-    {
-      webSocketClients.push_back(esp32cs::make_unique<WebSocketClient>(clientId_, clientIp_));
-      Singleton<InfoScreen>::instance()->replaceLine(
-        INFO_SCREEN_CLIENTS_LINE, "TCP Conn: %02d"
-      , webSocketClients.size() + jmriClients.size());
-    }
-    else if (type_ == WS_EVT_DISCONNECT)
-    {
-      auto const &elem = std::find_if(webSocketClients.begin()
-                                    , webSocketClients.end()
-      , [&](unique_ptr<WebSocketClient> & clientNode) -> bool
-        {
-          return clientNode->getID() == clientId_;
-        }
-      );
-      if (elem != webSocketClients.end())
-      {
-        webSocketClients.erase(elem);
-      }
-      Singleton<InfoScreen>::instance()->replaceLine(
-        INFO_SCREEN_CLIENTS_LINE, "TCP Conn: %02d",
-        webSocketClients.size() + jmriClients.size());
-    }
-    else if (type_ == WS_EVT_DATA)
-    {
-      auto ent = std::find_if(webSocketClients.begin(), webSocketClients.end()
-      , [&](unique_ptr<WebSocketClient> & clientNode) -> bool
-        {
-          return (clientNode->getID() == clientId_);
-        }
-      );
-      if (ent != webSocketClients.end())
-      {
-        auto res = (*ent)->feed(data_.data(), data_.size());
-        if (res.length())
-        {
-          webSocket.text(clientId_, res.c_str());
-        }
-      }
-    }
-    delete this;
-  }
-private:
-  int clientId_;
-  uint32_t clientIp_;
-  AwsEventType type_;
-  std::vector<uint8_t> data_;
-};
-
-void handleWsEvent(AsyncWebSocket * server,
-                   AsyncWebSocketClient * client,
-                   AwsEventType type,
-                   void * arg,
-                   uint8_t *data,
-                   size_t len)
-{
-  extern unique_ptr<OpenMRN> openmrn;
-  openmrn->stack()->executor()->add(
-    new WebSocketExecutable(client, type, data, len));
-}
-
-ESP32CSWebServer::ESP32CSWebServer(MDNS *mdns) : mdns_(mdns)
-{
-}
-
-using namespace std::placeholders;
-
-#define BUILTIN_URI(uri) \
-  webServer.on(uri \
-             , HTTP_GET \
-             , std::bind(&ESP32CSWebServer::streamResource, this, _1));
-
-#define GET_URI(uri, method) \
-  webServer.on(uri \
-             , HTTP_GET \
-             , std::bind(&ESP32CSWebServer::method, this, _1));
-
-#define GET_POST_URI(uri, method) \
-  webServer.on(uri \
-             , HTTP_GET | HTTP_POST \
-             , std::bind(&ESP32CSWebServer::method, this, _1));
-
-#define GET_PUT_URI(uri, method) \
-  webServer.on(uri \
-             , HTTP_GET | HTTP_PUT \
-             , std::bind(&ESP32CSWebServer::method, this, _1));
-
-#define GET_POST_DELETE_URI(uri, method) \
-  webServer.on(uri \
-             , HTTP_GET | HTTP_POST | HTTP_DELETE \
-             , std::bind(&ESP32CSWebServer::method, this, _1));
-
-#define GET_POST_PUT_DELETE_URI(uri, method) \
-  webServer.on(uri \
-             , HTTP_GET | HTTP_POST | HTTP_PUT | HTTP_DELETE \
-             , std::bind(&ESP32CSWebServer::method, this, _1));
-
-#define POST_UPLOAD_URI(uri, method, callback) \
-  webServer.on(uri \
-             , HTTP_POST \
-             , std::bind(&ESP32CSWebServer::method, this, _1) \
-             , callback);
-
-#define SEND_GENERIC_RESPONSE(request, code) \
-  request->send(code); \
-  return;
-
-#define SEND_TEXT_RESPONSE(request, code, text) \
-  request->send(code, "text/plain", text);
-
-#define SEND_HTML_RESPONSE(request, code, text) \
-  request->send(code, "text/html", text);
-
-#define SEND_JSON_RESPONSE(request, response) \
-  request->send(STATUS_OK, APPLICATION_JSON_TYPE, response.c_str()); \
-  return; \
-
-#define SEND_JSON_IF_OBJECT(request, object) \
-  if (object) \
-  { \
-    SEND_JSON_RESPONSE(request, object->toJson()) \
-  } \
-  else \
-  { \
-    SEND_GENERIC_RESPONSE(request, STATUS_NOT_FOUND) \
-  }
-
-#define SEND_JSON_IF_OBJECT_ARG(request, object, arg) \
-  if (object) \
-  { \
-    SEND_JSON_RESPONSE(request, object->toJson(arg)) \
-  } \
-  else \
-  { \
-    SEND_GENERIC_RESPONSE(request, STATUS_NOT_FOUND) \
-  }
-
-esp_ota_handle_t otaHandle;
-void otaUploadCallback(AsyncWebServerRequest *request
-                     , const String& filename
-                     , size_t index
-                     , uint8_t *data
-                     , size_t len
-                     , bool final)
-{
-  esp_err_t res = ESP_OK;
-  if (!index)
-  {
-    request->_tempObject = (void *)esp_ota_get_next_update_partition(NULL);
-    res = esp_ota_begin((esp_partition_t *)request->_tempObject
-                      , OTA_SIZE_UNKNOWN
-                      , &otaHandle);
-    if (res != ESP_OK)
-    {
-      goto ota_failure;
-    }
-    LOG(INFO, "[WebSrv] OTA Update starting...");
-    trackSignal->disable_ops_output();
-    trackSignal->disable_prog_output();
-    Singleton<OTAMonitorFlow>::instance()->report_start();
-  }
-  res = esp_ota_write(otaHandle, data, len);
-  if (res != ESP_OK)
-  {
-    goto ota_failure;
-  }
-  Singleton<OTAMonitorFlow>::instance()->report_progress(len);
-  if (final)
-  {
-    res = esp_ota_end(otaHandle);
-    if (res != ESP_OK)
-    {
-      goto ota_failure;
-    }
-    LOG(INFO, "[WebSrv] OTA binary received, setting boot partition");
-    res = esp_ota_set_boot_partition((esp_partition_t *)request->_tempObject);
-    if (res != ESP_OK)
-    {
-      goto ota_failure;
-    }
-    request->_tempObject = nullptr;
-    LOG(INFO, "[WebSrv] OTA Update Complete!");
-    Singleton<OTAMonitorFlow>::instance()->report_success();
-  }
-  return;
-
-ota_failure:
-  request->_tempObject = nullptr;
-  LOG_ERROR("[WebSrv] OTA Update failure: %s (%d)", esp_err_to_name(res), res);
-  SEND_TEXT_RESPONSE(request, STATUS_BAD_REQUEST, esp_err_to_name(res))
-  Singleton<OTAMonitorFlow>::instance()->report_failure(res);
-}
-
-void ESP32CSWebServer::init()
-{
-  httpd.reset(new Httpd(mdns_));
+  httpd.emplace(dns);
   httpd->redirect_uri("/", "/index.html");
   // if the soft AP interface is enabled, setup the captive portal
   if (configStore->isAPEnabled())
@@ -324,85 +104,201 @@ void ESP32CSWebServer::init()
                   , MIME_TYPE_TEXT_JAVASCRIPT, HTTP_ENCODING_GZIP);
   httpd->static_uri("/images/ajax-loader.gif", ajaxLoader, ajaxLoader_size
                   , MIME_TYPE_IMAGE_GIF);
+  httpd->websocket_uri("/ws", process_websocket_event);
   httpd->uri("/features", [&](HttpRequest *req)
   {
     return new StringResponse(configStore->getCSFeatures()
                             , MIME_TYPE_APPLICATION_JSON);
   });
-  httpd->uri("/power", HttpMethod::GET | HttpMethod::PUT
-           , std::bind(&ESP32CSWebServer::handlePower, this
-                     , std::placeholders::_1));
-  httpd->uri("/update", HttpMethod::POST, nullptr
-    , [&](HttpRequest *req, const std::string &filename, size_t size
-        , const uint8_t * data, size_t length, size_t offset, bool final
-        , bool *abort)
-  {
-    if (final)
-    {
-      req->set_status(HttpStatusCode::STATUS_OK);
-    }
-    return nullptr;
+  httpd->uri("/power", HttpMethod::GET | HttpMethod::PUT, process_power);
+  httpd->uri("/update", HttpMethod::POST, nullptr, process_ota);
+  httpd->uri("/programmer", HttpMethod::GET | HttpMethod::POST, process_prog);
+  httpd->uri("/config", HttpMethod::GET | HttpMethod::POST, process_config);
+  httpd->uri("/turnouts"
+           , HttpMethod::GET | HttpMethod::POST |
+             HttpMethod::PUT | HttpMethod::DELETE
+           , process_turnouts);
+  httpd->uri("/locomotive"
+           , HttpMethod::GET | HttpMethod::POST |
+             HttpMethod::PUT | HttpMethod::DELETE
+           , process_loco);
+  httpd->uri("/locomotive/roster"
+           , HttpMethod::GET | HttpMethod::POST |
+             HttpMethod::PUT | HttpMethod::DELETE
+           , process_loco);
+  httpd->uri("/locomotive/estop"
+           , HttpMethod::GET | HttpMethod::POST |
+             HttpMethod::PUT | HttpMethod::DELETE
+           , process_loco);
+#if ENABLE_OUTPUTS
+  httpd->uri("/outputs"
+           , HttpMethod::GET | HttpMethod::POST |
+             HttpMethod::PUT | HttpMethod::DELETE
+           , process_output);
+#endif // ENABLE_OUTPUTS
+#if ENABLE_SENSORS
+  httpd->uri("/sensors"
+          , HttpMethod::GET | HttpMethod::POST | HttpMethod::DELETE
+          , process_sensors);
+  httpd->uri("/remoteSensors"
+          , HttpMethod::GET | HttpMethod::POST | HttpMethod::DELETE
+          , process_remote_sensors);
+#if S88_ENABLED
+  httpd->uri("/s88sensors"
+          , HttpMethod::GET | HttpMethod::POST | HttpMethod::DELETE
+          , process_s88);
+#endif // S88_ENABLED
+#endif // ENABLE_SENSORS
+}
+
+void to_json(nlohmann::json& j, const wifi_ap_record_t& t)
+{
+  j = nlohmann::json({
+    { JSON_WIFI_SSID_NODE, (char *)t.ssid },
+    { JSON_WIFI_RSSI_NODE, t.rssi },
+    { JSON_WIFI_AUTH_NODE, t.authmode },
   });
-  httpd->websocket_uri("/ws"
-    , [](WebSocketFlow *client, WebSocketEvent event, const uint8_t *data
-       , size_t data_len)
+}
+
+WEBSOCKET_STREAM_HANDLER_IMPL(process_websocket_event, client, event, data
+                            , data_len)
+{
+  AtomicHolder h(&webSocketAtomic);
+  if (event == WebSocketEvent::WS_EVENT_CONNECT)
   {
-    AtomicHolder h(&webSocketAtomic);
-    if (event == WebSocketEvent::WS_EVENT_CONNECT)
-    {
-      webSocketClients.push_back(
-        esp32cs::make_unique<WebSocketClient>(client->get_id()
-                                            , client->get_remote_ip()));
-      Singleton<InfoScreen>::instance()->replaceLine(
-        INFO_SCREEN_CLIENTS_LINE, "TCP Conn: %02d"
-      , webSocketClients.size() + jmriClients.size());
-    }
-    else if (event == WebSocketEvent::WS_EVENT_DISCONNECT)
-    {
-      webSocketClients.erase(std::remove_if(webSocketClients.begin()
-                                          , webSocketClients.end()
-      , [client](unique_ptr<WebSocketClient> &inst) -> bool
-        {
-          return inst->getID() == client->get_id();
-        }));
-      Singleton<InfoScreen>::instance()->replaceLine(
-        INFO_SCREEN_CLIENTS_LINE, "TCP Conn: %02d",
-        webSocketClients.size() + jmriClients.size());
-    }
-    else if (event == WebSocketEvent::WS_EVENT_TEXT)
-    {
-      auto ent = std::find_if(webSocketClients.begin(), webSocketClients.end()
-      , [client](unique_ptr<WebSocketClient> &inst) -> bool
-        {
-          return inst->getID() == client->get_id();
-        }
-      );
-      if (ent != webSocketClients.end())
+    webSocketClients.push_back(
+      esp32cs::make_unique<WebSocketClient>(client->id(), client->ip()));
+    Singleton<InfoScreen>::instance()->replaceLine(
+      INFO_SCREEN_CLIENTS_LINE, "TCP Conn: %02d"
+    , webSocketClients.size() + jmriClients.size());
+  }
+  else if (event == WebSocketEvent::WS_EVENT_DISCONNECT)
+  {
+    webSocketClients.erase(std::remove_if(webSocketClients.begin()
+                                        , webSocketClients.end()
+    , [client](unique_ptr<WebSocketClient> &inst) -> bool
       {
-        // TODO: remove cast that drops const
-        auto res = (*ent)->feed((uint8_t *)data, data_len);
-        if (res.length())
-        {
-          client->send_text(res);
-        }
+        return inst->id() == client->id();
+      }));
+    Singleton<InfoScreen>::instance()->replaceLine(
+      INFO_SCREEN_CLIENTS_LINE, "TCP Conn: %02d",
+      webSocketClients.size() + jmriClients.size());
+  }
+  else if (event == WebSocketEvent::WS_EVENT_TEXT)
+  {
+    auto ent = std::find_if(webSocketClients.begin(), webSocketClients.end()
+    , [client](unique_ptr<WebSocketClient> &inst) -> bool
+      {
+        return inst->id() == client->id();
+      }
+    );
+    if (ent != webSocketClients.end())
+    {
+      // TODO: remove cast that drops const
+      auto res = (*ent)->feed((uint8_t *)data, data_len);
+      if (res.length())
+      {
+        client->send_text(res);
       }
     }
-  });
+  }
 }
 
-void ESP32CSWebServer::begin()
+HTTP_HANDLER_IMPL(process_power, request)
 {
-}
-
-void ESP32CSWebServer::handleProgrammer(AsyncWebServerRequest *request)
-{
-  if (request->method() == HTTP_GET)
+  string response = "{}";
+  request->set_status(HttpStatusCode::STATUS_OK);
+  if (request->method() == HttpMethod::GET)
   {
-    if (request->arg(JSON_PROG_ON_MAIN).equalsIgnoreCase(JSON_VALUE_TRUE))
+    response.assign(trackSignal->generate_status_json());
+  }
+  else if (request->method() == HttpMethod::PUT)
+  {
+    if (!request->param(JSON_STATE_NODE).compare(JSON_VALUE_TRUE))
     {
-      SEND_GENERIC_RESPONSE(request, STATUS_NOT_ALLOWED)
+      trackSignal->enable_ops_output();
     }
-    else if(request->hasArg(JSON_IDENTIFY_NODE))
+    else
+    {
+      trackSignal->disable_ops_output();
+      trackSignal->disable_prog_output();
+    }
+  }
+  return new StringResponse(response, MIME_TYPE_APPLICATION_JSON);
+}
+
+esp_ota_handle_t otaHandle;
+esp_partition_t *ota_partition = nullptr;
+HTTP_STREAM_HANDLER_IMPL(process_ota, request, filename, size, data, length
+                       , offset, final, abort_req)
+{
+  esp_err_t err = ESP_OK;
+  if (!offset)
+  {
+    esp_log_level_set("esp_image", ESP_LOG_VERBOSE);
+    ota_partition = (esp_partition_t *)esp_ota_get_next_update_partition(NULL);
+    err = ESP_ERROR_CHECK_WITHOUT_ABORT(esp_ota_begin(ota_partition, size
+                                                    , &otaHandle));
+    if (err != ESP_OK)
+    {
+      LOG_ERROR("[WebSrv] OTA start failed, aborting!");
+      Singleton<OTAMonitorFlow>::instance()->report_failure(err);
+      request->set_status(HttpStatusCode::STATUS_SERVER_ERROR);
+      *abort_req = true;
+      return nullptr;
+    }
+    LOG(INFO, "[WebSrv] OTA Update starting (%zu bytes)...", size);
+    trackSignal->disable_ops_output();
+    trackSignal->disable_prog_output();
+    Singleton<OTAMonitorFlow>::instance()->report_start();
+  }
+  HASSERT(ota_partition);
+  ESP_ERROR_CHECK(esp_ota_write(otaHandle, data, length));
+  Singleton<OTAMonitorFlow>::instance()->report_progress(length);
+  if (final)
+  {
+    err = ESP_ERROR_CHECK_WITHOUT_ABORT(esp_ota_end(otaHandle));
+    if (err != ESP_OK)
+    {
+      LOG_ERROR("[WebSrv] OTA end failed, aborting!");
+      Singleton<OTAMonitorFlow>::instance()->report_failure(err);
+      request->set_status(HttpStatusCode::STATUS_SERVER_ERROR);
+      *abort_req = true;
+      return nullptr;
+    }
+    LOG(INFO, "[WebSrv] OTA binary received, setting boot partition");
+    err = ESP_ERROR_CHECK_WITHOUT_ABORT(
+      esp_ota_set_boot_partition(ota_partition));
+    if (err != ESP_OK)
+    {
+      LOG_ERROR("[WebSrv] OTA end failed, aborting!");
+      Singleton<OTAMonitorFlow>::instance()->report_failure(err);
+      request->set_status(HttpStatusCode::STATUS_SERVER_ERROR);
+      *abort_req = true;
+      return nullptr;
+    }
+    LOG(INFO, "[WebSrv] OTA Update Complete!");
+    Singleton<OTAMonitorFlow>::instance()->report_success();
+    request->set_status(HttpStatusCode::STATUS_OK);
+    return new StringResponse("OTA Upload Complete", MIME_TYPE_TEXT_PLAIN);
+  }
+  return nullptr;
+}
+
+HTTP_HANDLER_IMPL(process_prog, request)
+{
+  request->set_status(HttpStatusCode::STATUS_OK);
+  if (!request->has_param(JSON_PROG_ON_MAIN))
+  {
+    request->set_status(HttpStatusCode::STATUS_BAD_REQUEST);
+  }
+  else if (request->method() == HttpMethod::GET)
+  {
+    if (!request->param(JSON_PROG_ON_MAIN).compare(JSON_VALUE_TRUE))
+    {
+      request->set_status(HttpStatusCode::STATUS_NOT_ALLOWED);
+    }
+    else if(request->has_param(JSON_IDENTIFY_NODE))
     {
       int16_t decoderConfig = readCV(CV_NAMES::DECODER_CONFIG);
       uint16_t decoderAddress = 0;
@@ -437,7 +333,7 @@ void ESP32CSWebServer::handleProgrammer(AsyncWebServerRequest *request)
           else
           {
             LOG(WARNING, "Failed to read address MSB/LSB");
-            SEND_GENERIC_RESPONSE(request, STATUS_SERVER_ERROR)
+            request->set_status(HttpStatusCode::STATUS_SERVER_ERROR);
           }
         }
         else
@@ -456,7 +352,7 @@ void ESP32CSWebServer::handleProgrammer(AsyncWebServerRequest *request)
             else
             {
               LOG(WARNING, "Unable to read address MSB/LSB");
-              SEND_GENERIC_RESPONSE(request, STATUS_SERVER_ERROR)
+              request->set_status(HttpStatusCode::STATUS_SERVER_ERROR);
             }
           }
           else
@@ -471,7 +367,7 @@ void ESP32CSWebServer::handleProgrammer(AsyncWebServerRequest *request)
             else
             {
               LOG(WARNING, "Unable to read short address CV");
-              SEND_GENERIC_RESPONSE(request, STATUS_SERVER_ERROR)
+              request->set_status(HttpStatusCode::STATUS_SERVER_ERROR);
             }
           }
           response += StringPrintf("\"%s\":%s,", JSON_SPEED_TABLE_NODE
@@ -481,124 +377,209 @@ void ESP32CSWebServer::handleProgrammer(AsyncWebServerRequest *request)
         }
         response += StringPrintf("\"%s\":%d,", JSON_ADDRESS_NODE
                                , decoderAddress);
-        bool create = request->arg(JSON_CREATE_NODE).equalsIgnoreCase(JSON_VALUE_TRUE);
         // if it is a mobile decoder *AND* we are requested to create it, send
         // the decoder address to the train db to create an entry.
-        if (create &&
+        if (!request->param(JSON_CREATE_NODE).compare(JSON_VALUE_TRUE) &&
            (decoderConfig & BIT(DECODER_CONFIG_BITS::DECODER_TYPE)) == 0)
         {
           auto traindb = Singleton<esp32cs::Esp32TrainDatabase>::instance();
           traindb->create_if_not_found(decoderAddress);
         }
         response += "}";
-        SEND_JSON_RESPONSE(request, response)
+        return new StringResponse(response, MIME_TYPE_APPLICATION_JSON);
       }
       else
       {
         LOG(WARNING, "Failed to read decoder configuration");
-        SEND_GENERIC_RESPONSE(request, STATUS_SERVER_ERROR)
+        request->set_status(HttpStatusCode::STATUS_SERVER_ERROR);
       }
     }
     else
     {
-      uint16_t cvNumber = request->arg(JSON_CV_NODE).toInt();
+      uint16_t cvNumber = std::stoi(request->param(JSON_CV_NODE));
       int16_t cvValue = readCV(cvNumber);
       if (cvValue < 0)
       {
-        SEND_GENERIC_RESPONSE(request, STATUS_SERVER_ERROR)
-      }
-      SEND_JSON_RESPONSE(request
-                       , StringPrintf("{\"%s\":%d,\"%s\":%d}"
-                                    , JSON_CV_NODE, cvNumber
-                                    , JSON_VALUE_NODE, cvValue))
-    }
-  }
-  else if (request->method() == HTTP_POST && request->hasArg(JSON_PROG_ON_MAIN))
-  {
-    if (request->arg(JSON_PROG_ON_MAIN).equalsIgnoreCase(JSON_VALUE_TRUE))
-    {
-      if (request->hasArg(JSON_CV_BIT_NODE))
-      {
-        writeOpsCVBit(request->arg(JSON_ADDRESS_NODE).toInt(), request->arg(JSON_CV_NODE).toInt(),
-          request->arg(JSON_CV_BIT_NODE).toInt(), request->arg(JSON_VALUE_NODE).equalsIgnoreCase(JSON_VALUE_TRUE));
+        request->set_status(HttpStatusCode::STATUS_SERVER_ERROR);
       }
       else
       {
-        writeOpsCVByte(request->arg(JSON_ADDRESS_NODE).toInt(), request->arg(JSON_CV_NODE).toInt(),
-          request->arg(JSON_VALUE_NODE).toInt());
-      }
-    }
-    else
-    {
-      if (request->hasArg(JSON_CV_BIT_NODE) &&
-          !writeProgCVBit(request->arg(JSON_CV_NODE).toInt(), request->arg(JSON_CV_BIT_NODE).toInt(),
-                          request->arg(JSON_VALUE_NODE).equalsIgnoreCase(JSON_VALUE_TRUE)))
-      {
-        SEND_GENERIC_RESPONSE(request, STATUS_SERVER_ERROR)
-      }
-      else if (!writeProgCVByte(request->arg(JSON_CV_NODE).toInt(), request->arg(JSON_VALUE_NODE).toInt()))
-      {
-        SEND_GENERIC_RESPONSE(request, STATUS_SERVER_ERROR)
-      }
-    }
-  }
-  SEND_GENERIC_RESPONSE(request, STATUS_OK)
- }
-
-AbstractHttpResponse *ESP32CSWebServer::handlePower(HttpRequest *request)
-{
-  if (request->method() == HttpMethod::GET)
-  {
-    if (request->params())
-    {
-      return new StringResponse(
-        StringPrintf("{\"%s\":\"%s\"}", JSON_STATE_NODE
-                   , trackSignal->is_enabled() ?JSON_VALUE_TRUE : JSON_VALUE_FALSE)
+        return new StringResponse(
+          StringPrintf("{\"%s\":%d,\"%s\":%d}"
+                     , JSON_CV_NODE, cvNumber
+                     , JSON_VALUE_NODE, cvValue)
         , MIME_TYPE_APPLICATION_JSON);
-    }
-    else
-    {
-      return new StringResponse(trackSignal->generate_status_json()
-                              , MIME_TYPE_APPLICATION_JSON);
+      }
     }
   }
-  else if (request->method() == HttpMethod::PUT)
+  else if (request->method() == HttpMethod::POST)
   {
-    if (!request->param(JSON_STATE_NODE).compare(JSON_VALUE_TRUE))
+    uint16_t cv_num = std::stoi(request->param(JSON_CV_NODE));
+    uint16_t address = 0;
+    uint16_t cv_value = 0;
+    uint8_t cv_bit = 0;
+    bool pom = !request->param(JSON_PROG_ON_MAIN).compare(JSON_VALUE_TRUE);
+    if (request->has_param(JSON_CV_BIT_NODE))
     {
-      trackSignal->enable_ops_output();
+      cv_bit = std::stoi(request->param(JSON_CV_BIT_NODE));
+      cv_value = !request->param(JSON_VALUE_NODE).compare(JSON_VALUE_TRUE);
     }
     else
     {
-      trackSignal->disable_ops_output();
-      trackSignal->disable_prog_output();
+      cv_value = std::stoi(request->param(JSON_VALUE_NODE));
     }
-    request->set_status(HttpStatusCode::STATUS_OK);
-    return nullptr;
+    if (pom)
+    {
+      address = std::stoi(request->param(JSON_ADDRESS_NODE));
+      if (request->has_param(JSON_CV_BIT_NODE))
+      {
+        writeOpsCVBit(address, cv_num, cv_bit, cv_value);
+      }
+      else
+      {
+        writeOpsCVByte(address, cv_num, cv_value);
+      }
+    }
+    else if (request->has_param(JSON_CV_BIT_NODE) &&
+             !writeProgCVBit(cv_num, cv_bit,cv_value))
+    {
+      request->set_status(HttpStatusCode::STATUS_SERVER_ERROR);
+    }
+    else if (!writeProgCVByte(cv_num, cv_value))
+    {
+      request->set_status(HttpStatusCode::STATUS_SERVER_ERROR);
+    }
   }
-  request->set_status(HttpStatusCode::STATUS_BAD_REQUEST);
   return nullptr;
 }
 
-void ESP32CSWebServer::handleOutputs(AsyncWebServerRequest *request)
+HTTP_HANDLER_IMPL(process_config, request)
 {
+  bool needReboot = false;
+  if (request->has_param("reset"))
+  {
+    configStore->factory_reset();
+    needReboot = true;
+  }
+  else if (request->has_param("scan"))
+  {
+    SyncNotifiable n;
+    Esp32WiFiManager *wifi_mgr = Singleton<Esp32WiFiManager>::instance();
+    wifi_mgr->start_ssid_scan(&n);
+    n.wait_for_notification();
+    size_t num_found = wifi_mgr->get_ssid_scan_result_count();
+    nlohmann::json ssid_list;
+    vector<string> seen_ssids;
+    for (int i = 0; i < num_found; i++)
+    {
+      auto entry = wifi_mgr->get_ssid_scan_result(i);
+      if (std::find_if(seen_ssids.begin(), seen_ssids.end()
+        , [entry](string &s)
+          {
+            return s == (char *)entry.ssid;
+          }) != seen_ssids.end())
+      {
+        // filter duplicate SSIDs
+        continue;
+      }
+      seen_ssids.push_back((char *)entry.ssid);
+      ssid_list.push_back(entry);
+    }
+    wifi_mgr->clear_ssid_scan_results();
+    return new StringResponse(ssid_list.dump(), MIME_TYPE_APPLICATION_JSON);
+  }
+  if (request->has_param("ssid"))
+  {
+    // Setting the WiFi SSID will always require a restart as this is
+    // configured when the Esp32WiFiManager is constructed.
+    configStore->setWiFiStationParams(request->param("ssid")
+                                    , request->param("password"));
+    needReboot = true;
+  }
+  if (request->has_param("mode"))
+  {
+    needReboot |= configStore->setWiFiMode(request->param("mode"));
+  }
+  if (request->has_param("nodeid"))
+  {
+    needReboot |= configStore->setNodeID(request->param("nodeid"));
+  }
+  if (request->has_param("lcc-can"))
+  {
+    needReboot |= configStore->setLCCCan(request->param("lcc-can").compare(JSON_VALUE_FALSE));
+  }
+  if (request->has_param("lcc-hub"))
+  {
+    configStore->setLCCHub(request->param("lcc-hub").compare(JSON_VALUE_FALSE));
+  }
+  if (request->has_param("uplink-mode") && request->has_param("uplink-service") &&
+      request->has_param("uplink-manual") && request->has_param("uplink-manual-port"))
+  {
+    // WiFi uplink settings do not require a reboot
+    configStore->setWiFiUplinkParams((SocketClientParams::SearchMode)std::stoi(request->param("uplink-mode"))
+                                    , request->param("uplink-service")
+                                    , request->param("uplink-manual")
+                                    , std::stoi(request->param("uplink-manual-port")));
+  }
+  if (request->has_param("ops-short") && request->has_param("ops-short-clear") &&
+      request->has_param("ops-shutdown") && request->has_param("ops-shutdown-clear") &&
+      request->has_param("ops-thermal") && request->has_param("ops-thermal-clear"))
+  {
+    configStore->setHBridgeEvents(OPS_CDI_TRACK_OUTPUT_INDEX
+                                , request->param("ops-short")
+                                , request->param("ops-short-clear")
+                                , request->param("ops-shutdown")
+                                , request->param("ops-shutdown-clear")
+                                , request->param("ops-thermal")
+                                , request->param("ops-thermal-clear"));
+  }
+  if (request->has_param("prog-short") && request->has_param("prog-short-clear") &&
+      request->has_param("prog-shutdown") && request->has_param("prog-shutdown-clear"))
+  {
+    configStore->setHBridgeEvents(PROG_CDI_TRACK_OUTPUT_INDEX
+                                , request->param("prog-short")
+                                , request->param("prog-short-clear")
+                                , request->param("prog-shutdown")
+                                , request->param("prog-shutdown-clear"));
+  }
+
+  if (needReboot)
+  {
+    // send a string back to the client rather than SEND_GENERIC_RESPONSE
+    // so we don't return prior to calling reboot.
+    // TODO: re-enable this output
+    //SEND_TEXT_RESPONSE(request, STATUS_OK, "{restart:\"ESP32CommandStation Restarting!\"}")
+    reboot();
+  }
+
+  return new StringResponse(configStore->getCSConfig(), MIME_TYPE_APPLICATION_JSON);
+}
+
 #if ENABLE_OUTPUTS
-  if (request->method() == HTTP_GET && !request->hasArg(JSON_ID_NODE))
+HTTP_HANDLER_IMPL(process_output, request)
+{
+  if (request->method() == HttpMethod::GET && !request->params())
   {
-    SEND_JSON_RESPONSE(request, OutputManager::getStateAsJson())
+    return new StringResponse(OutputManager::getStateAsJson()
+                            , MIME_TYPE_APPLICATION_JSON);
   }
-  else if (request->method() == HTTP_GET)
+  request->set_status(HttpStatusCode::STATUS_OK);
+  uint8_t output_id = std::stoi(request->param(JSON_ID_NODE));
+  if (request->method() == HttpMethod::GET)
   {
-    auto output = OutputManager::getOutput(request->arg(JSON_ID_NODE).toInt());
-    SEND_JSON_IF_OBJECT_ARG(request, output, true)
+    auto output = OutputManager::getOutput(output_id);
+    if (output)
+    {
+      return new StringResponse(output->toJson(), MIME_TYPE_APPLICATION_JSON);
+    }
+    request->set_status(HttpStatusCode::STATUS_NOT_FOUND);
   }
-  else if (request->method() == HTTP_POST)
+  else if (request->method() == HttpMethod::POST)
   {
-    uint16_t outputID = request->arg(JSON_ID_NODE).toInt();
-    uint8_t pin = request->arg(JSON_PIN_NODE).toInt();
-    bool inverted = request->arg(JSON_INVERTED_NODE).equalsIgnoreCase(JSON_VALUE_TRUE);
-    bool forceState = request->arg(JSON_FORCE_STATE_NODE).equalsIgnoreCase(JSON_VALUE_TRUE);
-    bool defaultState = request->arg(JSON_DEFAULT_STATE_NODE).equalsIgnoreCase(JSON_VALUE_TRUE);
+    uint8_t pin = std::stoi(request->param(JSON_PIN_NODE));
+    bool inverted = !request->param(JSON_INVERTED_NODE).compare(JSON_VALUE_TRUE);
+    bool forceState = !request->param(JSON_FORCE_STATE_NODE).compare(JSON_VALUE_TRUE);
+    bool defaultState = !request->param(JSON_DEFAULT_STATE_NODE).compare(JSON_VALUE_TRUE);
     uint8_t outputFlags = 0;
     if (inverted)
     {
@@ -612,316 +593,244 @@ void ESP32CSWebServer::handleOutputs(AsyncWebServerRequest *request)
         bitSet(outputFlags, OUTPUT_IFLAG_FORCE_STATE);
       }
     }
-    if (!OutputManager::createOrUpdate(outputID, pin, outputFlags))
+    if (!OutputManager::createOrUpdate(output_id, pin, outputFlags))
     {
-      SEND_GENERIC_RESPONSE(request, STATUS_NOT_ALLOWED)
+      request->set_status(HttpStatusCode::STATUS_NOT_ALLOWED);
     }
   }
-  else if (request->method() == HTTP_DELETE &&
-          !OutputManager::remove(request->arg(JSON_ID_NODE).toInt()))
+  else if (request->method() == HttpMethod::DELETE &&
+          !OutputManager::remove(output_id))
   {
-    SEND_GENERIC_RESPONSE(request, STATUS_NOT_FOUND)
+    request->set_status(HttpStatusCode::STATUS_NOT_FOUND);
   }
-  else if(request->method() == HTTP_PUT)
+  else if(request->method() == HttpMethod::PUT)
   {
-   OutputManager::toggle(request->arg(JSON_ID_NODE).toInt());
+    OutputManager::toggle(output_id);
   }
-  SEND_GENERIC_RESPONSE(request, STATUS_OK)
-#endif // ENABLE_OUTPUTS
+  return nullptr;
 }
+#endif // ENABLE_OUTPUTS
 
-void ESP32CSWebServer::handleTurnouts(AsyncWebServerRequest *request)
+// GET /turnouts - full list of turnouts, note that turnout state is STRING type for display
+// GET /turnouts?readbleStrings=[0,1] - full list of turnouts, turnout state will be returned as true/false (boolean) when readableStrings=0.
+// GET /turnouts?address=<address> - retrieve turnout by DCC address
+// GET /turnouts?id=<id> - retrieve turnout by ID
+// PUT /turnouts?address=<address> - toggle turnout by DCC address
+// PUT /turnouts?id=<id> - toggle turnout by ID
+// POST /turnouts?id=<id>&address=<address>&subAddress=<subAddress>&type=<type> - creates a new turnout
+//      when id is -1 it will be auto-assigned as number of defined turnouts + 1.
+//      if subAddress is -1 the turnout will be defined as DCC address only.
+// DELETE /turnouts?id=<id> - delete turnout by ID
+// DELETE /turnouts?address=<address> - delete turnout by DCC address
+//
+// For successful requests the result code will be 200 and either an array of turnouts or single turnout will be returned.
+// For unsuccessful requests the result code will be 400 (bad request, missing args), 401 (not found), 500 (server failure).
+//
+HTTP_HANDLER_IMPL(process_turnouts, request)
 {
-  // GET /turnouts - full list of turnouts, note that turnout state is STRING type for display
-  // GET /turnouts?readbleStrings=[0,1] - full list of turnouts, turnout state will be returned as true/false (boolean) when readableStrings=0.
-  // GET /turnouts?address=<address> - retrieve turnout by DCC address
-  // GET /turnouts?id=<id> - retrieve turnout by ID
-  // PUT /turnouts?address=<address> - toggle turnout by DCC address
-  // PUT /turnouts?id=<id> - toggle turnout by ID
-  // POST /turnouts?id=<id>&address=<address>&subAddress=<subAddress>&type=<type> - creates a new turnout
-  //      when id is -1 it will be auto-assigned as number of defined turnouts + 1.
-  //      if subAddress is -1 the turnout will be defined as DCC address only.
-  // DELETE /turnouts?id=<id> - delete turnout by ID
-  // DELETE /turnouts?address=<address> - delete turnout by DCC address
-  //
-  // For successful requests the result code will be 200 and either an array of turnouts or single turnout will be returned.
-  // For unsuccessful requests the result code will be 400 (bad request, missing args), 401 (not found), 500 (server failure).
-  //
-
-  if (request->method() == HTTP_GET && !request->hasArg(JSON_ID_NODE))
+  request->set_status(HttpStatusCode::STATUS_SERVER_ERROR);
+  if (request->method() == HttpMethod::GET && !request->has_param(JSON_ID_NODE))
   {
-    bool readableStrings = true;
-    if (request->hasArg(JSON_TURNOUTS_READABLE_STRINGS_NODE))
+    bool readable = true;
+    if (request->has_param(JSON_TURNOUTS_READABLE_STRINGS_NODE))
     {
-      readableStrings = request->arg(JSON_TURNOUTS_READABLE_STRINGS_NODE).toInt();
+      readable = std::stoi(request->param(JSON_TURNOUTS_READABLE_STRINGS_NODE));
     }
-    SEND_JSON_RESPONSE(request, turnoutManager->getStateAsJson(readableStrings))
+    return new StringResponse(turnoutManager->getStateAsJson(readable), MIME_TYPE_APPLICATION_JSON);
   }
-  else if (request->method() == HTTP_GET)
+
+  if (!request->has_param(JSON_ID_NODE) || !request->has_param(JSON_ADDRESS_NODE))
   {
-    if(request->hasArg(JSON_ID_NODE))
+    request->set_status(HttpStatusCode::STATUS_BAD_REQUEST);
+  }
+  else if (request->method() == HttpMethod::GET)
+  {
+    if(request->has_param(JSON_ID_NODE))
     {
-      auto turnout = turnoutManager->getTurnoutByID(request->arg(JSON_ID_NODE).toInt());
-      SEND_JSON_IF_OBJECT(request, turnout)
-    }
-    else if (request->hasArg(JSON_ADDRESS_NODE))
-    {
-      auto turnout = turnoutManager->getTurnoutByID(request->arg(JSON_ADDRESS_NODE).toInt());
-      SEND_JSON_IF_OBJECT(request, turnout)
+      auto turnout =
+        turnoutManager->getTurnoutByID(
+          std::stoi(request->param(JSON_ID_NODE)));
+      if (turnout)
+      {
+        return new StringResponse(turnout->toJson()
+                                , MIME_TYPE_APPLICATION_JSON);
+      }
+      request->set_status(HttpStatusCode::STATUS_NOT_FOUND);
     }
     else
     {
-      SEND_GENERIC_RESPONSE(request, STATUS_BAD_REQUEST)
+      auto turnout =
+        turnoutManager->getTurnoutByID(
+          std::stoi(request->param(JSON_ADDRESS_NODE)));
+      if (turnout)
+      {
+        return new StringResponse(turnout->toJson()
+                                , MIME_TYPE_APPLICATION_JSON);
+      }
+      request->set_status(HttpStatusCode::STATUS_NOT_FOUND);
     }
   }
-  else if (request->method() == HTTP_POST)
+  else if (request->method() == HttpMethod::POST)
   {
-    int32_t turnoutID = request->arg(JSON_ID_NODE).toInt();
-    uint16_t turnoutAddress = request->arg(JSON_ADDRESS_NODE).toInt();
-    int8_t turnoutSubAddress = request->arg(JSON_SUB_ADDRESS_NODE).toInt();
-    TurnoutType type = (TurnoutType)request->arg(JSON_TYPE_NODE).toInt();
+    int32_t turnoutID = std::stoi(request->param(JSON_ID_NODE));
+    uint16_t turnoutAddress = std::stoi(request->param(JSON_ADDRESS_NODE));
+    int8_t turnoutSubAddress =
+      std::stoi(request->param(JSON_SUB_ADDRESS_NODE));
+    TurnoutType type = (TurnoutType)std::stoi(request->param(JSON_TYPE_NODE));
     // auto generate ID
     if (turnoutID == -1)
     {
       turnoutID = turnoutManager->getTurnoutCount() + 1;
     }
-    auto turnout = turnoutManager->createOrUpdate((uint16_t)turnoutID, turnoutAddress, turnoutSubAddress, type);
-    SEND_JSON_IF_OBJECT(request, turnout)
-  }
-  else if (request->method() == HTTP_DELETE)
-  {
-    if (request->hasArg(JSON_ID_NODE))
+    auto turnout = turnoutManager->createOrUpdate((uint16_t)turnoutID
+                                                , turnoutAddress
+                                                , turnoutSubAddress, type);
+    if (turnout)
     {
-      turnoutManager->removeByID(request->arg(JSON_ID_NODE).toInt());
+      return new StringResponse(turnout->toJson(), MIME_TYPE_APPLICATION_JSON);
     }
-    else if (request->hasArg(JSON_ADDRESS_NODE))
+    request->set_status(HttpStatusCode::STATUS_NOT_FOUND);
+  }
+  else if (request->method() == HttpMethod::DELETE)
+  {
+    if (request->has_param(JSON_ID_NODE) &&
+        turnoutManager->removeByID(std::stoi(request->param(JSON_ID_NODE))))
     {
-      turnoutManager->removeByAddress(request->arg(JSON_ADDRESS_NODE).toInt());
+      request->set_status(HttpStatusCode::STATUS_OK);
+    }
+    else if (turnoutManager->removeByAddress(
+              std::stoi(request->param(JSON_ADDRESS_NODE))))
+    {
+      request->set_status(HttpStatusCode::STATUS_OK);
+    }
+  }
+  else if (request->method() == HttpMethod::PUT)
+  {
+    if (request->has_param(JSON_ID_NODE))
+    {
+      turnoutManager->toggleByID(std::stoi(request->param(JSON_ID_NODE)));
     }
     else
     {
-      SEND_GENERIC_RESPONSE(request, STATUS_BAD_REQUEST)
+      turnoutManager->toggleByAddress(
+        std::stoi(request->param(JSON_ADDRESS_NODE)));
     }
+    request->set_status(HttpStatusCode::STATUS_OK);
   }
-  else if (request->method() == HTTP_PUT)
-  {
-    if (request->hasArg(JSON_ID_NODE))
-    {
-      turnoutManager->toggleByID(request->arg(JSON_ID_NODE).toInt());
-    }
-    else if (request->hasArg(JSON_ADDRESS_NODE))
-    {
-      turnoutManager->toggleByAddress(request->arg(JSON_ADDRESS_NODE).toInt());
-    }
-    else
-    {
-      SEND_GENERIC_RESPONSE(request, STATUS_BAD_REQUEST)
-    }
-  }
-  SEND_GENERIC_RESPONSE(request, STATUS_OK)
+  return nullptr;
 }
 
-void ESP32CSWebServer::handleSensors(AsyncWebServerRequest *request)
-{
 #if ENABLE_SENSORS
-  if (request->method() == HTTP_GET && !request->hasArg(JSON_ID_NODE))
-  {
-    SEND_JSON_RESPONSE(request, SensorManager::getStateAsJson())
-    return;
-  }
-  else if (request->method() == HTTP_GET)
-  {
-    auto sensor = SensorManager::getSensor(request->arg(JSON_ID_NODE).toInt());
-    SEND_JSON_IF_OBJECT(request, sensor)
-  }
-  else if(request->method() == HTTP_POST)
-  {
-    uint16_t sensorID = request->arg(JSON_ID_NODE).toInt();
-    uint8_t sensorPin = request->arg(JSON_PIN_NODE).toInt();
-    bool sensorPullUp = request->arg(JSON_PULLUP_NODE).equalsIgnoreCase(JSON_VALUE_TRUE);
-    if(!SensorManager::createOrUpdate(sensorID, sensorPin, sensorPullUp))
-    {
-      SEND_GENERIC_RESPONSE(request, STATUS_NOT_ALLOWED)
-    }
-  }
-  else if(request->method() == HTTP_DELETE)
-  {
-    uint16_t sensorID = request->arg(JSON_ID_NODE).toInt();
-    if(SensorManager::getSensorPin(sensorID) < 0)
-    {
-      // attempt to delete S88/RemoteSensor
-      SEND_GENERIC_RESPONSE(request, STATUS_NOT_ALLOWED)
-    }
-    else if(!SensorManager::remove(sensorID))
-    {
-      SEND_GENERIC_RESPONSE(request, STATUS_NOT_FOUND)
-    }
-  }
-  SEND_GENERIC_RESPONSE(request, STATUS_OK)
-#endif // ENABLE_SENSORS
-}
-
-void to_json(nlohmann::json& j, const wifi_ap_record_t& t)
+HTTP_HANDLER_IMPL(process_sensors, request)
 {
-  j = nlohmann::json({
-    { JSON_WIFI_SSID_NODE, (char *)t.ssid },
-    { JSON_WIFI_RSSI_NODE, t.rssi },
-    { JSON_WIFI_AUTH_NODE, t.authmode },
-  });
-}
-
-void ESP32CSWebServer::handleConfig(AsyncWebServerRequest *request)
-{
-  bool needReboot = false;
-  if (request->hasArg("persist"))
+  request->set_status(HttpStatusCode::STATUS_SERVER_ERROR);
+  if (request->method() == HttpMethod::GET &&
+      !request->has_param(JSON_ID_NODE))
   {
-    DCCPPProtocolHandler::getCommandHandler("E")->process(vector<string>());
+    return new StringResponse(SensorManager::getStateAsJson()
+                            , MIME_TYPE_APPLICATION_JSON);
   }
-  else if (request->hasArg("clear"))
+  else if (!request->has_param(JSON_ID_NODE))
   {
-    DCCPPProtocolHandler::getCommandHandler("e")->process(vector<string>());
+    request->set_status(HttpStatusCode::STATUS_BAD_REQUEST);
   }
-  else if (request->hasArg("reset"))
+  else
   {
-    configStore->factory_reset();
-    needReboot = true;
-  }
-  else if (request->hasArg("scan"))
-  {
-    SyncNotifiable n;
-    wifiManager->start_ssid_scan(&n);
-    n.wait_for_notification();
-    size_t num_found = wifiManager->get_ssid_scan_result_count();
-    nlohmann::json ssid_list;
-    vector<string> seen_ssids;
-    for (int i = 0; i < num_found; i++)
+    uint16_t id = std::stoi(request->param(JSON_ID_NODE));
+    if (request->method() == HttpMethod::GET)
     {
-      auto entry = wifiManager->get_ssid_scan_result(i);
-      if (std::find_if(seen_ssids.begin(), seen_ssids.end()
-        , [entry](string &s)
-          {
-            return s == (char *)entry.ssid;
-          }) != seen_ssids.end())
+      auto sensor = SensorManager::getSensor(id);
+      if (sensor)
       {
-        // filter duplicate SSIDs
-        continue;
+        return new StringResponse(sensor->toJson()
+                                , MIME_TYPE_APPLICATION_JSON);
       }
-      seen_ssids.push_back((char *)entry.ssid);
-      ssid_list.push_back(entry);
+      request->set_status(HttpStatusCode::STATUS_NOT_FOUND);
     }
-    wifiManager->clear_ssid_scan_results();
-    SEND_JSON_RESPONSE(request, ssid_list.dump())
+    else if (request->method() == HttpMethod::POST)
+    {
+      uint8_t pin = std::stoi(request->param(JSON_PIN_NODE));
+      bool pull = !request->param(JSON_PULLUP_NODE).compare(JSON_VALUE_TRUE);
+      if (!SensorManager::createOrUpdate(id, pin, pull))
+      {
+        request->set_status(HttpStatusCode::STATUS_NOT_ALLOWED);
+      }
+      else
+      {
+        request->set_status(HttpStatusCode::STATUS_OK);
+      }
+    }
+    else if (request->method() == HttpMethod::DELETE)
+    {
+      if (SensorManager::getSensorPin(id) < 0)
+      {
+        // attempt to delete S88/RemoteSensor
+        request->set_status(HttpStatusCode::STATUS_NOT_ALLOWED);
+      }
+      else if (!SensorManager::remove(id))
+      {
+        request->set_status(HttpStatusCode::STATUS_NOT_FOUND);
+      }
+      else
+      {
+        request->set_status(HttpStatusCode::STATUS_OK);
+      }
+    }
   }
-  if (request->hasArg("ssid"))
-  {
-    // Setting the WiFi SSID will always require a restart as this is
-    // configured when the Esp32WiFiManager is constructed.
-    configStore->setWiFiStationParams(request->arg("ssid").c_str()
-                                    , request->arg("password").c_str());
-    needReboot = true;
-  }
-  if (request->hasArg("mode"))
-  {
-    needReboot |= configStore->setWiFiMode(request->arg("mode").c_str());
-  }
-  if (request->hasArg("nodeid"))
-  {
-    needReboot |= configStore->setNodeID(request->arg("nodeid").c_str());
-  }
-  if (request->hasArg("lcc-can"))
-  {
-    needReboot |= configStore->setLCCCan(request->arg("lcc-can").equalsIgnoreCase("true"));
-  }
-  if (request->hasArg("lcc-hub"))
-  {
-    configStore->setLCCHub(request->arg("lcc-hub").equalsIgnoreCase("true"));
-  }
-  if (request->hasArg("uplink-mode") && request->hasArg("uplink-service") &&
-      request->hasArg("uplink-manual") && request->hasArg("uplink-manual-port"))
-  {
-    // WiFi uplink settings do not require a reboot
-    configStore->setWiFiUplinkParams((SocketClientParams::SearchMode)request->arg("uplink-mode").toInt()
-                                    , request->arg("uplink-service").c_str()
-                                    , request->arg("uplink-manual").c_str()
-                                    , request->arg("uplink-manual-port").toInt());
-  }
-  if (request->hasArg("ops-short") && request->hasArg("ops-short-clear") &&
-      request->hasArg("ops-shutdown") && request->hasArg("ops-shutdown-clear") &&
-      request->hasArg("ops-thermal") && request->hasArg("ops-thermal-clear"))
-  {
-    configStore->setHBridgeEvents(OPS_CDI_TRACK_OUTPUT_INDEX
-                                , request->arg("ops-short").c_str()
-                                , request->arg("ops-short-clear").c_str()
-                                , request->arg("ops-shutdown").c_str()
-                                , request->arg("ops-shutdown-clear").c_str()
-                                , request->arg("ops-thermal").c_str()
-                                , request->arg("ops-thermal-clear").c_str());
-  }
-  if (request->hasArg("prog-short") && request->hasArg("prog-short-clear") &&
-      request->hasArg("prog-shutdown") && request->hasArg("prog-shutdown-clear"))
-  {
-    configStore->setHBridgeEvents(PROG_CDI_TRACK_OUTPUT_INDEX
-                                , request->arg("prog-short").c_str()
-                                , request->arg("prog-short-clear").c_str()
-                                , request->arg("prog-shutdown").c_str()
-                                , request->arg("prog-shutdown-clear").c_str());
-  }
-
-  if (needReboot)
-  {
-    // send a string back to the client rather than SEND_GENERIC_RESPONSE
-    // so we don't return prior to calling reboot.
-    SEND_TEXT_RESPONSE(request, STATUS_OK, "{restart:\"ESP32CommandStation Restarting!\"}")
-    reboot();
-  }
-
-  SEND_JSON_RESPONSE(request, configStore->getCSConfig())
+  
+  return nullptr;
 }
 
-#if S88_ENABLED && ENABLE_SENSORS
-void ESP32CSWebServer::handleS88Sensors(AsyncWebServerRequest *request)
+HTTP_HANDLER_IMPL(process_remote_sensors, request)
 {
-  if(request->method() == HTTP_GET)
+  request->set_status(HttpStatusCode::STATUS_OK);
+  if(request->method() == HttpMethod::GET)
   {
-    SEND_JSON_RESPONSE(request, S88BusManager::getStateAsJson())
+    return new StringResponse(RemoteSensorManager::getStateAsJson()
+                            , MIME_TYPE_APPLICATION_JSON);
   }
-  else if(request->method() == HTTP_POST)
+  else if(request->method() == HttpMethod::POST)
+  {
+    RemoteSensorManager::createOrUpdate(
+      std::stoi(request->param(JSON_ID_NODE)),
+      std::stoi(request->param(JSON_VALUE_NODE)));
+  }
+  else if(request->method() == HttpMethod::DELETE)
+  {
+    RemoteSensorManager::remove(std::stoi(request->param(JSON_ID_NODE)));
+  }
+  return nullptr;
+}
+
+#if S88_ENABLED
+HTTP_HANDLER_IMPL(process_s88, request)
+{
+  request->set_status(HttpStatusCode::STATUS_OK);
+  if(request->method() == HttpMethod::GET)
+  {
+    return new StringResponse(S88BusManager::getStateAsJson()
+                            , MIME_TYPE_APPLICATION_JSON);
+  }
+  else if(request->method() == HttpMethod::POST)
   {
     if(!S88BusManager::createOrUpdateBus(
-      request->arg(JSON_ID_NODE).toInt(),
-      request->arg(JSON_PIN_NODE).toInt(),
-      request->arg(JSON_COUNT_NODE).toInt()))
+      std::stoi(request->param(JSON_ID_NODE)),
+      std::stoi(request->param(JSON_PIN_NODE)),
+      std::stoi(request->param(JSON_COUNT_NODE))))
     {
       // duplicate pin/id
-      SEND_GENERIC_RESPONSE(request, STATUS_NOT_ALLOWED)
+      request->set_status(HttpStatusCode::STATUS_NOT_ALLOWED);
     }
   }
-  else if(request->method() == HTTP_DELETE)
+  else if(request->method() == HttpMethod::DELETE)
   {
-    S88BusManager::removeBus(request->arg(JSON_ID_NODE).toInt());
+    S88BusManager::removeBus(std::stoi(request->param(JSON_ID_NODE)));
   }
-  SEND_GENERIC_RESPONSE(request, STATUS_OK)
+  return nullptr;
 }
-#endif
+#endif // S88_ENABLED
 
-void ESP32CSWebServer::handleRemoteSensors(AsyncWebServerRequest *request) {
-#if ENABLE_SENSORS
-  if(request->method() == HTTP_GET)
-  {
-    SEND_JSON_RESPONSE(request, RemoteSensorManager::getStateAsJson())
-  }
-  else if(request->method() == HTTP_POST)
-  {
-    RemoteSensorManager::createOrUpdate(request->arg(JSON_ID_NODE).toInt(),
-      request->arg(JSON_VALUE_NODE).toInt());
-  }
-  else if(request->method() == HTTP_DELETE)
-  {
-    RemoteSensorManager::remove(request->arg(JSON_ID_NODE).toInt());
-  }
-  SEND_GENERIC_RESPONSE(request, STATUS_OK)
 #endif // ENABLE_SENSORS
-}
 
 string convert_loco_to_json(TrainImpl *t)
 {
@@ -979,66 +888,74 @@ string convert_loco_to_json(TrainImpl *t)
     n.wait_for_notification();                                                        \
   }
 
-void ESP32CSWebServer::handleLocomotive(AsyncWebServerRequest *request)
+// method - url pattern - meaning
+// ANY /locomotive/estop - send emergency stop to all locomotives
+// GET /locomotive/roster - roster
+// GET /locomotive/roster?address=<address> - get roster entry
+// PUT /locomotive/roster?address=<address> - update roster entry
+// POST /locomotive/roster?address=<address> - create roster entry
+// DELETE /locomotive/roster?address=<address> - delete roster entry
+// GET /locomotive - get active locomotives
+// POST /locomotive?address=<address> - add locomotive to active management
+// GET /locomotive?address=<address> - get locomotive state
+// PUT /locomotive?address=<address>&speed=<speed>&dir=[FWD|REV]&fX=[true|false] - Update locomotive state, fX is short for function X where X is 0-28.
+// DELETE /locomotive?address=<address> - removes locomotive from active management
+HTTP_HANDLER_IMPL(process_loco, request)
 {
-  // method - url pattern - meaning
-  // ANY /locomotive/estop - send emergency stop to all locomotives
-  // GET /locomotive/roster - roster
-  // GET /locomotive/roster?address=<address> - get roster entry
-  // PUT /locomotive/roster?address=<address> - update roster entry
-  // POST /locomotive/roster?address=<address> - create roster entry
-  // DELETE /locomotive/roster?address=<address> - delete roster entry
-  // GET /locomotive - get active locomotives
-  // POST /locomotive?address=<address> - add locomotive to active management
-  // GET /locomotive?address=<address> - get locomotive state
-  // PUT /locomotive?address=<address>&speed=<speed>&dir=[FWD|REV]&fX=[true|false] - Update locomotive state, fX is short for function X where X is 0-28.
-  // DELETE /locomotive?address=<address> - removes locomotive from active management
-  string url(request->url().c_str());
+  string url = request->uri();
   auto traindb = Singleton<esp32cs::Esp32TrainDatabase>::instance();
+  request->set_status(HttpStatusCode::STATUS_BAD_REQUEST);
 
   // check if we have an eStop command, we don't care how this gets sent to the
   // command station (method) so check it first
   if(url.find("/estop") != string::npos)
   {
     Singleton<esp32cs::EStopHandler>::instance()->set_state(true);
+    request->set_status(HttpStatusCode::STATUS_OK);
   }
   else if(url.find("/roster")  != string::npos)
   {
-    if(request->method() == HTTP_GET && !request->hasArg(JSON_ADDRESS_NODE))
+    if(request->method() == HttpMethod::GET &&
+       !request->has_param(JSON_ADDRESS_NODE))
     {
-      SEND_JSON_RESPONSE(request,
-                         Singleton<esp32cs::Esp32TrainDatabase>::instance()->get_all_entries_as_json())
+      return new StringResponse(
+        Singleton<esp32cs::Esp32TrainDatabase>::instance()->get_all_entries_as_json()
+      , MIME_TYPE_APPLICATION_JSON);
     }
-    else if (request->hasArg(JSON_ADDRESS_NODE))
+    else if (request->has_param(JSON_ADDRESS_NODE))
     {
-      if(request->method() == HTTP_DELETE)
+      if(request->method() == HttpMethod::DELETE)
       {
-        traindb->delete_entry(request->arg(JSON_ADDRESS_NODE).toInt());
-        SEND_GENERIC_RESPONSE(request, STATUS_OK)
+        traindb->delete_entry(std::stoi(request->param(JSON_ADDRESS_NODE)));
+        request->set_status(HttpStatusCode::STATUS_OK);
       }
       else
       {
-        uint16_t address = request->arg(JSON_ADDRESS_NODE).toInt();
+        uint16_t address = std::stoi(request->param(JSON_ADDRESS_NODE));
         traindb->create_if_not_found(address);
-        if(request->method() == HTTP_PUT || request->method() == HTTP_POST)
+        if(request->method() == HttpMethod::PUT ||
+           request->method() == HttpMethod::POST)
         {
-          if(request->hasArg(JSON_NAME_NODE))
+          if(request->has_param(JSON_NAME_NODE))
           {
-            string name = request->arg(JSON_NAME_NODE).c_str();
+            string name = request->param(JSON_NAME_NODE);
             traindb->set_train_name(address, name);
           }
-          if(request->hasArg(JSON_IDLE_ON_STARTUP_NODE))
+          if(request->has_param(JSON_IDLE_ON_STARTUP_NODE))
           {
-            bool idle = request->arg(JSON_IDLE_ON_STARTUP_NODE).equalsIgnoreCase(JSON_VALUE_TRUE);
-            traindb->set_train_auto_idle(address, idle);
+            bool value =
+              !request->param(JSON_IDLE_ON_STARTUP_NODE).compare(JSON_VALUE_TRUE);
+            traindb->set_train_auto_idle(address, value);
           }
-          if(request->hasArg(JSON_DEFAULT_ON_THROTTLE_NODE))
+          if(request->has_param(JSON_DEFAULT_ON_THROTTLE_NODE))
           {
-            bool show = request->arg(JSON_DEFAULT_ON_THROTTLE_NODE).equalsIgnoreCase(JSON_VALUE_TRUE);
-            traindb->set_train_show_on_limited_throttle(address, show);
+            bool value =
+              !request->param(JSON_DEFAULT_ON_THROTTLE_NODE).compare(JSON_VALUE_TRUE);
+            traindb->set_train_show_on_limited_throttle(address, value);
           }
         }
-        SEND_JSON_RESPONSE(request, traindb->get_entry_as_json(address));
+        return new StringResponse(traindb->get_entry_as_json(address)
+                                , MIME_TYPE_APPLICATION_JSON);
       }
     }
   }
@@ -1047,7 +964,8 @@ void ESP32CSWebServer::handleLocomotive(AsyncWebServerRequest *request)
     // Since it is not an eStop or roster command we need to check the request
     // method and ensure it contains the required arguments otherwise the
     // request should be rejected
-    if(request->method() == HTTP_GET && !request->hasArg(JSON_ADDRESS_NODE))
+    if(request->method() == HttpMethod::GET && 
+       !request->has_param(JSON_ADDRESS_NODE))
     {
       // get all active locomotives
       string res = "[";
@@ -1062,28 +980,30 @@ void ESP32CSWebServer::handleLocomotive(AsyncWebServerRequest *request)
         }
       }
       res += "]";
-      SEND_JSON_RESPONSE(request, res)
+      LOG(INFO, "msg: %s", res.c_str());
+      return new StringResponse(res, MIME_TYPE_APPLICATION_JSON);
     }
-    else if (request->hasArg(JSON_ADDRESS_NODE))
+    else if (request->has_param(JSON_ADDRESS_NODE))
     {
-      uint16_t address = request->arg(JSON_ADDRESS_NODE).toInt();
-      if(request->method() == HTTP_PUT || request->method() == HTTP_POST)
+      uint16_t address = std::stoi(request->param(JSON_ADDRESS_NODE));
+      if(request->method() == HttpMethod::PUT ||
+         request->method() == HttpMethod::POST)
       {
         GET_LOCO_VIA_EXECUTOR(loco, address);
         auto upd_speed = loco->get_speed();
         // Creation / Update of active locomotive
-        if(request->hasArg(JSON_IDLE_NODE))
+        if(request->has_param(JSON_IDLE_NODE))
         {
           upd_speed.set_dcc_128(0);
         }
-        if(request->hasArg(JSON_SPEED_NODE))
+        if(request->has_param(JSON_SPEED_NODE))
         {
-          upd_speed.set_dcc_128(request->arg(JSON_SPEED_NODE).toInt());
+          upd_speed.set_dcc_128(std::stoi(request->param(JSON_SPEED_NODE)));
         }
-        if(request->hasArg(JSON_DIRECTION_NODE))
+        if(request->has_param(JSON_DIRECTION_NODE))
         {
           bool forward =
-            request->arg(JSON_DIRECTION_NODE).equalsIgnoreCase(JSON_VALUE_FORWARD);
+            !request->param(JSON_DIRECTION_NODE).compare(JSON_VALUE_FORWARD);
           upd_speed.set_direction(forward ? dcc::SpeedType::FORWARD
                                           : dcc::SpeedType::REVERSE);
         }
@@ -1091,200 +1011,30 @@ void ESP32CSWebServer::handleLocomotive(AsyncWebServerRequest *request)
         for(uint8_t funcID = 0; funcID <=28 ; funcID++)
         {
           string fArg = StringPrintf("f%d", funcID);
-          if(request->hasArg(fArg.c_str()))
+          if(request->has_param(fArg.c_str()))
           {
-            loco->set_fn(funcID, request->arg(fArg.c_str()).equalsIgnoreCase(JSON_VALUE_TRUE));
+            loco->set_fn(funcID
+                      , !request->param(fArg).compare(JSON_VALUE_TRUE));
           }
         }
-        SEND_JSON_RESPONSE(request, convert_loco_to_json(loco))
+        return new StringResponse(convert_loco_to_json(loco)
+                                , MIME_TYPE_APPLICATION_JSON);
       }
-      else if(request->method() == HTTP_DELETE)
+      else if(request->method() == HttpMethod::DELETE)
       {
         DELETE_LOCO_VIA_EXECUTOR(address, false);
 #if NEXTION_ENABLED
         static_cast<NextionThrottlePage *>(nextionPages[THROTTLE_PAGE])->invalidateLocomotive(address);
 #endif
-        SEND_GENERIC_RESPONSE(request, STATUS_OK)
+        request->set_status(HttpStatusCode::STATUS_OK);
       }
       else
       {
         GET_LOCO_VIA_EXECUTOR(loco, address);
-        SEND_JSON_RESPONSE(request, convert_loco_to_json(loco))
+        return new StringResponse(convert_loco_to_json(loco)
+                                , MIME_TYPE_APPLICATION_JSON);
       }
     }
   }
-  // missing arg or unknown request
-  SEND_GENERIC_RESPONSE(request, STATUS_BAD_REQUEST)
-}
-
-void ESP32CSWebServer::handleOTA(AsyncWebServerRequest *request)
-{
-  SEND_TEXT_RESPONSE(request, STATUS_OK, "OTA Upload Complete")
-}
-
-void ESP32CSWebServer::handleFeatures(AsyncWebServerRequest *request)
-{
-  SEND_JSON_RESPONSE(request, configStore->getCSFeatures())
-}
-
-#define IP_TO_STR(request) \
-  ipv4_to_string(ntohl(request->client()->getRemoteAddress())).c_str()
-
-#define STREAM_RESOURCE_NO_REDIRECT(request, uri, mimeType, totalSize, resource) \
-  if (request->url() == uri) \
-  { \
-    LOG(INFO, "[WebSrv %s] Sending %s from MEMORY (%d, %s)", IP_TO_STR(request), uri, totalSize, mimeType); \
-    auto response = request->beginResponse_P(STATUS_OK, mimeType, resource, totalSize, nullptr); \
-    if(!string(mimeType).compare(0, 5, "text/")) \
-    { \
-      response->addHeader("Content-Encoding", "gzip"); \
-    } \
-    response->addHeader("Last-Modified", htmlBuildTime); \
-    SEND_GENERIC_RESPONSE(request, response) \
-  }
-
-#define STREAM_RESOURCE(request, uri, fallback, mimeType, totalSize, resource) \
-  if (request->url() == uri && configStore->isAPEnabled() && softAPAddress_.compare(request->host().c_str()) == 0) \
-  { \
-    LOG(INFO, "[WebSrv %s] Sending %s from MEMORY (%d, %s)", IP_TO_STR(request), uri, totalSize, mimeType); \
-    auto response = request->beginResponse_P(STATUS_OK, mimeType, resource, totalSize, nullptr); \
-    if(!string(mimeType).compare(0, 5, "text/")) \
-    { \
-      response->addHeader("Content-Encoding", "gzip"); \
-    } \
-    response->addHeader("Last-Modified", htmlBuildTime); \
-    SEND_GENERIC_RESPONSE(request, response) \
-  } \
-  else if (request->url() == uri) \
-  { \
-    LOG(INFO, "[WebSrv %s] Requested %s => CDN %s", IP_TO_STR(request), uri, fallback); \
-    request->redirect(fallback); \
-  }
-
-void ESP32CSWebServer::streamResource(AsyncWebServerRequest *request)
-{
-  const char * htmlBuildTime = __DATE__ " " __TIME__;
-  if (request->header("If-Modified-Since").equals(htmlBuildTime))
-  {
-    SEND_GENERIC_RESPONSE(request, STATUS_NOT_MODIFIED)
-  }
-  else
-  {
-    STREAM_RESOURCE_NO_REDIRECT(request, "/index.html", "text/html"
-                              , indexHtmlGz_size, indexHtmlGz)
-    STREAM_RESOURCE_NO_REDIRECT(request, "/loco-32x32.png", "image/png"
-                              , loco32x32_size, loco32x32)
-    STREAM_RESOURCE(request, "/jquery.min.js"
-                  , "https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"
-                  , "text/javascript", jqueryJsGz_size, jqueryJsGz)
-    STREAM_RESOURCE(request, "/jquery.mobile-1.5.0-rc1.min.js"
-                  , "https://code.jquery.com/mobile/1.5.0-rc1/jquery.mobile-1.5.0-rc1.min.js"
-                  , "text/javascript", jqueryMobileJsGz_size, jqueryMobileJsGz)
-    STREAM_RESOURCE(request, "/jquery.mobile-1.5.0-rc1.min.css"
-                  , "https://code.jquery.com/mobile/1.5.0-rc1/jquery.mobile-1.5.0-rc1.min.css"
-                  , "text/css", jqueryMobileCssGz_size, jqueryMobileCssGz)
-    STREAM_RESOURCE(request, "/jquery.simple.websocket.min.js"
-                  , "https://cdn.rawgit.com/jbloemendal/jquery-simple-websocket/master/dist/jquery.simple.websocket.min.js"
-                  , "text/javascript", jquerySimpleWebSocketGz_size, jquerySimpleWebSocketGz)
-    STREAM_RESOURCE(request, "/jqClock-lite.min.js"
-                  , "https://cdn.rawgit.com/JohnRDOrazio/jQuery-Clock-Plugin/master/jqClock-lite.min.js"
-                  , "text/javascript", jqClockGz_size, jqClockGz)
-    STREAM_RESOURCE(request, "/images/ajax-loader.gif"
-                  , "https://code.jquery.com/mobile/1.5.0-rc1/images/ajax-loader.gif"
-                  , "image/gif", ajaxLoader_size, ajaxLoader)
-
-    SEND_GENERIC_RESPONSE(request, STATUS_NOT_FOUND)
-  }
-}
-
-// Known captive portal checks to respond with http 200 and redirect link
-static string portalCheckRedirect[] =
-{
-  "/generate_204",                  // Android
-  "/gen_204",                       // Android 9.0
-  "/mobile/status.php",             // Android 8.0 (Samsung s9+)
-  "/ncsi.txt",                      // Windows
-  "/success.txt",                   // OSX / FireFox
-  "/hotspot-detect.html",           // iOS 8/9
-  "/hotspotdetect.html",            // iOS 8/9
-  "/library/test/success.html"      // iOS 8/9
-  "/kindle-wifi/wifiredirect.html"  // Kindle
-  "/kindle-wifi/wifistub.html"      // Kindle
-};
-
-// iOS success page content
-static constexpr const char * const CAPTIVE_SUCCESS_200_HTML = 
-  "<HTML><HEAD><TITLE>Success</TITLE></HEAD><BODY>Success</BODY></HTML>";
-// Windows success page content
-static constexpr const char * const CAPTIVE_SUCCESS_200_NCSI_TXT = 
-  "Microsoft NCSI";
-// Generic success.txt page content
-static constexpr const char * const CAPTIVE_SUCCESS_200_SUCCESS_TXT = 
-  "success";
-
-void ESP32CSWebServer::notFoundHandler(AsyncWebServerRequest *request)
-{
-  if (configStore->isAPEnabled())
-  {
-    uint32_t clientIP = static_cast<uint32_t>(request->client()->remoteIP());
-    for (auto uri : portalCheckRedirect)
-    {
-      if (!uri.compare(request->url().c_str()))
-      {
-        if (std::find(captiveIPs_.begin(), captiveIPs_.end()
-                    , clientIP) != captiveIPs_.end())
-        {
-          // we have seen this IP previously and they have clicked through
-          // to the index.html already, send back a 200 or 204 response.
-          if (request->url().endsWith("_204") ||
-              request->url().endsWith("status.php"))
-          {
-            // no payload required for this one, just the status code.
-            SEND_GENERIC_RESPONSE(request, STATUS_NO_CONTENT)
-          }
-          else if (request->url().endsWith("ncsi.txt"))
-          {
-            SEND_TEXT_RESPONSE(request, STATUS_OK, CAPTIVE_SUCCESS_200_NCSI_TXT)
-          }
-          else if (request->url().endsWith("success.txt"))
-          {
-            SEND_TEXT_RESPONSE(request, STATUS_OK, CAPTIVE_SUCCESS_200_SUCCESS_TXT)
-          }
-          else
-          {
-            SEND_TEXT_RESPONSE(request, STATUS_OK, CAPTIVE_SUCCESS_200_HTML)
-          }
-        }
-        else
-        {
-          LOG(INFO, "[WebSrv %s] Requested %s%s: Redirecting to captive portal"
-            , IP_TO_STR(request), request->host().c_str()
-            , request->url().c_str());
-          SEND_HTML_RESPONSE(request, STATUS_OK,
-                        StringPrintf(CAPTIVE_PORTAL_HTML
-                                   , PROJECT_VER).c_str())
-        }
-        return;
-      }
-    }
-    if (request->url().equals("/captiveauth"))
-    {
-      // check if we have seen this client IP before (for captive portal check)
-      if (std::find(captiveIPs_.begin(), captiveIPs_.end()
-                  , clientIP) == captiveIPs_.end())
-      {
-        captiveIPs_.push_back(clientIP);
-      }
-      SEND_GENERIC_RESPONSE(request, STATUS_OK)
-    }
-  }
-  if (request->url().equals("/"))
-  {
-    string interfaceIP(request->client()->localIP().toString().c_str());
-    request->redirect(StringPrintf("http://%s/index.html", interfaceIP.c_str()).c_str());
-    return;
-  }
-  LOG(INFO, "[WebSrv %s] 404: %s%s", IP_TO_STR(request)
-    , request->host().c_str(), request->url().c_str());
-  SEND_GENERIC_RESPONSE(request, STATUS_NOT_FOUND)
+  return nullptr;
 }

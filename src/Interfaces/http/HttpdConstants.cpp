@@ -26,7 +26,7 @@ namespace http
 // Httpd constants
 ///////////////////////////////////////////////////////////////////////////////
 
-DEFAULT_CONST(httpd_server_stack_size, 4096);
+DEFAULT_CONST(httpd_server_stack_size, 6144);
 DEFAULT_CONST(httpd_server_priority, 0);
 DEFAULT_CONST(httpd_header_chunk_size, 512);
 DEFAULT_CONST(httpd_body_chunk_size, 3072);

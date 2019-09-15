@@ -155,15 +155,16 @@ void Httpd::new_connection(int fd)
   {
     source.sin_addr.s_addr = 0;
   }
-  LOG(INFO, "[%s fd:%d/%s] Connected", name_.c_str(), fd
+  LOG(VERBOSE, "[%s fd:%d/%s] Connected", name_.c_str(), fd
     , ipv4_to_string(ntohl(source.sin_addr.s_addr)).c_str());
+  ::fcntl(fd, F_SETFL, O_RDWR | O_NONBLOCK);
   struct timeval tm;
   tm.tv_sec = 0;
   tm.tv_usec = MSEC_TO_USEC(config_httpd_socket_timeout_ms());
   ERRNOCHECK("setsockopt_recv_timeout",
-      setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tm, sizeof(tm)));
+    setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tm, sizeof(tm)));
   ERRNOCHECK("setsockopt_send_timeout",
-      setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tm, sizeof(tm)));
+    setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tm, sizeof(tm)));
   new HttpRequestFlow(this, fd, ntohl(source.sin_addr.s_addr));
 }
 

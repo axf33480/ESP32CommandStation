@@ -104,12 +104,12 @@ void WebSocketFlow::send_text(string &text)
   textToSend_.append(text);
 }
 
-int WebSocketFlow::get_id()
+int WebSocketFlow::id()
 {
   return fd_;
 }
 
-uint32_t WebSocketFlow::get_remote_ip()
+uint32_t WebSocketFlow::ip()
 {
   return remote_ip_;
 }

@@ -77,7 +77,7 @@ StateFlowBase::Action HttpRequestFlow::parse_header_data()
   if (helper_.hasError_)
   {
     req_.error(true);
-    return yield_and_call(STATE(request_complete));
+    return call_immediately(STATE(request_complete));
   }
   else if (helper_.remaining_ == header_read_size_ || buf_.empty())
   {
@@ -111,7 +111,7 @@ StateFlowBase::Action HttpRequestFlow::parse_header_data()
     {
       LOG_ERROR("[Httpd fd:%d] Malformed request: %s.", fd_, lines[0].c_str());
       req_.set_status(HttpStatusCode::STATUS_BAD_REQUEST);
-      return yield_and_call(STATE(abort_request));
+      return call_immediately(STATE(abort_request));
     }
     req_.method(request[0]);
     vector<string> uri_parts;
@@ -157,7 +157,7 @@ StateFlowBase::Action HttpRequestFlow::parse_header_data()
         LOG_ERROR("[Httpd fd:%d,uri:%s] Request body is too large, "
                   "aborting with status %d"
                 , fd_, req_.uri().c_str(), res_->code_);
-        return yield_and_call(STATE(abort_request));
+        return call_immediately(STATE(abort_request));
       }
 
       if (!server_->is_servicable_uri(&req_))
@@ -218,7 +218,7 @@ StateFlowBase::Action HttpRequestFlow::parse_header_data()
           res_.reset(new UriNotFoundResponse(req_.uri()));
         }
         req_.error(true);
-        return yield_and_call(STATE(send_response_headers));
+        return call_immediately(STATE(send_response_headers));
       }
 
       // Check if we have processed all parsed lines, if not add them back to
@@ -259,9 +259,9 @@ StateFlowBase::Action HttpRequestFlow::process_request()
       LOG_ERROR("[Httpd fd:%d,uri:%s] Missing required websocket header(s)\n%s"
               , fd_, req_.uri().c_str(), req_.to_string().c_str());
       req_.set_status(HttpStatusCode::STATUS_BAD_REQUEST);
-      return yield_and_call(STATE(abort_request));
+      return call_immediately(STATE(abort_request));
     }
-    return yield_and_call(STATE(upgrade_to_websocket));
+    return call_immediately(STATE(upgrade_to_websocket));
   }
 
   // if it is a PUT or POST and there is a content-length header we need to
@@ -294,7 +294,7 @@ StateFlowBase::Action HttpRequestFlow::process_request()
       LOG(VERBOSE, "Converting to multipart/form-data req");
       // force request to be concluded at end of processing
       req_.header(HttpHeader::CONNECTION, HTTP_CONNECTION_CLOSE);
-      return yield_and_call(STATE(start_multipart_processing));
+      return call_immediately(STATE(start_multipart_processing));
     }
 
     // we have some of the body already read in, process it before requesting
@@ -316,6 +316,7 @@ StateFlowBase::Action HttpRequestFlow::process_request()
   if (server_->have_known_response(req_.uri()))
   {
     res_ = server_->response(req_.uri());
+    res_->header(HttpHeader::LAST_MODIFIED, __DATE__ " " __TIME__);
     LOG(VERBOSE, "[Httpd fd:%d,uri:%s] Processing response (%d bytes)", fd_
       , req_.uri().c_str(), res_->get_body_length());
   }
@@ -345,24 +346,25 @@ StateFlowBase::Action HttpRequestFlow::stream_body()
   if (helper_.hasError_)
   {
     req_.error(true);
-    return yield_and_call(STATE(request_complete));
+    return call_immediately(STATE(request_complete));
   }
   HASSERT(part_stream_);
   size_t data_len = body_read_size_ - helper_.remaining_;
   // if we received some data pass it on to the handler
   if (data_len)
   {
-    body_offs_ += data_len;
     bool abort_req = false;
     auto res = part_stream_(&req_, "", body_len_, buf_.data(), data_len
-                          , body_offs_, body_offs_ >= body_len_, &abort_req);
+                          , body_offs_, (body_offs_ + data_len) >= body_len_
+                          , &abort_req);
+    body_offs_ += data_len;
     if (res && !res_)
     {
       res_.reset(res);
     }
     if (abort_req)
     {
-      return yield_and_call(STATE(send_response_headers));
+      return call_immediately(STATE(send_response_headers));
     }
   }
   if (body_offs_ < body_len_)
@@ -397,7 +399,7 @@ StateFlowBase::Action HttpRequestFlow::parse_multipart_headers()
   if (helper_.hasError_)
   {
     req_.error(true);
-    return yield_and_call(STATE(request_complete));
+    return call_immediately(STATE(request_complete));
   }
   else if (helper_.remaining_ == header_read_size_ && buf_.empty())
   {
@@ -413,7 +415,7 @@ StateFlowBase::Action HttpRequestFlow::parse_multipart_headers()
       LOG_ERROR("[Httpd fd:%d] Unable to find multipart/form-data bounary "
                 "marker, giving up:\n%s", fd_, req_.to_string().c_str());
       req_.set_status(HttpStatusCode::STATUS_BAD_REQUEST);
-      return yield_and_call(STATE(abort_request));
+      return call_immediately(STATE(abort_request));
     }
     part_boundary_.assign(type.substr(type.find_last_of('=') + 1));
     LOG(VERBOSE, "[Httpd fd:%d] multipart/form-data boundary: %s (%zu)"
@@ -441,7 +443,7 @@ StateFlowBase::Action HttpRequestFlow::parse_multipart_headers()
     LOG_ERROR("request:%s", req_.to_string().c_str());
     LOG_ERROR(raw_header_.c_str());
     req_.set_status(HttpStatusCode::STATUS_BAD_REQUEST);
-    return yield_and_call(STATE(abort_request));
+    return call_immediately(STATE(abort_request));
   }
 
   // parse the data we have into delimited lines of header data, this will
@@ -481,10 +483,6 @@ StateFlowBase::Action HttpRequestFlow::parse_multipart_headers()
           // add the unprocessed lines back to the 
           raw_header_.assign(string_join(lines.begin() + processed_lines
                                        , lines.end(), HTML_EOL) + raw_header_);
-          // add back any unprocessed data we read while parsing the part
-          // headers. This will be sent back to buf_ before streaming the body
-          // of the part.
-          body_len_ += raw_header_.length();
         }
         break;
       }
@@ -493,7 +491,7 @@ StateFlowBase::Action HttpRequestFlow::parse_multipart_headers()
         LOG_ERROR("[Httpd fd:%d,uri:%s] Missing part boundary marker, aborting "
                   "request", fd_, req_.uri().c_str());
         req_.set_status(HttpStatusCode::STATUS_BAD_REQUEST);
-        return yield_and_call(STATE(abort_request));
+        return call_immediately(STATE(abort_request));
       }
     }
     else if (line.find(part_boundary_) != string::npos)
@@ -569,7 +567,7 @@ StateFlowBase::Action HttpRequestFlow::parse_multipart_headers()
         LOG_ERROR("[Httpd fd:%d,uri:%s] Received unexpected header in segment, "
                   "aborting\n%s", fd_, req_.uri().c_str(), line.c_str());
         req_.set_status(HttpStatusCode::STATUS_BAD_REQUEST);
-        return yield_and_call(STATE(abort_request));
+        return call_immediately(STATE(abort_request));
       }
     }
   }
@@ -626,7 +624,7 @@ StateFlowBase::Action HttpRequestFlow::stream_multipart_body()
   if (helper_.hasError_)
   {
     req_.error(true);
-    return yield_and_call(STATE(request_complete));
+    return call_immediately(STATE(request_complete));
   }
   HASSERT(part_stream_);
   size_t data_len = body_read_size_ - helper_.remaining_;
@@ -640,13 +638,13 @@ StateFlowBase::Action HttpRequestFlow::stream_multipart_body()
     {
       body_len_ = 0;
     }
-    part_offs_ += data_len;
     LOG(VERBOSE, "[Httpd fd:%d,uri:%s] Received %zu/%zu bytes", fd_
       , req_.uri().c_str(), part_offs_, part_len_);
     bool abort_req = false;
     auto res = part_stream_(&req_, part_filename_, part_len_, buf_.data()
-                          , data_len, part_offs_, part_offs_ >= part_len_
-                          , &abort_req);
+                          , data_len, part_offs_
+                          , (part_offs_ + data_len) >= part_len_, &abort_req);
+    part_offs_ += data_len;
     if (res && !res_)
     {
       res_.reset(res);
@@ -756,7 +754,7 @@ StateFlowBase::Action HttpRequestFlow::request_complete()
   uint32_t proc_time = USEC_TO_MSEC(esp_timer_get_time() - start_time_);
   if (!req_.uri().empty())
   {
-    LOG(VERBOSE, "[Httpd fd:%d,uri:%s] Processed in %d ms.", fd_
+    LOG(INFO, "[Httpd fd:%d,uri:%s] Processed in %d ms.", fd_
       , req_.uri().c_str(), proc_time);
   }
   req_count_++;
@@ -768,7 +766,7 @@ StateFlowBase::Action HttpRequestFlow::request_complete()
     return delete_this();
   }
 
-  return yield_and_call(STATE(start_request));
+  return call_immediately(STATE(start_request));
 }
 
 StateFlowBase::Action HttpRequestFlow::upgrade_to_websocket()
@@ -785,7 +783,7 @@ StateFlowBase::Action HttpRequestFlow::upgrade_to_websocket()
 StateFlowBase::Action HttpRequestFlow::abort_request()
 {
   req_.error(true);
-  return yield_and_call(STATE(send_response_headers));
+  return call_immediately(STATE(send_response_headers));
 }
 
 } // namespace http

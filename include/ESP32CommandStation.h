@@ -41,9 +41,6 @@ using std::set;
 #define Binary_h
 #include <Arduino.h>
 
-// Arduino libraries
-#include <ESPAsyncWebServer.h>
-
 // get rid of the arduino-esp32 abs override
 #undef abs
 // include json library

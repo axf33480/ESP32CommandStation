@@ -182,6 +182,8 @@ enum HttpHeader
   CONTENT_DISPOSITION,
   EXPECT,
   HOST,
+  IF_MODIFIED_SINCE,
+  LAST_MODIFIED,
   LOCATION,
   ORIGIN,
   UPGRADE,
@@ -444,6 +446,7 @@ public:
     {
       header(HttpHeader::CONTENT_ENCODING, encoding);
     }
+    header(HttpHeader::LAST_MODIFIED, __DATE__ " " __TIME__);
   }
 
   /// @return the pre-formatted body of this response.
@@ -552,6 +555,10 @@ public:
   /// @param name is the name of the parameter to return.
   std::string param(std::string name);
 
+  /// @return true if the parameter is present.
+  /// @param name is the name of the parameter to return.
+  bool has_param(std::string name);
+
   /// @return string form of the request, this is headers only.
   std::string to_string();
 
@@ -632,6 +639,13 @@ private:
 typedef std::function<
   AbstractHttpResponse *(HttpRequest * /** request*/)> RequestProcessor;
 
+
+#define HTTP_HANDLER(name) \
+AbstractHttpResponse * name (HttpRequest *);
+
+#define HTTP_HANDLER_IMPL(name, request) \
+AbstractHttpResponse * name (HttpRequest * request)
+
 /// URI processing handler which will be invoked for POST/PUT requests that
 /// have a body payload.
 ///
@@ -649,6 +663,20 @@ typedef std::function<AbstractHttpResponse *(HttpRequest *       /** request */
                                            , bool                /** final   */
                                            , bool *              /** abort   */
                                            )> StreamProcessor;
+
+#define HTTP_STREAM_HANDLER(name) \
+AbstractHttpResponse * name (HttpRequest *request                           \
+                             , const std::string &filename, size_t size       \
+                             , const uint8_t *data, size_t length             \
+                             , size_t offset, bool final, bool *abort)
+
+#define HTTP_STREAM_HANDLER_IMPL(name, request, filename, size, data, length  \
+                               , offset, final, abort)                        \
+AbstractHttpResponse * name (HttpRequest * request                        \
+                             , const std::string & filename, size_t size  \
+                             , const uint8_t * data, size_t length        \
+                             , size_t offset, bool final, bool * abort)
+
 
 /// WebSocket processing Handler.
 ///
@@ -672,6 +700,13 @@ typedef std::function<void(WebSocketFlow *  /* websocket */
                          , uint8_t *        /* data */
                          , size_t           /* data length */
                          )> WebSocketHandler;
+
+#define WEBSOCKET_STREAM_HANDLER(name) \
+void name (WebSocketFlow *, WebSocketEvent, const uint8_t *, size_t);
+
+#define WEBSOCKET_STREAM_HANDLER_IMPL(name, websocket, event, data, length) \
+void name (WebSocketFlow * websocket, WebSocketEvent event \
+           , const uint8_t * data, size_t length)
 
 /// HTTP Server implementation
 class Httpd : public Service, public Singleton<Httpd>
@@ -1075,13 +1110,13 @@ public:
   void send_text(std::string &text);
 
   /// @return the ID of the WebSocket.
-  int get_id();
+  int id();
 
   /// @return the IP address of the remote side of the WebSocket.
   ///
   /// Note: This may return zero in which case the remote IP address is not
   /// known.
-  uint32_t get_remote_ip();
+  uint32_t ip();
 
   /// This will trigger an orderly shutdown of the WebSocket at the next
   /// opportunity. This will trigger the @ref WebSocketHandler with the
@@ -1283,4 +1318,3 @@ static inline std::string string_join(const std::vector<std::string>::iterator f
 } // namespace esp32cs
 
 #endif // HTTP_H_
-

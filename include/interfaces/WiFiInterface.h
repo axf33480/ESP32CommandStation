@@ -28,34 +28,7 @@ public:
 };
 
 extern WiFiInterface wifiInterface;
-
-class ESP32CSWebServer
-{
-public:
-  ESP32CSWebServer(MDNS *mdns);
-  void begin();
-  void init();
-private:
-  MDNS *mdns_;
-  std::string softAPAddress_;
-  std::vector<uint32_t> captiveIPs_;
-  void handleESPInfo(AsyncWebServerRequest *);
-  void handleProgrammer(AsyncWebServerRequest *);
-  esp32cs::http::AbstractHttpResponse *handlePower(esp32cs::http::HttpRequest *);
-  void handleOutputs(AsyncWebServerRequest *);
-  void handleTurnouts(AsyncWebServerRequest *);
-  void handleSensors(AsyncWebServerRequest *);
-  void handleConfig(AsyncWebServerRequest *);
-  void handleLocomotive(AsyncWebServerRequest *);
-#if S88_ENABLED
-  void handleS88Sensors(AsyncWebServerRequest *);
-#endif
-  void handleRemoteSensors(AsyncWebServerRequest *);
-  void handleOTA(AsyncWebServerRequest *);
-  void handleFeatures(AsyncWebServerRequest *);
-  void streamResource(AsyncWebServerRequest *);
-  void notFoundHandler(AsyncWebServerRequest *);
-};
+void init_webserver(MDNS *mdns);
 
 class WebSocketClient : public DCCPPProtocolConsumer
 {
@@ -63,17 +36,17 @@ public:
   WebSocketClient(int clientID, uint32_t remoteIP)
     : DCCPPProtocolConsumer(), _id(clientID), _remoteIP(remoteIP)
   {
-    LOG(INFO, "[WS %s] Connected", getName().c_str());
+    LOG(INFO, "[WS %s] Connected", name().c_str());
   }
   virtual ~WebSocketClient()
   {
-    LOG(INFO, "[WS %s] Disconnected", getName().c_str());
+    LOG(INFO, "[WS %s] Disconnected", name().c_str());
   }
-  int getID()
+  int id()
   {
     return _id;
   }
-  std::string getName()
+  std::string name()
   {
     return StringPrintf("%s/%d", ipv4_to_string(_remoteIP).c_str(), _id);
   }
