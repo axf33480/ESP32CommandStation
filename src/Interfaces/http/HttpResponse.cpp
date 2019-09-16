@@ -23,6 +23,8 @@ namespace esp32cs
 namespace http
 {
 
+extern string BUILD_TIME;
+
 extern std::map<HttpHeader, string> well_known_http_headers;
 
 static std::map<HttpStatusCode, string> http_code_strings =
@@ -168,6 +170,26 @@ StringResponse::StringResponse(const string &response, const string &mime_type)
   : AbstractHttpResponse(HttpStatusCode::STATUS_OK, mime_type)
   , response_(std::move(response))
 {
+}
+
+StaticResponse::StaticResponse(const uint8_t *payload, const size_t length
+                             , const std::string mime_type
+                             , const std::string encoding)
+                             : AbstractHttpResponse(STATUS_OK, mime_type)
+                             , payload_(payload), length_(length)
+{
+  if (!encoding.empty())
+  {
+    header(HttpHeader::CONTENT_ENCODING, encoding);
+  }
+  header(HttpHeader::LAST_MODIFIED, BUILD_TIME);
+  // update the default cache strategy to set the must-revalidate and max-age
+  header(HttpHeader::CACHE_CONTROL
+       , StringPrintf("%s, %s, %s=%d"
+                    , HTTP_CACHE_CONTROL_NO_CACHE
+                    , HTTP_CACHE_CONTROL_MUST_REVALIDATE
+                    , HTTP_CACHE_CONTROL_MAX_AGE
+                    , config_httpd_cache_max_age_sec()));
 }
 
 } // namespace http

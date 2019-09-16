@@ -287,6 +287,9 @@ StateFlowBase::Action HttpRequestFlow::process_request()
 
     // extract the body length from the content length header
     body_len_ = std::stoul(req_.header(HttpHeader::CONTENT_LENGTH));
+    LOG(INFO, "[Httpd fd:%d,uri:%s] body (header): %zu", fd_
+      , req_.uri().c_str(), body_len_);
+
     part_stream_ = server_->stream_handler(req_.uri());
 
     if (req_.content_type() == ContentType::MULTIPART_FORMDATA)
@@ -315,10 +318,7 @@ StateFlowBase::Action HttpRequestFlow::process_request()
 
   if (server_->have_known_response(req_.uri()))
   {
-    res_ = server_->response(req_.uri());
-    res_->header(HttpHeader::LAST_MODIFIED, __DATE__ " " __TIME__);
-    LOG(VERBOSE, "[Httpd fd:%d,uri:%s] Processing response (%d bytes)", fd_
-      , req_.uri().c_str(), res_->get_body_length());
+    res_ = server_->response(&req_);
   }
   else
   {
@@ -452,23 +452,28 @@ StateFlowBase::Action HttpRequestFlow::parse_multipart_headers()
   vector<string> lines;
   size_t parsed = tokenize(raw_header_, lines, HTML_EOL, false);
   // drop whatever has been tokenized so we don't process it again
+  LOG(INFO, "[Httpd fd:%d,uri:%s] body: %zu, parsed: %zu, header: %zu"
+    , fd_, req_.uri().c_str(), body_len_, parsed, raw_header_.length());
   raw_header_.erase(0, parsed);
 
   // reduce the body size by the amount of data we have successfully parsed.
   body_len_ -= parsed;
+
+  LOG(INFO, "[Httpd fd:%d,uri:%s] parsed: %zu, body: %zu", fd_
+    , req_.uri().c_str(), parsed, body_len_);
 
   // process any remaining lines as headers until we reach a blank line
   int processed_lines = 0;
   for (auto &line : lines)
   {
     processed_lines++;
-    LOG(VERBOSE, "[Httpd fd:%d,uri:%s] line(%zu/%zu): ||%s||"
+    LOG(INFO, "[Httpd fd:%d,uri:%s] line(%zu/%zu): ||%s||"
       , fd_, req_.uri().c_str(), processed_lines, lines.size(), line.c_str());
     if (line.empty())
     {
       if (found_part_boundary_)
       {
-        LOG(VERBOSE
+        LOG(INFO
           , "[Httpd fd:%d,uri:%s] found blank line, starting body stream"
           , fd_, req_.uri().c_str());
         process_part_body_ = true;
@@ -476,10 +481,10 @@ StateFlowBase::Action HttpRequestFlow::parse_multipart_headers()
         // the buffer for deferred processing.
         if (processed_lines != lines.size())
         {
-        LOG(VERBOSE
-          , "[Httpd fd:%d,uri:%s] Processed %zu/%zu lines, adding remaining "
-            "lines to body payload"
-          , fd_, req_.uri().c_str(), processed_lines, lines.size());
+          LOG(INFO
+            , "[Httpd fd:%d,uri:%s] Processed %zu/%zu lines, adding remaining "
+              "lines to body payload"
+            , fd_, req_.uri().c_str(), processed_lines, lines.size());
           // add the unprocessed lines back to the 
           raw_header_.assign(string_join(lines.begin() + processed_lines
                                        , lines.end(), HTML_EOL) + raw_header_);
@@ -499,20 +504,20 @@ StateFlowBase::Action HttpRequestFlow::parse_multipart_headers()
       // skip the first two bytes as the line will be: --<boundary>
       if (found_part_boundary_)
       {
-        LOG(VERBOSE
+        LOG(INFO
           , "[Httpd fd:%d,uri:%s] End of multipart/form-data segment(%d)"
           , fd_, req_.uri().c_str(), part_count_);
         found_part_boundary_ = false;
         if (line.find_last_of("--") == line.length() - 2)
         {
-          LOG(VERBOSE, "[Httpd fd:%d,uri:%s] End of last segment reached"
+          LOG(INFO, "[Httpd fd:%d,uri:%s] End of last segment reached"
             , fd_, req_.uri().c_str());
           return yield_and_call(STATE(send_response_headers));
         }
       }
       else
       {
-        LOG(VERBOSE
+        LOG(INFO
           , "[Httpd fd:%d,uri:%s] Start of multipart/form-data segment(%d)"
           , fd_, req_.uri().c_str(), part_count_);
         found_part_boundary_ = true;
@@ -527,11 +532,19 @@ StateFlowBase::Action HttpRequestFlow::parse_multipart_headers()
     else if (found_part_boundary_)
     {
       std::pair<string, string> parts = break_string(line, ": ");
-      if (!parts.first.compare(
+      if (!parts.first.compare("form-data"))
+      {
+        // ignored field
+      }
+      else if (!parts.first.compare("name"))
+      {
+        // ignored field (for now)
+      }
+      else if (!parts.first.compare(
             well_known_http_headers[HttpHeader::CONTENT_TYPE]))
       {
         part_type_.assign(parts.second);
-        LOG(VERBOSE
+        LOG(INFO
           , "[Httpd fd:%d,uri:%s] multipart/form-data segment(%d) uses %s:%s"
           , fd_, req_.uri().c_str(), part_count_
           , well_known_http_headers[HttpHeader::CONTENT_TYPE].c_str()
@@ -550,15 +563,16 @@ StateFlowBase::Action HttpRequestFlow::parse_multipart_headers()
             vector<string> file_parts;
             tokenize(part, file_parts, "\"");
             part_filename_.assign(file_parts[1]);
-            LOG(VERBOSE
+            LOG(INFO
               , "[Httpd fd:%d,uri:%s] multipart/form-data segment(%d) "
                 "filename detected as '%s'"
               , fd_, req_.uri().c_str(), part_count_, part_filename_.c_str());
           }
           else
           {
-            LOG(VERBOSE, "[Httpd fd:%d,uri:%s] Unrecognized field: %s"
-              , fd_, req_.uri().c_str(), part.c_str());
+            LOG_ERROR(
+              "[Httpd fd:%d,uri:%s] Unrecognized field in segment(%d): %s"
+              , fd_, req_.uri().c_str(), part_count_, part.c_str());
           }
         }
       }
@@ -578,6 +592,8 @@ StateFlowBase::Action HttpRequestFlow::parse_multipart_headers()
     if (!raw_header_.empty())
     {
       buf_.assign(raw_header_.begin(), raw_header_.end());
+      LOG(INFO, "[Httpd fd:%d,uri:%s] segment(%d) size %zu/%zu"
+        , fd_, req_.uri().c_str(), part_count_, buf_.size(), body_len_);
       body_len_ += buf_.size();
       raw_header_.assign("");
     }
@@ -586,10 +602,12 @@ StateFlowBase::Action HttpRequestFlow::parse_multipart_headers()
     // single part. If there is leftover body_len_ after we process this chunk
     // we will return to this state to get the next part.
     part_len_ = body_len_ - (part_boundary_.size() + 4);
+    LOG(INFO, "[Httpd fd:%d,uri:%s] segment(%d) size %zu/%zu"
+      , fd_, req_.uri().c_str(), part_count_, part_len_, body_len_);
     size_t data_req = std::min(part_len_, body_read_size_ - buf_.size());
     
-    LOG(VERBOSE, "[Httpd fd:%d,uri:%s] Requesting %zu bytes for segment(%d)"
-      , fd_, req_.uri().c_str(), data_req, part_count_);
+    LOG(INFO, "[Httpd fd:%d,uri:%s] Requesting %zu/%zu bytes for segment(%d)"
+      , fd_, req_.uri().c_str(), data_req, part_len_, part_count_);
     // read the payload and process it in chunks
     return read_repeated_with_timeout(&helper_, timeout_, fd_
                                     , buf_.data() + buf_.size(), data_req

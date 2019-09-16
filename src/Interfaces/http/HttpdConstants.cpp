@@ -39,6 +39,7 @@ DEFAULT_CONST(httpd_socket_timeout_ms, 50);
 DEFAULT_CONST(httpd_websocket_timeout_ms, 200);
 DEFAULT_CONST(httpd_websocket_max_frame_size, 256);
 DEFAULT_CONST(httpd_websocket_max_read_attempts, 2);
+DEFAULT_CONST(httpd_cache_max_age_sec, 300);
 
 ///////////////////////////////////////////////////////////////////////////////
 // Dnsd constants

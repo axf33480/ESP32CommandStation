@@ -98,6 +98,10 @@ DECLARE_CONST(httpd_websocket_max_frame_size);
 /// frame before attempting to send out a websocket frame.
 DECLARE_CONST(httpd_websocket_max_read_attempts);
 
+/// This controls the Cache-Control: max-age=XXX value in the response headers
+/// for static content.
+DECLARE_CONST(httpd_cache_max_age_sec);
+
 /// Commonly used HTTP status codes.
 /// @enum HttpStatusCode
 enum HttpStatusCode
@@ -438,16 +442,7 @@ public:
   /// HTTP Header.
   StaticResponse(const uint8_t *payload, const size_t length
                , const std::string mime_type
-               , const std::string encoding = HTTP_ENCODING_NONE)
-    : AbstractHttpResponse(STATUS_OK, mime_type), payload_(payload)
-    , length_(length)
-  {
-    if (!encoding.empty())
-    {
-      header(HttpHeader::CONTENT_ENCODING, encoding);
-    }
-    header(HttpHeader::LAST_MODIFIED, __DATE__ " " __TIME__);
-  }
+               , const std::string encoding = HTTP_ENCODING_NONE);
 
   /// @return the pre-formatted body of this response.
   virtual const uint8_t *get_body() override final
@@ -885,8 +880,15 @@ private:
   /// @param uri is the URI to check.
   bool have_known_response(const std::string &uri);
 
-  /// @return the @ref AbstractHttpResponse for a given @param uri if available.
-  std::shared_ptr<AbstractHttpResponse> response(const std::string &uri);
+  /// @return the @ref AbstractHttpResponse for the @param request. This will
+  /// evaluate the request for static_uri and redirect registered endpoints.
+  ///
+  /// For a static_uri endpoint the request headers will be evaluated for the
+  /// presence of @ref HttpHeader::IF_MODIFIED_SINCE and will return either the
+  /// requested resource or a @ref AbstractHttpResponse with
+  /// @ref HttpStatusCode::STATUS_NOT_MODIFIED as the code if the resource has
+  /// not been modified.
+  std::shared_ptr<AbstractHttpResponse> response(HttpRequest *request);
 
   /// @return true if the @param request is too large to be processed. Size
   /// is configured via httpd_max_req_size.
@@ -930,8 +932,14 @@ private:
   /// Internal map of all registered @ref RequestProcessor handlers.
   std::map<std::string, StreamProcessor> stream_handlers_;
 
-  /// Internal map of all registered static URIs.
+  /// Internal map of all registered static URIs to use when the client does
+  /// not specify the @ref HttpHeader::IF_MODIFIED_SINCE or the value is not
+  /// the current version.
   std::map<std::string, std::shared_ptr<AbstractHttpResponse>> static_uris_;
+
+  /// Internal map of all registeres static URIs to use when resource has not
+  /// been modified since the client last retrieved it.
+  std::map<std::string, std::shared_ptr<AbstractHttpResponse>> static_cached_;
 
   /// Internal map of all redirected URIs.
   std::map<std::string, std::shared_ptr<AbstractHttpResponse>> redirect_uris_;

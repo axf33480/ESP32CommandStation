@@ -31,6 +31,8 @@ namespace esp32cs
 namespace http
 {
 
+string BUILD_TIME = __DATE__ " " __TIME__;
+
 /// Callback for a newly accepted socket connection.
 ///
 /// @param fd is the socket handle.
@@ -115,9 +117,13 @@ void Httpd::static_uri(const string &uri, const uint8_t *payload
                      , const string &encoding)
 {
   static_uris_.insert(
-    std::make_pair(std::move(uri)
+    std::make_pair(uri
                  , std::make_shared<StaticResponse>(payload, length, mime_type
                                                   , encoding)));
+  static_cached_.insert(
+    std::make_pair(uri
+                 , std::make_shared<AbstractHttpResponse>(
+                    HttpStatusCode::STATUS_NOT_MODIFIED)));
 }
 
 void Httpd::websocket_uri(const string &uri, WebSocketHandler handler)
@@ -244,15 +250,20 @@ bool Httpd::have_known_response(const string &uri)
   return static_uris_.count(uri) || redirect_uris_.count(uri);
 }
 
-shared_ptr<AbstractHttpResponse> Httpd::response(const string &uri)
+shared_ptr<AbstractHttpResponse> Httpd::response(HttpRequest *request)
 {
-  if (static_uris_.count(uri))
+  if (static_uris_.count(request->uri()))
   {
-    return static_uris_[uri];
+    if (request->has_header(HttpHeader::IF_MODIFIED_SINCE) &&
+       !request->header(HttpHeader::IF_MODIFIED_SINCE).compare(BUILD_TIME))
+    {
+      return static_cached_[request->uri()];
+    }
+    return static_uris_[request->uri()];
   }
-  else if (redirect_uris_.count(uri))
+  else if (redirect_uris_.count(request->uri()))
   {
-    return redirect_uris_[uri];
+    return redirect_uris_[request->uri()];
   }
   return nullptr;
 }
