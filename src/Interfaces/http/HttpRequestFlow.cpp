@@ -703,7 +703,7 @@ StateFlowBase::Action HttpRequestFlow::send_response_headers()
   bool keep_alive = req_.keep_alive() &&
                     req_count_ < config_httpd_max_req_per_connection();
   uint8_t *payload = res_->get_headers(&len, keep_alive);
-  LOG(INFO, "[Httpd fd:%d,uri:%s] Sending headers using %zu bytes (%d)."
+  LOG(VERBOSE, "[Httpd fd:%d,uri:%s] Sending headers using %zu bytes (%d)."
     , fd_, req_.uri().c_str(), len, res_->code_);
   return write_repeated(&helper_, fd_, payload, len, STATE(send_response_body));
 }
@@ -717,12 +717,12 @@ StateFlowBase::Action HttpRequestFlow::send_response_body()
   }
   else if (res_->get_body_length())
   {
-    LOG(INFO, "[Httpd fd:%d,uri:%s] Sending body of %d bytes.", fd_
+    LOG(VERBOSE, "[Httpd fd:%d,uri:%s] Sending body of %d bytes.", fd_
       , req_.uri().c_str(), res_->get_body_length());
     // check if we can send the entire response in one call or not.
     if (res_->get_body_length() > config_httpd_response_chunk_size())
     {
-      LOG(INFO, "[Httpd fd:%d,uri:%s] Converting to streamed response.", fd_
+      LOG(VERBOSE, "[Httpd fd:%d,uri:%s] Converting to streamed response.", fd_
         , req_.uri().c_str());
       response_body_offs_ = 0;
       LOG(VERBOSE, "[Httpd fd:%d,uri:%s] Sending [%d-%d/%d]", fd_
@@ -772,8 +772,8 @@ StateFlowBase::Action HttpRequestFlow::request_complete()
   uint32_t proc_time = USEC_TO_MSEC(esp_timer_get_time() - start_time_);
   if (!req_.uri().empty())
   {
-    LOG(INFO, "[Httpd fd:%d,uri:%s] Processed in %d ms.", fd_
-      , req_.uri().c_str(), proc_time);
+    LOG(INFO, "[Httpd fd:%d,uri:%s] Processed in %d ms (%d).", fd_
+      , req_.uri().c_str(), proc_time, res_->code_);
   }
   req_count_++;
   if (!req_.keep_alive() || req_.error() ||
