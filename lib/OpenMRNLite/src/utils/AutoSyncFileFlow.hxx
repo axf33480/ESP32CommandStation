@@ -67,12 +67,12 @@ public:
     /// @param n is the @ref Notifiable to call when this flow exits.
     void shutdown(Notifiable *n)
     {
-        shutdown_ = true;
         std::swap(done_, n);
         if (n)
         {
             n->notify();
         }
+        shutdown_ = true;
         timer_.ensure_triggered();
     }
 
