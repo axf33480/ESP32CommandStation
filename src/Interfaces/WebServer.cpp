@@ -69,12 +69,12 @@ HTTP_STREAM_HANDLER(process_ota);
 HTTP_HANDLER(process_power);
 HTTP_HANDLER(process_config);
 HTTP_HANDLER(process_prog);
+HTTP_HANDLER(process_turnouts);
+HTTP_HANDLER(process_loco);
 HTTP_HANDLER(process_outputs);
 HTTP_HANDLER(process_sensors);
 HTTP_HANDLER(process_remote_sensors);
 HTTP_HANDLER(process_s88);
-HTTP_HANDLER(process_turnouts);
-HTTP_HANDLER(process_loco);
 
 void init_webserver(MDNS *dns)
 {
@@ -105,15 +105,15 @@ void init_webserver(MDNS *dns)
   httpd->static_uri("/images/ajax-loader.gif", ajaxLoader, ajaxLoader_size
                   , MIME_TYPE_IMAGE_GIF);
   httpd->websocket_uri("/ws", process_websocket_event);
+  httpd->uri("/update", HttpMethod::POST, nullptr, process_ota);
   httpd->uri("/features", [&](HttpRequest *req)
   {
     return new StringResponse(configStore->getCSFeatures()
                             , MIME_TYPE_APPLICATION_JSON);
   });
   httpd->uri("/power", HttpMethod::GET | HttpMethod::PUT, process_power);
-  httpd->uri("/update", HttpMethod::POST, nullptr, process_ota);
-  httpd->uri("/programmer", HttpMethod::GET | HttpMethod::POST, process_prog);
   httpd->uri("/config", HttpMethod::GET | HttpMethod::POST, process_config);
+  httpd->uri("/programmer", HttpMethod::GET | HttpMethod::POST, process_prog);
   httpd->uri("/turnouts"
            , HttpMethod::GET | HttpMethod::POST |
              HttpMethod::PUT | HttpMethod::DELETE
@@ -204,29 +204,6 @@ WEBSOCKET_STREAM_HANDLER_IMPL(process_websocket_event, client, event, data
   }
 }
 
-HTTP_HANDLER_IMPL(process_power, request)
-{
-  string response = "{}";
-  request->set_status(HttpStatusCode::STATUS_OK);
-  if (request->method() == HttpMethod::GET)
-  {
-    response.assign(trackSignal->generate_status_json());
-  }
-  else if (request->method() == HttpMethod::PUT)
-  {
-    if (!request->param(JSON_STATE_NODE).compare(JSON_VALUE_TRUE))
-    {
-      trackSignal->enable_ops_output();
-    }
-    else
-    {
-      trackSignal->disable_ops_output();
-      trackSignal->disable_prog_output();
-    }
-  }
-  return new StringResponse(response, MIME_TYPE_APPLICATION_JSON);
-}
-
 esp_ota_handle_t otaHandle;
 esp_partition_t *ota_partition = nullptr;
 HTTP_STREAM_HANDLER_IMPL(process_ota, request, filename, size, data, length
@@ -283,6 +260,131 @@ HTTP_STREAM_HANDLER_IMPL(process_ota, request, filename, size, data, length
     return new StringResponse("OTA Upload Complete", MIME_TYPE_TEXT_PLAIN);
   }
   return nullptr;
+}
+
+HTTP_HANDLER_IMPL(process_power, request)
+{
+  string response = "{}";
+  request->set_status(HttpStatusCode::STATUS_OK);
+  if (request->method() == HttpMethod::GET)
+  {
+    response.assign(trackSignal->generate_status_json());
+  }
+  else if (request->method() == HttpMethod::PUT)
+  {
+    if (!request->param(JSON_STATE_NODE).compare(JSON_VALUE_TRUE))
+    {
+      trackSignal->enable_ops_output();
+    }
+    else
+    {
+      trackSignal->disable_ops_output();
+      trackSignal->disable_prog_output();
+    }
+  }
+  return new StringResponse(response, MIME_TYPE_APPLICATION_JSON);
+}
+
+HTTP_HANDLER_IMPL(process_config, request)
+{
+  bool needReboot = false;
+  if (request->has_param("reset"))
+  {
+    configStore->factory_reset();
+    needReboot = true;
+  }
+  else if (request->has_param("scan"))
+  {
+    SyncNotifiable n;
+    Esp32WiFiManager *wifi_mgr = Singleton<Esp32WiFiManager>::instance();
+    wifi_mgr->start_ssid_scan(&n);
+    n.wait_for_notification();
+    size_t num_found = wifi_mgr->get_ssid_scan_result_count();
+    nlohmann::json ssid_list;
+    vector<string> seen_ssids;
+    for (int i = 0; i < num_found; i++)
+    {
+      auto entry = wifi_mgr->get_ssid_scan_result(i);
+      if (std::find_if(seen_ssids.begin(), seen_ssids.end()
+        , [entry](string &s)
+          {
+            return s == (char *)entry.ssid;
+          }) != seen_ssids.end())
+      {
+        // filter duplicate SSIDs
+        continue;
+      }
+      seen_ssids.push_back((char *)entry.ssid);
+      ssid_list.push_back(entry);
+    }
+    wifi_mgr->clear_ssid_scan_results();
+    return new StringResponse(ssid_list.dump(), MIME_TYPE_APPLICATION_JSON);
+  }
+  if (request->has_param("ssid"))
+  {
+    // Setting the WiFi SSID will always require a restart as this is
+    // configured when the Esp32WiFiManager is constructed.
+    configStore->setWiFiStationParams(request->param("ssid")
+                                    , request->param("password"));
+    needReboot = true;
+  }
+  if (request->has_param("mode"))
+  {
+    needReboot |= configStore->setWiFiMode(request->param("mode"));
+  }
+  if (request->has_param("nodeid"))
+  {
+    needReboot |= configStore->setNodeID(request->param("nodeid"));
+  }
+  if (request->has_param("lcc-can"))
+  {
+    needReboot |= configStore->setLCCCan(request->param("lcc-can").compare(JSON_VALUE_FALSE));
+  }
+  if (request->has_param("lcc-hub"))
+  {
+    configStore->setLCCHub(request->param("lcc-hub").compare(JSON_VALUE_FALSE));
+  }
+  if (request->has_param("uplink-mode") && request->has_param("uplink-service") &&
+      request->has_param("uplink-manual") && request->has_param("uplink-manual-port"))
+  {
+    // WiFi uplink settings do not require a reboot
+    configStore->setWiFiUplinkParams((SocketClientParams::SearchMode)std::stoi(request->param("uplink-mode"))
+                                    , request->param("uplink-service")
+                                    , request->param("uplink-manual")
+                                    , std::stoi(request->param("uplink-manual-port")));
+  }
+  if (request->has_param("ops-short") && request->has_param("ops-short-clear") &&
+      request->has_param("ops-shutdown") && request->has_param("ops-shutdown-clear") &&
+      request->has_param("ops-thermal") && request->has_param("ops-thermal-clear"))
+  {
+    configStore->setHBridgeEvents(OPS_CDI_TRACK_OUTPUT_INDEX
+                                , request->param("ops-short")
+                                , request->param("ops-short-clear")
+                                , request->param("ops-shutdown")
+                                , request->param("ops-shutdown-clear")
+                                , request->param("ops-thermal")
+                                , request->param("ops-thermal-clear"));
+  }
+  if (request->has_param("prog-short") && request->has_param("prog-short-clear") &&
+      request->has_param("prog-shutdown") && request->has_param("prog-shutdown-clear"))
+  {
+    configStore->setHBridgeEvents(PROG_CDI_TRACK_OUTPUT_INDEX
+                                , request->param("prog-short")
+                                , request->param("prog-short-clear")
+                                , request->param("prog-shutdown")
+                                , request->param("prog-shutdown-clear"));
+  }
+
+  if (needReboot)
+  {
+    // send a string back to the client rather than SEND_GENERIC_RESPONSE
+    // so we don't return prior to calling reboot.
+    // TODO: re-enable this output
+    //SEND_TEXT_RESPONSE(request, STATUS_OK, "{restart:\"ESP32CommandStation Restarting!\"}")
+    reboot();
+  }
+
+  return new StringResponse(configStore->getCSConfig(), MIME_TYPE_APPLICATION_JSON);
 }
 
 HTTP_HANDLER_IMPL(process_prog, request)
@@ -453,164 +555,6 @@ HTTP_HANDLER_IMPL(process_prog, request)
   return nullptr;
 }
 
-HTTP_HANDLER_IMPL(process_config, request)
-{
-  bool needReboot = false;
-  if (request->has_param("reset"))
-  {
-    configStore->factory_reset();
-    needReboot = true;
-  }
-  else if (request->has_param("scan"))
-  {
-    SyncNotifiable n;
-    Esp32WiFiManager *wifi_mgr = Singleton<Esp32WiFiManager>::instance();
-    wifi_mgr->start_ssid_scan(&n);
-    n.wait_for_notification();
-    size_t num_found = wifi_mgr->get_ssid_scan_result_count();
-    nlohmann::json ssid_list;
-    vector<string> seen_ssids;
-    for (int i = 0; i < num_found; i++)
-    {
-      auto entry = wifi_mgr->get_ssid_scan_result(i);
-      if (std::find_if(seen_ssids.begin(), seen_ssids.end()
-        , [entry](string &s)
-          {
-            return s == (char *)entry.ssid;
-          }) != seen_ssids.end())
-      {
-        // filter duplicate SSIDs
-        continue;
-      }
-      seen_ssids.push_back((char *)entry.ssid);
-      ssid_list.push_back(entry);
-    }
-    wifi_mgr->clear_ssid_scan_results();
-    return new StringResponse(ssid_list.dump(), MIME_TYPE_APPLICATION_JSON);
-  }
-  if (request->has_param("ssid"))
-  {
-    // Setting the WiFi SSID will always require a restart as this is
-    // configured when the Esp32WiFiManager is constructed.
-    configStore->setWiFiStationParams(request->param("ssid")
-                                    , request->param("password"));
-    needReboot = true;
-  }
-  if (request->has_param("mode"))
-  {
-    needReboot |= configStore->setWiFiMode(request->param("mode"));
-  }
-  if (request->has_param("nodeid"))
-  {
-    needReboot |= configStore->setNodeID(request->param("nodeid"));
-  }
-  if (request->has_param("lcc-can"))
-  {
-    needReboot |= configStore->setLCCCan(request->param("lcc-can").compare(JSON_VALUE_FALSE));
-  }
-  if (request->has_param("lcc-hub"))
-  {
-    configStore->setLCCHub(request->param("lcc-hub").compare(JSON_VALUE_FALSE));
-  }
-  if (request->has_param("uplink-mode") && request->has_param("uplink-service") &&
-      request->has_param("uplink-manual") && request->has_param("uplink-manual-port"))
-  {
-    // WiFi uplink settings do not require a reboot
-    configStore->setWiFiUplinkParams((SocketClientParams::SearchMode)std::stoi(request->param("uplink-mode"))
-                                    , request->param("uplink-service")
-                                    , request->param("uplink-manual")
-                                    , std::stoi(request->param("uplink-manual-port")));
-  }
-  if (request->has_param("ops-short") && request->has_param("ops-short-clear") &&
-      request->has_param("ops-shutdown") && request->has_param("ops-shutdown-clear") &&
-      request->has_param("ops-thermal") && request->has_param("ops-thermal-clear"))
-  {
-    configStore->setHBridgeEvents(OPS_CDI_TRACK_OUTPUT_INDEX
-                                , request->param("ops-short")
-                                , request->param("ops-short-clear")
-                                , request->param("ops-shutdown")
-                                , request->param("ops-shutdown-clear")
-                                , request->param("ops-thermal")
-                                , request->param("ops-thermal-clear"));
-  }
-  if (request->has_param("prog-short") && request->has_param("prog-short-clear") &&
-      request->has_param("prog-shutdown") && request->has_param("prog-shutdown-clear"))
-  {
-    configStore->setHBridgeEvents(PROG_CDI_TRACK_OUTPUT_INDEX
-                                , request->param("prog-short")
-                                , request->param("prog-short-clear")
-                                , request->param("prog-shutdown")
-                                , request->param("prog-shutdown-clear"));
-  }
-
-  if (needReboot)
-  {
-    // send a string back to the client rather than SEND_GENERIC_RESPONSE
-    // so we don't return prior to calling reboot.
-    // TODO: re-enable this output
-    //SEND_TEXT_RESPONSE(request, STATUS_OK, "{restart:\"ESP32CommandStation Restarting!\"}")
-    reboot();
-  }
-
-  return new StringResponse(configStore->getCSConfig(), MIME_TYPE_APPLICATION_JSON);
-}
-
-#if ENABLE_OUTPUTS
-HTTP_HANDLER_IMPL(process_outputs, request)
-{
-  if (request->method() == HttpMethod::GET && !request->params())
-  {
-    return new StringResponse(OutputManager::getStateAsJson()
-                            , MIME_TYPE_APPLICATION_JSON);
-  }
-  request->set_status(HttpStatusCode::STATUS_OK);
-  uint8_t output_id = std::stoi(request->param(JSON_ID_NODE));
-  if (request->method() == HttpMethod::GET)
-  {
-    auto output = OutputManager::getOutput(output_id);
-    if (output)
-    {
-      return new StringResponse(output->toJson(), MIME_TYPE_APPLICATION_JSON);
-    }
-    request->set_status(HttpStatusCode::STATUS_NOT_FOUND);
-  }
-  else if (request->method() == HttpMethod::POST)
-  {
-    uint8_t pin = std::stoi(request->param(JSON_PIN_NODE));
-    bool inverted = !request->param(JSON_INVERTED_NODE).compare(JSON_VALUE_TRUE);
-    bool forceState = !request->param(JSON_FORCE_STATE_NODE).compare(JSON_VALUE_TRUE);
-    bool defaultState = !request->param(JSON_DEFAULT_STATE_NODE).compare(JSON_VALUE_TRUE);
-    uint8_t outputFlags = 0;
-    if (inverted)
-    {
-      bitSet(outputFlags, OUTPUT_IFLAG_INVERT);
-    }
-    if (forceState)
-    {
-      bitSet(outputFlags, OUTPUT_IFLAG_RESTORE_STATE);
-      if (defaultState)
-      {
-        bitSet(outputFlags, OUTPUT_IFLAG_FORCE_STATE);
-      }
-    }
-    if (!OutputManager::createOrUpdate(output_id, pin, outputFlags))
-    {
-      request->set_status(HttpStatusCode::STATUS_NOT_ALLOWED);
-    }
-  }
-  else if (request->method() == HttpMethod::DELETE &&
-          !OutputManager::remove(output_id))
-  {
-    request->set_status(HttpStatusCode::STATUS_NOT_FOUND);
-  }
-  else if(request->method() == HttpMethod::PUT)
-  {
-    OutputManager::toggle(output_id);
-  }
-  return nullptr;
-}
-#endif // ENABLE_OUTPUTS
-
 // GET /turnouts - full list of turnouts, note that turnout state is STRING type for display
 // GET /turnouts?readbleStrings=[0,1] - full list of turnouts, turnout state will be returned as true/false (boolean) when readableStrings=0.
 // GET /turnouts?address=<address> - retrieve turnout by DCC address
@@ -719,118 +663,6 @@ HTTP_HANDLER_IMPL(process_turnouts, request)
   }
   return nullptr;
 }
-
-#if ENABLE_SENSORS
-HTTP_HANDLER_IMPL(process_sensors, request)
-{
-  request->set_status(HttpStatusCode::STATUS_SERVER_ERROR);
-  if (request->method() == HttpMethod::GET &&
-      !request->has_param(JSON_ID_NODE))
-  {
-    return new StringResponse(SensorManager::getStateAsJson()
-                            , MIME_TYPE_APPLICATION_JSON);
-  }
-  else if (!request->has_param(JSON_ID_NODE))
-  {
-    request->set_status(HttpStatusCode::STATUS_BAD_REQUEST);
-  }
-  else
-  {
-    uint16_t id = std::stoi(request->param(JSON_ID_NODE));
-    if (request->method() == HttpMethod::GET)
-    {
-      auto sensor = SensorManager::getSensor(id);
-      if (sensor)
-      {
-        return new StringResponse(sensor->toJson()
-                                , MIME_TYPE_APPLICATION_JSON);
-      }
-      request->set_status(HttpStatusCode::STATUS_NOT_FOUND);
-    }
-    else if (request->method() == HttpMethod::POST)
-    {
-      uint8_t pin = std::stoi(request->param(JSON_PIN_NODE));
-      bool pull = !request->param(JSON_PULLUP_NODE).compare(JSON_VALUE_TRUE);
-      if (!SensorManager::createOrUpdate(id, pin, pull))
-      {
-        request->set_status(HttpStatusCode::STATUS_NOT_ALLOWED);
-      }
-      else
-      {
-        request->set_status(HttpStatusCode::STATUS_OK);
-      }
-    }
-    else if (request->method() == HttpMethod::DELETE)
-    {
-      if (SensorManager::getSensorPin(id) < 0)
-      {
-        // attempt to delete S88/RemoteSensor
-        request->set_status(HttpStatusCode::STATUS_NOT_ALLOWED);
-      }
-      else if (!SensorManager::remove(id))
-      {
-        request->set_status(HttpStatusCode::STATUS_NOT_FOUND);
-      }
-      else
-      {
-        request->set_status(HttpStatusCode::STATUS_OK);
-      }
-    }
-  }
-  
-  return nullptr;
-}
-
-HTTP_HANDLER_IMPL(process_remote_sensors, request)
-{
-  request->set_status(HttpStatusCode::STATUS_OK);
-  if(request->method() == HttpMethod::GET)
-  {
-    return new StringResponse(RemoteSensorManager::getStateAsJson()
-                            , MIME_TYPE_APPLICATION_JSON);
-  }
-  else if(request->method() == HttpMethod::POST)
-  {
-    RemoteSensorManager::createOrUpdate(
-      std::stoi(request->param(JSON_ID_NODE)),
-      std::stoi(request->param(JSON_VALUE_NODE)));
-  }
-  else if(request->method() == HttpMethod::DELETE)
-  {
-    RemoteSensorManager::remove(std::stoi(request->param(JSON_ID_NODE)));
-  }
-  return nullptr;
-}
-
-#if S88_ENABLED
-HTTP_HANDLER_IMPL(process_s88, request)
-{
-  request->set_status(HttpStatusCode::STATUS_OK);
-  if(request->method() == HttpMethod::GET)
-  {
-    return new StringResponse(S88BusManager::getStateAsJson()
-                            , MIME_TYPE_APPLICATION_JSON);
-  }
-  else if(request->method() == HttpMethod::POST)
-  {
-    if(!S88BusManager::createOrUpdateBus(
-      std::stoi(request->param(JSON_ID_NODE)),
-      std::stoi(request->param(JSON_PIN_NODE)),
-      std::stoi(request->param(JSON_COUNT_NODE))))
-    {
-      // duplicate pin/id
-      request->set_status(HttpStatusCode::STATUS_NOT_ALLOWED);
-    }
-  }
-  else if(request->method() == HttpMethod::DELETE)
-  {
-    S88BusManager::removeBus(std::stoi(request->param(JSON_ID_NODE)));
-  }
-  return nullptr;
-}
-#endif // S88_ENABLED
-
-#endif // ENABLE_SENSORS
 
 string convert_loco_to_json(TrainImpl *t)
 {
@@ -1038,3 +870,171 @@ HTTP_HANDLER_IMPL(process_loco, request)
   }
   return nullptr;
 }
+
+#if ENABLE_OUTPUTS
+HTTP_HANDLER_IMPL(process_outputs, request)
+{
+  if (request->method() == HttpMethod::GET && !request->params())
+  {
+    return new StringResponse(OutputManager::getStateAsJson()
+                            , MIME_TYPE_APPLICATION_JSON);
+  }
+  request->set_status(HttpStatusCode::STATUS_OK);
+  uint8_t output_id = std::stoi(request->param(JSON_ID_NODE));
+  if (request->method() == HttpMethod::GET)
+  {
+    auto output = OutputManager::getOutput(output_id);
+    if (output)
+    {
+      return new StringResponse(output->toJson(), MIME_TYPE_APPLICATION_JSON);
+    }
+    request->set_status(HttpStatusCode::STATUS_NOT_FOUND);
+  }
+  else if (request->method() == HttpMethod::POST)
+  {
+    uint8_t pin = std::stoi(request->param(JSON_PIN_NODE));
+    bool inverted = !request->param(JSON_INVERTED_NODE).compare(JSON_VALUE_TRUE);
+    bool forceState = !request->param(JSON_FORCE_STATE_NODE).compare(JSON_VALUE_TRUE);
+    bool defaultState = !request->param(JSON_DEFAULT_STATE_NODE).compare(JSON_VALUE_TRUE);
+    uint8_t outputFlags = 0;
+    if (inverted)
+    {
+      bitSet(outputFlags, OUTPUT_IFLAG_INVERT);
+    }
+    if (forceState)
+    {
+      bitSet(outputFlags, OUTPUT_IFLAG_RESTORE_STATE);
+      if (defaultState)
+      {
+        bitSet(outputFlags, OUTPUT_IFLAG_FORCE_STATE);
+      }
+    }
+    if (!OutputManager::createOrUpdate(output_id, pin, outputFlags))
+    {
+      request->set_status(HttpStatusCode::STATUS_NOT_ALLOWED);
+    }
+  }
+  else if (request->method() == HttpMethod::DELETE &&
+          !OutputManager::remove(output_id))
+  {
+    request->set_status(HttpStatusCode::STATUS_NOT_FOUND);
+  }
+  else if(request->method() == HttpMethod::PUT)
+  {
+    OutputManager::toggle(output_id);
+  }
+  return nullptr;
+}
+#endif // ENABLE_OUTPUTS
+
+#if ENABLE_SENSORS
+HTTP_HANDLER_IMPL(process_sensors, request)
+{
+  request->set_status(HttpStatusCode::STATUS_SERVER_ERROR);
+  if (request->method() == HttpMethod::GET &&
+      !request->has_param(JSON_ID_NODE))
+  {
+    return new StringResponse(SensorManager::getStateAsJson()
+                            , MIME_TYPE_APPLICATION_JSON);
+  }
+  else if (!request->has_param(JSON_ID_NODE))
+  {
+    request->set_status(HttpStatusCode::STATUS_BAD_REQUEST);
+  }
+  else
+  {
+    uint16_t id = std::stoi(request->param(JSON_ID_NODE));
+    if (request->method() == HttpMethod::GET)
+    {
+      auto sensor = SensorManager::getSensor(id);
+      if (sensor)
+      {
+        return new StringResponse(sensor->toJson()
+                                , MIME_TYPE_APPLICATION_JSON);
+      }
+      request->set_status(HttpStatusCode::STATUS_NOT_FOUND);
+    }
+    else if (request->method() == HttpMethod::POST)
+    {
+      uint8_t pin = std::stoi(request->param(JSON_PIN_NODE));
+      bool pull = !request->param(JSON_PULLUP_NODE).compare(JSON_VALUE_TRUE);
+      if (!SensorManager::createOrUpdate(id, pin, pull))
+      {
+        request->set_status(HttpStatusCode::STATUS_NOT_ALLOWED);
+      }
+      else
+      {
+        request->set_status(HttpStatusCode::STATUS_OK);
+      }
+    }
+    else if (request->method() == HttpMethod::DELETE)
+    {
+      if (SensorManager::getSensorPin(id) < 0)
+      {
+        // attempt to delete S88/RemoteSensor
+        request->set_status(HttpStatusCode::STATUS_NOT_ALLOWED);
+      }
+      else if (!SensorManager::remove(id))
+      {
+        request->set_status(HttpStatusCode::STATUS_NOT_FOUND);
+      }
+      else
+      {
+        request->set_status(HttpStatusCode::STATUS_OK);
+      }
+    }
+  }
+  
+  return nullptr;
+}
+
+HTTP_HANDLER_IMPL(process_remote_sensors, request)
+{
+  request->set_status(HttpStatusCode::STATUS_OK);
+  if(request->method() == HttpMethod::GET)
+  {
+    return new StringResponse(RemoteSensorManager::getStateAsJson()
+                            , MIME_TYPE_APPLICATION_JSON);
+  }
+  else if(request->method() == HttpMethod::POST)
+  {
+    RemoteSensorManager::createOrUpdate(
+      std::stoi(request->param(JSON_ID_NODE)),
+      std::stoi(request->param(JSON_VALUE_NODE)));
+  }
+  else if(request->method() == HttpMethod::DELETE)
+  {
+    RemoteSensorManager::remove(std::stoi(request->param(JSON_ID_NODE)));
+  }
+  return nullptr;
+}
+
+#if S88_ENABLED
+HTTP_HANDLER_IMPL(process_s88, request)
+{
+  request->set_status(HttpStatusCode::STATUS_OK);
+  if(request->method() == HttpMethod::GET)
+  {
+    return new StringResponse(S88BusManager::getStateAsJson()
+                            , MIME_TYPE_APPLICATION_JSON);
+  }
+  else if(request->method() == HttpMethod::POST)
+  {
+    if(!S88BusManager::createOrUpdateBus(
+      std::stoi(request->param(JSON_ID_NODE)),
+      std::stoi(request->param(JSON_PIN_NODE)),
+      std::stoi(request->param(JSON_COUNT_NODE))))
+    {
+      // duplicate pin/id
+      request->set_status(HttpStatusCode::STATUS_NOT_ALLOWED);
+    }
+  }
+  else if(request->method() == HttpMethod::DELETE)
+  {
+    S88BusManager::removeBus(std::stoi(request->param(JSON_ID_NODE)));
+  }
+  return nullptr;
+}
+#endif // S88_ENABLED
+
+#endif // ENABLE_SENSORS
