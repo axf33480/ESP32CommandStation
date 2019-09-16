@@ -812,7 +812,6 @@ HTTP_HANDLER_IMPL(process_loco, request)
         }
       }
       res += "]";
-      LOG(INFO, "msg: %s", res.c_str());
       return new StringResponse(res, MIME_TYPE_APPLICATION_JSON);
     }
     else if (request->has_param(JSON_ADDRESS_NODE))
