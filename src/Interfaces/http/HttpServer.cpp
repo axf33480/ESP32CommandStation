@@ -306,8 +306,10 @@ bool Httpd::is_servicable_uri(HttpRequest *req)
   }
 
   // check if it is a POST/PUT and there is a body payload
-  if ((req->method() & (HttpMethod::POST | HttpMethod::PUT)) &&
-      req->has_header(HttpHeader::CONTENT_LENGTH))
+  if (req->has_header(HttpHeader::CONTENT_LENGTH) &&
+      std::stoi(req->header(HttpHeader::CONTENT_LENGTH)) &&
+     (req->method() == HttpMethod::POST ||
+      req->method() == HttpMethod::PUT))
   {
     return stream_handler(req->uri()) != nullptr;
   }
@@ -322,7 +324,7 @@ RequestProcessor Httpd::handler(HttpMethod method, const std::string &uri)
   if (handlers_.count(uri))
   {
     auto handler = handlers_[uri];
-    if (method & handler.first)
+    if (handler.first & method)
     {
       return handler.second;
     }
