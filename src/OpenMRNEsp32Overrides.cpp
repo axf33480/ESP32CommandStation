@@ -17,9 +17,10 @@ COPYRIGHT (c) 2019 Mike Dunston
 
 #include "ESP32CommandStation.h"
 
-extern "C" {
+extern "C"
+{
 
-void reboot()
+void *node_reboot(void *arg)
 {
   // shutdown and cleanup the configuration manager
   configStore.reset(nullptr);
@@ -29,9 +30,15 @@ void reboot()
   esp_restart();
 }
 
+void reboot()
+{
+  os_thread_create(nullptr, nullptr, openmrn_arduino::OPENMRN_TASK_PRIORITY + 1
+                 , 2048, node_reboot, nullptr);
+}
+
 ssize_t os_get_free_heap()
 {
   return heap_caps_get_free_size(MALLOC_CAP_8BIT);
 }
 
-}
+} // extern "C"

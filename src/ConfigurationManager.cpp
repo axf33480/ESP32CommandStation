@@ -300,23 +300,29 @@ ConfigurationManager::ConfigurationManager(const esp32cs::Esp32ConfigDef &cfg)
 ConfigurationManager::~ConfigurationManager()
 {
   extern std::unique_ptr<OpenMRN> openmrn;
-
+  
   // Shutdown the auto-sync handler if it is running before unmounting the FS.
   if (configAutoSync_.get())
   {
     LOG(INFO, "[Config] Disabling automatic fsync(%d) calls...", configFd_);
     SyncNotifiable n;
     configAutoSync_->shutdown(&n);
+    LOG(INFO, "[Config] Waiting for sync to stop");
     n.wait_for_notification();
     configAutoSync_.reset(nullptr);
   }
 
   // shutdown the executor so that no more tasks will run
+  LOG(INFO, "[Config] Shutting down executor");
   openmrn->stack()->executor()->shutdown();
+
+  LOG(INFO, "[Config] Shutting down Httpd executor");
+  Singleton<esp32cs::http::Httpd>::instance()->executor()->shutdown();
 
   // close the config file if it is open
   if (configFd_ >= 0)
   {
+    LOG(INFO, "[Config] Closing config file.");
     ::close(configFd_);
   }
 
