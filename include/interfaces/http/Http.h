@@ -974,6 +974,10 @@ private:
   /// Tracking entries for authenticated captive portal clients.
   std::map<uint32_t, uint64_t> captive_auth_;
 
+  /// timeval to use for newly connected sockets for SO_RCVTIMEO and
+  /// SO_SNDTIMEO. This is initialized 
+  struct timeval socket_timeout_;
+
   DISALLOW_COPY_AND_ASSIGN(Httpd);
 };
 

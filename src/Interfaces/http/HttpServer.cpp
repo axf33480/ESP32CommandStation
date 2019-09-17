@@ -50,6 +50,10 @@ Httpd::Httpd(MDNS *mdns, uint16_t port, const string &name, const string service
             , config_httpd_server_stack_size())
   , port_(port)
 {
+  // pre-initialize the timeout parameters for all sockets that are accepted
+  socket_timeout_.tv_sec = 0;
+  socket_timeout_.tv_usec = MSEC_TO_USEC(config_httpd_socket_timeout_ms());
+
 #ifdef ESP32
   // Hook into the Esp32WiFiManager to start/stop the listener automatically
   // based on the AP/Station interface status.
@@ -174,14 +178,20 @@ void Httpd::new_connection(int fd)
   }
   LOG(VERBOSE, "[%s fd:%d/%s] Connected", name_.c_str(), fd
     , ipv4_to_string(ntohl(source.sin_addr.s_addr)).c_str());
-  ::fcntl(fd, F_SETFL, O_RDWR | O_NONBLOCK);
-  struct timeval tm;
-  tm.tv_sec = 0;
-  tm.tv_usec = MSEC_TO_USEC(config_httpd_socket_timeout_ms());
+  // Set socket receive timeout
   ERRNOCHECK("setsockopt_recv_timeout",
-    setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tm, sizeof(tm)));
+    setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &socket_timeout_
+             , sizeof(struct timeval)));
+
+  // Set socket send timeout
   ERRNOCHECK("setsockopt_send_timeout",
-    setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tm, sizeof(tm)));
+    setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &socket_timeout_
+             , sizeof(struct timeval)));
+
+  // Reconfigure the socket for non-blocking operations
+  ::fcntl(fd, F_SETFL, O_RDWR | O_NONBLOCK);
+
+  // Start the HTTP processing on this new socket
   new HttpRequestFlow(this, fd, ntohl(source.sin_addr.s_addr));
 }
 
