@@ -34,16 +34,10 @@ unique_ptr<ConfigurationManager> configStore;
 
 static constexpr const char * ESP32_CS_CONFIG_JSON = "esp32cs-config.json";
 
-// Handle for the SD card (if mounted)
-sdmmc_card_t *sdcard = nullptr;
-
-// All ESP32 Command Station configuration files live under this directory on
-// the configured filesystem starting with v1.3.0.
-static const char* const ESP32CS_CONFIG_DIR = CS_CONFIG_FILESYSTEM "/ESP32CS";
-
-// Prior to v1.3.0 this was the configuration location, it is retained here only
-// to support migration of data from previous releases.
-static const char* const OLD_CONFIG_DIR = CS_CONFIG_FILESYSTEM "/DCCppESP32";
+const char * const ConfigurationManager::CS_CONFIG_DIR = "/cfg/ESP32CS";
+const char * const ConfigurationManager::LCC_CFG_DIR = "/cfg/LCC";
+const char * const ConfigurationManager::LCC_CDI_XML = "/cfg/LCC/cdi.xml";
+const char * const ConfigurationManager::LCC_CONFIG_FILE = "/cfg/LCC/config";
 
 // Global handle for WiFi Manager
 unique_ptr<Esp32WiFiManager> wifiManager;
@@ -138,58 +132,57 @@ ConfigurationManager::ConfigurationManager(const esp32cs::Esp32ConfigDef &cfg)
   bool persist_config{true};
   struct stat statbuf;
 
-  esp_vfs_spiffs_conf_t conf =
-  {
-    .base_path = "/spiffs",
-    .partition_label = NULL,
-    .max_files = 5,
-    .format_if_mount_failed = true
-  };
-  // Attempt to mount the partition
-  esp_err_t res = esp_vfs_spiffs_register(&conf);
-  // check that the partition mounted
-  if (res != ESP_OK)
-  {
-    LOG(FATAL
-      , "[Config] Failed to mount SPIFFS partition, err %s (%d), giving up!"
-      , esp_err_to_name(res), res);
-  }
-  size_t total = 0, used = 0;
-  if (esp_spiffs_info(NULL, &total, &used) == ESP_OK)
-  {
-    LOG(INFO, "[Config] SPIFFS usage: %.2f/%.2f KiB", (float)(used / 1024.0f)
-      , (float)(total / 1024.0f));
-  }
-
-#if CONFIG_USE_SD
-  sdmmc_host_t host = SDSPI_HOST_DEFAULT();
-  sdspi_slot_config_t slot_config = SDSPI_SLOT_CONFIG_DEFAULT();
-  esp_vfs_fat_sdmmc_mount_config_t mount_config =
+  sdmmc_host_t sd_host = SDSPI_HOST_DEFAULT();
+  sdspi_slot_config_t sd_slot = SDSPI_SLOT_CONFIG_DEFAULT();
+  esp_vfs_fat_sdmmc_mount_config_t sd_cfg =
   {
     .format_if_mount_failed = true,
     .max_files = 5,
     .allocation_unit_size = 16 * 1024
   };
-  ESP_ERROR_CHECK(
-    esp_vfs_fat_sdmmc_mount("/sdcard",
-                            &host,
-                            &slot_config,
-                            &mount_config,
-                            &sdcard));
-  FATFS *fsinfo;
-  DWORD clusters;
-  if (f_getfree("0:", &clusters, &fsinfo) == FR_OK)
+  esp_err_t err = ESP_ERROR_CHECK_WITHOUT_ABORT(
+    esp_vfs_fat_sdmmc_mount("/cfg", &sd_host, &sd_slot, &sd_cfg, &sd_));
+  if (err == ESP_OK)
   {
-    LOG(INFO, "[Config] SD usage: %.2f/%.2f MB",
-        (float)(((uint64_t)fsinfo->csize * (fsinfo->n_fatent - 2 - fsinfo->free_clst)) * fsinfo->ssize) / 1048576L,
-        (float)(((uint64_t)fsinfo->csize * (fsinfo->n_fatent - 2)) * fsinfo->ssize) / 1048576L);
+    LOG(INFO, "[Config] SD card mounted successfully.");
+    FATFS *fsinfo;
+    DWORD clusters;
+    if (f_getfree("0:", &clusters, &fsinfo) == FR_OK)
+    {
+      LOG(INFO, "[Config] SD usage: %.2f/%.2f MB",
+          (float)(((uint64_t)fsinfo->csize *
+                  (fsinfo->n_fatent - 2 - fsinfo->free_clst)) *
+                  fsinfo->ssize) / 1048576L,
+          (float)(((uint64_t)fsinfo->csize * (fsinfo->n_fatent - 2)) *
+                  fsinfo->ssize) / 1048576L);
+    }
+    else
+    {
+      LOG(INFO, "[Config] SD capacity %.2f MB",
+          (float)(((uint64_t)sd_->csd.capacity) *
+                  sd_->csd.sector_size) / 1048576);
+    }
+    LOG(INFO, "[Config] SD will be used for persistent storage.");
   }
   else
   {
-    LOG(INFO, "[Config] SD capacity %.2f MB",
-        (float)(((uint64_t)sdcard->csd.capacity) * sdcard->csd.sector_size) / 1048576);
+    LOG(INFO, "[Config] SD Card not present or mounting failed.");
+    esp_vfs_spiffs_conf_t conf =
+    {
+      .base_path = "/cfg",
+      .partition_label = NULL,
+      .max_files = 5,
+      .format_if_mount_failed = true
+    };
+    // Attempt to mount the partition
+    ESP_ERROR_CHECK(esp_vfs_spiffs_register(&conf));
+    // check that the partition mounted
+    size_t total = 0, used = 0;
+    ESP_ERROR_CHECK(esp_spiffs_info(NULL, &total, &used));
+    LOG(INFO, "[Config] SPIFFS usage: %.2f/%.2f KiB", (float)(used / 1024.0f)
+      , (float)(total / 1024.0f));
+    LOG(INFO, "[Config] SPIFFS will be used for persistent storage.");
   }
-#endif
 
   if (factory_reset_config)
   {
@@ -210,11 +203,11 @@ ConfigurationManager::ConfigurationManager(const esp32cs::Esp32ConfigDef &cfg)
   }
 
   LOG(VERBOSE, "[Config] Persistent storage contents:");
-  recursiveWalkTree(CS_CONFIG_FILESYSTEM, factory_reset_config);
+  recursiveWalkTree("/cfg", factory_reset_config);
   // Pre-create ESP32 CS configuration directory.
-  mkdir(ESP32CS_CONFIG_DIR, ACCESSPERMS);
+  mkdir(CS_CONFIG_DIR, ACCESSPERMS);
   // Pre-create LCC configuration directory.
-  mkdir(LCC_PERSISTENT_CONFIG_DIR, ACCESSPERMS);
+  mkdir(LCC_CFG_DIR, ACCESSPERMS);
 
   if (exists(ESP32_CS_CONFIG_JSON))
   {
@@ -280,13 +273,13 @@ ConfigurationManager::ConfigurationManager(const esp32cs::Esp32ConfigDef &cfg)
   // file is the correct size. If it is not the expected size force a factory
   // reset.
   if (!lcc_factory_reset &&
-      stat(LCC_NODE_CONFIG_FILE, &statbuf) >= 0 &&
+      stat(LCC_CONFIG_FILE, &statbuf) >= 0 &&
       statbuf.st_size != openlcb::CONFIG_FILE_SIZE)
   {
     LOG(WARNING
       , "[LCC] Corrupt configuration file detected, %s is too small: %lu "
         "bytes, expected: %zu bytes"
-      , LCC_NODE_CONFIG_FILE, statbuf.st_size, openlcb::CONFIG_FILE_SIZE);
+      , LCC_CONFIG_FILE, statbuf.st_size, openlcb::CONFIG_FILE_SIZE);
     lcc_factory_reset = true;
   }
 
@@ -334,7 +327,7 @@ ConfigurationManager::~ConfigurationManager()
   }
 
   // Unmount the SD card if it was mounted
-  if (sdcard)
+  if (sd_)
   {
     LOG(INFO, "[Config] Unmounting SD...");
     esp_vfs_fat_sdmmc_unmount();
@@ -344,23 +337,13 @@ ConfigurationManager::~ConfigurationManager()
 void ConfigurationManager::clear()
 {
   LOG(INFO, "[Config] Clearing persistent config...");
-  string configRoot = ESP32CS_CONFIG_DIR;
-  recursiveWalkTree(configRoot, true);
-  mkdir(configRoot.c_str(), ACCESSPERMS);
+  recursiveWalkTree(CS_CONFIG_DIR, true);
+  mkdir(CS_CONFIG_DIR, ACCESSPERMS);
 }
 
 bool ConfigurationManager::exists(const string &name)
 {
-  string oldConfigFilePath = getFilePath(name, true);
   string configFilePath = getFilePath(name);
-  if (!access(oldConfigFilePath.c_str(), F_OK) &&
-      access(configFilePath.c_str(), F_OK))
-  {
-    LOG(INFO, "[Config] Migrating configuration file %s to %s."
-      , oldConfigFilePath.c_str()
-      , configFilePath.c_str());
-    rename(oldConfigFilePath.c_str(), configFilePath.c_str());
-  }
   LOG(VERBOSE, "[Config] Checking for %s", configFilePath.c_str());
   return access(configFilePath.c_str(), F_OK) == 0;
 }
@@ -399,23 +382,23 @@ void ConfigurationManager::factory_reset()
 
 void ConfigurationManager::factory_reset_lcc(bool warn)
 {
-  if (!access(LCC_NODE_CONFIG_FILE, F_OK) ||
-      !access(LCC_NODE_CDI_FILE, F_OK))
+  if (!access(LCC_CONFIG_FILE, F_OK) ||
+      !access(LCC_CDI_XML, F_OK))
   {
     if (warn)
     {
       LOG(WARNING, "[Config] LCC factory reset underway...");
     }
 
-    if (!access(LCC_NODE_CONFIG_FILE, F_OK))
+    if (!access(LCC_CONFIG_FILE, F_OK))
     {
-      LOG(WARNING, "[Config] Removing %s", LCC_NODE_CONFIG_FILE);
-      ERRNOCHECK(LCC_NODE_CONFIG_FILE, unlink(LCC_NODE_CONFIG_FILE));
+      LOG(WARNING, "[Config] Removing %s", LCC_CONFIG_FILE);
+      ERRNOCHECK(LCC_CONFIG_FILE, unlink(LCC_CONFIG_FILE));
     }
-    if (!access(LCC_NODE_CDI_FILE, F_OK))
+    if (!access(LCC_CDI_XML, F_OK))
     {
-      LOG(WARNING, "[Config] Removing %s", LCC_NODE_CDI_FILE);
-      ERRNOCHECK(LCC_NODE_CDI_FILE, unlink(LCC_NODE_CDI_FILE));
+      LOG(WARNING, "[Config] Removing %s", LCC_CDI_XML);
+      ERRNOCHECK(LCC_CDI_XML, unlink(LCC_CDI_XML));
     }
     if (warn)
     {
@@ -471,7 +454,7 @@ void ConfigurationManager::configureLCC(OpenMRN *openmrn)
   }
 
   // Create the CDI.xml dynamically if it doesn't already exist.
-  openmrn->create_config_descriptor_xml(cfg_, LCC_NODE_CDI_FILE);
+  openmrn->create_config_descriptor_xml(cfg_, LCC_CDI_XML);
 
   // Create the default internal configuration file if it doesn't already exist.
   configFd_ =
@@ -479,18 +462,20 @@ void ConfigurationManager::configureLCC(OpenMRN *openmrn)
                                                  , ESP32CS_CDI_VERSION
                                                  , openlcb::CONFIG_FILE_SIZE);
 
-#if CONFIG_USE_SD
-  // ESP32 FFat library uses a 512b cache in memory by default for the SD VFS
-  // adding a periodic fsync call for the LCC configuration file ensures that
-  // config changes are saved since the LCC config file is less than 512b.
-  LOG(INFO, "[Config] Creating automatic fsync(%d) calls every %dsec."
-    , configFd_, config_lcc_sd_sync_interval_sec());
-  configAutoSync_.reset(new AutoSyncFileFlow(openmrn->stack()->service()
-                      , configFd_
-                      , SEC_TO_USEC(config_lcc_sd_sync_interval_sec())));
-#endif // CONFIG_USE_SD
+  if (sd_)
+  {
+    // ESP32 FFat library uses a 512b cache in memory by default for the SD VFS
+    // adding a periodic fsync call for the LCC configuration file ensures that
+    // config changes are saved since the LCC config file is less than 512b.
+    LOG(INFO, "[Config] Creating automatic fsync(%d) calls every %d seconds."
+      , configFd_, config_lcc_sd_sync_interval_sec());
+    configAutoSync_.reset(new AutoSyncFileFlow(openmrn->stack()->service()
+                        , configFd_
+                        , SEC_TO_USEC(config_lcc_sd_sync_interval_sec())));
+  }
   if (config_lcc_print_all_packets() == CONSTANT_TRUE)
   {
+    LOG(INFO, "[Config] Configuring LCC packet printer");
     openmrn->stack()->print_all_packets();
   }
 }
@@ -618,13 +603,9 @@ void ConfigurationManager::setHBridgeEvents(uint8_t index
   MAYBE_TRIGGER_UPDATE(upd);
 }
 
-string ConfigurationManager::getFilePath(const string &name, bool oldPath)
+string ConfigurationManager::getFilePath(const string &name)
 {
-  if (oldPath)
-  {
-    return StringPrintf("%s/%s", OLD_CONFIG_DIR, name.c_str());
-  }
-  return StringPrintf("%s/%s", ESP32CS_CONFIG_DIR, name.c_str());
+  return StringPrintf("%s/%s", CS_CONFIG_DIR, name.c_str());
 }
 
 bool ConfigurationManager::validateConfiguration()

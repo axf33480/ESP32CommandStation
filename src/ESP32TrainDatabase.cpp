@@ -74,11 +74,9 @@ namespace esp32cs
 
 using nlohmann::json;
 
-static constexpr const char * const TRAIN_CDI_FILE =
-  LCC_PERSISTENT_CONFIG_DIR "/train.xml";
-
-static constexpr const char * const TEMP_TRAIN_CDI_FILE =
-  LCC_PERSISTENT_CONFIG_DIR "/tmptrain.xml";
+// NOTE: this needs to be in sync with ConfigurationManager::LCC_CFG_DIR.
+static const char * const TRAIN_CDI_FILE = "/cfg/LCC/train.xml";
+static const char * const TEMP_TRAIN_CDI_FILE = "/cfg/LCC/tmptrain.xml";
 
 // This should really be defined inside TractionDefs.hxx and used by the call
 // to TractionDefs::train_node_id_from_legacy().

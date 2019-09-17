@@ -22,13 +22,6 @@ COPYRIGHT (c) 2019 Mike Dunston
 // Command Station Feature configuration
 ///////////////////////////////////////////////////////////////////////////////
 
-#if CONFIG_USE_SD
-#define CS_CONFIG_FILESYSTEM "/sdcard"
-#else
-// default to SPIFFS storage
-#define CS_CONFIG_FILESYSTEM "/spiffs"
-#endif
-
 #ifndef ALLOW_USAGE_OF_RESTRICTED_GPIO_PINS
 #define ALLOW_USAGE_OF_RESTRICTED_GPIO_PINS false
 #endif
@@ -112,18 +105,6 @@ COPYRIGHT (c) 2019 Mike Dunston
 ///////////////////////////////////////////////////////////////////////////////
 // LCC default configuration
 ///////////////////////////////////////////////////////////////////////////////
-
-// This defines where on the filesystem LCC configuration data will be
-// persisted.
-#define LCC_PERSISTENT_CONFIG_DIR CS_CONFIG_FILESYSTEM "/LCC"
-
-// This is where the CDI will be persisted on the filesystem and sent from
-// on-demand when the NODE CDI information is requested.
-#define LCC_NODE_CDI_FILE LCC_PERSISTENT_CONFIG_DIR "/cdi.xml"
-
-// This is where the NODE persistent configuration will be stored on the
-// filesystem.
-#define LCC_NODE_CONFIG_FILE LCC_PERSISTENT_CONFIG_DIR "/config"
 
 // This is the default node ID assigned to the CS.
 #ifndef LCC_NODE_ID

@@ -18,6 +18,8 @@ COPYRIGHT (c) 2018-2019 Mike Dunston
 #ifndef CONFIG_MGR_H_
 #define CONFIG_MGR_H_
 
+#include <driver/sdmmc_types.h>
+
 #include <openlcb/ConfiguredTcpConnection.hxx>
 #include <openlcb/Defs.hxx>
 #include "cdi/CSConfigDescriptor.h"
@@ -71,14 +73,20 @@ public:
   , uint16_t=openlcb::TcpClientDefaultParams::DEFAULT_PORT);
   void setHBridgeEvents(uint8_t, std::string, std::string, std::string
                       , std::string, std::string="", std::string="");
+
+  static const char * const LCC_CFG_DIR;
+  static const char * const LCC_CDI_XML;
+  static const char * const LCC_CONFIG_FILE;
 private:
-  std::string getFilePath(const std::string &, bool=false);
+  static const char * const CS_CONFIG_DIR;
+  std::string getFilePath(const std::string &);
   bool validateConfiguration();
   bool seedDefaultConfigSections();
   void parseWiFiConfig();
 
   const esp32cs::Esp32ConfigDef cfg_;
   int configFd_{-1};
+  sdmmc_card_t *sd_{nullptr};
 
   std::string wifiSSID_{SSID_NAME};
   std::string wifiPassword_{SSID_PASSWORD};
