@@ -133,6 +133,7 @@ void Httpd::websocket_uri(const string &uri, WebSocketHandler handler)
 
 void Httpd::send_websocket_binary(int id, uint8_t *data, size_t len)
 {
+  AtomicHolder l(&websocketsLock_);
   if (!websockets_.count(id))
   {
     LOG_ERROR("[Httpd] Attempt to send data to unknown websocket:%d, "
@@ -144,6 +145,7 @@ void Httpd::send_websocket_binary(int id, uint8_t *data, size_t len)
 
 void Httpd::send_websocket_text(int id, std::string &text)
 {
+  AtomicHolder l(&websocketsLock_);
   if (!websockets_.count(id))
   {
     LOG_ERROR("[Httpd] Attempt to send text to unknown websocket:%d, "
@@ -151,6 +153,15 @@ void Httpd::send_websocket_text(int id, std::string &text)
     return;
   }
   websockets_[id]->send_text(text);
+}
+
+void Httpd::broadcast_websocket_text(std::string &text)
+{
+  AtomicHolder l(&websocketsLock_);
+  for (auto &client : websockets_)
+  {
+    client.second->send_text(text);
+  }
 }
 
 void Httpd::new_connection(int fd)
@@ -237,11 +248,13 @@ void Httpd::stop_dns_listener()
 
 void Httpd::add_websocket(int id, WebSocketFlow *ws)
 {
+  AtomicHolder l(&websocketsLock_);
   websockets_[id] = ws;
 }
 
 void Httpd::remove_websocket(int id)
 {
+  AtomicHolder l(&websocketsLock_);
   websockets_.erase(id);
 }
 

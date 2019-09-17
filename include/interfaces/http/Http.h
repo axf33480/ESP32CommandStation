@@ -29,6 +29,7 @@ COPYRIGHT (c) 2019 Mike Dunston
 #include <executor/StateFlow.hxx>
 #include <os/MDNS.hxx>
 #include <os/os.h>
+#include <utils/Atomic.hxx>
 #include <utils/Base64.hxx>
 #include <utils/constants.hxx>
 #include <utils/Singleton.hxx>
@@ -792,6 +793,11 @@ public:
   /// @param text is the text to send to the WebSocket client.
   void send_websocket_text(int id, std::string &text);
 
+  /// Broadcasts a text message to all connected WebSocket clients.
+  ///
+  /// @param text is the text to send to all WebSocket clients.
+  void broadcast_websocket_text(std::string &text);
+
   /// Creates a new @ref HttpRequestFlow for the provided socket handle.
   ///
   /// @param fd is the socket handle.
@@ -949,6 +955,9 @@ private:
 
   /// Internal map of active @ref WebSocketFlow instances.
   std::map<int, WebSocketFlow *> websockets_;
+
+  /// Lock object for websockets_.
+  Atomic websocketsLock_;
 
   /// Internal holder for captive portal response.
   std::string captive_response_;
