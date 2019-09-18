@@ -101,16 +101,14 @@ namespace openlcb
   const char CDI_DATA[] = "";
 
   // Path to where OpenMRN should persist general configuration data.
-  // NOTE: this needs to be in sync with ConfigurationManager::LCC_CONFIG_FILE.
-  const char *const CONFIG_FILENAME = ConfigurationManager::LCC_CONFIG_FILE;
+  const char *const CONFIG_FILENAME = LCC_CONFIG_FILE;
 
   // The size of the memory space to export over the above device.
   const size_t CONFIG_FILE_SIZE = cfg.seg().size() + cfg.seg().offset();
 
   // Default to store the dynamic SNIP data is stored in the same persistant
   // data file as general configuration data.
-  const char *const SNIP_DYNAMIC_FILENAME =
-    ConfigurationManager::LCC_CONFIG_FILE;
+  const char *const SNIP_DYNAMIC_FILENAME = LCC_CONFIG_FILE;
 }
 
 unique_ptr<RMTTrackDevice> trackSignal;

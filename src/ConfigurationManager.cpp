@@ -32,12 +32,7 @@ using nlohmann::json;
 
 unique_ptr<ConfigurationManager> configStore;
 
-static constexpr const char * ESP32_CS_CONFIG_JSON = "esp32cs-config.json";
-
-const char * const ConfigurationManager::CS_CONFIG_DIR = "/cfg/ESP32CS";
-const char * const ConfigurationManager::LCC_CFG_DIR = "/cfg/LCC";
-const char * const ConfigurationManager::LCC_CDI_XML = "/cfg/LCC/cdi.xml";
-const char * const ConfigurationManager::LCC_CONFIG_FILE = "/cfg/LCC/config";
+static constexpr const char ESP32_CS_CONFIG_JSON[] = "esp32cs-config.json";
 
 // Global handle for WiFi Manager
 unique_ptr<Esp32WiFiManager> wifiManager;
@@ -166,7 +161,10 @@ ConfigurationManager::ConfigurationManager(const esp32cs::Esp32ConfigDef &cfg)
   }
   else
   {
-    LOG(INFO, "[Config] SD Card not present or mounting failed.");
+    // unmount the SD VFS since it failed to successfully mount. We will
+    // remount SPIFFS in it's place instead.
+    esp_vfs_fat_sdmmc_unmount();
+    LOG(INFO, "[Config] SD Card not present or mounting failed, using SPIFFS");
     esp_vfs_spiffs_conf_t conf =
     {
       .base_path = "/cfg",
@@ -273,7 +271,7 @@ ConfigurationManager::ConfigurationManager(const esp32cs::Esp32ConfigDef &cfg)
   // file is the correct size. If it is not the expected size force a factory
   // reset.
   if (!lcc_factory_reset &&
-      stat(LCC_CONFIG_FILE, &statbuf) >= 0 &&
+      stat(LCC_CONFIG_FILE, &statbuf) != 0 &&
       statbuf.st_size != openlcb::CONFIG_FILE_SIZE)
   {
     LOG(WARNING
@@ -281,6 +279,11 @@ ConfigurationManager::ConfigurationManager(const esp32cs::Esp32ConfigDef &cfg)
         "bytes, expected: %zu bytes"
       , LCC_CONFIG_FILE, statbuf.st_size, openlcb::CONFIG_FILE_SIZE);
     lcc_factory_reset = true;
+  }
+  else
+  {
+    LOG(VERBOSE, "[LCC] node config file(%s) is expected size %lu bytes"
+      , LCC_CONFIG_FILE, statbuf.st_size);
   }
 
   // If we need an LCC factory reset trigger is now.

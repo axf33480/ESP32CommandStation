@@ -29,6 +29,11 @@ COPYRIGHT (c) 2018-2019 Mike Dunston
 #include "stateflows/OTAMonitor.h"
 #include "stateflows/StatusLED.h"
 
+static constexpr char CS_CONFIG_DIR[] = "/cfg/ESP32CS";
+static constexpr char LCC_CFG_DIR[] = "/cfg/LCC";
+static constexpr char LCC_CDI_XML[] = "/cfg/LCC/cdi.xml";
+static constexpr char LCC_CONFIG_FILE[] = "/cfg/LCC/config";
+
 // Class definition for the Configuration Management system in ESP32 Command Station
 class ConfigurationManager
 {
@@ -73,12 +78,7 @@ public:
   , uint16_t=openlcb::TcpClientDefaultParams::DEFAULT_PORT);
   void setHBridgeEvents(uint8_t, std::string, std::string, std::string
                       , std::string, std::string="", std::string="");
-
-  static const char * const LCC_CFG_DIR;
-  static const char * const LCC_CDI_XML;
-  static const char * const LCC_CONFIG_FILE;
 private:
-  static const char * const CS_CONFIG_DIR;
   std::string getFilePath(const std::string &);
   bool validateConfiguration();
   bool seedDefaultConfigSections();
