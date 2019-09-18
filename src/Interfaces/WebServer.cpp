@@ -224,7 +224,8 @@ HTTP_STREAM_HANDLER_IMPL(process_ota, request, filename, size, data, length
       *abort_req = true;
       return nullptr;
     }
-    LOG(INFO, "[WebSrv] OTA Update starting (%zu bytes)...", size);
+    LOG(INFO, "[WebSrv] OTA Update starting (%zu bytes, target:%s)...", size
+      , ota_partition->label);
     trackSignal->disable_ops_output();
     trackSignal->disable_prog_output();
     Singleton<OTAMonitorFlow>::instance()->report_start();
@@ -243,7 +244,8 @@ HTTP_STREAM_HANDLER_IMPL(process_ota, request, filename, size, data, length
       *abort_req = true;
       return nullptr;
     }
-    LOG(INFO, "[WebSrv] OTA binary received, setting boot partition");
+    LOG(INFO, "[WebSrv] OTA binary received, setting boot partition: %s"
+      , ota_partition->label);
     err = ESP_ERROR_CHECK_WITHOUT_ABORT(
       esp_ota_set_boot_partition(ota_partition));
     if (err != ESP_OK)
