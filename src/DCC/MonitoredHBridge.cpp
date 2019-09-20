@@ -22,6 +22,7 @@ COPYRIGHT (c) 2019 Mike Dunston
 #endif
 
 MonitoredHBridge::MonitoredHBridge(SimpleCanStack *stack
+                 , Service *service
                  , const adc1_channel_t senseChannel
                  , const gpio_num_t enablePin
                  , const gpio_num_t thermalWarningPin
@@ -30,7 +31,7 @@ MonitoredHBridge::MonitoredHBridge(SimpleCanStack *stack
                  , const string &name
                  , const string &bridgeType
                  , const esp32cs::TrackOutputConfig &cfg)
-  : StateFlowBase(stack->service())
+  : StateFlowBase(service)
   , DefaultConfigUpdateListener()
   , channel_(senseChannel)
   , enablePin_(enablePin)
@@ -55,13 +56,14 @@ MonitoredHBridge::MonitoredHBridge(SimpleCanStack *stack
 }
 
 MonitoredHBridge::MonitoredHBridge(SimpleCanStack *stack
+                 , Service *service
                  , const adc1_channel_t senseChannel
                  , const gpio_num_t enablePin
                  , const uint32_t maxMilliAmps
                  , const string &name
                  , const string &bridgeType
                  , const esp32cs::TrackOutputConfig &cfg)
-  : StateFlowBase(stack->service())
+  : StateFlowBase(service)
   , DefaultConfigUpdateListener()
   , channel_(senseChannel)
   , enablePin_(enablePin)

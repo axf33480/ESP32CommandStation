@@ -40,6 +40,12 @@ unique_ptr<Esp32WiFiManager> wifiManager;
 // holder of the parsed command station configuration.
 json csConfig;
 
+#ifdef DEDICATED_MODULE_EXECUTOR
+// executor used for all modules to offload them from the core LCC excutor
+static Executor<1> moduleExecutor{NO_THREAD()};
+static Service moduleService(&moduleExecutor);
+#endif
+
 // CDI Helper which sets the provided path if it is different than the value
 // passed in.
 #define CDI_COMPARE_AND_SET(PATH, fd, value, updated) \
@@ -136,7 +142,7 @@ ConfigurationManager::ConfigurationManager(const esp32cs::Esp32ConfigDef &cfg)
     .allocation_unit_size = 16 * 1024
   };
   esp_err_t err = ESP_ERROR_CHECK_WITHOUT_ABORT(
-    esp_vfs_fat_sdmmc_mount("/cfg", &sd_host, &sd_slot, &sd_cfg, &sd_));
+    esp_vfs_fat_sdmmc_mount(CFG_MOUNT, &sd_host, &sd_slot, &sd_cfg, &sd_));
   if (err == ESP_OK)
   {
     LOG(INFO, "[Config] SD card mounted successfully.");
@@ -167,7 +173,7 @@ ConfigurationManager::ConfigurationManager(const esp32cs::Esp32ConfigDef &cfg)
     LOG(INFO, "[Config] SD Card not present or mounting failed, using SPIFFS");
     esp_vfs_spiffs_conf_t conf =
     {
-      .base_path = "/cfg",
+      .base_path = CFG_MOUNT,
       .partition_label = NULL,
       .max_files = 5,
       .format_if_mount_failed = true
@@ -201,7 +207,7 @@ ConfigurationManager::ConfigurationManager(const esp32cs::Esp32ConfigDef &cfg)
   }
 
   LOG(VERBOSE, "[Config] Persistent storage contents:");
-  recursiveWalkTree("/cfg", factory_reset_config);
+  recursiveWalkTree(CFG_MOUNT, factory_reset_config);
   // Pre-create ESP32 CS configuration directory.
   mkdir(CS_CONFIG_DIR, ACCESSPERMS);
   // Pre-create LCC configuration directory.
@@ -291,6 +297,11 @@ ConfigurationManager::ConfigurationManager(const esp32cs::Esp32ConfigDef &cfg)
   {
     configStore->factory_reset_lcc(false);
   }
+#ifdef DEDICATED_MODULE_EXECUTOR
+  moduleExecutor.start_thread("modules"
+                            , openmrn_arduino::OPENMRN_TASK_PRIORITY - 1
+                            , 4096);
+#endif
 }
 
 ConfigurationManager::~ConfigurationManager()
@@ -314,6 +325,11 @@ ConfigurationManager::~ConfigurationManager()
 
   LOG(INFO, "[Config] Shutting down Httpd executor");
   Singleton<esp32cs::http::Httpd>::instance()->executor()->shutdown();
+
+#ifdef DEDICATED_MODULE_EXECUTOR
+  LOG(INFO, "[Config] Shutting down Modules executor");
+  moduleExecutor.shutdown();
+#endif
 
   // close the config file if it is open
   if (configFd_ >= 0)
@@ -853,6 +869,11 @@ void ConfigurationManager::parseWiFiConfig()
 
 void ConfigurationManager::configureEnabledModules(SimpleCanStack *stack)
 {
+#ifdef DEDICATED_MODULE_EXECUTOR
+  Service *service = &moduleService;
+#else
+  Service *service = stack->service();
+#endif
   parseWiFiConfig();
   wifiManager.reset(new Esp32WiFiManager(wifiSSID_.c_str()
                                        , wifiPassword_.c_str()
@@ -872,18 +893,18 @@ void ConfigurationManager::configureEnabledModules(SimpleCanStack *stack)
   if (hc12Config[JSON_HC12_ENABLED_NODE].get<bool>())
   {
     LOG(INFO, "[Config] Enabling HC12 Radio");
-    hc12_.emplace(stack->service()
+    hc12_.emplace(service
                 , (uart_port_t)hc12Config[JSON_HC12_UART_NODE].get<uint8_t>()
                 , (gpio_num_t)hc12Config[JSON_HC12_RX_NODE].get<uint8_t>()
                 , (gpio_num_t)hc12Config[JSON_HC12_TX_NODE].get<uint8_t>()
     );
   }
-  ota_.emplace(stack->service());
-  infoScreen_.emplace(stack);
-  statusLED_.emplace(stack->service());
+  ota_.emplace(service);
+  infoScreen_.emplace(stack, service);
+  statusLED_.emplace(service);
   
   // Task Monitor, periodically dumps runtime state to STDOUT.
-  taskMon_.emplace(stack->service());
+  taskMon_.emplace(service);
 
   wifiInterface.init();
   nextionInterfaceInit();

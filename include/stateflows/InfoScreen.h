@@ -46,7 +46,7 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 class InfoScreen : public StateFlowBase, public Singleton<InfoScreen>
 {
 public:
-  InfoScreen(openlcb::SimpleCanStack *);
+  InfoScreen(openlcb::SimpleCanStack *, Service *);
   void clear();
   void replaceLine(int, const std::string&, ...);
 private:
@@ -55,6 +55,7 @@ private:
   STATE_FLOW_STATE(initOLED);
   STATE_FLOW_STATE(initLCD);
   STATE_FLOW_STATE(update);
+  OSMutex lock_;
   std::string screenLines_[5]{"", "", "", "", ""};
   bool redraw_{true};
   StateFlowTimer timer_{this};

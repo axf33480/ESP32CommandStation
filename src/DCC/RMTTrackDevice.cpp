@@ -597,6 +597,7 @@ RMTTrackDevice::RMTTrackDevice(SimpleCanStack *stack
 
   opsHBridge_.reset(
     new MonitoredHBridge(stack
+                       , stack->service()
                        , opsSenseChannel
                        , opsOutputEnablePin_
                        , opsThermalPin
@@ -609,6 +610,7 @@ RMTTrackDevice::RMTTrackDevice(SimpleCanStack *stack
 
   progHBridge_.reset(
     new MonitoredHBridge(stack
+                       , stack->service()
                        , progSenseChannel
                        , progOutputEnablePin_
                        , PROG_HBRIDGE_MAX_MILIAMPS

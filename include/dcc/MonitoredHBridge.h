@@ -31,6 +31,7 @@ COPYRIGHT (c) 2018-2019 Mike Dunston
 class MonitoredHBridge : public StateFlowBase, public DefaultConfigUpdateListener {
 public:
   MonitoredHBridge(openlcb::SimpleCanStack *
+                 , Service *
                  , const adc1_channel_t
                  , const gpio_num_t
                  , const gpio_num_t
@@ -41,6 +42,7 @@ public:
                  , const esp32cs::TrackOutputConfig &);
 
   MonitoredHBridge(openlcb::SimpleCanStack *
+                 , Service *
                  , const adc1_channel_t
                  , const gpio_num_t
                  , const uint32_t

@@ -38,9 +38,10 @@ SSD1306Wire oledDisplay(INFO_SCREEN_OLED_I2C_ADDRESS, INFO_SCREEN_SDA_PIN
 LiquidCrystal_PCF8574 lcdDisplay(INFO_SCREEN_LCD_I2C_ADDRESS);
 #endif
 
-InfoScreen::InfoScreen(openlcb::SimpleCanStack *stack)
-  : StateFlowBase(stack->service())
+InfoScreen::InfoScreen(openlcb::SimpleCanStack *stack, Service *service)
+  : StateFlowBase(service)
 {
+  clear();
   lccStatCollector_.reset(new LCCStatCollector(stack));
 #if INFO_SCREEN_ENABLED
   start_flow(STATE(init));
@@ -49,10 +50,11 @@ InfoScreen::InfoScreen(openlcb::SimpleCanStack *stack)
 
 void InfoScreen::clear()
 {
+  
   LOG(VERBOSE, "[InfoScreen] clear screen");
-  for (int i = 0; i < 5; i++)
+  for(int line = 0; line < 5; line++)
   {
-    screenLines_[i] = ""; 
+    replaceLine(line, "");
   }
 }
 
@@ -67,7 +69,12 @@ void InfoScreen::replaceLine(int row, const std::string &format, ...)
   va_start(args, format);
   vsnprintf(buf, sizeof(buf), format.c_str(), args);
   va_end(args);
-  screenLines_[row] = buf;
+  {
+#ifdef INFOSCREEN_LOCKING
+    OSMutexLock l(&lock_);
+#endif
+    screenLines_[row] = buf;
+  }
   LOG(VERBOSE, "[InfoScreen] replaceLine(%d): %s", row, buf);
 }
 
@@ -291,27 +298,33 @@ StateFlowBase::Action InfoScreen::update()
 #endif
     }
   }
-#if INFO_SCREEN_OLED
-  oledDisplay.clear();
-  for(int line = 0; line < INFO_SCREEN_OLED_LINES; line++)
+
   {
-    oledDisplay.drawString(0
-                         , line * Monospaced_plain_10[1]
-                         , screenLines_[line].c_str()
-    );
-  }
-  oledDisplay.display();
-#elif INFO_SCREEN_LCD
-  for(int line = 0; line < INFO_SCREEN_LCD_LINES; line++)
-  {
-    lcdDisplay.setCursor(0, line);
-    // space pad to the width of the LCD
-    while(screenLines_[line].length() < INFO_SCREEN_LCD_COLUMNS)
-    {
-      screenLines_[line] += ' ';
-    }
-    lcdDisplay.print(screenLines_[line].c_str());
-  }
+#ifdef INFOSCREEN_LOCKING
+    OSMutexLock l(&lock_);
 #endif
+#if INFO_SCREEN_OLED
+    oledDisplay.clear();
+    for(int line = 0; line < INFO_SCREEN_OLED_LINES; line++)
+    {
+      oledDisplay.drawString(0
+                          , line * Monospaced_plain_10[1]
+                          , screenLines_[line].c_str()
+      );
+    }
+    oledDisplay.display();
+#elif INFO_SCREEN_LCD
+    for(int line = 0; line < INFO_SCREEN_LCD_LINES; line++)
+    {
+      lcdDisplay.setCursor(0, line);
+      // space pad to the width of the LCD
+      while(screenLines_[line].length() < INFO_SCREEN_LCD_COLUMNS)
+      {
+        screenLines_[line] += ' ';
+      }
+      lcdDisplay.print(screenLines_[line].c_str());
+    }
+#endif
+  }
   return sleep_and_call(&timer_, MSEC_TO_NSEC(450), STATE(update));
 }

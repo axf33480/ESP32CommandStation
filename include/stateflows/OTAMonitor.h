@@ -142,7 +142,7 @@ private:
         INFO_SCREEN_STATION_INFO_LINE, "reboot in %2d...", countdown_);
       LOG(WARNING, "ESP32 will reboot in %d seconds...", countdown_);
       --countdown_;
-      return sleep_and_call(&timer_, SEC_TO_NSEC(1), STATE(reboot_node));
+      return sleep_and_call(&timer_, SEC_TO_NSEC(1), STATE(delay_and_reboot));
     }
     LOG(WARNING, "ESP32 will reboot NOW!");
     return call_immediately(STATE(reboot_node));

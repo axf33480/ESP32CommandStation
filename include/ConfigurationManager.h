@@ -29,6 +29,7 @@ COPYRIGHT (c) 2018-2019 Mike Dunston
 #include "stateflows/OTAMonitor.h"
 #include "stateflows/StatusLED.h"
 
+static constexpr char CFG_MOUNT[] = "/cfg";
 static constexpr char CS_CONFIG_DIR[] = "/cfg/ESP32CS";
 static constexpr char LCC_CFG_DIR[] = "/cfg/LCC";
 static constexpr char LCC_CDI_XML[] = "/cfg/LCC/cdi.xml";
