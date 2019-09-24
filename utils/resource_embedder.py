@@ -3,14 +3,14 @@ import os
 import struct
 import cStringIO
 
-def serialize(sourceFile, targetFile, file, length, prefix):
+def serialize(sourceFile, targetFile, inputStream, length, prefix):
     print 'Converting %s to %s...' % (sourceFile, targetFile)
     with open(targetFile, 'w') as f:
         f.write("#pragma once\n")
         f.write("const size_t %s_size = %s;\n" % (prefix, length))
         f.write("const uint8_t %s[] PROGMEM = {\n" % prefix)
         while True:
-            block = file.read(16)
+            block = inputStream.read(16)
             if len(block) < 16:
                 if len(block):
                     f.write("\t")
@@ -30,19 +30,19 @@ def serialize(sourceFile, targetFile, file, length, prefix):
 
 def compress(sourceFile, outputFileName, prefix):
   gzFile = cStringIO.StringIO()
-  with open(sourceFile) as file, gzip.GzipFile(mode='wb', fileobj=gzFile) as gz:
-    gz.writelines(file)
+  with open(sourceFile) as f, gzip.GzipFile(mode='wb', fileobj=gzFile) as gz:
+    gz.writelines(f)
   gzFile.seek(0, os.SEEK_END)
   length = gzFile.tell()
   gzFile.seek(0, os.SEEK_SET)
   serialize(sourceFile, outputFileName, gzFile, length, prefix)
 
 def embed(sourceFile, outputFileName, prefix):
-  with open(sourceFile, "rb") as file:
-    file.seek(0, os.SEEK_END)
-    length = file.tell()
-    file.seek(0, os.SEEK_SET)
-    serialize(sourceFile, outputFileName, file, length, prefix)
+  with open(sourceFile, "rb") as f:
+    f.seek(0, os.SEEK_END)
+    length = f.tell()
+    f.seek(0, os.SEEK_SET)
+    serialize(sourceFile, outputFileName, f, length, prefix)
 
 def process_all(sourceDirectory, outputDirectory):
   if not os.path.exists(outputDirectory):

@@ -200,7 +200,6 @@ StateFlowBase::Action InfoScreen::update()
 {
   static uint8_t _rotatingStatusIndex = 0;
   static uint8_t _rotatingStatusLineCount = 5;
-  static uint8_t _lccStatusIndex = 0;
   static uint8_t _lastRotation = 0;
 #if LOCONET_ENABLED
   static uint8_t _firstLocoNetIndex = 0;
@@ -247,6 +246,7 @@ StateFlowBase::Action InfoScreen::update()
     }
     else if (_rotatingStatusIndex == 4)
     {
+      static uint8_t _lccStatusIndex = 0;
       ++_lccStatusIndex %= 5;
       if(_lccStatusIndex == 0)
       {

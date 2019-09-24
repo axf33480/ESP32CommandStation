@@ -405,9 +405,9 @@ HTTP_HANDLER_IMPL(process_prog, request)
     else if(request->has_param(JSON_IDENTIFY_NODE))
     {
       int16_t decoderConfig = readCV(CV_NAMES::DECODER_CONFIG);
-      uint16_t decoderAddress = 0;
       if (decoderConfig > 0)
       {
+        uint16_t decoderAddress = 0;
         string response = "{";
         if (bitRead(decoderConfig, DECODER_CONFIG_BITS::DECODER_TYPE))
         {
@@ -519,7 +519,6 @@ HTTP_HANDLER_IMPL(process_prog, request)
   else if (request->method() == HttpMethod::POST)
   {
     uint16_t cv_num = std::stoi(request->param(JSON_CV_NODE));
-    uint16_t address = 0;
     uint16_t cv_value = 0;
     uint8_t cv_bit = 0;
     bool pom = !request->param(JSON_PROG_ON_MAIN).compare(JSON_VALUE_TRUE);
@@ -534,7 +533,7 @@ HTTP_HANDLER_IMPL(process_prog, request)
     }
     if (pom)
     {
-      address = std::stoi(request->param(JSON_ADDRESS_NODE));
+      uint16_t address = std::stoi(request->param(JSON_ADDRESS_NODE));
       if (request->has_param(JSON_CV_BIT_NODE))
       {
         writeOpsCVBit(address, cv_num, cv_bit, cv_value);
