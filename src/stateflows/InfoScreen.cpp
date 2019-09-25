@@ -38,8 +38,16 @@ SSD1306Wire oledDisplay(INFO_SCREEN_OLED_I2C_ADDRESS, INFO_SCREEN_SDA_PIN
 LiquidCrystal_PCF8574 lcdDisplay(INFO_SCREEN_LCD_I2C_ADDRESS);
 #endif
 
+static constexpr uint8_t INFOSCREEN_ROTATING_LINE_COUNT = 5;
+#if LOCONET_ENABLED
+static constexpr uint8_t LOCONET_LINE_COUNT = 2;
+#else
+static constexpr uint8_t LOCONET_LINE_COUNT = 0;
+#endif
+
 InfoScreen::InfoScreen(openlcb::SimpleCanStack *stack, Service *service)
   : StateFlowBase(service)
+  , lineCount_(INFOSCREEN_ROTATING_LINE_COUNT + LOCONET_LINE_COUNT)
 {
   clear();
   lccStatCollector_.reset(new LCCStatCollector(stack));
@@ -198,53 +206,45 @@ StateFlowBase::Action InfoScreen::initLCD()
 
 StateFlowBase::Action InfoScreen::update()
 {
-  static uint8_t _rotatingStatusIndex = 0;
-  static uint8_t _rotatingStatusLineCount = 5;
-  static uint8_t _lastRotation = 0;
 #if LOCONET_ENABLED
-  static uint8_t _firstLocoNetIndex = 0;
-  if(!_firstLocoNetIndex)
-  {
-    _firstLocoNetIndex = _rotatingStatusLineCount;
-    _rotatingStatusLineCount += 2;
-  }
+  static uint8_t _firstLocoNetIndex = INFOSCREEN_ROTATING_LINE_COUNT;
 #endif
   // switch to next status line detail set after 10 iterations
-  if(++_lastRotation > 10)
+  if(++updateCount_ > 10)
   {
-    _lastRotation = 0;
-    ++_rotatingStatusIndex %= _rotatingStatusLineCount;
+    updateCount_ = 0;
+    ++rotatingIndex_ %= lineCount_;
   }
   // update the status line details every other iteration
-  if(_lastRotation % 2)
+  if(updateCount_ % 2)
   {
-    if(_rotatingStatusIndex == 0)
+    if(rotatingIndex_ == 0)
     {
       replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Free Heap:%d"
                 , heap_caps_get_free_size(MALLOC_CAP_INTERNAL)
       );
     }
-    else if (_rotatingStatusIndex == 1)
+    else if (rotatingIndex_ == 1)
     {
+      uint64_t seconds = USEC_TO_SEC(esp_timer_get_time());
       replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Uptime: %02d:%02d:%02d"
-                , (uint32_t)(USEC_TO_SEC(esp_timer_get_time()) / 3600)
-                , (uint32_t)(USEC_TO_SEC(esp_timer_get_time()) % 3600) / 60
-                , (uint32_t)(USEC_TO_SEC(esp_timer_get_time()) % 60)
+                , (uint32_t)(seconds / 3600), (uint32_t)(seconds % 3600) / 60
+                , (uint32_t)(seconds % 60)
       );
     }
-    else if (_rotatingStatusIndex == 2)
+    else if (rotatingIndex_ == 2)
     {
       replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Active Locos:%3d"
                 , trainNodes->size()
       );
     }
-    else if (_rotatingStatusIndex == 3)
+    else if (rotatingIndex_ == 3)
     {
       replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE
                 , trackSignal->get_info_screen_data()
       );
     }
-    else if (_rotatingStatusIndex == 4)
+    else if (rotatingIndex_ == 4)
     {
       static uint8_t _lccStatusIndex = 0;
       ++_lccStatusIndex %= 5;
@@ -281,14 +281,14 @@ StateFlowBase::Action InfoScreen::update()
       }
 #if LOCONET_ENABLED
     }
-    else if (_rotatingStatusIndex == _firstLocoNetIndex)
+    else if (rotatingIndex_ == _firstLocoNetIndex)
     {
       replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "LN-RX: %d/%d"
                 , locoNet.getRxStats()->rxPackets
                 , locoNet.getRxStats()->rxErrors
       );
     }
-    else if (_rotatingStatusIndex == _firstLocoNetIndex + 1)
+    else if (rotatingIndex_ == _firstLocoNetIndex + 1)
     {
       replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "LN-TX: %d/%d/%d"
                 , locoNet.getTxStats()->txPackets

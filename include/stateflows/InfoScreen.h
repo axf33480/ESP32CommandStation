@@ -60,6 +60,9 @@ private:
   bool redraw_{true};
   StateFlowTimer timer_{this};
   std::unique_ptr<LCCStatCollector> lccStatCollector_;
+  const uint8_t lineCount_;
+  uint8_t rotatingIndex_{0};
+  uint8_t updateCount_{0};
 };
 
 #endif // INFO_SCREEN_H_

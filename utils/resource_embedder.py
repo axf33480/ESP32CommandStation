@@ -16,7 +16,7 @@ def serialize(sourceFile, targetFile, inputStream, length, prefix):
                     f.write("\t")
                     for b in block:
                         # Python 2/3 compat
-                        if type(b) is str:
+                        if isinstance(b, str):
                             b = ord(b)
                         f.write("0x{:02X}, ".format(b))
                     f.write("\n")
