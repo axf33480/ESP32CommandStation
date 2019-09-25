@@ -116,12 +116,8 @@ void WiFiInterface::init()
       Singleton<InfoScreen>::instance()->replaceLine(
         INFO_SCREEN_IP_ADDR_LINE, "Disconnected");
     }
-    else if (event->event_id == SYSTEM_EVENT_STA_DISCONNECTED)
-    {
-      Singleton<StatusLED>::instance()->setStatusLED(
-        StatusLED::LED::WIFI, StatusLED::COLOR::GREEN_BLINK);
-    }
-    else if (event->event_id == SYSTEM_EVENT_STA_START)
+    else if (event->event_id == SYSTEM_EVENT_STA_DISCONNECTED ||
+             event->event_id == SYSTEM_EVENT_STA_START)
     {
       Singleton<StatusLED>::instance()->setStatusLED(
         StatusLED::LED::WIFI, StatusLED::COLOR::GREEN_BLINK);
