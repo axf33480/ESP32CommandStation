@@ -243,6 +243,11 @@ void Httpd::stop_http_listener()
       mdns_unpublish(mdns_service_.c_str());
     }
 #endif
+    AtomicHolder l(&websocketsLock_);
+    for (auto &client : websockets_)
+    {
+      client.second->request_close();
+    }
   }
 }
 
