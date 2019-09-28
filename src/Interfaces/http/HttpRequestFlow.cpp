@@ -788,9 +788,15 @@ StateFlowBase::Action HttpRequestFlow::request_complete()
       , req_.uri().c_str(), proc_time, res_->code_);
   }
   req_count_++;
+  // If the connection setting is not keep-alive, or there was an error during
+  // processing, or we have processed more than the configured number of
+  // requests, or the URI was empty (parse failure?), or the result code is a
+  // redirect shutdown the socket immediately. FireFox will not follow the
+  // redirect request if the connection is kept open.
   if (!req_.keep_alive() || req_.error() ||
       req_count_ >= config_httpd_max_req_per_connection() ||
-      req_.uri().empty())
+      req_.uri().empty() ||
+      res_->code_ == HttpStatusCode::STATUS_FOUND)
   {
     req_.reset();
     return delete_this();
