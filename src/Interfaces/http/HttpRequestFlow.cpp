@@ -796,7 +796,8 @@ StateFlowBase::Action HttpRequestFlow::request_complete()
   if (!req_.keep_alive() || req_.error() ||
       req_count_ >= config_httpd_max_req_per_connection() ||
       req_.uri().empty() ||
-      res_->code_ == HttpStatusCode::STATUS_FOUND)
+      res_->code_ == HttpStatusCode::STATUS_FOUND ||
+      res_->code_ == HttpStatusCode::STATUS_MOVED_PERMANENTLY)
   {
     req_.reset();
     return delete_this();
