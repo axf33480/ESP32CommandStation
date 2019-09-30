@@ -6,7 +6,5 @@
   {
     "name": "Balazs Racz",
     "maintainer": true
-  },
-  "frameworks": "arduino",
-  "platforms": ["espressif", "espressif32"]
+  }
 }
