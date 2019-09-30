@@ -51,6 +51,7 @@ RailCom support, tighter LCC integration and general stability improvements.
 -   [x] Web: Remove overall power on/off as it no longer makes sense.
 -   [x] Web: Implement support for application/x-www-form-urlencoded POST/PUT data.
 -   [ ] Web: Auto-refresh tables when delete/edit completes.
+-   [ ] Web: Test all endpoints to ensure proper functionality after httpd rework.
 
 ## Future planning
 The entries below are not tracked to a specific release or in any particular priority order.
