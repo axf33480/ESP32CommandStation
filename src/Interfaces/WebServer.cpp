@@ -574,23 +574,23 @@ HTTP_HANDLER_IMPL(process_prog, request)
 HTTP_HANDLER_IMPL(process_turnouts, request)
 {
   request->set_status(HttpStatusCode::STATUS_SERVER_ERROR);
-  if (request->method() == HttpMethod::GET && !request->has_param(JSON_ID_NODE))
+  if (request->method() == HttpMethod::GET &&
+     !request->has_param(JSON_ID_NODE) &&
+     !request->has_param(JSON_ADDRESS_NODE))
   {
     bool readable = true;
     if (request->has_param(JSON_TURNOUTS_READABLE_STRINGS_NODE))
     {
-      readable = std::stoi(request->param(JSON_TURNOUTS_READABLE_STRINGS_NODE));
+      readable =
+        std::stoi(request->param(JSON_TURNOUTS_READABLE_STRINGS_NODE));
     }
-    return new StringResponse(turnoutManager->getStateAsJson(readable), MIME_TYPE_APPLICATION_JSON);
+    return new StringResponse(turnoutManager->getStateAsJson(readable)
+                            , MIME_TYPE_APPLICATION_JSON);
   }
 
-  if (!request->has_param(JSON_ID_NODE) || !request->has_param(JSON_ADDRESS_NODE))
+ if (request->method() == HttpMethod::GET)
   {
-    request->set_status(HttpStatusCode::STATUS_BAD_REQUEST);
-  }
-  else if (request->method() == HttpMethod::GET)
-  {
-    if(request->has_param(JSON_ID_NODE))
+    if (request->has_param(JSON_ID_NODE))
     {
       auto turnout =
         turnoutManager->getTurnoutByID(
