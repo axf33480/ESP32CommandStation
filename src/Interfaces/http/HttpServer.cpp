@@ -337,7 +337,8 @@ bool Httpd::is_servicable_uri(HttpRequest *req)
   if (req->has_header(HttpHeader::CONTENT_LENGTH) &&
       std::stoi(req->header(HttpHeader::CONTENT_LENGTH)) &&
      (req->method() == HttpMethod::POST ||
-      req->method() == HttpMethod::PUT))
+      req->method() == HttpMethod::PUT) &&
+      req->content_type() == ContentType::MULTIPART_FORMDATA)
   {
     return stream_handler(req->uri()) != nullptr;
   }
