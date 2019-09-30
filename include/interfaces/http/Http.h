@@ -1089,17 +1089,21 @@ private:
   STATE_FLOW_STATE(read_more_data);
   STATE_FLOW_STATE(parse_header_data);
   STATE_FLOW_STATE(process_request);
+  STATE_FLOW_STATE(process_request_handler);
   STATE_FLOW_STATE(stream_body);
   STATE_FLOW_STATE(start_multipart_processing);
   STATE_FLOW_STATE(parse_multipart_headers);
   STATE_FLOW_STATE(read_multipart_headers);
   STATE_FLOW_STATE(stream_multipart_body);
+  STATE_FLOW_STATE(read_form_data);
+  STATE_FLOW_STATE(parse_form_data);
   STATE_FLOW_STATE(send_response);
   STATE_FLOW_STATE(send_response_headers);
   STATE_FLOW_STATE(send_response_body);
   STATE_FLOW_STATE(send_response_body_split);
   STATE_FLOW_STATE(request_complete);
   STATE_FLOW_STATE(upgrade_to_websocket);
+  STATE_FLOW_STATE(abort_request_with_response);
   STATE_FLOW_STATE(abort_request);
 };
 
