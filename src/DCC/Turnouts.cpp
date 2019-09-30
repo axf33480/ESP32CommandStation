@@ -138,6 +138,12 @@ string TurnoutManager::getStateAsJson(bool readableStrings)
   string content = "[";
   for (const auto& turnout : turnouts_)
   {
+    // only add the seperator if we have already serialized at least one
+    // turnout.
+    if (content.length() > 1)
+    {
+      content += ",";
+    }
     content += turnout->toJson(readableStrings);
   }
   content += "]";
@@ -382,7 +388,7 @@ string Turnout::toJson(bool readableStrings)
   {
     serialized += integer_to_string(_thrown);
   }
-  serialized += "},";
+  serialized += "}";
   return serialized;
 }
 
