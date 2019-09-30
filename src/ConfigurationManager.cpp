@@ -267,10 +267,9 @@ ConfigurationManager::ConfigurationManager(const esp32cs::Esp32ConfigDef &cfg)
   // if we need to persist the updated config do so now.
   if (persist_config)
   {
-    LOG(INFO, "[Config] Persisting configuration settings");
-    store(ESP32_CS_CONFIG_JSON, csConfig.dump());
-    LOG(VERBOSE, "[Config] Updated config: %s", csConfig.dump().c_str());
+    persistConfig();
   }
+
   LOG(VERBOSE, "[Config] %s", csConfig.dump().c_str());
 
   // If we are not currently forcing a factory reset, verify if the LCC config
@@ -297,6 +296,7 @@ ConfigurationManager::ConfigurationManager(const esp32cs::Esp32ConfigDef &cfg)
   {
     configStore->factory_reset_lcc(false);
   }
+
 #ifdef DEDICATED_MODULE_EXECUTOR
   moduleExecutor.start_thread("modules"
                             , openmrn_arduino::OPENMRN_TASK_PRIORITY - 1
@@ -446,7 +446,7 @@ bool ConfigurationManager::setNodeID(string value)
       , uint64_to_string_hex(new_node_id).c_str());
     csConfig[JSON_LCC_NODE][JSON_LCC_NODE_ID_NODE] = new_node_id;
     csConfig[JSON_LCC_NODE][JSON_LCC_FORCE_RESET_NODE] = true;
-    store(ESP32_CS_CONFIG_JSON, csConfig.dump());
+    persistConfig();
     return true;
   }
   return false;
@@ -511,8 +511,7 @@ bool ConfigurationManager::setLCCCan(bool enabled)
   if (csConfig[JSON_LCC_NODE][JSON_LCC_CAN_NODE][JSON_LCC_CAN_ENABLED_NODE] != enabled)
   {
     csConfig[JSON_LCC_NODE][JSON_LCC_CAN_NODE][JSON_LCC_CAN_ENABLED_NODE] = enabled;
-    // persist the new config
-    store(ESP32_CS_CONFIG_JSON, csConfig.dump());
+    persistConfig();
     return true;
   }
   return false;
@@ -527,8 +526,7 @@ bool ConfigurationManager::setWiFiMode(string mode)
       , "[Config] Updating WiFi mode from %s to %s, restart will be required."
       , current_mode.c_str(), mode.c_str());
     csConfig[JSON_WIFI_NODE][JSON_WIFI_MODE_NODE] = mode;
-    // persist the new config
-    store(ESP32_CS_CONFIG_JSON, csConfig.dump());
+    persistConfig();
     return true;
   }
   return false;
@@ -574,8 +572,7 @@ void ConfigurationManager::setWiFiStationParams(string ssid, string password
     csConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_STATION_GATEWAY_NODE] = gateway;
     csConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_STATION_NETMASK_NODE] = subnet;
   }
-  // persist the new config
-  store(ESP32_CS_CONFIG_JSON, csConfig.dump());
+  persistConfig();
 }
 
 void ConfigurationManager::setWiFiUplinkParams(SocketClientParams::SearchMode mode
@@ -627,8 +624,31 @@ string ConfigurationManager::getFilePath(const string &name)
   return StringPrintf("%s/%s", CS_CONFIG_DIR, name.c_str());
 }
 
+void ConfigurationManager::persistConfig()
+{
+  OSMutexLock l(&configMux_);
+  LOG(INFO, "[Config] Persisting configuration settings");
+  const std::vector<string> non_persistent_cdi_entries{JSON_CDI_UPLINK_NODE
+                                                     , JSON_CDI_HUB_NODE
+                                                     , JSON_HBRIDGES_NODE};
+  for (auto &entry : non_persistent_cdi_entries)
+  {
+    auto pos = csConfig[JSON_CDI_NODE].find(entry);
+    if (pos != csConfig[JSON_CDI_NODE].end())
+    {
+      LOG(INFO
+        , "[Config] Removing non-persistent config section: %s"
+        , entry.c_str());
+      csConfig[JSON_CDI_NODE].erase(pos);
+    }
+  }
+
+  store(ESP32_CS_CONFIG_JSON, csConfig.dump());
+}
+
 bool ConfigurationManager::validateConfiguration()
 {
+  OSMutexLock l(&configMux_);
   if (!csConfig.contains(JSON_WIFI_NODE))
   {
     LOG_ERROR("[Config] WiFi configuration not found.");
@@ -637,6 +657,11 @@ bool ConfigurationManager::validateConfiguration()
   else if (!csConfig.contains(JSON_LCC_NODE))
   {
     LOG_ERROR("[Config] LCC configuration not found.");
+    return false;
+  }
+  else if (!csConfig.contains(JSON_HBRIDGES_NODE))
+  {
+    LOG_ERROR("[Config] H-Bridge configuration not found.");
     return false;
   }
 
@@ -689,6 +714,19 @@ bool ConfigurationManager::validateConfiguration()
       !lccNode[JSON_LCC_CAN_NODE].contains(JSON_LCC_CAN_ENABLED_NODE))
   {
     LOG_ERROR("[Config] LCC CAN configuration invalid.");
+    return false;
+  }
+
+  // verify h-bridge configuration
+  auto hbridges = csConfig[JSON_HBRIDGES_NODE];
+  if (!hbridges.contains("OPS"))
+  {
+    LOG_ERROR("[Config] H-Bridge configuration invalid (missing OPS).");
+    return false;
+  }
+  else if (!hbridges.contains("PROG"))
+  {
+    LOG_ERROR("[Config] H-Bridge configuration invalid (missing PROG).");
     return false;
   }
 
@@ -929,13 +967,14 @@ void ConfigurationManager::configureEnabledModules(SimpleCanStack *stack)
 
 string ConfigurationManager::getCSConfig()
 {
+  OSMutexLock l(&configMux_);
   openlcb::TcpClientConfig<openlcb::TcpClientDefaultParams> uplink =
     cfg_.seg().wifi().uplink();
   openmrn_arduino::HubConfiguration hub = cfg_.seg().wifi().hub();
   esp32cs::TrackOutputConfig ops = cfg_.seg().hbridge().entry(0);
   esp32cs::TrackOutputConfig prog = cfg_.seg().hbridge().entry(1);
 
-  // load CDI elements that we can modify from web
+  // insert non-persistent CDI elements that we can modify from web
   csConfig[JSON_CDI_NODE][JSON_CDI_UPLINK_NODE] =
   {
     {JSON_CDI_UPLINK_RECONNECT_NODE,

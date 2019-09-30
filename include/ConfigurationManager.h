@@ -22,6 +22,8 @@ COPYRIGHT (c) 2018-2019 Mike Dunston
 
 #include <openlcb/ConfiguredTcpConnection.hxx>
 #include <openlcb/Defs.hxx>
+#include <os/OS.hxx>
+
 #include "cdi/CSConfigDescriptor.h"
 #include "stateflows/FreeRTOSTaskMonitor.h"
 #include "stateflows/HC12Radio.h"
@@ -81,10 +83,12 @@ public:
                       , std::string, std::string="", std::string="");
 private:
   std::string getFilePath(const std::string &);
+  void persistConfig();
   bool validateConfiguration();
   bool seedDefaultConfigSections();
   void parseWiFiConfig();
 
+  OSMutex configMux_;
   const esp32cs::Esp32ConfigDef cfg_;
   int configFd_{-1};
   sdmmc_card_t *sd_{nullptr};
