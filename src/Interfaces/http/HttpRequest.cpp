@@ -198,7 +198,8 @@ ContentType HttpRequest::content_type()
   {
     return ContentType::MULTIPART_FORMDATA;
   }
-  if (!header(HttpHeader::CONTENT_TYPE).compare(FORM_URLENCODED))
+  if (!header(HttpHeader::CONTENT_TYPE).compare(0, FORM_URLENCODED.size()
+                                              , FORM_URLENCODED))
   {
     return ContentType::FORM_URLENCODED;
   }
@@ -219,8 +220,11 @@ string HttpRequest::param(string name)
 {
   if (params_.count(name))
   {
+    LOG(VERBOSE
+      , "[Req %p] Param %s -> %s", this, name.c_str(), params_[name].c_str());
     return params_[name];
   }
+  LOG(VERBOSE, "[Req %p] Param %s doesn't exist", this, name.c_str());
   return no_value_;
 }
 
