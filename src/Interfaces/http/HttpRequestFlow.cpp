@@ -668,7 +668,7 @@ StateFlowBase::Action HttpRequestFlow::read_multipart_headers()
   // If we have data in the buffer already and it is more than the size of
   // what we are trying to read, call directly into the parser to clear the
   // data.
-  if (!buf_.empty())
+  if (!buf_.empty() && buf_.size() >= header_read_size_)
   {
     return call_immediately(STATE(parse_multipart_headers));
   }
@@ -677,10 +677,10 @@ StateFlowBase::Action HttpRequestFlow::read_multipart_headers()
   // Request enough data for at least header_read_size_ number of bytes.
   LOG(REQ_DEBUG_LOG_LEVEL
     , "[Httpd fd:%d,uri:%s] requesting %zu bytes for multipart/form-data "
-      "processing", fd_, req_.uri().c_str(), header_read_size_);
+      "processing", fd_, req_.uri().c_str(), header_read_size_ - buf_.size());
   return read_repeated_with_timeout(&helper_, timeout_, fd_
-                                  , buf_.data()
-                                  , header_read_size_
+                                  , buf_.data() + buf_.size()
+                                  , header_read_size_ - buf_.size()
                                   , STATE(parse_multipart_headers));
 }
 
@@ -763,7 +763,9 @@ StateFlowBase::Action HttpRequestFlow::parse_form_data()
                    , header_read_size_ - helper_.remaining_);
   buf_.clear();
 
-  LOG(INFO, "body: %zu, received: %zu", body_len_, (header_read_size_ - helper_.remaining_));
+  LOG(REQ_DEBUG_LOG_LEVEL
+    , "body: %zu, received: %zu", body_len_
+    , (header_read_size_ - helper_.remaining_));
 
   // track how much we have read in of the body payload
   if (body_len_ > (header_read_size_ - helper_.remaining_))
@@ -785,7 +787,7 @@ StateFlowBase::Action HttpRequestFlow::parse_form_data()
   {
     auto p = break_string(param, "=");
 
-    LOG(INFO
+    LOG(REQ_DEBUG_LOG_LEVEL
       , "param: %s, value: %s", p.first.c_str(), p.second.c_str());
 
     // replace + with space
