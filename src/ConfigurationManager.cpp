@@ -104,8 +104,8 @@ void recursiveWalkTree(const string &path, bool remove=false)
         }
         else
         {
-          LOG(VERBOSE, "[Config] %s (%lu bytes)", fullPath.c_str()
-            , statbuf.st_size);
+          LOG(VERBOSE, "[Config] %s (%lu bytes) mtime: %s", fullPath.c_str()
+            , statbuf.st_size, ctime(&statbuf.st_mtime));
         }
       }
       else if (ent->d_type == DT_DIR)
@@ -141,8 +141,8 @@ ConfigurationManager::ConfigurationManager(const esp32cs::Esp32ConfigDef &cfg)
     .max_files = 5,
     .allocation_unit_size = 16 * 1024
   };
-  esp_err_t err = ESP_ERROR_CHECK_WITHOUT_ABORT(
-    esp_vfs_fat_sdmmc_mount(CFG_MOUNT, &sd_host, &sd_slot, &sd_cfg, &sd_));
+  esp_err_t err = esp_vfs_fat_sdmmc_mount(CFG_MOUNT, &sd_host, &sd_slot
+                                        , &sd_cfg, &sd_);
   if (err == ESP_OK)
   {
     LOG(INFO, "[Config] SD card mounted successfully.");
@@ -182,9 +182,15 @@ ConfigurationManager::ConfigurationManager(const esp32cs::Esp32ConfigDef &cfg)
     ESP_ERROR_CHECK(esp_vfs_spiffs_register(&conf));
     // check that the partition mounted
     size_t total = 0, used = 0;
-    ESP_ERROR_CHECK(esp_spiffs_info(NULL, &total, &used));
-    LOG(INFO, "[Config] SPIFFS usage: %.2f/%.2f KiB", (float)(used / 1024.0f)
-      , (float)(total / 1024.0f));
+    if (esp_spiffs_info(NULL, &total, &used) == ESP_OK)
+    {
+      LOG(INFO, "[Config] SPIFFS usage: %.2f/%.2f KiB", (float)(used / 1024.0f)
+        , (float)(total / 1024.0f));
+    }
+    else
+    {
+      LOG_ERROR("[Config] Unable to retrieve SPIFFS utilization statistics.");
+    }
     LOG(INFO, "[Config] SPIFFS will be used for persistent storage.");
   }
 
@@ -349,7 +355,7 @@ ConfigurationManager::~ConfigurationManager()
   if (sd_)
   {
     LOG(INFO, "[Config] Unmounting SD...");
-    esp_vfs_fat_sdmmc_unmount();
+    ESP_ERROR_CHECK(esp_vfs_fat_sdmmc_unmount());
   }
 }
 
@@ -362,9 +368,12 @@ void ConfigurationManager::clear()
 
 bool ConfigurationManager::exists(const string &name)
 {
+  struct stat statbuf;
   string configFilePath = getFilePath(name);
   LOG(VERBOSE, "[Config] Checking for %s", configFilePath.c_str());
-  return access(configFilePath.c_str(), F_OK) == 0;
+  // this code is not using access(path, F_OK) as that is not available for
+  // SPIFFS VFS. stat(path, buf) does work though.
+  return !stat(configFilePath.c_str(), &statbuf);
 }
 
 void ConfigurationManager::remove(const string &name)
@@ -379,7 +388,8 @@ string ConfigurationManager::load(const string &name)
   string configFilePath = getFilePath(name);
   if (!exists(name))
   {
-    LOG(VERBOSE, "[Config] Failed to load: %s", configFilePath.c_str());
+    LOG_ERROR("[Config] %s does not exist, returning blank json object"
+            , configFilePath.c_str());
     return "{}";
   }
   LOG(VERBOSE, "[Config] Loading %s", configFilePath.c_str());
