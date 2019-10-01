@@ -70,6 +70,15 @@ static Service moduleService(&moduleExecutor);
     }));                                                          \
   }
 
+// Helper which will trigger a config reload event to be queued when
+// updated is true.
+#define SCHEDULE_REBOOT()                                       \
+  extern unique_ptr<OpenMRN> openmrn;                           \
+  openmrn->stack()->executor()->add(new CallbackExecutable([]() \
+  {                                                             \
+    reboot();                                                   \
+  }));
+
 // Helper which converts a string to a uint64 value.
 static inline uint64_t string_to_uint64(string value)
 {
@@ -457,6 +466,7 @@ bool ConfigurationManager::setNodeID(string value)
     csConfig[JSON_LCC_NODE][JSON_LCC_NODE_ID_NODE] = new_node_id;
     csConfig[JSON_LCC_NODE][JSON_LCC_FORCE_RESET_NODE] = true;
     persistConfig();
+    SCHEDULE_REBOOT();
     return true;
   }
   return false;
@@ -522,6 +532,7 @@ bool ConfigurationManager::setLCCCan(bool enabled)
   {
     csConfig[JSON_LCC_NODE][JSON_LCC_CAN_NODE][JSON_LCC_CAN_ENABLED_NODE] = enabled;
     persistConfig();
+    SCHEDULE_REBOOT();
     return true;
   }
   return false;
@@ -537,26 +548,30 @@ bool ConfigurationManager::setWiFiMode(string mode)
       , current_mode.c_str(), mode.c_str());
     csConfig[JSON_WIFI_NODE][JSON_WIFI_MODE_NODE] = mode;
     persistConfig();
+    SCHEDULE_REBOOT();
     return true;
   }
   return false;
 }
 
-void ConfigurationManager::setWiFiStationParams(string ssid, string password
+bool ConfigurationManager::setWiFiStationParams(string ssid, string password
                                               , string ip, string gateway
                                               , string subnet)
 {
+  bool reboot_needed = false;
   string wifimode = csConfig[JSON_WIFI_NODE][JSON_WIFI_MODE_NODE];
   if (!wifimode.compare(JSON_VALUE_WIFI_MODE_SOFTAP_ONLY))
   {
     LOG(INFO, "[Config] Current config is SoftAP only, enabling Station mode");
     csConfig[JSON_WIFI_NODE][JSON_WIFI_MODE_NODE] = JSON_VALUE_WIFI_MODE_SOFTAP_STATION;
+    reboot_needed = true;
   }
   LOG(INFO, "[Config] Reconfiguring Station SSID to '%s'", ssid.c_str());
   if (!ssid.empty())
   {
     csConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_SSID_NODE] = ssid;
     csConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_PASSWORD_NODE] = password;
+    reboot_needed = true;
   }
   if (ip.empty())
   {
@@ -569,6 +584,7 @@ void ConfigurationManager::setWiFiStationParams(string ssid, string password
       csConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_STATION_IP_NODE] = "";
       csConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_STATION_GATEWAY_NODE] = "";
       csConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_STATION_NETMASK_NODE] = "";
+      reboot_needed = true;
     }
   }
   else
@@ -581,8 +597,14 @@ void ConfigurationManager::setWiFiStationParams(string ssid, string password
     csConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_STATION_IP_NODE] = ip;
     csConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_STATION_GATEWAY_NODE] = gateway;
     csConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_STATION_NETMASK_NODE] = subnet;
+    reboot_needed = true;
   }
   persistConfig();
+  if (reboot_needed)
+  {
+    SCHEDULE_REBOOT();
+  }
+  return reboot_needed;
 }
 
 void ConfigurationManager::setWiFiUplinkParams(SocketClientParams::SearchMode mode

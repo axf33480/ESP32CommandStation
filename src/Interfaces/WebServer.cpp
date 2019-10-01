@@ -322,25 +322,26 @@ HTTP_HANDLER_IMPL(process_config, request)
     wifi_mgr->clear_ssid_scan_results();
     return new StringResponse(ssid_list.dump(), MIME_TYPE_APPLICATION_JSON);
   }
-  if (request->has_param("ssid"))
+  if (request->has_param("ssid") &&
+      configStore->setWiFiStationParams(request->param("ssid")
+                                      , request->param("password")))
   {
-    // Setting the WiFi SSID will always require a restart as this is
-    // configured when the Esp32WiFiManager is constructed.
-    configStore->setWiFiStationParams(request->param("ssid")
-                                    , request->param("password"));
     needReboot = true;
   }
-  if (request->has_param("mode"))
+  if (request->has_param("mode") &&
+      configStore->setWiFiMode(request->param("mode")))
   {
-    needReboot |= configStore->setWiFiMode(request->param("mode"));
+    needReboot = true;
   }
-  if (request->has_param("nodeid"))
+  if (request->has_param("nodeid") &&
+      configStore->setNodeID(request->param("nodeid")))
   {
-    needReboot |= configStore->setNodeID(request->param("nodeid"));
+    needReboot = true;
   }
-  if (request->has_param("lcc-can"))
+  if (request->has_param("lcc-can") &&
+      configStore->setLCCCan(request->param("lcc-can").compare(JSON_VALUE_FALSE)))
   {
-    needReboot |= configStore->setLCCCan(request->param("lcc-can").compare(JSON_VALUE_FALSE));
+    needReboot = true;
   }
   if (request->has_param("lcc-hub"))
   {
@@ -381,12 +382,12 @@ HTTP_HANDLER_IMPL(process_config, request)
   {
     // send a string back to the client rather than SEND_GENERIC_RESPONSE
     // so we don't return prior to calling reboot.
-    // TODO: re-enable this output
-    //SEND_TEXT_RESPONSE(request, STATUS_OK, "{restart:\"ESP32CommandStation Restarting!\"}")
-    reboot();
+    return new StringResponse("{restart:\"ESP32CommandStation Restarting!\"}"
+                            , MIME_TYPE_APPLICATION_JSON);
   }
 
-  return new StringResponse(configStore->getCSConfig(), MIME_TYPE_APPLICATION_JSON);
+  return new StringResponse(configStore->getCSConfig()
+                          , MIME_TYPE_APPLICATION_JSON);
 }
 
 HTTP_HANDLER_IMPL(process_prog, request)

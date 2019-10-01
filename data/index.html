@@ -1208,7 +1208,13 @@ function refreshSSIDList() {
      $('#ssid-connect').popup('reposition', {positionTo:'window'});
     } else {
      $('#ssid-connect').popup('close');
-     $.ajax({method:'POST',url:String.format('/config?ssid={0}&pass={1}', idParts[3], $('#ssid-manual-password').val())});
+     $.ajax({method: 'POST',
+      url:String.format('/config?ssid={0}&pass={1}', idParts[3], $('#ssid-manual-password').val()),
+      beforeSend: function() {showSpinner('Saving Configuration...');},
+      complete: hideSpinner,
+      success : function (data, status, xhr) {if(!data.hasOwnProperty('restart')) {csConfigUpdate(data);} else {showSpinner(data.state, true);}},
+      error : function(xhr, status, error) {showErrorDialog("The command station reported a failure saving configuration data", error);}
+     });
     }
    });
    $('#ssid-list').show();

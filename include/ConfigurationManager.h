@@ -73,7 +73,7 @@ public:
   void setLCCHub(bool);
   bool setLCCCan(bool);
   bool setWiFiMode(std::string);
-  void setWiFiStationParams(std::string, std::string, std::string=""
+  bool setWiFiStationParams(std::string, std::string, std::string=""
                           , std::string="", std::string="");
   void setWiFiUplinkParams(
     SocketClientParams::SearchMode=SocketClientParams::SearchMode::AUTO_MANUAL
