@@ -111,6 +111,11 @@ void write_string_to_file(const string &filename, const string &data)
     if (nr < 0) {
         fprintf(stderr, "error writing: %s\n", strerror(errno));
     }
+#ifdef ESP32
+    // On the ESP32 it is not guaranteed that the file will flush to storage on
+    // all VFS drivers, so force flush the updates here.
+    fflush(f);
+#endif // ESP32
     fclose(f);
 }
 
