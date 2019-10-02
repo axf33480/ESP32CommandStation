@@ -35,7 +35,6 @@ DCC_PROTOCOL_COMMAND_HANDLER(ConfigErase,
 [](const vector<string> arguments)
 {
   turnoutManager->clear();
-  turnoutManager->store();
 #if SENSORS_ENABLED
   SensorManager::clear();
   SensorManager::store();
@@ -59,10 +58,8 @@ DECLARE_DCC_PROTOCOL_COMMAND_CLASS(ConfigStore, "E")
 DCC_PROTOCOL_COMMAND_HANDLER(ConfigStore,
 [](const vector<string> arguments)
 {
-
-  // esp32cs::Esp32TrainDatabase::instance()->store();
   return StringPrintf("<e %d %d %d>"
-                    , turnoutManager->store()
+                    , turnoutManager->getTurnoutCount()
 #if SENSORS_ENABLED
                     , SensorManager::store()
 #if S88_ENABLED

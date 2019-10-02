@@ -65,6 +65,11 @@ DEFAULT_CONST_TRUE(cs_train_db_auto_create_entries);
 DEFAULT_CONST(cs_train_db_auto_persist_sec, 30);
 
 ///////////////////////////////////////////////////////////////////////////////
+// This flag controls the automatic persistence of the turnouts list.
+///////////////////////////////////////////////////////////////////////////////
+DEFAULT_CONST(cs_turnouts_auto_persist_sec, 30);
+
+///////////////////////////////////////////////////////////////////////////////
 // This flag will print a list of FreeRTOS tasks every ~5min. This is not
 // recommended to be enabled except during debugging sessions as it will cause
 // the FreeRTOS scheduler to remain in a "locked" state for an extended period.

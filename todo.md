@@ -63,6 +63,7 @@ The entries below are not tracked to a specific release or in any particular pri
 -   [ ] LCC: Broadcast events for turnout state change.
 -   [ ] LCC: Discard turnout events when turnout already in expected state (drop duplicate events).
 -   [ ] LCC: Reimplement Loco Consist leveraging LCC Traction Consist functionality.
+-   [ ] Misc: Switch to shared_ptr instead of raw pointers.
 -   [ ] Misc: WiThrottle support (https://github.com/atanisoft/ESP32CommandStation/issues/15)
 -   [ ] Nextion: add support for Nextion Upload via OTA in NeoNextion.
 -   [ ] Nextion: add notification of turnout state change when changed external to the nextion code.

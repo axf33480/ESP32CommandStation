@@ -957,7 +957,7 @@ void ConfigurationManager::configureEnabledModules(SimpleCanStack *stack)
 
   // Initialize the turnout manager and register it with the LCC stack to
   // process accessories packets.
-  turnoutManager.reset(new TurnoutManager(stack->node()));
+  turnoutManager.reset(new TurnoutManager(stack->node(), service));
 
   auto hc12Config = csConfig[JSON_HC12_NODE];
   if (hc12Config[JSON_HC12_ENABLED_NODE].get<bool>())
@@ -972,7 +972,7 @@ void ConfigurationManager::configureEnabledModules(SimpleCanStack *stack)
   ota_.emplace(service);
   infoScreen_.emplace(stack, service);
   statusLED_.emplace(service);
-  
+
   // Task Monitor, periodically dumps runtime state to STDOUT.
   taskMon_.emplace(service);
 

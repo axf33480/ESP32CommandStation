@@ -28,6 +28,8 @@ DECLARE_CONST(lcc_print_all_packets);
 DECLARE_CONST(cs_train_db_auto_create_entries);
 DECLARE_CONST(cs_train_db_auto_persist_sec);
 
+DECLARE_CONST(cs_turnouts_auto_persist_sec);
+
 DECLARE_CONST(cs_task_list_report);
 DECLARE_CONST(cs_task_stats_report_interval_sec);
 DECLARE_CONST(cs_task_list_list_interval_sec);

@@ -31,7 +31,7 @@ static constexpr const char *TURNOUT_TYPE_STRINGS[] =
   "MULTI"
 };
 
-TurnoutManager::TurnoutManager(openlcb::Node *node)
+TurnoutManager::TurnoutManager(openlcb::Node *node, Service *service)
 {
   LOG(INFO, "[Turnout] Initializing DCC Turnout database");
   json root = json::parse(configStore->load(TURNOUTS_JSON_FILE));
@@ -47,7 +47,11 @@ TurnoutManager::TurnoutManager(openlcb::Node *node)
   LOG(INFO, "[Turnout] Loaded %d DCC turnout(s)", turnouts_.size());
 
   // register the LCC event handler
-  turnoutEventConsumer_.reset(new DccAccyConsumer(node, this));
+  turnoutEventConsumer_.emplace(node, this);
+
+  persistFlow_.emplace(service
+                     , SEC_TO_NSEC(config_cs_turnouts_auto_persist_sec)
+                     , std::bind(&TurnoutManager::persist, this));
 }
 
 void TurnoutManager::clear()
@@ -58,12 +62,7 @@ void TurnoutManager::clear()
     turnout.reset(nullptr);
   }
   turnouts_.clear();
-}
-
-uint16_t TurnoutManager::store()
-{
-  configStore->store(TURNOUTS_JSON_FILE, getStateAsJson(false));
-  return turnouts_.size();
+  dirty_ = true;
 }
 
 string TurnoutManager::setByID(uint16_t id, bool thrown, bool sendDCC)
@@ -74,6 +73,7 @@ string TurnoutManager::setByID(uint16_t id, bool thrown, bool sendDCC)
     if (turnout->getID() == id)
     {
       turnout->set(thrown, sendDCC);
+      dirty_ = true;
       return turnout->get_state_for_dccpp();
     }
   }
@@ -89,12 +89,14 @@ string TurnoutManager::setByAddress(uint16_t address, bool thrown
     if (turnout->getAddress() == address)
     {
       turnout->set(thrown, sendDCC);
+      dirty_ = true;
       return turnout->get_state_for_dccpp();
     }
   }
 
   // we didn't find it, create it and set it
   turnouts_.push_back(esp32cs::make_unique<Turnout>(turnouts_.size() + 1, address, -1));
+  dirty_ = true;
   return setByAddress(address, thrown, sendDCC);
 }
 
@@ -106,6 +108,7 @@ string TurnoutManager::toggleByID(uint16_t id)
     if (turnout->getID() == id)
     {
       turnout->toggle();
+      dirty_ = true;
       return turnout->get_state_for_dccpp();
     }
   }
@@ -129,6 +132,7 @@ string TurnoutManager::toggleByAddress(uint16_t address)
 
   // we didn't find it, create it and throw it
   turnouts_.push_back(esp32cs::make_unique<Turnout>(turnouts_.size() + 1, address, -1));
+  dirty_ = true;
   return toggleByAddress(address);
 }
 
@@ -184,6 +188,7 @@ Turnout *TurnoutManager::createOrUpdate(const uint16_t id
   }
   // we didn't find it, create it!
   turnouts_.push_back(esp32cs::make_unique<Turnout>(id, address, index, false, type));
+  dirty_ = true;
   return turnouts_.back().get();
 }
 
@@ -200,6 +205,7 @@ bool TurnoutManager::removeByID(const uint16_t id)
   {
     LOG(VERBOSE, "[Turnout %d] Deleted", elem->get()->getID());
     turnouts_.erase(elem);
+    dirty_ = true;
     return true;
   }
   return false;
@@ -219,6 +225,7 @@ bool TurnoutManager::removeByAddress(const uint16_t address)
     LOG(VERBOSE, "[Turnout %d] Deleted as it used address %d"
       , elem->get()->getID(), address);
     turnouts_.erase(elem);
+    dirty_ = true;
     return true;
   }
   return false;
@@ -294,6 +301,18 @@ void TurnoutManager::send(Buffer<Packet> *b, unsigned prio)
     setByAddress(decodeDCCAccessoryAddress(boardAddress, boardIndex), state);
   }
   b->unref();
+}
+
+void TurnoutManager::persist()
+{
+  {
+    AtomicHolder h(this);
+    if (!dirty_)
+    {
+      return;
+    }
+  }
+  configStore->store(TURNOUTS_JSON_FILE, getStateAsJson(false));
 }
 
 void encodeDCCAccessoryAddress(uint16_t *boardAddress, int8_t *boardIndex

@@ -88,9 +88,8 @@ private:
 class TurnoutManager : public PacketFlowInterface, private Atomic
 {
 public:
-  TurnoutManager(openlcb::Node *);
+  TurnoutManager(openlcb::Node *, Service *);
   void clear();
-  uint16_t store();
   std::string setByID(uint16_t, bool=false, bool=true);
   std::string setByAddress(uint16_t, bool=false, bool=true);
   std::string toggleByID(uint16_t);
@@ -106,8 +105,11 @@ public:
   uint16_t getTurnoutCount();
   void send(Buffer<dcc::Packet> *, unsigned);
 private:
+  void persist();
   std::vector<std::unique_ptr<Turnout>> turnouts_;
-  std::unique_ptr<openlcb::DccAccyConsumer> turnoutEventConsumer_;
+  uninitialized<openlcb::DccAccyConsumer> turnoutEventConsumer_;
+  uninitialized<AutoPersistFlow> persistFlow_;
+  bool dirty_{false};
 };
 
 extern std::unique_ptr<TurnoutManager> turnoutManager;
