@@ -82,6 +82,23 @@ const uint8_t FG2_PIC_ON=75;
 const uint8_t FG3_PIC_OFF=79;
 const uint8_t FG3_PIC_ON=76;
 
+// Helper to retrieve loco via executor. This is necessary since the Nextion
+// impl runs outside the executor which manages the train instances.
+#define GET_LOCO_VIA_EXECUTOR(NAME, address)                                          \
+  TrainImpl *NAME = nullptr;                                                          \
+  {                                                                                   \
+    SyncNotifiable n;                                                                 \
+    extern unique_ptr<OpenMRN> openmrn;                                               \
+    openmrn->stack()->executor()->add(new CallbackExecutable(                         \
+    [&]()                                                                             \
+    {                                                                                 \
+      NAME = trainNodes->get_train_impl(commandstation::DccMode::DCC_128_LONG_ADDRESS \
+                                      , address);                                     \
+      n.notify();                                                                     \
+    }));                                                                              \
+    n.wait_for_notification();                                                        \
+  }
+
 //
 /************************************************************************************************************/
 // Throttle Page
@@ -227,9 +244,7 @@ void NextionThrottlePage::activateFunctionGroup(const NextionButton *button) {
 
 void NextionThrottlePage::setLocoDirection(bool direction) {
   if(_locoNumbers[_activeLoco]) {
-    auto loco = 
-      trainNodes->get_train_impl(commandstation::DccMode::DCC_128_LONG_ADDRESS
-                              , _locoNumbers[_activeLoco]);
+    GET_LOCO_VIA_EXECUTOR(loco, _locoNumbers[_activeLoco]);
     auto speed = loco->get_speed();
     speed.set_direction(!direction);
     loco->set_speed(speed);
@@ -245,9 +260,7 @@ void NextionThrottlePage::setLocoDirection(bool direction) {
 
 void NextionThrottlePage::toggleFunction(const NextionButton *button) {
   if(_locoNumbers[_activeLoco]) {
-    auto loco = 
-      trainNodes->get_train_impl(commandstation::DccMode::DCC_128_LONG_ADDRESS
-                              , _locoNumbers[_activeLoco]);
+    GET_LOCO_VIA_EXECUTOR(loco, _locoNumbers[_activeLoco]);
     for(uint8_t function = 0; function < 10; function++) {
       uint16_t functionPicOff = _activeFunctionGroup * 8 + function + F1_PIC_OFF;
       uint16_t functionPicOn = _activeFunctionGroup * 8 + function + F1_PIC_ON;
@@ -291,9 +304,7 @@ uint32_t NextionThrottlePage::getCurrentLocoAddress() {
 void NextionThrottlePage::decreaseLocoSpeed() {
   if(_locoNumbers[_activeLoco]) {
     int8_t speed = max((uint8_t)0, (uint8_t)_speedNumber.getValue());
-    auto loco = 
-      trainNodes->get_train_impl(commandstation::DccMode::DCC_128_LONG_ADDRESS
-                              , _locoNumbers[_activeLoco]);
+    GET_LOCO_VIA_EXECUTOR(loco, _locoNumbers[_activeLoco]);
     auto upd_speed(loco->get_speed());
     upd_speed.set_dcc_128(speed);
     loco->set_speed(upd_speed);
@@ -304,9 +315,7 @@ void NextionThrottlePage::decreaseLocoSpeed() {
 void NextionThrottlePage::increaseLocoSpeed() {
   if(_locoNumbers[_activeLoco]) {
     int8_t speed = max((uint8_t)0, (uint8_t)_speedNumber.getValue());
-    auto loco = 
-      trainNodes->get_train_impl(commandstation::DccMode::DCC_128_LONG_ADDRESS
-                              , _locoNumbers[_activeLoco]);
+    GET_LOCO_VIA_EXECUTOR(loco, _locoNumbers[_activeLoco]);
     auto upd_speed(loco->get_speed());
     upd_speed.set_dcc_128(speed);
     loco->set_speed(upd_speed);
@@ -316,9 +325,7 @@ void NextionThrottlePage::increaseLocoSpeed() {
 
 void NextionThrottlePage::setLocoSpeed(uint8_t speed) {
   if(_locoNumbers[_activeLoco]) {
-    auto loco = 
-      trainNodes->get_train_impl(commandstation::DccMode::DCC_128_LONG_ADDRESS
-                              , _locoNumbers[_activeLoco]);
+    GET_LOCO_VIA_EXECUTOR(loco, _locoNumbers[_activeLoco]);
     auto upd_speed(loco->get_speed());
     upd_speed.set_dcc_128(speed);
     loco->set_speed(upd_speed);
@@ -374,12 +381,10 @@ void NextionThrottlePage::refreshLocomotiveDetails()
     }
   }
   if(_locoNumbers[_activeLoco]) {
-    auto loco = 
-      trainNodes->get_train_impl(commandstation::DccMode::DCC_128_LONG_ADDRESS
-                              , _locoNumbers[_activeLoco]);
+    GET_LOCO_VIA_EXECUTOR(loco, _locoNumbers[_activeLoco]);
     auto speed = loco->get_speed();
-    _speedSlider.setValue((speed.get_dcc_128() & 0x7F));
-    _speedNumber.setValue((speed.get_dcc_128() & 0x7F));
+    _speedSlider.setValue(speed.get_dcc_128() & 0x7F);
+    _speedNumber.setValue(speed.get_dcc_128() & 0x7F);
     if(speed.direction() == dcc::SpeedType::FORWARD)
     {
       _fwdButton.setPictureID(FWD_PIC_ON);
@@ -404,9 +409,7 @@ void NextionThrottlePage::refreshLocomotiveDetails()
 }
 
 void NextionThrottlePage::refreshFunctionButtons() {
-  auto loco = 
-    trainNodes->get_train_impl(commandstation::DccMode::DCC_128_LONG_ADDRESS
-                            , _locoNumbers[_activeLoco]);
+  GET_LOCO_VIA_EXECUTOR(loco, _locoNumbers[_activeLoco]);
   if(loco) {
     for(int index = 0; index < FUNC_LIGHT_INDEX; index++) {
       uint8_t functionIndex = _activeFunctionGroup * 8 + index;

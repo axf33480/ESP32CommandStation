@@ -41,7 +41,6 @@ Nextion nextion(Serial);
 TaskHandle_t _nextionTaskHandle;
 
 constexpr TickType_t NEXTION_INTERFACE_UPDATE_INTERVAL = pdMS_TO_TICKS(50);
-constexpr uint8_t NEXTION_INTERFACE_TASK_PRIORITY = 1;
 constexpr uint16_t NEXTION_INTERFACE_TASK_STACK_SIZE = DEFAULT_THREAD_STACKSIZE;
 
 BaseNextionPage *nextionPages[MAX_PAGES] = {
@@ -65,7 +64,7 @@ static constexpr char const * NEXTION_DISPLAY_TYPE_STRINGS[] = {
 
 NEXTION_DEVICE_TYPE nextionDeviceType = NEXTION_DEVICE_TYPE::UNKOWN_DISPLAY;
 
-void nextionTask(void *param) {
+void *nextionTask(void *param) {
 
   // attempt to identify the nextion display.
   constexpr uint8_t MAX_ATTEMPTS = 3;
@@ -124,6 +123,7 @@ void nextionTask(void *param) {
     nextion.poll();
     vTaskDelay(NEXTION_INTERFACE_UPDATE_INTERVAL);
   }
+  return nullptr;
 }
 
 void nextionInterfaceInit() {
@@ -138,9 +138,7 @@ void nextionInterfaceInit() {
   #error "Invalid configuration detected for the NEXTION_UART_NUM value. Only UART 1 or UART 2 are supported for the Nextion Interface."
 #endif
   nextion.init();
-
-  xTaskCreatePinnedToCore(nextionTask, "Nextion", NEXTION_INTERFACE_TASK_STACK_SIZE,
-    NULL, NEXTION_INTERFACE_TASK_PRIORITY, &_nextionTaskHandle, 1);
+  os_thread_create(nullptr, "nextion", 0, NEXTION_INTERFACE_TASK_STACK_SIZE, nextionTask, nullptr);
 #endif
 }
 
