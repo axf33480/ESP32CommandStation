@@ -274,7 +274,7 @@ HTTP_HANDLER_IMPL(process_power, request)
   }
   else if (request->method() == HttpMethod::PUT)
   {
-    if (!request->param(JSON_STATE_NODE).compare(JSON_VALUE_TRUE))
+    if (request->param(JSON_STATE_NODE, false))
     {
       trackSignal->enable_ops_output();
     }
@@ -339,22 +339,24 @@ HTTP_HANDLER_IMPL(process_config, request)
     needReboot = true;
   }
   if (request->has_param("lcc-can") &&
-      configStore->setLCCCan(request->param("lcc-can").compare(JSON_VALUE_FALSE)))
+      configStore->setLCCCan(request->param("lcc-can", false)))
   {
     needReboot = true;
   }
   if (request->has_param("lcc-hub"))
   {
-    configStore->setLCCHub(request->param("lcc-hub").compare(JSON_VALUE_FALSE));
+    configStore->setLCCHub(request->param("lcc-hub", false));
   }
   if (request->has_param("uplink-mode") && request->has_param("uplink-service") &&
       request->has_param("uplink-manual") && request->has_param("uplink-manual-port"))
   {
     // WiFi uplink settings do not require a reboot
-    configStore->setWiFiUplinkParams((SocketClientParams::SearchMode)std::stoi(request->param("uplink-mode"))
+    configStore->setWiFiUplinkParams((SocketClientParams::SearchMode)request->param("uplink-mode"
+                                    , SocketClientParams::SearchMode::AUTO_MANUAL)
                                     , request->param("uplink-service")
                                     , request->param("uplink-manual")
-                                    , std::stoi(request->param("uplink-manual-port")));
+                                    , request->param("uplink-manual-port"
+                                                   , openlcb::TcpClientDefaultParams::DEFAULT_PORT));
   }
   if (request->has_param("ops-short") && request->has_param("ops-short-clear") &&
       request->has_param("ops-shutdown") && request->has_param("ops-shutdown-clear") &&
@@ -399,7 +401,7 @@ HTTP_HANDLER_IMPL(process_prog, request)
   }
   else if (request->method() == HttpMethod::GET)
   {
-    if (!request->param(JSON_PROG_ON_MAIN).compare(JSON_VALUE_TRUE))
+    if (request->param(JSON_PROG_ON_MAIN, false))
     {
       request->set_status(HttpStatusCode::STATUS_NOT_ALLOWED);
     }
@@ -484,7 +486,7 @@ HTTP_HANDLER_IMPL(process_prog, request)
                                , decoderAddress);
         // if it is a mobile decoder *AND* we are requested to create it, send
         // the decoder address to the train db to create an entry.
-        if (!request->param(JSON_CREATE_NODE).compare(JSON_VALUE_TRUE) &&
+        if (request->param(JSON_CREATE_NODE, false) &&
            (decoderConfig & BIT(DECODER_CONFIG_BITS::DECODER_TYPE)) == 0)
         {
           auto traindb = Singleton<esp32cs::Esp32TrainDatabase>::instance();
@@ -501,40 +503,51 @@ HTTP_HANDLER_IMPL(process_prog, request)
     }
     else
     {
-      uint16_t cvNumber = std::stoi(request->param(JSON_CV_NODE));
-      int16_t cvValue = readCV(cvNumber);
-      if (cvValue < 0)
+      uint16_t cvNumber = request->param(JSON_CV_NODE, 0);
+      if (cvNumber == 0)
       {
-        request->set_status(HttpStatusCode::STATUS_SERVER_ERROR);
+        request->set_status(HttpStatusCode::STATUS_BAD_REQUEST);
       }
       else
       {
-        return new StringResponse(
-          StringPrintf("{\"%s\":%d,\"%s\":%d}"
-                     , JSON_CV_NODE, cvNumber
-                     , JSON_VALUE_NODE, cvValue)
-        , MIME_TYPE_APPLICATION_JSON);
+        int16_t cvValue = readCV(cvNumber);
+        if (cvValue < 0)
+        {
+          request->set_status(HttpStatusCode::STATUS_SERVER_ERROR);
+        }
+        else
+        {
+          return new StringResponse(
+            StringPrintf("{\"%s\":%d,\"%s\":%d}"
+                      , JSON_CV_NODE, cvNumber
+                      , JSON_VALUE_NODE, cvValue)
+          , MIME_TYPE_APPLICATION_JSON);
+        }
       }
     }
   }
   else if (request->method() == HttpMethod::POST)
   {
-    uint16_t cv_num = std::stoi(request->param(JSON_CV_NODE));
+    uint16_t cv_num = request->param(JSON_CV_NODE, 0);
     uint16_t cv_value = 0;
-    uint8_t cv_bit = 0;
-    bool pom = !request->param(JSON_PROG_ON_MAIN).compare(JSON_VALUE_TRUE);
+    uint8_t cv_bit = request->param(JSON_CV_BIT_NODE, 0);
+    bool pom = request->param(JSON_PROG_ON_MAIN, false);
     if (request->has_param(JSON_CV_BIT_NODE))
     {
-      cv_bit = std::stoi(request->param(JSON_CV_BIT_NODE));
-      cv_value = !request->param(JSON_VALUE_NODE).compare(JSON_VALUE_TRUE);
+      cv_value = request->param(JSON_VALUE_NODE, false);
     }
     else
     {
-      cv_value = std::stoi(request->param(JSON_VALUE_NODE));
+      cv_value = request->param(JSON_VALUE_NODE, 0);
     }
-    if (pom)
+
+    if (cvNumber == 0)
     {
-      uint16_t address = std::stoi(request->param(JSON_ADDRESS_NODE));
+      request->set_status(HttpStatusCode::STATUS_BAD_REQUEST);
+    }
+    else if (pom)
+    {
+      uint16_t address = request->param(JSON_ADDRESS_NODE, 0);
       if (request->has_param(JSON_CV_BIT_NODE))
       {
         writeOpsCVBit(address, cv_num, cv_bit, cv_value);
@@ -582,20 +595,20 @@ HTTP_HANDLER_IMPL(process_turnouts, request)
     bool readable = true;
     if (request->has_param(JSON_TURNOUTS_READABLE_STRINGS_NODE))
     {
-      readable =
-        std::stoi(request->param(JSON_TURNOUTS_READABLE_STRINGS_NODE));
+      readable = request->param(JSON_TURNOUTS_READABLE_STRINGS_NODE, 0);
     }
     return new StringResponse(turnoutManager->getStateAsJson(readable)
                             , MIME_TYPE_APPLICATION_JSON);
   }
 
- if (request->method() == HttpMethod::GET)
+  int16_t id = request->param(JSON_ID_NODE, -1);
+  uint16_t address = request->param(JSON_ADDRESS_NODE, 0);
+  uint16_t subaddress = request->param(JSON_SUB_ADDRESS_NODE, 0);
+  if (request->method() == HttpMethod::GET)
   {
     if (request->has_param(JSON_ID_NODE))
     {
-      auto turnout =
-        turnoutManager->getTurnoutByID(
-          std::stoi(request->param(JSON_ID_NODE)));
+      auto turnout = turnoutManager->getTurnoutByID(id);
       if (turnout)
       {
         return new StringResponse(turnout->toJson()
@@ -605,9 +618,7 @@ HTTP_HANDLER_IMPL(process_turnouts, request)
     }
     else
     {
-      auto turnout =
-        turnoutManager->getTurnoutByID(
-          std::stoi(request->param(JSON_ADDRESS_NODE)));
+      auto turnout = turnoutManager->getTurnoutByID(address);
       if (turnout)
       {
         return new StringResponse(turnout->toJson()
@@ -618,19 +629,15 @@ HTTP_HANDLER_IMPL(process_turnouts, request)
   }
   else if (request->method() == HttpMethod::POST)
   {
-    int32_t turnoutID = std::stoi(request->param(JSON_ID_NODE));
-    uint16_t turnoutAddress = std::stoi(request->param(JSON_ADDRESS_NODE));
-    int8_t turnoutSubAddress =
-      std::stoi(request->param(JSON_SUB_ADDRESS_NODE));
-    TurnoutType type = (TurnoutType)std::stoi(request->param(JSON_TYPE_NODE));
+    TurnoutType type = (TurnoutType)request->param(JSON_TYPE_NODE
+                                                 , TurnoutType::LEFT);
     // auto generate ID
-    if (turnoutID == -1)
+    if (id == -1)
     {
-      turnoutID = turnoutManager->getTurnoutCount() + 1;
+      id = turnoutManager->getTurnoutCount() + 1;
     }
-    auto turnout = turnoutManager->createOrUpdate((uint16_t)turnoutID
-                                                , turnoutAddress
-                                                , turnoutSubAddress, type);
+    auto turnout = turnoutManager->createOrUpdate((uint16_t)id, address
+                                                , subaddress, type);
     if (turnout)
     {
       return new StringResponse(turnout->toJson(), MIME_TYPE_APPLICATION_JSON);
@@ -639,13 +646,11 @@ HTTP_HANDLER_IMPL(process_turnouts, request)
   }
   else if (request->method() == HttpMethod::DELETE)
   {
-    if (request->has_param(JSON_ID_NODE) &&
-        turnoutManager->removeByID(std::stoi(request->param(JSON_ID_NODE))))
+    if (request->has_param(JSON_ID_NODE) && turnoutManager->removeByID(id))
     {
       request->set_status(HttpStatusCode::STATUS_OK);
     }
-    else if (turnoutManager->removeByAddress(
-              std::stoi(request->param(JSON_ADDRESS_NODE))))
+    else if (turnoutManager->removeByAddress(address))
     {
       request->set_status(HttpStatusCode::STATUS_OK);
     }
@@ -654,12 +659,11 @@ HTTP_HANDLER_IMPL(process_turnouts, request)
   {
     if (request->has_param(JSON_ID_NODE))
     {
-      turnoutManager->toggleByID(std::stoi(request->param(JSON_ID_NODE)));
+      turnoutManager->toggleByID(id);
     }
     else
     {
-      turnoutManager->toggleByAddress(
-        std::stoi(request->param(JSON_ADDRESS_NODE)));
+      turnoutManager->toggleByAddress(address);
     }
     request->set_status(HttpStatusCode::STATUS_OK);
   }
@@ -760,12 +764,12 @@ HTTP_HANDLER_IMPL(process_loco, request)
     {
       if(request->method() == HttpMethod::DELETE)
       {
-        traindb->delete_entry(std::stoi(request->param(JSON_ADDRESS_NODE)));
+        traindb->delete_entry(request->param(JSON_ADDRESS_NODE, 0));
         request->set_status(HttpStatusCode::STATUS_OK);
       }
       else
       {
-        uint16_t address = std::stoi(request->param(JSON_ADDRESS_NODE));
+        uint16_t address = request->param(JSON_ADDRESS_NODE, 0);
         traindb->create_if_not_found(address);
         if(request->method() == HttpMethod::PUT ||
            request->method() == HttpMethod::POST)
@@ -777,14 +781,13 @@ HTTP_HANDLER_IMPL(process_loco, request)
           }
           if(request->has_param(JSON_IDLE_ON_STARTUP_NODE))
           {
-            bool value =
-              !request->param(JSON_IDLE_ON_STARTUP_NODE).compare(JSON_VALUE_TRUE);
-            traindb->set_train_auto_idle(address, value);
+            traindb->set_train_auto_idle(address
+                                       , request->param(JSON_IDLE_ON_STARTUP_NODE
+                                                      , false));
           }
           if(request->has_param(JSON_DEFAULT_ON_THROTTLE_NODE))
           {
-            bool value =
-              !request->param(JSON_DEFAULT_ON_THROTTLE_NODE).compare(JSON_VALUE_TRUE);
+            bool value = request->param(JSON_DEFAULT_ON_THROTTLE_NODE, false);
             traindb->set_train_show_on_limited_throttle(address, value);
           }
         }
@@ -818,7 +821,7 @@ HTTP_HANDLER_IMPL(process_loco, request)
     }
     else if (request->has_param(JSON_ADDRESS_NODE))
     {
-      uint16_t address = std::stoi(request->param(JSON_ADDRESS_NODE));
+      uint16_t address = request->param(JSON_ADDRESS_NODE, 0);
       if(request->method() == HttpMethod::PUT ||
          request->method() == HttpMethod::POST)
       {
@@ -831,7 +834,7 @@ HTTP_HANDLER_IMPL(process_loco, request)
         }
         if(request->has_param(JSON_SPEED_NODE))
         {
-          upd_speed.set_dcc_128(std::stoi(request->param(JSON_SPEED_NODE)));
+          upd_speed.set_dcc_128(request->param(JSON_SPEED_NODE, 0));
         }
         if(request->has_param(JSON_DIRECTION_NODE))
         {
@@ -846,8 +849,7 @@ HTTP_HANDLER_IMPL(process_loco, request)
           string fArg = StringPrintf("f%d", funcID);
           if(request->has_param(fArg.c_str()))
           {
-            loco->set_fn(funcID
-                      , !request->param(fArg).compare(JSON_VALUE_TRUE));
+            loco->set_fn(funcID, request->param(fArg, false));
           }
         }
         return new StringResponse(convert_loco_to_json(loco)
@@ -881,8 +883,12 @@ HTTP_HANDLER_IMPL(process_outputs, request)
                             , MIME_TYPE_APPLICATION_JSON);
   }
   request->set_status(HttpStatusCode::STATUS_OK);
-  uint8_t output_id = std::stoi(request->param(JSON_ID_NODE));
-  if (request->method() == HttpMethod::GET)
+  int16_t output_id = request->param(JSON_ID_NODE, -1);
+  if (output_id < 0)
+  {
+    request->set_status(HttpStatusCode::STATUS_BAD_REQUEST);
+  }
+  else if (request->method() == HttpMethod::GET)
   {
     auto output = OutputManager::getOutput(output_id);
     if (output)
@@ -893,10 +899,10 @@ HTTP_HANDLER_IMPL(process_outputs, request)
   }
   else if (request->method() == HttpMethod::POST)
   {
-    uint8_t pin = std::stoi(request->param(JSON_PIN_NODE));
-    bool inverted = !request->param(JSON_INVERTED_NODE).compare(JSON_VALUE_TRUE);
-    bool forceState = !request->param(JSON_FORCE_STATE_NODE).compare(JSON_VALUE_TRUE);
-    bool defaultState = !request->param(JSON_DEFAULT_STATE_NODE).compare(JSON_VALUE_TRUE);
+    int8_t pin = request->param(JSON_PIN_NODE, -1);
+    bool inverted = request->param(JSON_INVERTED_NODE, false);
+    bool forceState = request->param(JSON_FORCE_STATE_NODE, false);
+    bool defaultState = request->param(JSON_DEFAULT_STATE_NODE, false);
     uint8_t outputFlags = 0;
     if (inverted)
     {
@@ -910,7 +916,11 @@ HTTP_HANDLER_IMPL(process_outputs, request)
         bitSet(outputFlags, OUTPUT_IFLAG_FORCE_STATE);
       }
     }
-    if (!OutputManager::createOrUpdate(output_id, pin, outputFlags))
+    if (pin < 0)
+    {
+      request->set_status(HttpStatusCode::STATUS_BAD_REQUEST);
+    }
+    else if (!OutputManager::createOrUpdate(output_id, pin, outputFlags))
     {
       request->set_status(HttpStatusCode::STATUS_NOT_ALLOWED);
     }
@@ -944,8 +954,12 @@ HTTP_HANDLER_IMPL(process_sensors, request)
   }
   else
   {
-    uint16_t id = std::stoi(request->param(JSON_ID_NODE));
-    if (request->method() == HttpMethod::GET)
+    int16_t id = request->param(JSON_ID_NODE, -1);
+    if (id < 0)
+    {
+      request->set_status(HttpStatusCode::STATUS_BAD_REQUEST);
+    }
+    else if (request->method() == HttpMethod::GET)
     {
       auto sensor = SensorManager::getSensor(id);
       if (sensor)
@@ -957,9 +971,13 @@ HTTP_HANDLER_IMPL(process_sensors, request)
     }
     else if (request->method() == HttpMethod::POST)
     {
-      uint8_t pin = std::stoi(request->param(JSON_PIN_NODE));
-      bool pull = !request->param(JSON_PULLUP_NODE).compare(JSON_VALUE_TRUE);
-      if (!SensorManager::createOrUpdate(id, pin, pull))
+      int8_t pin = request->param(JSON_PIN_NODE, -1);
+      bool pull = request->param(JSON_PULLUP_NODE, false);
+      if (pin < 0)
+      {
+        request->set_status(HttpStatusCode::STATUS_BAD_REQUEST);
+      }
+      else if (!SensorManager::createOrUpdate(id, pin, pull))
       {
         request->set_status(HttpStatusCode::STATUS_NOT_ALLOWED);
       }
@@ -999,13 +1017,12 @@ HTTP_HANDLER_IMPL(process_remote_sensors, request)
   }
   else if(request->method() == HttpMethod::POST)
   {
-    RemoteSensorManager::createOrUpdate(
-      std::stoi(request->param(JSON_ID_NODE)),
-      std::stoi(request->param(JSON_VALUE_NODE)));
+    RemoteSensorManager::createOrUpdate(request->param(JSON_ID_NODE, 0),
+                                        request->param(JSON_VALUE_NODE, 0));
   }
   else if(request->method() == HttpMethod::DELETE)
   {
-    RemoteSensorManager::remove(std::stoi(request->param(JSON_ID_NODE)));
+    RemoteSensorManager::remove(request->param(JSON_ID_NODE, 0));
   }
   return nullptr;
 }
@@ -1022,9 +1039,9 @@ HTTP_HANDLER_IMPL(process_s88, request)
   else if(request->method() == HttpMethod::POST)
   {
     if(!S88BusManager::createOrUpdateBus(
-      std::stoi(request->param(JSON_ID_NODE)),
-      std::stoi(request->param(JSON_PIN_NODE)),
-      std::stoi(request->param(JSON_COUNT_NODE))))
+      request->param(JSON_ID_NODE, 0),
+      request->param(JSON_PIN_NODE, 0),
+      request->param(JSON_COUNT_NODE, 0)))
     {
       // duplicate pin/id
       request->set_status(HttpStatusCode::STATUS_NOT_ALLOWED);
@@ -1032,7 +1049,7 @@ HTTP_HANDLER_IMPL(process_s88, request)
   }
   else if(request->method() == HttpMethod::DELETE)
   {
-    S88BusManager::removeBus(std::stoi(request->param(JSON_ID_NODE)));
+    S88BusManager::removeBus(request->param(JSON_ID_NODE, 0));
   }
   return nullptr;
 }
