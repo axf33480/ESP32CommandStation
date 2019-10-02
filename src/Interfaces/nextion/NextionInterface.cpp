@@ -64,8 +64,19 @@ static constexpr char const * NEXTION_DISPLAY_TYPE_STRINGS[] = {
 
 NEXTION_DEVICE_TYPE nextionDeviceType = NEXTION_DEVICE_TYPE::UNKOWN_DISPLAY;
 
-void *nextionTask(void *param) {
+void *nextionTask(void *param)
+{
+#if NEXTION_ENABLED
 
+#if NEXTION_UART_NUM == 2
+  Serial2.begin(NEXTION_UART_BAUD, SERIAL_8N1, NEXTION_UART_RX_PIN, NEXTION_UART_TX_PIN);
+#elif NEXTION_UART_NUM == 1
+  Serial1.begin(NEXTION_UART_BAUD, SERIAL_8N1, NEXTION_UART_RX_PIN, NEXTION_UART_TX_PIN);
+#else
+  #error "Invalid configuration detected for the NEXTION_UART_NUM value. Only UART 1 or UART 2 are supported for the Nextion Interface."
+#endif
+
+  nextion.init();
   // attempt to identify the nextion display.
   constexpr uint8_t MAX_ATTEMPTS = 3;
   uint8_t attempt = 0;
@@ -123,22 +134,20 @@ void *nextionTask(void *param) {
     nextion.poll();
     vTaskDelay(NEXTION_INTERFACE_UPDATE_INTERVAL);
   }
+#endif // NEXTION_ENABLED
   return nullptr;
 }
 
-void nextionInterfaceInit() {
+void nextionInterfaceInit()
+{
 #if NEXTION_ENABLED
   Singleton<InfoScreen>::instance()->replaceLine(
     INFO_SCREEN_ROTATING_STATUS_LINE, "Init Nextion");
-#if NEXTION_UART_NUM == 2
-  Serial2.begin(NEXTION_UART_BAUD, SERIAL_8N1, NEXTION_UART_RX_PIN, NEXTION_UART_TX_PIN);
-#elif NEXTION_UART_NUM == 1
-  Serial1.begin(NEXTION_UART_BAUD, SERIAL_8N1, NEXTION_UART_RX_PIN, NEXTION_UART_TX_PIN);
-#else
-  #error "Invalid configuration detected for the NEXTION_UART_NUM value. Only UART 1 or UART 2 are supported for the Nextion Interface."
-#endif
-  nextion.init();
-  os_thread_create(nullptr, "nextion", 0, NEXTION_INTERFACE_TASK_STACK_SIZE, nextionTask, nullptr);
-#endif
+  extern unique_ptr<OpenMRN> openmrn;
+  openmrn->stack()->executor()->add(new CallbackExecutable([&]()
+  {
+    os_thread_create(nullptr, "nextion", 0, NEXTION_INTERFACE_TASK_STACK_SIZE, nextionTask, nullptr);
+  }));
+#endif // NEXTION_ENABLED
 }
 
