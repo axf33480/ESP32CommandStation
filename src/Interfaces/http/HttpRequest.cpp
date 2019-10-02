@@ -228,6 +228,30 @@ string HttpRequest::param(string name)
   return no_value_;
 }
 
+bool HttpRequest::param(string name, bool def)
+{
+  if (params_.count(name))
+  {
+    LOG(VERBOSE
+      , "[Req %p] Param %s -> %s", this, name.c_str(), params_[name].c_str());
+    auto value = params_[name];
+    std::transform(value.begin(), value.end(), value.begin(), ::tolower);
+    return value.compare("false");
+  }
+  return def;
+}
+
+int HttpRequest::param(string name, int def)
+{
+  if (params_.count(name))
+  {
+    LOG(VERBOSE
+      , "[Req %p] Param %s -> %s", this, name.c_str(), params_[name].c_str());
+    return std::stoi(params_[name]);
+  }
+  return def;
+}
+
 bool HttpRequest::has_param(string name)
 {
   return params_.count(name);

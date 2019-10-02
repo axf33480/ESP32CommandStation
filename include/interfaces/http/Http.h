@@ -551,6 +551,18 @@ public:
   /// @param name is the name of the parameter to return.
   std::string param(std::string name);
 
+  /// @return parameter value or default value is parameter is not present.
+  /// @param name is the name of the parameter to return as a boolean value.
+  /// @param def is the default value to return if the parameter does not exist
+  /// or is otherwise non-convertable to a boolean.
+  bool param(std::string name, bool def);
+
+  /// @return parameter value or default value is parameter is not present.
+  /// @param name is the name of the parameter to return as an integer value.
+  /// @param def is the default value to return if the parameter does not exist
+  /// or is otherwise non-convertable to an integer.
+  int param(std::string name, int def);
+
   /// @return true if the parameter is present.
   /// @param name is the name of the parameter to return.
   bool has_param(std::string name);
