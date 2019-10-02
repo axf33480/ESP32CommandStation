@@ -408,8 +408,7 @@
        </div>
       </div>
       <div class="ui-grid-solo">
-       <input type="button" id="cs-persist-config" value="Save Config" class='ui-button-inline'/>
-       <input type="button" id="cs-clear-config" value="Clear Config" class='ui-button-inline'/>
+       <input type="button" id="cs-save-config" value="Save" class='ui-button-inline'/>
        <input type="button" id="cs-factory-reset" value="Factory Reset" class='ui-button-inline'/>
        <input type="button" id="cs-wifi-connect" value="Connect to Network" class='ui-button-inline'/>
       </div>
@@ -644,7 +643,7 @@ var s88SensorIDBase = 512;
 function showSpinner(text, refresh) {
  refresh = typeof refresh !== 'undefined' ? refresh : false;
  setTimeout(function () { $.mobile.loading('show', {text: text,textVisible: true,textonly: false});}, 2);
- if(refresh) {setTimeout(function() {location.reload();}, 20000);}
+ if(refresh) {setTimeout(function() {location.reload();}, 25000);}
 }
 function hideSpinner() {
  setTimeout(function () { $.mobile.loading('hide'); }, 1);
@@ -772,7 +771,7 @@ function setupThrottle() {
     return record.defaultOnThrottles === "true";
    },
    failureHandler: function(jqxhr, status, error) {
-    console.log('Failed to retrieve locomotive list from command station, switching to manual');
+    console.log('Failed to retrieve locomotive list from command station, switching to manual:', error);
     $("#throttle-loco-list").hide();
     $("#throttle-loco-select-manual").show();
     $("#throttle-loco-select").popup("open");
@@ -1233,10 +1232,10 @@ function setupConfig() {
  $('#cs-factory-reset').on("vclick", function() {
   $.ajax({url: '/config?reset',method: 'POST',beforeSend: function() {showSpinner('Initiating Factory Reset...', true);},});
  });
- $("#cs-persist-config").on("vclick", function() {
+ $("#cs-save-config").on("vclick", function() {
   var tablist = ["WiFi", "LCC", "Uplink", "OPS", "PROG"];
   var section = $("#cs-config-tabs").tabs("option", "active");
-  var url = "/config?persist";
+  var url = "";
   if (tablist[section] == "WiFi") {
    url = String.format("/config?mode={0}", $('#cs-wifi-mode').val());
   } else if (tablist[section] == "LCC") {
@@ -1244,22 +1243,18 @@ function setupConfig() {
   } else if (tablist[section] == "Uplink") {
    url = String.format("/config?uplink-mode={0}&uplink-service={1}&uplink-manual={2}&uplink-manual-port={3}", $('#cs-lcc-uplink-mode').val(), $('#cs-lcc-uplink-auto-service').val(), $('#cs-lcc-uplink-manual-host').val(), $('#cs-lcc-uplink-manual-port').val());
   } else if (tablist[section] == "OPS") {
-   url = String.format("/config?ops-short={0}&ops-short-clear={1}&ops-shutdown={2}&ops-shutdown-clear={3}&ops-thermal={4}&ops-thermal-clear={5}", "", "", "", "", "");
+   url = String.format("/config?ops-short={0}&ops-short-clear={1}&ops-shutdown={2}&ops-shutdown-clear={3}&ops-thermal={4}&ops-thermal-clear={5}", $('#cs-cdi-ops-short').val(), $('#cs-cdi-ops-short-clear').val(), $('#cs-cdi-ops-shutdown').val(), $('#cs-cdi-ops-shutdown-clear').val(), $('#cs-cdi-ops-thermal').val(), $('#cs-cdi-ops-thermal-clear').val());
   } else if (tablist[section] == "PROG") {
-   url = String.format("/config?prog-short={0}&prog-short-clear={1}&prog-shutdown={2}&prog-shutdown-clear={3}", "", "", "", "");
+   url = String.format("/config?prog-short={0}&prog-short-clear={1}&prog-shutdown={2}&prog-shutdown-clear={3}", $('#cs-cdi-prog-short').val(), $('#cs-cdi-prog-short-clear').val(), $('#cs-cdi-prog-shutdown').val(), $('#cs-cdi-prog-shutdown-clear').val());
+  } else {
+   console.log('Unknown configuration tab:', section, ', ignoring');
+   return;
   }
   $.ajax({method: 'POST',url: url,
-   beforeSend: function() {showSpinner('Saving Configuration...');},
+   beforeSend: function() {showSpinner(String.format('Saving {0} config...', tablist[section]));},
    complete: hideSpinner,
-   success : function (data, status, xhr) {if(!data.hasOwnProperty('restart')) {csConfigUpdate(data);} else {showSpinner(data.state, true);}},
+   success : function (data, status, xhr) {if(!data.hasOwnProperty('restart')) {csConfigUpdate(data);} else {showSpinner(data.restart, true);}},
    error : function(xhr, status, error) {showErrorDialog("The command station reported a failure saving configuration data", error);}
-  });
- });
- $("#cs-clear-config").on("vclick", function() {
-  $.ajax({method: 'POST',url: '/config?clear',
-   beforeSend: function() {showSpinner('Clearing Configuration...');},
-   complete: hideSpinner,
-   error : function(xhr, status, error) {showErrorDialog("The command station reported a failure clearing configuration data", error);}
   });
  });
  $('#cs-wifi-mode').on('change', function() {
