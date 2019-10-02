@@ -541,7 +541,7 @@ HTTP_HANDLER_IMPL(process_prog, request)
       cv_value = request->param(JSON_VALUE_NODE, 0);
     }
 
-    if (cvNumber == 0)
+    if (cv_num == 0)
     {
       request->set_status(HttpStatusCode::STATUS_BAD_REQUEST);
     }
