@@ -21,6 +21,7 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #include <dcc/PacketSource.hxx>
 #include <openlcb/DccAccyConsumer.hxx>
 #include "interfaces/DCCppProtocol.h"
+#include "stateflows/AutoPersistCallbackFlow.h"
 
 enum TurnoutType
 {
