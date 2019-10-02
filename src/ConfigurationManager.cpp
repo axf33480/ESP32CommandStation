@@ -969,15 +969,24 @@ void ConfigurationManager::configureEnabledModules(SimpleCanStack *stack)
                 , (gpio_num_t)hc12Config[JSON_HC12_TX_NODE].get<uint8_t>()
     );
   }
+  LOG(INFO, "[Config] Registering OTA monitor");
   ota_.emplace(service);
+  LOG(INFO, "[Config] Enabling InfoScreen module");
   infoScreen_.emplace(stack, service);
+  LOG(INFO, "[Config] Enabling StatusLED module");
   statusLED_.emplace(service);
 
   // Task Monitor, periodically dumps runtime state to STDOUT.
+  LOG(INFO, "[Config] Registering FreeRTOS Task Monitor");
   taskMon_.emplace(service);
 
+  LOG(INFO, "[Config] Registering WiFi handlers (JMRI, WebServer)");
   wifiInterface.init();
+
+#if NEXTION_ENABLED
+  LOG(INFO, "[Config] Enabling Nextion module");
   nextionInterfaceInit();
+#endif
 
 #if ENABLE_OUTPUTS
   LOG(INFO, "[Config] Enabling GPIO Outputs");
