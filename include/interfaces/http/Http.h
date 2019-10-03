@@ -1000,7 +1000,7 @@ public:
   /// Constructor.
   ///
   /// @param server is the @ref Httpd server owning this request.
-  /// @param fd is the socket handler.
+  /// @param fd is the socket handle.
   /// @param remote_ip is the remote IP address of the client.
   HttpRequestFlow(Httpd *server, int fd, uint32_t remote_ip);
 
@@ -1024,7 +1024,7 @@ private:
   /// @ref Httpd instance that owns this request.
   Httpd *server_;
 
-  /// Underlying socket handler for this request.
+  /// Underlying socket handle for this request.
   int fd_;
 
   /// Remote client IP (if known).
@@ -1033,7 +1033,7 @@ private:
   /// @ref HttpRequest data holder.
   HttpRequest req_;
 
-  /// Flag to indicate that the underlying socket handler should be closed when
+  /// Flag to indicate that the underlying socket handle should be closed when
   /// this @ref HttpRequestFlow is deleted. In the case of a WebSocket the
   /// socket needs to be preserved.
   bool close_{true};
@@ -1168,7 +1168,7 @@ private:
   /// @ref Httpd instance that owns this request.
   Httpd *server_;
 
-  /// Underlying socket handler for this request.
+  /// Underlying socket handle for this request.
   int fd_;
   
   /// Remote client IP (if known).
