@@ -56,7 +56,7 @@ TurnoutManager::TurnoutManager(openlcb::Node *node, Service *service)
 
 void TurnoutManager::clear()
 {
-  AtomicHolder h(this);
+  OSMutexLock h(&mux_);
   for (auto & turnout : turnouts_)
   {
     turnout.reset(nullptr);
@@ -67,7 +67,7 @@ void TurnoutManager::clear()
 
 string TurnoutManager::setByID(uint16_t id, bool thrown, bool sendDCC)
 {
-  AtomicHolder h(this);
+  OSMutexLock h(&mux_);
   for (auto & turnout : turnouts_)
   {
     if (turnout->getID() == id)
@@ -83,7 +83,7 @@ string TurnoutManager::setByID(uint16_t id, bool thrown, bool sendDCC)
 string TurnoutManager::setByAddress(uint16_t address, bool thrown
                                   , bool sendDCC)
 {
-  AtomicHolder h(this);
+  OSMutexLock h(&mux_);
   for (auto & turnout : turnouts_)
   {
     if (turnout->getAddress() == address)
@@ -102,7 +102,7 @@ string TurnoutManager::setByAddress(uint16_t address, bool thrown
 
 string TurnoutManager::toggleByID(uint16_t id)
 {
-  AtomicHolder h(this);
+  OSMutexLock h(&mux_);
   for (auto & turnout : turnouts_)
   {
     if (turnout->getID() == id)
@@ -117,7 +117,7 @@ string TurnoutManager::toggleByID(uint16_t id)
 
 string TurnoutManager::toggleByAddress(uint16_t address)
 {
-  AtomicHolder h(this);
+  OSMutexLock h(&mux_);
   auto const &elem = std::find_if(turnouts_.begin(), turnouts_.end(),
     [address](unique_ptr<Turnout> & turnout) -> bool
     {
@@ -136,27 +136,15 @@ string TurnoutManager::toggleByAddress(uint16_t address)
   return toggleByAddress(address);
 }
 
-string TurnoutManager::getStateAsJson(bool readableStrings)
+string TurnoutManager::getStateAsJson(bool readable)
 {
-  AtomicHolder h(this);
-  string content = "[";
-  for (const auto& turnout : turnouts_)
-  {
-    // only add the seperator if we have already serialized at least one
-    // turnout.
-    if (content.length() > 1)
-    {
-      content += ",";
-    }
-    content += turnout->toJson(readableStrings);
-  }
-  content += "]";
-  return content;
+  OSMutexLock h(&mux_);
+  return get_state_as_json(readable);
 }
 
 string TurnoutManager::get_state_for_dccpp()
 {
-  AtomicHolder h(this);
+  OSMutexLock h(&mux_);
   if (turnouts_.empty())
   {
     return COMMAND_FAILED_RESPONSE;
@@ -174,7 +162,7 @@ Turnout *TurnoutManager::createOrUpdate(const uint16_t id
                                       , const int8_t index
                                       , const TurnoutType type)
 {
-  AtomicHolder h(this);
+  OSMutexLock h(&mux_);
   auto const &elem = std::find_if(turnouts_.begin(), turnouts_.end(),
     [id](unique_ptr<Turnout> & turnout) -> bool
     {
@@ -194,7 +182,7 @@ Turnout *TurnoutManager::createOrUpdate(const uint16_t id
 
 bool TurnoutManager::removeByID(const uint16_t id)
 {
-  AtomicHolder h(this);
+  OSMutexLock h(&mux_);
   auto const &elem = std::find_if(turnouts_.begin(), turnouts_.end(),
     [id](unique_ptr<Turnout> & turnout) -> bool
     {
@@ -213,7 +201,7 @@ bool TurnoutManager::removeByID(const uint16_t id)
 
 bool TurnoutManager::removeByAddress(const uint16_t address)
 {
-  AtomicHolder h(this);
+  OSMutexLock h(&mux_);
   auto const &elem = std::find_if(turnouts_.begin(), turnouts_.end(),
     [address](unique_ptr<Turnout> & turnout) -> bool
     {
@@ -233,7 +221,7 @@ bool TurnoutManager::removeByAddress(const uint16_t address)
 
 Turnout *TurnoutManager::getTurnoutByIndex(const uint16_t index)
 {
-  AtomicHolder h(this);
+  OSMutexLock h(&mux_);
   if (index < turnouts_.size())
   {
     return turnouts_[index].get();
@@ -243,7 +231,7 @@ Turnout *TurnoutManager::getTurnoutByIndex(const uint16_t index)
 
 Turnout *TurnoutManager::getTurnoutByID(const uint16_t id)
 {
-  AtomicHolder h(this);
+  OSMutexLock h(&mux_);
   auto const &elem = std::find_if(turnouts_.begin(), turnouts_.end(),
     [id](unique_ptr<Turnout> & turnout) -> bool
     {
@@ -258,7 +246,7 @@ Turnout *TurnoutManager::getTurnoutByID(const uint16_t id)
 
 Turnout *TurnoutManager::getTurnoutByAddress(const uint16_t address)
 {
-  AtomicHolder h(this);
+  OSMutexLock h(&mux_);
   auto const &elem = std::find_if(turnouts_.begin(), turnouts_.end(),
     [address](unique_ptr<Turnout> & turnout) -> bool
     {
@@ -274,11 +262,11 @@ Turnout *TurnoutManager::getTurnoutByAddress(const uint16_t address)
 
 uint16_t TurnoutManager::getTurnoutCount()
 {
-  AtomicHolder h(this);
+  OSMutexLock h(&mux_);
   return turnouts_.size();
 }
 
-// TODO shift this to consume the LCC event directly
+// TODO: shift this to consume the LCC event directly
 void TurnoutManager::send(Buffer<Packet> *b, unsigned prio)
 {
   // add ref count so send doesn't delete it
@@ -303,16 +291,36 @@ void TurnoutManager::send(Buffer<Packet> *b, unsigned prio)
   b->unref();
 }
 
+string TurnoutManager::get_state_as_json(bool readableStrings)
+{
+  string content = "[";
+  for (const auto& turnout : turnouts_)
+  {
+    // only add the seperator if we have already serialized at least one
+    // turnout.
+    if (content.length() > 1)
+    {
+      content += ",";
+    }
+    content += turnout->toJson(readableStrings);
+  }
+  content += "]";
+  return content;
+}
+
 void TurnoutManager::persist()
 {
+  // Note we only check if the dirty flag has been set, it does not need to be
+  // reset in this method as it will automatically be cleared as part of
+  // getStateAsJson execution. By checking this here though we can avoid the
+  // unnecessary wear on the flash when running on SPIFFS.
+  OSMutexLock h(&mux_);
+  if (!dirty_)
   {
-    AtomicHolder h(this);
-    if (!dirty_)
-    {
-      return;
-    }
+    return;
   }
-  configStore->store(TURNOUTS_JSON_FILE, getStateAsJson(false));
+  configStore->store(TURNOUTS_JSON_FILE, get_state_as_json(false));
+  dirty_ = false;
 }
 
 void encodeDCCAccessoryAddress(uint16_t *boardAddress, int8_t *boardIndex
