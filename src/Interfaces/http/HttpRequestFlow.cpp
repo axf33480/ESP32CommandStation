@@ -739,7 +739,7 @@ StateFlowBase::Action HttpRequestFlow::stream_multipart_body()
 StateFlowBase::Action HttpRequestFlow::read_form_data()
 {
   // Request enough data for at least header_read_size_ number of bytes.
-  LOG(INFO
+  LOG(REQ_DEBUG_LOG_LEVEL
     , "[Httpd fd:%d,uri:%s] requesting %zu bytes for form-data processing", fd_
     , req_.uri().c_str(), header_read_size_ - buf_.size());
   return read_repeated_with_timeout(&helper_, timeout_, fd_
