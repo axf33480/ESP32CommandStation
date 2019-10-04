@@ -36,8 +36,6 @@ namespace esp32cs
     /// Each entry declares the name of the current entry, then the type and
     /// then optional arguments list.
     CDI_GROUP_ENTRY(internal_config, openlcb::InternalConfigData);
-    /// CV Access via MemoryConfig protocol.
-    CDI_GROUP_ENTRY(cv, openlcb::TractionShortCvSpace);
     /// WiFi configuration
     CDI_GROUP_ENTRY(wifi, WiFiConfiguration, Name("WiFi Configuration"));
     /// H-Bridge configuration
