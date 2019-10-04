@@ -32,7 +32,12 @@ static constexpr const char *TURNOUT_TYPE_STRINGS[] =
 };
 
 TurnoutManager::TurnoutManager(openlcb::Node *node, Service *service)
+  : turnoutEventConsumer_(node, this)
+  , persistFlow_(service, SEC_TO_NSEC(config_cs_turnouts_auto_persist_sec())
+              , std::bind(&TurnoutManager::persist, this))
+  , dirty_(false)
 {
+  OSMutexLock h(&mux_);
   LOG(INFO, "[Turnout] Initializing DCC Turnout database");
   json root = json::parse(configStore->load(TURNOUTS_JSON_FILE));
   for (auto turnout : root)
@@ -45,13 +50,6 @@ TurnoutManager::TurnoutManager(openlcb::Node *node, Service *service)
                                   , (TurnoutType)turnout[JSON_TYPE_NODE].get<int>()));
   }
   LOG(INFO, "[Turnout] Loaded %d DCC turnout(s)", turnouts_.size());
-
-  // register the LCC event handler
-  turnoutEventConsumer_.emplace(node, this);
-
-  persistFlow_.emplace(service
-                     , SEC_TO_NSEC(config_cs_turnouts_auto_persist_sec)
-                     , std::bind(&TurnoutManager::persist, this));
 }
 
 void TurnoutManager::clear()
@@ -73,7 +71,6 @@ string TurnoutManager::setByID(uint16_t id, bool thrown, bool sendDCC)
     if (turnout->getID() == id)
     {
       turnout->set(thrown, sendDCC);
-      dirty_ = true;
       return turnout->get_state_for_dccpp();
     }
   }
@@ -89,7 +86,6 @@ string TurnoutManager::setByAddress(uint16_t address, bool thrown
     if (turnout->getAddress() == address)
     {
       turnout->set(thrown, sendDCC);
-      dirty_ = true;
       return turnout->get_state_for_dccpp();
     }
   }
@@ -108,7 +104,6 @@ string TurnoutManager::toggleByID(uint16_t id)
     if (turnout->getID() == id)
     {
       turnout->toggle();
-      dirty_ = true;
       return turnout->get_state_for_dccpp();
     }
   }

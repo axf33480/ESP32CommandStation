@@ -32,7 +32,7 @@ public:
                 , callback_(std::move(callback))
   {
     HASSERT(callback_);
-    reset_flow(STATE(sleep_and_persist));
+    start_flow(STATE(sleep_and_persist));
   }
 
 private:

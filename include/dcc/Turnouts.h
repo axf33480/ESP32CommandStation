@@ -109,9 +109,9 @@ private:
   std::string get_state_as_json(bool);
   void persist();
   std::vector<std::unique_ptr<Turnout>> turnouts_;
-  uninitialized<openlcb::DccAccyConsumer> turnoutEventConsumer_;
-  uninitialized<AutoPersistFlow> persistFlow_;
-  bool dirty_{false};
+  openlcb::DccAccyConsumer turnoutEventConsumer_;
+  AutoPersistFlow persistFlow_;
+  bool dirty_;
   OSMutex mux_;
 };
 
