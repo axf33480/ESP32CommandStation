@@ -20,6 +20,8 @@ COPYRIGHT (c) 2019 Mike Dunston
 // GCC pre-compiler trick to expand the value from a #define constant
 #define DEFAULT_CONST_EXPAND_VALUE(var, value) DEFAULT_CONST(var, value)
 
+// GCC pre-compiler trick to expand the value from a #define constant
+#define OVERRIDE_CONST_EXPAND_VALUE(var, value) OVERRIDE_CONST(var, value)
 #ifndef ESP32CS_EXTERNAL_CONFIGURATION
 #include "Config.h"
 #endif
@@ -106,6 +108,12 @@ DEFAULT_CONST(rmt_packet_queue_ops, 10);
 DEFAULT_CONST(rmt_packet_queue_prog, 5);
 
 ///////////////////////////////////////////////////////////////////////////////
+// This is the number of pending dcc::Packet objects that the RMT driver will
+// allow to be queued for outbound delivery.
+///////////////////////////////////////////////////////////////////////////////
+DEFAULT_CONST_EXPAND_VALUE(cs_energize_ops_on_boot, ENERGIZE_OPS_TRACK_ON_STARTUP);
+
+///////////////////////////////////////////////////////////////////////////////
 // HC12 configuration settings
 ///////////////////////////////////////////////////////////////////////////////
 DEFAULT_CONST(cs_hc12_buffer_size, 256);
@@ -125,3 +133,29 @@ DEFAULT_CONST_EXPAND_VALUE(status_led_pin, STATUS_LED_DATA_PIN);
 DEFAULT_CONST_EXPAND_VALUE(status_led_brightness, STATUS_LED_BRIGHTNESS);
 
 DEFAULT_CONST(status_led_update_interval_msec, 450);
+
+// Increase the number of memory spaces available at runtime to account for the
+// Traction protocol CDI/FDI needs.
+OVERRIDE_CONST(num_memory_spaces, 10);
+
+// Increase the GridConnect buffer size to improve performance by bundling more
+// than one GridConnect packet into the same send() call to the socket.
+OVERRIDE_CONST_EXPAND_VALUE(gridconnect_buffer_size, CONFIG_TCP_MSS);
+
+// This will allow up to 1000 usec for the buffer to fill up before sending it
+// out over the socket connection.
+OVERRIDE_CONST(gridconnect_buffer_delay_usec, 500);
+
+// This limites the number of outbound GridConnect packets which limits the
+// memory used by the BufferPort.
+OVERRIDE_CONST(gridconnect_bridge_max_outgoing_packets, 2);
+
+
+// This increases number of state flows to invoke before checking for any FDs
+// that have pending data.
+OVERRIDE_CONST(executor_select_prescaler, 60);
+
+// This increases the number of local nodes and aliases available for the LCC
+// stack. This is needed to allow for virtual train nodes.
+OVERRIDE_CONST(local_nodes_count, 30);
+OVERRIDE_CONST(local_alias_cache_size, 30);

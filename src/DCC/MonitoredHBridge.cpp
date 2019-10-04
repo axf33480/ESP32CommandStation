@@ -41,7 +41,7 @@ MonitoredHBridge::MonitoredHBridge(SimpleCanStack *stack
   , bridgeType_(bridgeType)
   , isProgTrack_(false)
   , overCurrentLimit_(((((limitMilliAmps << 3) + limitMilliAmps) / 10) << 12) / maxMilliAmps_) // ~90% max value
-  , shutdownLimit_(4090)
+  , shutdownLimit_(4080)
   , cfg_(cfg)
   , targetLED_(StatusLED::LED::OPS_TRACK)
   , shortBit_(stack->node(), 0, 0, &state_, STATE_OVERCURRENT)
@@ -215,10 +215,9 @@ StateFlowBase::Action MonitoredHBridge::init()
     ESP_ERROR_CHECK(gpio_pullup_en(thermalWarningPin_));
   }
 
-  if (!isProgTrack_ && ENERGIZE_OPS_TRACK_ON_STARTUP)
+  if (!isProgTrack_ && config_cs_energize_ops_on_boot() == CONSTANT_TRUE)
   {
-    OSMutexLock l(&requestedStateLock_);
-    requestedState_ = STATE_ON;
+    enable();
   }
   return call_immediately(STATE(sleep_and_check_state));
 }

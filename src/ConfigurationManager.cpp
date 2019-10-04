@@ -416,24 +416,27 @@ void ConfigurationManager::store(const char *name, const string &content)
 void ConfigurationManager::factory_reset()
 {
   remove(ESP32_CS_CONFIG_JSON);
+  SCHEDULE_REBOOT();
 }
 
 void ConfigurationManager::factory_reset_lcc(bool warn)
 {
-  if (!access(LCC_CONFIG_FILE, F_OK) ||
-      !access(LCC_CDI_XML, F_OK))
+  struct stat statbuf;
+  // this code is not using access(path, F_OK) as that is not available for
+  // SPIFFS VFS. stat(path, buf) does work though.
+  if (!stat(LCC_CONFIG_FILE, &statbuf) || !stat(LCC_CDI_XML, &statbuf))
   {
     if (warn)
     {
       LOG(WARNING, "[Config] LCC factory reset underway...");
     }
 
-    if (!access(LCC_CONFIG_FILE, F_OK))
+    if (!stat(LCC_CONFIG_FILE, &statbuf))
     {
       LOG(WARNING, "[Config] Removing %s", LCC_CONFIG_FILE);
       ERRNOCHECK(LCC_CONFIG_FILE, unlink(LCC_CONFIG_FILE));
     }
-    if (!access(LCC_CDI_XML, F_OK))
+    if (!stat(LCC_CDI_XML, &statbuf))
     {
       LOG(WARNING, "[Config] Removing %s", LCC_CDI_XML);
       ERRNOCHECK(LCC_CDI_XML, unlink(LCC_CDI_XML));

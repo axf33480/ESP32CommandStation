@@ -15,74 +15,75 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
   along with this program.  If not, see http://www.gnu.org/licenses
 **********************************************************************/
 
-/////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 //
 // The WiFi interface is part of the ESP32 Command Station core functionality
 // and will require modification in the Config_WiFi.h file.
 #include "Config_WiFi.h"
 
-/////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 //
 // The Config_HBridge.h file will likely require modifications
 // to define pins and motor board type(s)
 #include "Config_HBridge.h"
 
-/////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 //
-// The LCC interface is part of the ESP32 Command Station core functionality, by
-// default only the WiFi interface is enabled but a hardware CAN interface can be
-// enabled.
+// The LCC interface is part of the ESP32 Command Station core functionality,
+// by default only the WiFi interface is enabled but a hardware CAN interface
+// can be enabled.
 #include "Config_LCC.h"
 
-/////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 //
-// The Status module allows the Command Station to report visually the current state
-// of the WiFi, OPS and PROG outputs.
+// The Status module allows the Command Station to report visually the current
+// state of the WiFi, OPS and PROG outputs.
 //#include "Config_Status.h"
 
-/////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 //
 // The following line alters the default behavior of the ESP32 Command Station
-// in such that it will automatically energize the OPS track power on startup. This
-// may not be desirable and is left disabled by default. Uncomment the next line to
-// enable this functionality.
-//#define ENERGIZE_OPS_TRACK_ON_STARTUP true
+// so that it will automatically energize the OPS track power on startup. This
+// may not be desirable and is left disabled by default. Uncomment the next
+// line to enable this functionality.
+//#define ENERGIZE_OPS_TRACK_ON_STARTUP CONSTANT_TRUE
 
-/////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 //
 // The S88 module is optional and if enabled will allow communication with
 // one (or more) S88 buses. To utilize this functionality uncomment the
 // include below and edit the Config_S88.h file to match your configuration.
 //#include "Config_S88.h"
 
-/////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 //
-// The InfoScreen module is optional and displays command station information on either
-// an OLED or LCD screen.
+// The InfoScreen module is optional and displays command station information
+// on either an OLED or LCD screen.
 //#include "Config_OLED.h"
 //#include "Config_LCD.h"
 
-/////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 //
 // The Nextion interface is an optional module that allows a Nextion display to
-// be connected directly to the command station as a throttle and programming interface.
+// be connected directly to the command station as a throttle and programming
+// interface.
 //#include "Config_Nextion.h"
 
-/////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 //
-// The HC12 interface is an optional module which allows for an HC12 to be connected
-// to the command station allowing the text based protocol to be utilized by external
-// devices via an HC12.
+// The HC12 interface is an optional module which allows for an HC12 to be
+// connected to the command station allowing the text based protocol to be
+// utilized by external devices via an HC12.
 //#include "Config_HC12.h"
 
-/////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 //
-// The LocoNet interface is an optional module, if you wish to interface with LocoNet
-// you must uncomment the next line and edit the Config_LocoNet.h file to match your
-// configuration.
+// The LocoNet interface is an optional module, if you wish to interface with
+// LocoNet you must uncomment the next line and edit the Config_LocoNet.h file
+// to match your configuration.
 //#include "Config_LocoNet.h"
 
-/////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 //
 // The following pins are considered reserved pins by Espressif and should not
 // generally be used by:
@@ -97,4 +98,16 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 //#define ALLOW_USAGE_OF_RESTRICTED_GPIO_PINS
 
-/////////////////////////////////////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////////////////////////////
+//
+// Uncomment either of the following lines to disable either outputs or sensors
+// functionality. This will result in a slightly smaller binary but at the cost
+// of these features not being available. With the PCB build profiles, these
+// are automatically disabled as there are no free pins available or exposed to
+// support these features.
+
+// #define ENABLE_OUTPUTS false
+// #define ENABLE_SENSORS false
+
+///////////////////////////////////////////////////////////////////////////////
