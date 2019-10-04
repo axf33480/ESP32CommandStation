@@ -148,7 +148,7 @@ void MonitoredHBridge::disable()
 {
   if(state_ != STATE_OFF)
   {
-    AtomicHolder l(&requestedStateAtomic_);
+    OSMutexLock l(&requestedStateLock_);
     requestedState_ = STATE_OFF;
     timer_.ensure_triggered();
   }
@@ -156,7 +156,7 @@ void MonitoredHBridge::disable()
 
 void MonitoredHBridge::enable()
 {
-  AtomicHolder l(&requestedStateAtomic_);
+  OSMutexLock l(&requestedStateLock_);
   requestedState_ = STATE_ON;
   timer_.ensure_triggered();
 }
@@ -217,7 +217,7 @@ StateFlowBase::Action MonitoredHBridge::init()
 
   if (!isProgTrack_ && ENERGIZE_OPS_TRACK_ON_STARTUP)
   {
-    AtomicHolder l(&requestedStateAtomic_);
+    OSMutexLock l(&requestedStateLock_);
     requestedState_ = STATE_ON;
   }
   return call_immediately(STATE(sleep_and_check_state));
@@ -230,7 +230,7 @@ StateFlowBase::Action MonitoredHBridge::check()
   vector<int> samples;
 
   {
-    AtomicHolder l(&requestedStateAtomic_);
+    OSMutexLock l(&requestedStateLock_);
     if (lastRequestedState_ != requestedState_)
     {
       lastRequestedState_ = requestedState_;

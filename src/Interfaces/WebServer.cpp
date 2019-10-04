@@ -62,7 +62,7 @@ static constexpr const char * const CAPTIVE_PORTAL_HTML =
   "</html>";
 
 uninitialized<Httpd> httpd;
-Atomic webSocketAtomic;
+OSMutex webSocketLock;
 vector<unique_ptr<WebSocketClient>> webSocketClients;
 WEBSOCKET_STREAM_HANDLER(process_websocket_event);
 HTTP_STREAM_HANDLER(process_ota);
@@ -163,7 +163,7 @@ void to_json(nlohmann::json& j, const wifi_ap_record_t& t)
 WEBSOCKET_STREAM_HANDLER_IMPL(process_websocket_event, client, event, data
                             , data_len)
 {
-  AtomicHolder h(&webSocketAtomic);
+  OSMutexLock h(&webSocketLock);
   if (event == WebSocketEvent::WS_EVENT_CONNECT)
   {
     webSocketClients.push_back(

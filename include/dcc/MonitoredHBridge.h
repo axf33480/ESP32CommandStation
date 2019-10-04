@@ -22,6 +22,7 @@ COPYRIGHT (c) 2018-2019 Mike Dunston
 
 #include <executor/StateFlow.hxx>
 #include <openlcb/SimpleStack.hxx>
+#include <os/OS.hxx>
 #include <utils/ConfigUpdateListener.hxx>
 #include <utils/format_utils.hxx>
 #include <utils/logging.h>
@@ -197,7 +198,7 @@ private:
   uint64_t lastReport_{0};
   uint32_t lastReading_{0};
   uint8_t state_{STATE_OFF};
-  Atomic requestedStateAtomic_;
+  OSMutex requestedStateLock_;
   uint8_t requestedState_{STATE_OFF};
   uint8_t lastRequestedState_{STATE_OFF};
   uint8_t overCurrentCheckCount_{0};

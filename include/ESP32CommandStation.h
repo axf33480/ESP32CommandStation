@@ -72,6 +72,7 @@ using std::set;
 #include <openlcb/TractionTrain.hxx>
 
 #include <os/MDNS.hxx>
+#include <os/OS.hxx>
 
 #include <utils/AutoSyncFileFlow.hxx>
 #include <utils/constants.hxx>

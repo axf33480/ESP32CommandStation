@@ -428,13 +428,13 @@ static void railcom_uart_isr(void *ctx)
   {                                                                         \
     AtomicHolder l(&lock);                                                  \
     queue->get(&packet, 1);                                                 \
-    /* Check if we have a pending writer and notify it if needed. */        \
-    Notifiable* n = nullptr;                                                \
-    std::swap(n, notifiable);                                               \
-    if (n)                                                                  \
-    {                                                                       \
-      n->notify_from_isr();                                                 \
-    }                                                                       \
+  }                                                                         \
+  /* Check if we have a pending writer and notify it if needed. */          \
+  Notifiable* n = nullptr;                                                  \
+  std::swap(n, notifiable);                                                 \
+  if (n)                                                                    \
+  {                                                                         \
+    n->notify_from_isr();                                                   \
   }                                                                         \
   /* encode the preamble bits */                                            \
   for (encodedLength = 0; encodedLength < preambleCount; encodedLength++)   \
@@ -740,18 +740,15 @@ int RMTTrackDevice::ioctl(int fd, int cmd, va_list args)
       IOC_SIZE(cmd) == NOTIFIABLE_TYPE &&
       cmd == CAN_IOC_WRITE_OPS_ACTIVE)
   {
-    AtomicHolder l(&opsPacketQueueLock_);
     Notifiable* n = reinterpret_cast<Notifiable*>(va_arg(args, uintptr_t));
     HASSERT(n);
-    if (!opsPacketQueue_->space())
     {
-      unsigned state = portENTER_CRITICAL_NESTED();
+      AtomicHolder l(&opsPacketQueueLock_);
       if (!opsPacketQueue_->space())
       {
         // stash the notifiable so we can call it later when there is space
         std::swap(n, opsWritableNotifiable_);
       }
-      portEXIT_CRITICAL_NESTED(state);
     }
     if (n)
     {
@@ -765,18 +762,15 @@ int RMTTrackDevice::ioctl(int fd, int cmd, va_list args)
       IOC_SIZE(cmd) == NOTIFIABLE_TYPE &&
       cmd == CAN_IOC_WRITE_PROG_ACTIVE)
   {
-    AtomicHolder l(&progPacketQueueLock_);
     Notifiable* n = reinterpret_cast<Notifiable*>(va_arg(args, uintptr_t));
     HASSERT(n);
-    if (!progPacketQueue_->space())
     {
-      unsigned state = portENTER_CRITICAL_NESTED();
+      AtomicHolder l(&progPacketQueueLock_);
       if (!progPacketQueue_->space())
       {
         // stash the notifiable so we can call it later when there is space
         std::swap(n, progWritableNotifiable_);
       }
-      portEXIT_CRITICAL_NESTED(state);
     }
     if (n)
     {
@@ -880,7 +874,6 @@ void RMTTrackDevice::send(Buffer<Packet> *b, unsigned prio)
 ///////////////////////////////////////////////////////////////////////////////
 void RMTTrackDevice::enable_ops_output()
 {
-  AtomicHolder l(&opsPacketQueueLock_);
   if (!opsSignalActive_)
   {
     opsSignalActive_ = true;
@@ -899,7 +892,6 @@ void RMTTrackDevice::enable_ops_output()
 ///////////////////////////////////////////////////////////////////////////////
 void RMTTrackDevice::disable_ops_output()
 {
-  AtomicHolder l(&opsPacketQueueLock_);
   if (opsSignalActive_)
   {
     opsSignalActive_ = false;
@@ -919,7 +911,6 @@ void RMTTrackDevice::enable_prog_output()
 {
   if (!progSignalActive_)
   {
-    AtomicHolder l(&progPacketQueueLock_);
     LOG(INFO, "[RMT] Starting RMT for PROG");
     progSignalActive_ = true;
 
@@ -941,19 +932,20 @@ void RMTTrackDevice::disable_prog_output()
 {
   if (progSignalActive_)
   {
-    AtomicHolder l(&progPacketQueueLock_);
     progSignalActive_ = false;
     LOG(INFO, "[RMT] Shutting down RMT for PROG");
 
     progHBridge_->disable();
-
-    // if we have any pending packets, consume them now so we do not send them
-    // to the track.
-    if (progPacketQueue_->pending())
     {
-      LOG(INFO, "[RMT] Discarding %d pending packets for PROG"
-        , progPacketQueue_->pending());
-      progPacketQueue_->consume(progPacketQueue_->pending());
+      // if we have any pending packets, consume them now so we do not send
+      // them to the track.
+      AtomicHolder l(&progPacketQueueLock_);
+      if (!progPacketQueue_->pending())
+      {
+        LOG(INFO, "[RMT] Discarding %d pending packets for PROG"
+          , progPacketQueue_->pending());
+        progPacketQueue_->consume(progPacketQueue_->pending());
+      }
     }
   }
 }

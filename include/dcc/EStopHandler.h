@@ -24,7 +24,7 @@ COPYRIGHT (c) 2019 Mike Dunston
 #include <dcc/SimpleUpdateLoop.hxx>
 #include <openlcb/Defs.hxx>
 #include <openlcb/EventHandlerTemplates.hxx>
-#include <utils/Atomic.hxx>
+#include <os/OS.hxx>
 #include <utils/Singleton.hxx>
 #include "AllTrainNodes.hxx"
 
@@ -80,31 +80,31 @@ public:
         }
       }
       {
-        AtomicHolder l(&lock_);
+        OSMutexLock l(&lock_);
         remaining_ = config_cs_estop_packet_count();
+        Singleton<SimpleUpdateLoop>::instance()->add_refresh_source(this
+                                                                  , ESTOP_PRIORITY);
       }
-      Singleton<SimpleUpdateLoop>::instance()->add_refresh_source(this
-                                                                , ESTOP_PRIORITY);
     }
     else
     {
-      {
-        AtomicHolder l(&lock_);
-        remaining_ = 0;
-      }
+      OSMutexLock l(&lock_);
+      remaining_ = 0;
       Singleton<SimpleUpdateLoop>::instance()->remove_refresh_source(this);
     }
   }
 
   void get_next_packet(unsigned code, Packet* packet)
   {
-    AtomicHolder l(&lock_);
     packet->set_dcc_speed14(DccShortAddress(0), true, false
                           , Packet::EMERGENCY_STOP);
-    remaining_--;
-    if (remaining_ <= 0)
     {
-      Singleton<SimpleUpdateLoop>::instance()->remove_refresh_source(this);
+      OSMutexLock l(&lock_);
+      remaining_--;
+      if (remaining_ <= 0)
+      {
+        Singleton<SimpleUpdateLoop>::instance()->remove_refresh_source(this);
+      }
     }
   }
 
@@ -115,7 +115,7 @@ public:
 
 private:
   Node *node_;
-  Atomic lock_;
+  OSMutex lock_;
   int16_t remaining_;
   static constexpr unsigned ESTOP_PRIORITY = UpdateLoopBase::ESTOP_PRIORITY;
 };

@@ -28,8 +28,7 @@ COPYRIGHT (c) 2019 Mike Dunston
 #include <executor/Service.hxx>
 #include <executor/StateFlow.hxx>
 #include <os/MDNS.hxx>
-#include <os/os.h>
-#include <utils/Atomic.hxx>
+#include <os/OS.hxx>
 #include <utils/Base64.hxx>
 #include <utils/constants.hxx>
 #include <utils/Singleton.hxx>
@@ -969,7 +968,7 @@ private:
   std::map<int, WebSocketFlow *> websockets_;
 
   /// Lock object for websockets_.
-  Atomic websocketsLock_;
+  OSMutex websocketsLock_;
 
   /// Internal holder for captive portal response.
   std::string captive_response_;
