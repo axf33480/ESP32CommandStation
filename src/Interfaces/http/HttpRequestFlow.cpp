@@ -833,8 +833,9 @@ StateFlowBase::Action HttpRequestFlow::send_response_headers()
   // the request.
   if (!res_)
   {
-    LOG(REQ_DEBUG_LOG_LEVEL
-      , "no response body, creating one with %d", req_.status_);
+    LOG(INFO
+      , "[Httpd fd:%d,uri:%s] no response body, creating one with status:%d"
+      , fd_, req_.uri().c_str(), req_.status_);
     res_.reset(new AbstractHttpResponse(req_.status_));
   }
   size_t len = 0;

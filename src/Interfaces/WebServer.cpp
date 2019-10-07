@@ -692,25 +692,6 @@ string convert_loco_to_json(TrainImpl *t)
   return j.dump();
 }
 
-#define DELETE_LOCO_VIA_EXECUTOR(address, wait)             \
-{                                                           \
-  SyncNotifiable n;                                         \
-  extern unique_ptr<OpenMRN> openmrn;                       \
-  openmrn->stack()->executor()->add(new CallbackExecutable( \
-    [&]()                                                   \
-    {                                                       \
-      trainNodes->remove_train_impl(address);               \
-      if (wait)                                             \
-      {                                                     \
-        n.notify();                                         \
-      }                                                     \
-    }));                                                    \
-    if (wait)                                               \
-    {                                                       \
-    n.wait_for_notification();                              \
-    }                                                       \
-}
-
 #define GET_LOCO_VIA_EXECUTOR(NAME, address)                                          \
   TrainImpl *NAME = nullptr;                                                          \
   {                                                                                   \
@@ -811,9 +792,12 @@ HTTP_HANDLER_IMPL(process_loco, request)
         auto nodeid = trainNodes->get_train_node_id(id);
         if (nodeid)
         {
+          if (res.length() > 1)
+          {
+            res += ",";
+          }
           auto loco = trainNodes->get_train_impl(nodeid);
           res += convert_loco_to_json(loco);
-          res += ",";
         }
       }
       res += "]";
@@ -857,11 +841,12 @@ HTTP_HANDLER_IMPL(process_loco, request)
       }
       else if(request->method() == HttpMethod::DELETE)
       {
-        DELETE_LOCO_VIA_EXECUTOR(address, false);
+        // we don't need to queue it up on the executor as it is done internally.
+        trainNodes->remove_train_impl(address);
 #if NEXTION_ENABLED
         static_cast<NextionThrottlePage *>(nextionPages[THROTTLE_PAGE])->invalidateLocomotive(address);
 #endif
-        request->set_status(HttpStatusCode::STATUS_OK);
+        request->set_status(HttpStatusCode::STATUS_NO_CONTENT);
       }
       else
       {
