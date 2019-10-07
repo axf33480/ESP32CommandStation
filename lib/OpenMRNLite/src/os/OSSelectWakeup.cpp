@@ -85,14 +85,13 @@ void OSSelectWakeup::esp_wakeup()
         return;
     }
     woken_ = true;
-#if 0
-    esp_vfs_select_triggered((SemaphoreHandle_t *)espSem_);
-#else
-    LOG(VERBOSE, "wakeup es %p %u lws %p", espSem_, *(unsigned*)espSem_, lwipSem_);
+    LOG(VERBOSE, "wakeup es %p %u lws %p", espSem_, *(unsigned*)espSem_
+      , lwipSem_);
     if (espSem_)
     {
         esp_vfs_select_triggered((SemaphoreHandle_t *)espSem_);
     }
+#ifndef CONFIG_USE_ONLY_LWIP_SELECT
     else
     {
         // Works around a bug in the implementation of
@@ -102,7 +101,7 @@ void OSSelectWakeup::esp_wakeup()
         // calling thread, not the target thread to wake up.
         sys_sem_signal(lwipSem_);
     }
-#endif
+#endif // CONFIG_USE_ONLY_LWIP_SELECT
 }
 
 void OSSelectWakeup::esp_wakeup_from_isr()
@@ -118,13 +117,6 @@ void OSSelectWakeup::esp_wakeup_from_isr()
     }
     woken_ = true;
     BaseType_t woken = pdFALSE;
-#if 0
-    esp_vfs_select_triggered_isr((SemaphoreHandle_t *)espSem_, &woken);
-    if (woken == pdTRUE)
-    {
-        portYIELD_FROM_ISR();
-    }
-#else
     if (espSem_)
     {
         esp_vfs_select_triggered_isr((SemaphoreHandle_t *)espSem_, &woken);
@@ -133,6 +125,7 @@ void OSSelectWakeup::esp_wakeup_from_isr()
             portYIELD_FROM_ISR();
         }
     }
+#ifndef CONFIG_USE_ONLY_LWIP_SELECT
     else
     {
         // Works around a bug in the implementation of
@@ -142,7 +135,7 @@ void OSSelectWakeup::esp_wakeup_from_isr()
         // calling thread, not the target thread to wake up.
         sys_sem_signal_isr(lwipSem_);
     }
-#endif
+#endif // CONFIG_USE_ONLY_LWIP_SELECT
 }
 
 static void esp_vfs_init()
@@ -170,7 +163,8 @@ void OSSelectWakeup::esp_allocate_vfs_fd()
     pthread_once(&vfs_init_once, &esp_vfs_init);
     vfsFd_ = wakeup_fd;
     pthread_setspecific(select_wakeup_key, this);
-    LOG(VERBOSE, "VFSALLOC wakeup fd %d (thr %p test %p)", vfsFd_, os_thread_self(), pthread_getspecific(select_wakeup_key));
+    LOG(VERBOSE, "VFSALLOC wakeup fd %d (thr %p test %p)", vfsFd_
+      , os_thread_self(), pthread_getspecific(select_wakeup_key));
 }
 
 void OSSelectWakeup::esp_deallocate_vfs_fd()

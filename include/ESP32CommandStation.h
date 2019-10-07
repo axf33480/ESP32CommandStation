@@ -124,6 +124,7 @@ using dcc::RailcomHubFlow;
 using dcc::RailcomPrintfFlow;
 using dcc::SimpleUpdateLoop;
 using dcc::SpeedType;
+using dcc::UpdateLoopBase;
 
 using openlcb::BitEventProducer;
 using openlcb::DccAccyConsumer;
@@ -177,9 +178,9 @@ using openlcb::WriteHelper;
 #include "io/S88Sensors.h"
 #include "io/RemoteSensors.h"
 
-extern unique_ptr<RMTTrackDevice> trackSignal;
-extern unique_ptr<LocalTrackIf> trackInterface;
-extern unique_ptr<commandstation::AllTrainNodes> trainNodes;
+extern uninitialized<RMTTrackDevice> trackSignal;
+extern uninitialized<LocalTrackIf> trackInterface;
+extern uninitialized<commandstation::AllTrainNodes> trainNodes;
 
 #if LOCONET_ENABLED
 #include <LocoNetESP32UART.h>

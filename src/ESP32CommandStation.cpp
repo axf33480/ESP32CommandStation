@@ -18,6 +18,9 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #include "ESP32CommandStation.h"
 #include "cdi/CSConfigDescriptor.h"
 
+#include <nvs.h>
+#include <nvs_flash.h>
+
 const char * buildTime = __DATE__ " " __TIME__;
 
 // This will generate newlines after GridConnect each packet being sent.
@@ -41,10 +44,7 @@ const char * buildTime = __DATE__ " " __TIME__;
 // resolved thus it is disabled by default.
 // OVERRIDE_CONST_TRUE(cs_railcom_enabled);
 
-std::unique_ptr<OpenMRN> openmrn;
-// note the dummy string below is required due to a bug in the GCC compiler
-// for the ESP32
-string dummystring("abcdef");
+unique_ptr<OpenMRN> openmrn;
 
 // Esp32ConfigDef comes from CSConfigDescriptor.h and is specific to this
 // particular device and target. It defines the layout of the configuration
@@ -54,8 +54,10 @@ string dummystring("abcdef");
 static constexpr esp32cs::Esp32ConfigDef cfg(0);
 
 // define the SNIP data for the Command Station.
-namespace openlcb {
-  const SimpleNodeStaticValues SNIP_STATIC_DATA = {
+namespace openlcb
+{
+  const SimpleNodeStaticValues SNIP_STATIC_DATA =
+  {
     4,
     "github.com/atanisoft (Mike Dunston)",
     PROJECT_NAME,
@@ -81,10 +83,11 @@ namespace openlcb
   const char *const SNIP_DYNAMIC_FILENAME = LCC_CONFIG_FILE;
 }
 
-unique_ptr<RMTTrackDevice> trackSignal;
-unique_ptr<LocalTrackIf> trackInterface;
-unique_ptr<RailcomHubFlow> railComHub;
-unique_ptr<commandstation::AllTrainNodes> trainNodes;
+uninitialized<RMTTrackDevice> trackSignal;
+uninitialized<LocalTrackIf> trackInterface;
+uninitialized<RailcomHubFlow> railComHub;
+uninitialized<commandstation::AllTrainNodes> trainNodes;
+uninitialized<RailcomPrintfFlow> railComDataDumper;
 
 // when the command station starts up the first time the config is blank
 // and needs to be reset to factory settings. This class being declared here
@@ -139,9 +142,30 @@ extern "C" void app_main()
             "All rights reserved."
     , PROJECT_NAME);
 
-  // Initialize the Arduino-ESP32 stack early in the startup flow.
-  LOG(INFO, "[Arduino] Initializing Arduino stack");
-  initArduino();
+  // Initialize NVS before we do any other initialization as it may be
+  // internally used by various components even if we disable it's usage in
+  // the WiFi connection stack.
+  LOG(INFO, "[NVS] Initializing NVS");
+  if (ESP_ERROR_CHECK_WITHOUT_ABORT(nvs_flash_init()) == ESP_ERR_NVS_NO_FREE_PAGES)
+  {
+    const esp_partition_t* partition =
+      esp_partition_find_first(ESP_PARTITION_TYPE_DATA
+                             , ESP_PARTITION_SUBTYPE_DATA_NVS
+                             , NULL);
+    if (partition != NULL)
+    {
+      LOG(INFO, "[NVS] Erasing partition %s...", partition->label);
+      ESP_ERROR_CHECK(esp_partition_erase_range(partition, 0, partition->size));
+      ESP_ERROR_CHECK(nvs_flash_init());
+    }
+  }
+
+  // When this option is enabled we need to start the TCP/IP stack before the
+  // startup of the OpenMRN stack which includes the Esp32WiFiManager code.
+#if CONFIG_USE_ONLY_LWIP_SELECT
+  LOG(INFO, "[WiFi] Starting TCP/IP stack");
+  tcpip_adapter_init();
+#endif
 
   // Configure ADC1 up front to use 12 bit (0-4095) as we use it for all
   // monitored h-bridges.
@@ -164,23 +188,24 @@ extern "C" void app_main()
   FactoryResetHelper resetHelper;
 
   // Initialize the RailCom Hub
-  railComHub.reset(new RailcomHubFlow(openmrn->stack()->service()));
+  railComHub.emplace(openmrn->stack()->service());
 
   // Initialize Track Signal Device (both OPS and PROG)
-  trackSignal.reset(
-    new RMTTrackDevice(openmrn->stack(), railComHub.get()
-                     , cfg.seg().hbridge().entry(OPS_CDI_TRACK_OUTPUT_INDEX)
-                     , cfg.seg().hbridge().entry(PROG_CDI_TRACK_OUTPUT_INDEX)));
+  trackSignal.emplace(openmrn->stack(), &railComHub.value()
+                    , cfg.seg().hbridge().entry(OPS_CDI_TRACK_OUTPUT_INDEX)
+                    , cfg.seg().hbridge().entry(PROG_CDI_TRACK_OUTPUT_INDEX));
 
   // Initialize Local Track inteface.
-  trackInterface.reset(new LocalTrackIf(openmrn->stack()->service()
-                                      , config_cs_track_pool_size()));
+  trackInterface.emplace(openmrn->stack()->service()
+                       , config_cs_track_pool_size());
 
+#if 0
   // Initialize the MemorySpace handler for CV read/write.
   TractionCvSpace cvMemorySpace(openmrn->stack()->memory_config_handler()
                               , trackInterface.get()
                               , railComHub.get()
                               , MemoryConfigDefs::SPACE_DCC_CV);
+#endif
 
   // Open a handle to the track device driver
   int track = ::open("/dev/track", O_RDWR);
@@ -190,7 +215,7 @@ extern "C" void app_main()
 
   // Initialize the DCC Update Loop.
   SimpleUpdateLoop dccUpdateLoop(openmrn->stack()->service()
-                               , trackInterface.get());
+                               , &trackInterface.value());
 
   // Attach the DCC update loop to the track interface
   PoolToQueueFlow<Buffer<Packet>> dccPacketFlow(openmrn->stack()->service()
@@ -201,19 +226,18 @@ extern "C" void app_main()
   esp32cs::EStopHandler eStop(openmrn->stack()->node());
 
   // Add a data dumper for the RailCom Hub
-  unique_ptr<RailcomPrintfFlow> railComDataDumper;
   if (config_enable_railcom_packet_dump() == CONSTANT_TRUE)
   {
-    railComDataDumper.reset(new RailcomPrintfFlow(railComHub.get()));
+    railComDataDumper.emplace(&railComHub.value());
   }
 
   // Initialize the Programming Track backend handler
   ProgrammingTrackBackend
     progTrackBackend(openmrn->stack()->service()
                    , std::bind(&RMTTrackDevice::enable_prog_output
-                             , trackSignal.get())
+                             , &trackSignal.value())
                    , std::bind(&RMTTrackDevice::disable_prog_output
-                             , trackSignal.get()));
+                             , &trackSignal.value()));
 
   // Initialize the OpenMRN stack, this needs to be done *AFTER* all other LCC
   // dependent components as it will initiate configuration load and factory
@@ -233,13 +257,10 @@ extern "C" void app_main()
   openmrn->begin();
 
   // Initialize the Train Search and Train Manager.
-  trainNodes.reset(
-    new commandstation::AllTrainNodes(&trainDb
-                                    , &trainService
-                                    , openmrn->stack()->info_flow()
-                                    , openmrn->stack()->memory_config_handler()
-                                    , trainDb.get_readonly_train_cdi()
-                                    , trainDb.get_readonly_temp_train_cdi()));
+  trainNodes.emplace(&trainDb, &trainService, openmrn->stack()->info_flow()
+                   , openmrn->stack()->memory_config_handler()
+                   , trainDb.get_readonly_train_cdi()
+                   , trainDb.get_readonly_temp_train_cdi());
 
   // Add callback to start the loop task
   openmrn->stack()->executor()->add(new CallbackExecutable([]()
