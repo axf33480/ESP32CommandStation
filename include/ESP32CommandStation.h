@@ -222,7 +222,7 @@ namespace esp32cs
 {                                                                 \
   LOG(INFO                                                        \
     , "[%s] Initializing UART(%d) at %ul baud on RX %d, TX %d"    \
-    , uart, speed, rx, tx);                                       \
+    , name, uart, speed, rx, tx);                                 \
   uart_config_t uart_cfg =                                        \
   {                                                               \
     .baud_rate           = speed,                                 \
