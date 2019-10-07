@@ -27,39 +27,10 @@ HC12Radio::HC12Radio(Service *service, uart_port_t port, gpio_num_t rx
   start_flow(STATE(initialize));
 }
 
-#define LOG_ESP_ERROR_AND_EXIT(cmd)                     \
-{                                                       \
-  esp_err_t res = cmd;                                  \
-  if (res != ESP_OK)                                    \
-  {                                                     \
-    LOG_ERROR("[HC12] Failed to initialize UART%d: %s"  \
-            , uart_, esp_err_to_name(res));             \
-    return exit();                                      \
-  }                                                     \
-}
-
 StateFlowBase::Action HC12Radio::initialize()
 {
-  LOG(INFO, "[HC12] Initializing UART(%d) at %ul baud on RX %d, TX %d"
-    , uart_, config_hc12_uart_speed(), rx_, tx_);
-
-  uart_config_t uart =
-  {
-    .baud_rate           = config_hc12_uart_speed(),
-    .data_bits           = UART_DATA_8_BITS,         // 8 bit bytes
-    .parity              = UART_PARITY_DISABLE,      // no partity
-    .stop_bits           = UART_STOP_BITS_1,         // one stop bit
-    .flow_ctrl           = UART_HW_FLOWCTRL_DISABLE, // no flow control
-    .rx_flow_ctrl_thresh = 0,                        // unused
-    .use_ref_tick        = false                     // unused
-  };
-  LOG_ESP_ERROR_AND_EXIT(uart_param_config(uart_, &uart))
-  LOG_ESP_ERROR_AND_EXIT(uart_set_pin(uart_, tx_, rx_, UART_PIN_NO_CHANGE
-                                    , UART_PIN_NO_CHANGE))
-  LOG_ESP_ERROR_AND_EXIT(uart_driver_install(uart_
-                                           , config_hc12_buffer_size()
-                                           , config_hc12_buffer_size()
-                                           , 0, NULL, 0))
+  CONFIGURE_UART("hc12", uart_, config_hc12_uart_speed(), rx_, tx_
+               , config_hc12_buffer_size(), config_hc12_buffer_size())
 
   uartFd_ = open(StringPrintf("/dev/uart/%d", uart_).c_str()
                , O_RDWR | O_NONBLOCK);
