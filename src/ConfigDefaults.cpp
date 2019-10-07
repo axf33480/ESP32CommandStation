@@ -169,3 +169,12 @@ OVERRIDE_CONST(local_alias_cache_size, 30);
 ///////////////////////////////////////////////////////////////////////////////
 DEFAULT_CONST(hc12_buffer_size, 256);
 DEFAULT_CONST(hc12_uart_speed, 19200);
+
+///////////////////////////////////////////////////////////////////////////////
+// Nextion configuration settings
+///////////////////////////////////////////////////////////////////////////////
+DEFAULT_CONST_EXPAND_VALUE(nextion_uart_num, NEXTION_UART_NUM);
+DEFAULT_CONST_EXPAND_VALUE(nextion_uart_speed, NEXTION_UART_BAUD);
+DEFAULT_CONST(nextion_buffer_size, 512);
+DEFAULT_CONST_EXPAND_VALUE(nextion_rx_pin, NEXTION_RX_PIN);
+DEFAULT_CONST_EXPAND_VALUE(nextion_tx_pin, NEXTION_TX_PIN);

@@ -17,33 +17,16 @@ COPYRIGHT (c) 2018-2019 NormHal, Mike Dunston
 
 #include "ESP32CommandStation.h"
 
-#ifndef NEXTION_UART_NUM
-#define NEXTION_UART_NUM 2
-#endif
-#ifndef NEXTION_UART_BAUD
-#define NEXTION_UART_BAUD 115200
-#endif
-#ifndef NEXTION_RX_PIN
-#define NEXTION_RX_PIN 14
-#endif
-#ifndef NEXTION_TX_PIN
-#define NEXTION_TX_PIN 27
-#endif
-
 #if NEXTION_UART_NUM == 2
 Nextion nextion(Serial2);
 #elif NEXTION_UART_NUM == 1
 Nextion nextion(Serial1);
 #else
-Nextion nextion(Serial);
+#error "Invalid configuration detected for the NEXTION_UART_NUM value. Only UART 1 or UART 2 are supported for the Nextion Interface."
 #endif
 
-TaskHandle_t _nextionTaskHandle;
-
-constexpr TickType_t NEXTION_INTERFACE_UPDATE_INTERVAL = pdMS_TO_TICKS(50);
-constexpr uint16_t NEXTION_INTERFACE_TASK_STACK_SIZE = DEFAULT_THREAD_STACKSIZE;
-
-BaseNextionPage *nextionPages[MAX_PAGES] = {
+BaseNextionPage *nextionPages[MAX_PAGES] =
+{
   new NextionTitlePage(nextion),
   new NextionAddressPage(nextion),
   new NextionThrottlePage(nextion),
@@ -52,7 +35,8 @@ BaseNextionPage *nextionPages[MAX_PAGES] = {
   /* new NextionRoutesPage(nextion) */ nullptr
 };
 
-static constexpr char const * NEXTION_DISPLAY_TYPE_STRINGS[] = {
+static constexpr char const * NEXTION_DISPLAY_TYPE_STRINGS[] =
+{
   "basic 3.2\"",
   "basic 3.5\"",
   "basic 5.0\"",
@@ -62,81 +46,127 @@ static constexpr char const * NEXTION_DISPLAY_TYPE_STRINGS[] = {
   "Unknown"
 };
 
-NEXTION_DEVICE_TYPE nextionDeviceType = NEXTION_DEVICE_TYPE::UNKOWN_DISPLAY;
+NEXTION_DEVICE_TYPE nextionDeviceType{NEXTION_DEVICE_TYPE::UNKOWN_DISPLAY};
 
-void *nextionTask(void *param)
-{
 #if NEXTION_ENABLED
-
+class NextionExecutable : public Executable
+{
+public:
+  void run() override
+  {
+    if (!initialized_)
+    {
+      LOG(INFO, "[Nextion] Initializing UART(%d) at %ul baud on RX %d, TX %d"
+        , NEXTION_UART_NUM, config_nextion_uart_speed()
+        , config_nextion_rx_pin(), config_nextion_tx_pin());
 #if NEXTION_UART_NUM == 2
-  Serial2.begin(NEXTION_UART_BAUD, SERIAL_8N1, NEXTION_UART_RX_PIN, NEXTION_UART_TX_PIN);
+      Serial2.begin(config_nextion_uart_speed(), SERIAL_8N1
+                  , config_nextion_rx_pin(), config_nextion_tx_pin());
 #elif NEXTION_UART_NUM == 1
-  Serial1.begin(NEXTION_UART_BAUD, SERIAL_8N1, NEXTION_UART_RX_PIN, NEXTION_UART_TX_PIN);
-#else
-  #error "Invalid configuration detected for the NEXTION_UART_NUM value. Only UART 1 or UART 2 are supported for the Nextion Interface."
+      Serial1.begin(config_nextion_uart_speed(), SERIAL_8N1
+                  , config_nextion_rx_pin(), config_nextion_tx_pin());
+#endif
+      initialized_ = nextion.init();
+    }
+    if (!screenDetected_)
+    {
+      NextionTitlePage * titlePage =
+        static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE]);
+      // attempt to identify the nextion display.
+      constexpr uint8_t MAX_ATTEMPTS = 3;
+      uint8_t attempt = 0;
+      while(attempt++ < MAX_ATTEMPTS &&
+            nextionDeviceType == NEXTION_DEVICE_TYPE::UNKOWN_DISPLAY)
+      {
+        LOG(INFO
+          , "[Nextion] [%d/%d] Attempting to identify the attached Nextion display"
+          , attempt, MAX_ATTEMPTS);
+        nextion.sendCommand("DRAKJHSUYDGBNCJHGJKSHBDN");
+        nextion.sendCommand("connect");
+        String screenID = "";
+        size_t res = nextion.receiveString(screenID, false);
+        if(res && screenID.indexOf("comok") >= 0) {
+          // break the returned string into its comma delimited chunks
+          // start after the first space
+          std::stringstream buf(screenID.substring(screenID.indexOf(' ') + 1).c_str());
+          vector<string> parts;
+          string part;
+          while(getline(buf, part, ',')) {
+            parts.push_back(part);
+          }
+
+          // attempt to parse device model
+          if(!parts[2].compare(0, 7, "NX4024K"))
+          {
+            nextionDeviceType = NEXTION_DEVICE_TYPE::ENHANCED_3_2_DISPLAY;
+          }
+          else if(!parts[2].compare(0, 7, "NX4024T"))
+          {
+            nextionDeviceType = NEXTION_DEVICE_TYPE::BASIC_3_2_DISPLAY;
+          }
+          else if(!parts[2].compare(0, 7, "NX4832K"))
+          {
+            nextionDeviceType = NEXTION_DEVICE_TYPE::ENHANCED_3_5_DISPLAY;
+          }
+          else if(!parts[2].compare(0, 7, "NX4832T"))
+          {
+            nextionDeviceType = NEXTION_DEVICE_TYPE::BASIC_3_5_DISPLAY;
+          }
+          else if(!parts[2].compare(0, 7, "NX8048K"))
+          {
+            nextionDeviceType = NEXTION_DEVICE_TYPE::ENHANCED_5_0_DISPLAY;
+          }
+          else if(!parts[2].compare(0, 7, "NX8048T"))
+          {
+            nextionDeviceType = NEXTION_DEVICE_TYPE::BASIC_5_0_DISPLAY;
+          }
+          else
+          {
+            LOG(WARNING, "[Nextion] Unrecognized Nextion Device model: %s"
+              , parts[2].c_str());
+          }
+          LOG(INFO, "[Nextion] Device type: %s"
+            , NEXTION_DISPLAY_TYPE_STRINGS[nextionDeviceType]);
+          LOG(INFO, "[Nextion] Firmware Version: %s", parts[3].c_str());
+          LOG(INFO, "[Nextion] MCU Code: %s", parts[4].c_str());
+          LOG(INFO, "[Nextion] Serial #: %s", parts[5].c_str());
+          LOG(INFO, "[Nextion] Flash size: %s bytes", parts[6].c_str());
+        }
+        else
+        {
+          LOG(WARNING
+            , "[Nextion] Unable to determine Nextion device type: %s"
+            , screenID.c_str());
+        }
+      }
+      if(nextionDeviceType == NEXTION_DEVICE_TYPE::UNKOWN_DISPLAY)
+      {
+        LOG(WARNING
+          , "[Nextion] Failed to identify the attached Nextion display, "
+            "defaulting to 3.2\" basic display");
+        nextionDeviceType = NEXTION_DEVICE_TYPE::BASIC_3_2_DISPLAY;
+      }
+
+      // flush the serial buffer after detection
+#if NEXTION_UART_NUM == 2
+      Serial2.flush();
+#elif NEXTION_UART_NUM == 1
+      Serial1.flush();
 #endif
 
-  nextion.init();
-  // attempt to identify the nextion display.
-  constexpr uint8_t MAX_ATTEMPTS = 3;
-  uint8_t attempt = 0;
-  while(attempt++ < MAX_ATTEMPTS && nextionDeviceType == NEXTION_DEVICE_TYPE::UNKOWN_DISPLAY) {
-    LOG(INFO, "[Nextion] [%d/%d] Attempting to identify the attached Nextion display", attempt, MAX_ATTEMPTS);
-    nextion.sendCommand("DRAKJHSUYDGBNCJHGJKSHBDN");
-    nextion.sendCommand("connect");
-    String screenID = "";
-    size_t res = nextion.receiveString(screenID, false);
-    if(res && screenID.indexOf("comok") >= 0) {
-      // break the returned string into its comma delimited chunks
-      // start after the first space
-      std::stringstream buf(screenID.substring(screenID.indexOf(' ') + 1).c_str());
-      vector<string> parts;
-      string part;
-      while(getline(buf, part, ',')) {
-        parts.push_back(part);
-      }
-
-      // attempt to parse device model
-      if(parts[2].compare(0, 7, "NX4024K") == 0) {
-        nextionDeviceType = NEXTION_DEVICE_TYPE::ENHANCED_3_2_DISPLAY;
-      } else if(parts[2].compare(0, 7, "NX4024T") == 0) {
-        nextionDeviceType = NEXTION_DEVICE_TYPE::BASIC_3_2_DISPLAY;
-      } else if(parts[2].compare(0, 7, "NX4832K") == 0) {
-        nextionDeviceType = NEXTION_DEVICE_TYPE::ENHANCED_3_5_DISPLAY;
-      } else if(parts[2].compare(0, 7, "NX4832T") == 0) {
-        nextionDeviceType = NEXTION_DEVICE_TYPE::BASIC_3_5_DISPLAY;
-      } else if(parts[2].compare(0, 7, "NX8048K") == 0) {
-        nextionDeviceType = NEXTION_DEVICE_TYPE::ENHANCED_5_0_DISPLAY;
-      } else if(parts[2].compare(0, 7, "NX8048T") == 0) {
-        nextionDeviceType = NEXTION_DEVICE_TYPE::BASIC_5_0_DISPLAY;
-      } else {
-        LOG(WARNING, "[Nextion] Unrecognized Nextion Device model: %s", parts[2].c_str());
-      }
-      LOG(INFO, "[Nextion] Device type: %s", NEXTION_DISPLAY_TYPE_STRINGS[nextionDeviceType]);
-      LOG(INFO, "[Nextion] Firmware Version: %s", parts[3].c_str());
-      LOG(INFO, "[Nextion] MCU Code: %s", parts[4].c_str());
-      LOG(INFO, "[Nextion] Serial #: %s", parts[5].c_str());
-      LOG(INFO, "[Nextion] Flash size: %s bytes", parts[6].c_str());
-    } else {
-      LOG(WARNING, "[Nextion] Unable to determine Nextion device type: %s", screenID.c_str());
+      titlePage->display();
+      titlePage->setStatusText(3, "Detected Screen type:");
+      titlePage->setStatusText(4, NEXTION_DISPLAY_TYPE_STRINGS[nextionDeviceType]);
+      screenDetected_ = true;
     }
-  }
-  if(nextionDeviceType == NEXTION_DEVICE_TYPE::UNKOWN_DISPLAY) {
-    LOG(WARNING, "[Nextion] Failed to identify the attached Nextion display, defaulting to 3.2\" basic display");
-    nextionDeviceType = NEXTION_DEVICE_TYPE::BASIC_3_2_DISPLAY;
-  }
 
-  nextionPages[TITLE_PAGE]->display();
-  static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(3, "Detected Screen type:");
-  static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE])->setStatusText(4, NEXTION_DISPLAY_TYPE_STRINGS[nextionDeviceType]);
-
-  while(true) {
     nextion.poll();
-    vTaskDelay(NEXTION_INTERFACE_UPDATE_INTERVAL);
   }
+private:
+  bool initialized_{false};
+  bool screenDetected_{false};
+};
 #endif // NEXTION_ENABLED
-  return nullptr;
-}
 
 void nextionInterfaceInit()
 {
@@ -144,10 +174,7 @@ void nextionInterfaceInit()
   Singleton<InfoScreen>::instance()->replaceLine(
     INFO_SCREEN_ROTATING_STATUS_LINE, "Init Nextion");
   extern unique_ptr<OpenMRN> openmrn;
-  openmrn->stack()->executor()->add(new CallbackExecutable([&]()
-  {
-    os_thread_create(nullptr, "nextion", 0, NEXTION_INTERFACE_TASK_STACK_SIZE, nextionTask, nullptr);
-  }));
+  openmrn->stack()->executor()->add(new NextionExecutable());
 #endif // NEXTION_ENABLED
 }
 

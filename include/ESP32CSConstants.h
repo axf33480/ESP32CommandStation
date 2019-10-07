@@ -56,4 +56,10 @@ DECLARE_CONST(status_led_pin);
 DECLARE_CONST(status_led_brightness);
 DECLARE_CONST(status_led_update_interval_msec);
 
+DECLARE_CONST(nextion_uart_num);
+DECLARE_CONST(nextion_uart_speed);
+DECLARE_CONST(nextion_buffer_size);
+DECLARE_CONST(nextion_rx_pin);
+DECLARE_CONST(nextion_tx_pin);
+
 #endif
