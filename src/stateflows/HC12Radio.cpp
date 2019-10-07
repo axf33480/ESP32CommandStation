@@ -85,6 +85,11 @@ StateFlowBase::Action HC12Radio::data_received()
     LOG_ERROR("[HC12] uart read failed, giving up!");
     return exit();
   }
+  else if (helper_.remaining_ == RX_BUF_SIZE)
+  {
+    return yield_and_call(STATE(wait_for_data));
+  }
+
   tx_buffer_ = std::move(feed(rx_buffer_, RX_BUF_SIZE - helper_.remaining_));
   if (tx_buffer_.length() > 0)
   {
@@ -96,8 +101,8 @@ StateFlowBase::Action HC12Radio::data_received()
 
 StateFlowBase::Action HC12Radio::wait_for_data()
 {
-  return read_single(&helper_, uartFd_, rx_buffer_, RX_BUF_SIZE
-                   , STATE(data_received));
+  return read_nonblocking(&helper_, uartFd_, rx_buffer_, RX_BUF_SIZE
+                        , STATE(data_received));
 }
 
 } // namespace esp32cs
