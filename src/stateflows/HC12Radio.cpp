@@ -41,11 +41,11 @@ HC12Radio::HC12Radio(Service *service, uart_port_t port, gpio_num_t rx
 StateFlowBase::Action HC12Radio::initialize()
 {
   LOG(INFO, "[HC12] Initializing UART(%d) at %ul baud on RX %d, TX %d"
-    , uart_, config_cs_hc12_uart_speed(), rx_, tx_);
+    , uart_, config_hc12_uart_speed(), rx_, tx_);
 
   uart_config_t uart =
   {
-    .baud_rate           = config_cs_hc12_uart_speed(),
+    .baud_rate           = config_hc12_uart_speed(),
     .data_bits           = UART_DATA_8_BITS,         // 8 bit bytes
     .parity              = UART_PARITY_DISABLE,      // no partity
     .stop_bits           = UART_STOP_BITS_1,         // one stop bit
@@ -57,8 +57,8 @@ StateFlowBase::Action HC12Radio::initialize()
   LOG_ESP_ERROR_AND_EXIT(uart_set_pin(uart_, tx_, rx_, UART_PIN_NO_CHANGE
                                     , UART_PIN_NO_CHANGE))
   LOG_ESP_ERROR_AND_EXIT(uart_driver_install(uart_
-                                           , config_cs_hc12_buffer_size()
-                                           , config_cs_hc12_buffer_size()
+                                           , config_hc12_buffer_size()
+                                           , config_hc12_buffer_size()
                                            , 0, NULL, 0))
 
   uartFd_ = open(StringPrintf("/dev/uart/%d", uart_).c_str()
