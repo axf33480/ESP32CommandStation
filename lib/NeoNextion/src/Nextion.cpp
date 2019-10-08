@@ -42,34 +42,44 @@ bool Nextion::init()
  */
 void Nextion::poll()
 {
-  while (m_serialPort.available() > 0)
+  while (m_serialPort.available())
   {
-    char c = m_serialPort.read();
+    char c = m_serialPort.peek();
 
     if (c == NEX_RET_EVENT_TOUCH_HEAD)
     {
-      delay(10);
-
-      if (m_serialPort.available() >= 6)
+      if (m_serialPort.available() >= 7)
       {
-        uint8_t buffer[6] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+        uint8_t buffer[7] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
-        if (m_serialPort.readBytes(buffer, 6) == 6 &&
-            buffer[3] == 0xFF && buffer[4] == 0xFF && buffer[5] == 0xFF)
+        if (m_serialPort.readBytes(buffer, 7) == 7 &&
+            buffer[4] == 0xFF && buffer[5] == 0xFF && buffer[6] == 0xFF)
         {
           ITouchableListItem *item = m_touchableList;
           while (item != NULL &&
-                !item->item->processEvent(buffer[0], buffer[1], buffer[2]))
+                !item->item->processEvent(buffer[1], buffer[2], buffer[3]))
           {
             item = item->next;
           }
         }
         else
         {
-          printf("Nextion: %02x %02x %02x %02x %02x %02x\n", buffer[0]
-               , buffer[1], buffer[2], buffer[3], buffer[4], buffer[5]);
+          printf("Nextion: %02x %02x %02x %02x %02x %02x %02x\n", buffer[0]
+               , buffer[1], buffer[2], buffer[3], buffer[4], buffer[5], buffer[6]);
         }
       }
+      else
+      {
+        return;
+      }
+    }
+    else
+    {
+#if NEXTION_DEBUG
+      printf("Nextion: %02x", c);
+#endif
+      // discard input
+      m_serialPort.read();
     }
   }
 }
@@ -321,10 +331,9 @@ void Nextion::sendCommand(const String &command)
 {
   if (m_flushSerialBeforeTx)
   {
-    while(m_serialPort.available()) {
-      m_serialPort.read();
-    }
+    m_serialPort.flush();
   }
+
 #if NEXTION_DEBUG
   printf("Nextion: TX: %s\n", command.c_str());
 #endif
@@ -360,17 +369,13 @@ bool Nextion::checkCommandComplete()
 
   if (bytesRead != sizeof(temp))
   {
-#if NEXTION_DEBUG
-    printf("Nextion: short read: %d\n", bytesRead);
-#endif
+    printf("Nextion: checkCommandComplete short read: %d\n", bytesRead);
+    printf("Nextion: %02x %02x %02x %02x, ret: %d\n", temp[0], temp[1], temp[2], temp[3], ret);
   }
   else if (temp[0] == NEX_RET_CMD_FINISHED && temp[1] == 0xFF && temp[2] == 0xFF && temp[3] == 0xFF)
   {
     ret = true;
   }
-#if NEXTION_DEBUG
-  printf("Nextion: %02x %02x %02x %02x, ret: %d\n", temp[0], temp[1], temp[2], temp[3], ret);
-#endif
 
   return ret;
 }
