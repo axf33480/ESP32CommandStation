@@ -253,8 +253,6 @@ public:
 private:
     /// FD for waking up select in ESP32 VFS implementation.
     int vfsFd_{-1};
-    /// Semaphore for waking up LWIP select.
-    void* lwipSem_{nullptr};
     /// Semaphore for waking up ESP32 select.
     void* espSem_{nullptr};
     /// true if we have already woken up select. protected by Atomic *this.
