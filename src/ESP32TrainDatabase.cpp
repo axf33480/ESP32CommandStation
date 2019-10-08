@@ -85,7 +85,7 @@ static constexpr uint64_t const OLCB_NODE_ID_USER = 0x050101010000ULL;
 // config object to the stack. We only need to generate the CDI at this point
 // as it will be managed by the AllTrainsNode instead.
 template <class ConfigDef>
-void create_config_descriptor_xml(const ConfigDef &config
+void render_config_descriptor_xml(const ConfigDef &config
                                 , const char *filename)
 {
   string cdi_string;
@@ -96,6 +96,7 @@ void create_config_descriptor_xml(const ConfigDef &config
   FILE *ff = fopen(filename, "rb");
   if (!ff)
   {
+    LOG(VERBOSE, "File %s does not exist", filename);
     need_write = true;
   }
   else
@@ -104,8 +105,16 @@ void create_config_descriptor_xml(const ConfigDef &config
     string current_str = read_file_to_string(filename);
     if (current_str != cdi_string)
     {
+      LOG(VERBOSE, "File %s is not up-to-date", filename);
       need_write = true;
     }
+#if LOGLEVEL == VERBOSE
+    else
+    {
+      LOG(VERBOSE, "File %s appears up-to-date (len %u vs %u)", filename
+        , current_str.size(), cdi_string.size());
+    }
+#endif
   }
   if (need_write)
   {
@@ -264,8 +273,8 @@ Esp32TrainDatabase::Esp32TrainDatabase(openlcb::SimpleStackBase *stack)
 {
   TrainConfigDef trainCfg(0);
   TrainTmpConfigDef tmpTrainCfg(0);
-  create_config_descriptor_xml(trainCfg, TRAIN_CDI_FILE);
-  create_config_descriptor_xml(tmpTrainCfg, TEMP_TRAIN_CDI_FILE);
+  render_config_descriptor_xml(trainCfg, TRAIN_CDI_FILE);
+  render_config_descriptor_xml(tmpTrainCfg, TEMP_TRAIN_CDI_FILE);
   trainCdiFile_.reset(new ROFileMemorySpace(TRAIN_CDI_FILE));
   tempTrainCdiFile_.reset(new ROFileMemorySpace(TEMP_TRAIN_CDI_FILE));
   persistFlow_.emplace(stack->service()
