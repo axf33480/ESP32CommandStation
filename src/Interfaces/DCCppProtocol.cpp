@@ -795,12 +795,7 @@ void DCCPPProtocolHandler::init()
 string DCCPPProtocolHandler::process(const string &commandString)
 {
   vector<string> parts;
-  std::stringstream buf(commandString);
-  string part;
-  while(getline(buf, part, ' '))
-  {
-    parts.push_back(part);
-  }
+  esp32cs::tokenize(commandString, parts);
   string commandID = parts.front();
   parts.erase(parts.begin());
   LOG(VERBOSE, "Command: %s, argument count: %d", commandID.c_str()

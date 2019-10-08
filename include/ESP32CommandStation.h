@@ -21,7 +21,6 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #include <algorithm>
 #include <functional>
 #include <string>
-#include <sstream>
 #include <vector>
 #include <memory>
 #include <set>
@@ -222,7 +221,7 @@ namespace esp32cs
 #define CONFIGURE_UART(name, uart, speed, rx, tx, rx_buf, tx_buf) \
 {                                                                 \
   LOG(INFO                                                        \
-    , "[%s] Initializing UART(%d) at %ul baud on RX %d, TX %d"    \
+    , "[%s] Initializing UART(%d) at %u baud on RX %d, TX %d"     \
     , name, uart, speed, rx, tx);                                 \
   uart_config_t uart_cfg =                                        \
   {                                                               \

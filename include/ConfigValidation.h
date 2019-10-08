@@ -110,6 +110,10 @@ COPYRIGHT (c) 2019 Mike Dunston
 // Nextion interface configuration validations
 ///////////////////////////////////////////////////////////////////////////////
 #if NEXTION_ENABLED
+  #if NEXTION_UART_NUM != 1 && NEXTION_UART_NUM != 2
+  #error "Invalid configuration detected for the NEXTION_UART_NUM value. " \
+         "Only UART 1 or UART 2 are supported for the Nextion Interface."
+  #endif
   #if NEXTION_UART_RX_PIN == NEXTION_UART_TX_PIN
   #error "Invalid Configuration detected, NEXTION_UART_RX_PIN and " \
          "NEXTION_UART_TX_PIN must be unique."

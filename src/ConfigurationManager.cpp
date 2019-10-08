@@ -85,11 +85,7 @@ static inline uint64_t string_to_uint64(string value)
   // remove period characters if present
   value.erase(std::remove(value.begin(), value.end(), '.'), value.end());
   // convert the string to a uint64_t value
-  uint64_t decoded{0};
-  std::stringstream stream;
-  stream << std::hex << value;
-  stream >> decoded;
-  return decoded;
+  return std::stoull(value, nullptr, 16);
 }
 
 void recursiveWalkTree(const string &path, bool remove=false)
