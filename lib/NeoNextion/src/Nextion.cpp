@@ -52,29 +52,23 @@ void Nextion::poll()
 
       if (m_serialPort.available() >= 6)
       {
-        static uint8_t buffer[8];
-        buffer[0] = c;
+        uint8_t buffer[6] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
-        uint8_t i;
-        for (i = 1; i < 7; i++)
-          buffer[i] = m_serialPort.read();
-        buffer[i] = 0x00;
-
-        if (buffer[4] == 0xFF && buffer[5] == 0xFF && buffer[6] == 0xFF)
+        if (m_serialPort.readBytes(buffer, 6) == 6 &&
+            buffer[3] == 0xFF && buffer[4] == 0xFF && buffer[5] == 0xFF)
         {
           ITouchableListItem *item = m_touchableList;
-          while (item != NULL)
+          while (item != NULL &&
+                !item->item->processEvent(buffer[0], buffer[1], buffer[2]))
           {
-            item->item->processEvent(buffer[1], buffer[2], buffer[3]);
             item = item->next;
           }
         }
-#if NEXTION_DEBUG
         else
         {
-          printf("Nextion: %02x %02x %02x %02x %02x %02x\n", buffer[0], buffer[1], buffer[2], buffer[3], buffer[4], buffer[5]);
+          printf("Nextion: %02x %02x %02x %02x %02x %02x\n", buffer[0]
+               , buffer[1], buffer[2], buffer[3], buffer[4], buffer[5]);
         }
-#endif
       }
     }
   }
