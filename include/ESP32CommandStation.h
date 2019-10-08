@@ -155,6 +155,7 @@ using openlcb::WriteHelper;
 #include "JsonConstants.h"
 #include "ConfigurationManager.h"
 #include "ESP32TrainDatabase.h"
+#include "StringUtils.h"
 
 #include "dcc/DCCProgrammer.h"
 #include "dcc/EStopHandler.h"
