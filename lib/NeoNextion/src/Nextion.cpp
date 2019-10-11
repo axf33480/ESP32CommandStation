@@ -331,7 +331,10 @@ void Nextion::sendCommand(const String &command)
 {
   if (m_flushSerialBeforeTx)
   {
-    m_serialPort.flush();
+    while (m_serialPort.available())
+    {
+      m_serialPort.read();
+    }
   }
 
 #if NEXTION_DEBUG
