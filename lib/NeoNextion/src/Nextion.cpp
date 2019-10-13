@@ -62,11 +62,13 @@ void Nextion::poll()
             item = item->next;
           }
         }
+#if NEXTION_DEBUG
         else
         {
           printf("Nextion: %02x %02x %02x %02x %02x %02x %02x\n", buffer[0]
                , buffer[1], buffer[2], buffer[3], buffer[4], buffer[5], buffer[6]);
         }
+#endif // NEXTION_DEBUG
       }
       else
       {
@@ -372,8 +374,10 @@ bool Nextion::checkCommandComplete()
 
   if (bytesRead != sizeof(temp))
   {
+#if NEXTION_DEBUG
     printf("Nextion: checkCommandComplete short read: %d\n", bytesRead);
     printf("Nextion: %02x %02x %02x %02x, ret: %d\n", temp[0], temp[1], temp[2], temp[3], ret);
+#endif // NEXTION_DEBUG
   }
   else if (temp[0] == NEX_RET_CMD_FINISHED && temp[1] == 0xFF && temp[2] == 0xFF && temp[3] == 0xFF)
   {
