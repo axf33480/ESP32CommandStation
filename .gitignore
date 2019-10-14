@@ -3,6 +3,7 @@
 .gcc-flags.json
 .vscode
 utils/*.pyc
+utils/__pycache__
 include/generated/*
 *.code-workspace
 docs/html

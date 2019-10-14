@@ -1,14 +1,15 @@
 import gzip
 import os
 import struct
-import cStringIO
+from io import BytesIO
+import shutil
 
 def serialize(sourceFile, targetFile, inputStream, length, prefix):
-    print 'Converting %s to %s...' % (sourceFile, targetFile)
+    print('Converting %s to %s...' % (sourceFile, targetFile))
     with open(targetFile, 'w') as f:
         f.write("#pragma once\n")
-        f.write("const size_t %s_size = %s;\n" % (prefix, length))
-        f.write("const uint8_t %s[] PROGMEM = {\n" % prefix)
+        f.write("static const size_t %s_size = %s;\n" % (prefix, length))
+        f.write("static const uint8_t %s[] = {\n" % prefix)
         while True:
             block = inputStream.read(16)
             if len(block) < 16:
@@ -29,9 +30,9 @@ def serialize(sourceFile, targetFile, inputStream, length, prefix):
         f.write("};\n")
 
 def compress(sourceFile, outputFileName, prefix):
-  gzFile = cStringIO.StringIO()
-  with open(sourceFile) as f, gzip.GzipFile(mode='wb', fileobj=gzFile) as gz:
-    gz.writelines(f)
+  gzFile = BytesIO()
+  with open(sourceFile, "rb") as f, gzip.GzipFile(mode='wb', fileobj=gzFile) as gz:
+    shutil.copyfileobj(f, gz)
   gzFile.seek(0, os.SEEK_END)
   length = gzFile.tell()
   gzFile.seek(0, os.SEEK_SET)
