@@ -130,12 +130,14 @@ public:
 
     static void movePixelsInc_P(uint8_t* pPixelDest, PGM_VOID_P pPixelSrc, uint16_t count)
     {
-        uint32_t* pDest = (uint32_t*)pPixelDest;
-        const uint32_t* pSrc = (const uint32_t*)pPixelSrc;
-        uint32_t* pEnd = pDest + count;
-        while (pDest < pEnd)
+        uint8_t* pEnd = pPixelDest + (count * PixelSize);
+        const uint8_t* pSrc = (const uint8_t*)pPixelSrc;
+        while (pPixelDest < pEnd)
         {
-            *pDest++ = pgm_read_dword(pSrc++); 
+            *pPixelDest++ = pgm_read_byte(pSrc++);
+            *pPixelDest++ = pgm_read_byte(pSrc++);
+            *pPixelDest++ = pgm_read_byte(pSrc++);
+            *pPixelDest++ = pgm_read_byte(pSrc++);
         }
     }
 
