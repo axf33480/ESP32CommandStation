@@ -31,9 +31,105 @@ unique_ptr<SocketListener> JMRIListener;
 
 WiFiInterface wifiInterface;
 
-constexpr int JMRI_CLIENT_PRIORITY = 1;
-constexpr size_t JMRI_CLIENT_STACK_SIZE = 4096;
 constexpr uint16_t JMRI_LISTENER_PORT = 2560;
+
+class JmriClient : private StateFlowBase, public DCCPPProtocolConsumer
+{
+public:
+  JmriClient(int fd, Service *service)
+    : StateFlowBase(service), DCCPPProtocolConsumer(), fd_(fd), remoteIP_(0)
+  {
+    LOG(INFO, "[JMRI %s] Connected", name().c_str());
+    int clientCount = 0;
+    {
+      OSMutexLock h(&jmriClientsMux);
+      jmriClients.push_back(fd_);
+      clientCount = webSocketClients.size() + jmriClients.size();
+    }
+    Singleton<InfoScreen>::instance()->replaceLine(
+      INFO_SCREEN_CLIENTS_LINE, "TCP Conn: %02d", clientCount);
+    bzero(buf_, BUFFER_SIZE);
+
+    struct timeval tm;
+    tm.tv_sec = 0;
+    tm.tv_usec = MSEC_TO_USEC(10);
+    ERRNOCHECK("setsockopt_timeout",
+        setsockopt(fd_, SOL_SOCKET, SO_RCVTIMEO, &tm, sizeof(tm)));
+
+    start_flow(STATE(read_data));
+  }
+
+  virtual ~JmriClient()
+  {
+    LOG(INFO, "[JMRI %s] Disconnected", name().c_str());
+    int clientCount = 0;
+    {
+      OSMutexLock h(&jmriClientsMux);
+      jmriClients.erase(std::remove(jmriClients.begin(), jmriClients.end()
+                      , fd_));
+      clientCount = webSocketClients.size() + jmriClients.size();
+    }
+    Singleton<InfoScreen>::instance()->replaceLine(
+      INFO_SCREEN_CLIENTS_LINE, "TCP Conn: %02d", clientCount);
+    ::close(fd_);
+  }
+private:
+  static const size_t BUFFER_SIZE = 128;
+  int fd_;
+  uint32_t remoteIP_;
+  uint8_t buf_[BUFFER_SIZE];
+  size_t buf_used_{0};
+  string res_;
+  StateFlowTimedSelectHelper helper_{this};
+
+  STATE_FLOW_STATE(read_data);
+  STATE_FLOW_STATE(process_data);
+  STATE_FLOW_STATE(send_data);
+
+  string name()
+  {
+    return StringPrintf("%s/%d", ipv4_to_string(remoteIP_).c_str(), fd_);
+  }
+};
+
+StateFlowBase::Action JmriClient::read_data()
+{
+  // clear the buffer of data we have sent back
+  res_.clear();
+
+  return read_nonblocking(&helper_, fd_, buf_, BUFFER_SIZE
+                        , STATE(process_data));
+}
+
+StateFlowBase::Action JmriClient::process_data()
+{
+  if (helper_.hasError_)
+  {
+    return delete_this();
+  }
+  else if (helper_.remaining_ == BUFFER_SIZE)
+  {
+    return yield_and_call(STATE(read_data));
+  }
+  else
+  {
+    buf_used_ = BUFFER_SIZE - helper_.remaining_;
+    LOG(VERBOSE, "[JMRI %s] received %zu bytes", name().c_str(), buf_used_);
+  }
+  res_.append(feed(buf_, buf_used_));
+  buf_used_ = 0;
+  return yield_and_call(STATE(send_data));
+}
+
+StateFlowBase::Action JmriClient::send_data()
+{
+  if(res_.empty())
+  {
+    return yield_and_call(STATE(read_data));
+  }
+  return write_repeated(&helper_, fd_, res_.data(), res_.length()
+                      , STATE(read_data));
+}
 
 WiFiInterface::WiFiInterface()
 {
@@ -87,17 +183,8 @@ void WiFiInterface::init()
         LOG(INFO, "[WiFi] Starting JMRI listener");
         JMRIListener.reset(new SocketListener(JMRI_LISTENER_PORT, [](int fd)
         {
-          int clientCount = 0;
-          {
-            OSMutexLock h(&jmriClientsMux);
-            jmriClients.push_back(fd);
-            clientCount = webSocketClients.size() + jmriClients.size();
-          }
-          os_thread_create(nullptr, StringPrintf("jmri-%d", fd).c_str(),
-                          JMRI_CLIENT_PRIORITY, JMRI_CLIENT_STACK_SIZE,
-                          jmriClientHandler, (void *)fd);
-          Singleton<InfoScreen>::instance()->replaceLine(
-            INFO_SCREEN_CLIENTS_LINE, "TCP Conn: %02d", clientCount);
+          extern unique_ptr<OpenMRN> openmrn;
+          new JmriClient(fd, openmrn->stack()->service());
         }));
         mDNS.publish("jmri", "_esp32cs._tcp", JMRI_LISTENER_PORT);
       }
@@ -126,59 +213,4 @@ void WiFiInterface::init()
 #endif
     }
   });
-}
-
-void *jmriClientHandler(void *arg)
-{
-  int fd = (int)arg;
-  unique_ptr<uint8_t> buf(new uint8_t[128]);
-  HASSERT(buf.get() != nullptr);
-
-  unique_ptr<DCCPPProtocolConsumer> consumer(new DCCPPProtocolConsumer());
-  HASSERT(consumer.get() != nullptr);
-
-  // tell JMRI about our state
-  DCCPPProtocolHandler::process("s");
-
-  while (true)
-  {
-    int bytesRead = ::read(fd, buf.get(), 128);
-    if (bytesRead < 0 && (errno == EINTR || errno == EAGAIN))
-    {
-      // no data to read yet
-    }
-    else if (bytesRead > 0)
-    {
-      string res = consumer->feed(buf.get(), bytesRead);
-      if (!res.empty())
-      {
-        ::write(fd, res.c_str(), res.length());
-      }
-    }
-    else if (bytesRead == 0)
-    {
-      // EOF, close client
-      LOG(INFO, "[JMRI %d] disconnected", fd);
-      break;
-    }
-    else
-    {
-      // some other error, close client
-      LOG(INFO, "[JMRI %d] error:%d, %s. Disconnecting.", fd, errno
-        , strerror(errno));
-      break;
-    }
-  }
-  // remove client FD
-  int clientCount = 0;
-  {
-    OSMutexLock h(&jmriClientsMux);
-    jmriClients.erase(std::remove(jmriClients.begin(), jmriClients.end(), fd));
-    clientCount = webSocketClients.size() + jmriClients.size();
-  }
-  Singleton<InfoScreen>::instance()->replaceLine(
-    INFO_SCREEN_CLIENTS_LINE, "TCP Conn: %02d", clientCount);
-
-  ::close(fd);
-  return nullptr;
 }

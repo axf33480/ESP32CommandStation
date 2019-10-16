@@ -16,7 +16,7 @@ RailCom support, tighter LCC integration and general stability improvements.
 -   [x] DCC: remove hardware timer legacy code.
 -   [x] DCC: refactor signal generation to use: dcc::Packet, UpdateLoop, RailcomHub, ProgrammingTrackBackend, LocalTrackIf.
 -   [ ] DCC: test OPS RailCom configuration.
--   [ ] JMRI: Convert to StateFlow pattern.
+-   [x] JMRI: Convert to StateFlow pattern.
 -   [x] JMRI: Replaced WiFiServer code with socket_listener from OpenMRNLite.
 -   [x] LCC: Add LCC metrics to the InfoScreen.
 -   [x] LCC: CS CDI web interface.
