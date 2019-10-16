@@ -35,7 +35,7 @@ DCC_PROTOCOL_COMMAND_HANDLER(ConfigErase,
 [](const vector<string> arguments)
 {
   turnoutManager->clear();
-#if SENSORS_ENABLED
+#if ENABLE_SENSORS
   SensorManager::clear();
   SensorManager::store();
 #if S88_ENABLED
@@ -60,7 +60,7 @@ DCC_PROTOCOL_COMMAND_HANDLER(ConfigStore,
 {
   return StringPrintf("<e %d %d %d>"
                     , turnoutManager->getTurnoutCount()
-#if SENSORS_ENABLED
+#if ENABLE_SENSORS
                     , SensorManager::store()
 #if S88_ENABLED
                     + S88BusManager::store()
@@ -697,11 +697,11 @@ DCC_PROTOCOL_COMMAND_HANDLER(S88BusCommandAdapter,
     }
   }
   return COMMAND_FAILED_RESPONSE;
-}
+})
 #endif // S88_ENABLED
 #endif // SENSORS_ENABLED
 
-#if OUTPUTS_ENABLED
+#if ENABLE_OUTPUTS
 DECLARE_DCC_PROTOCOL_COMMAND_CLASS(OutputCommandAdapter, "Z")
 DCC_PROTOCOL_COMMAND_HANDLER(OutputCommandAdapter,
 [](const vector<string> arguments)
@@ -709,7 +709,7 @@ DCC_PROTOCOL_COMMAND_HANDLER(OutputCommandAdapter,
   if(arguments.empty())
   {
     // list all outputs
-    return OutputManager::showStatus();
+    return OutputManager::get_state_for_dccpp();
   }
   else
   {
@@ -733,7 +733,7 @@ DCC_PROTOCOL_COMMAND_HANDLER(OutputCommandAdapter,
     }
   }
   return COMMAND_FAILED_RESPONSE;
-}
+})
 
 DECLARE_DCC_PROTOCOL_COMMAND_CLASS(OutputExCommandAdapter, "Zex")
 DCC_PROTOCOL_COMMAND_HANDLER(OutputExCommandAdapter,
@@ -753,7 +753,7 @@ DCC_PROTOCOL_COMMAND_HANDLER(OutputExCommandAdapter,
     }
   }
   return COMMAND_FAILED_RESPONSE;
-}
+})
 #endif // OUTPUTS_ENABLED
 
 void DCCPPProtocolHandler::init()
@@ -775,13 +775,13 @@ void DCCPPProtocolHandler::init()
   registerCommand(new WriteCVBitOpsCommand());
   registerCommand(new ConfigErase());
   registerCommand(new ConfigStore());
-#if OUTPUTS_ENABLED
+#if ENABLE_OUTPUTS
   registerCommand(new OutputCommandAdapter());
   registerCommand(new OutputExCommandAdapter());
 #endif
   registerCommand(new TurnoutCommandAdapter());
   registerCommand(new TurnoutExCommandAdapter());
-#if SENSORS_ENABLED
+#if ENABLE_SENSORS
   registerCommand(new SensorCommandAdapter());
 #if S88_ENABLED
   registerCommand(new S88BusCommandAdapter());
