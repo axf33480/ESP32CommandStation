@@ -59,14 +59,18 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #error "StatusLED: unknown LED color order"
 #endif
 
-#define WS281X      1
-#define WS281X_800K 2
-#define WS281X_400K 3
-#define SK6812      4
-#define LC6812      5
-#define APA106      6
+#define WS2811      1
+#define WS281X      2
+#define WS281X_800K 3
+#define WS281X_400K 4
+#define SK6812      5
+#define LC6812      6
+#define APA106      7
 
-#if STATUS_LED_TYPE == WS281X
+#if STATUS_LED_TYPE == WS2811
+#define NEO_METHOD NeoEsp32Rmt6Ws2811Method
+#define NEO_METHOD_NAME "RMT(6)-Ws2811"
+#elif STATUS_LED_TYPE == WS281X
 #define NEO_METHOD NeoEsp32Rmt6Ws2812xMethod
 #define NEO_METHOD_NAME "RMT(6)-Ws2812"
 #elif STATUS_LED_TYPE == WS281X_800K

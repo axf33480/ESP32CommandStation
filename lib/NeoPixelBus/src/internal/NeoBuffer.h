@@ -26,6 +26,9 @@ License along with NeoPixel.  If not, see
 #pragma once
 
 #include <stdint.h>
+#include <functional>
+
+typedef std::function<uint16_t(int16_t x, int16_t y)> LayoutMapCallback;
 
 template<typename T_BUFFER_METHOD> class NeoBuffer
 {

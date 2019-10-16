@@ -35,9 +35,10 @@ COPYRIGHT (c) 2019 Mike Dunston
 // organized by the value to use in the STATUS_LED_TYPE define:
 //
 // STATUS_LED_TYPE  RESET PULSE  LED TYPES
-// WS281X           300 uS       NeoPixel, WS2811, WS2812, WS2813
-// WS281X_800K      50 uS        NeoPixel, WS2811, WS2812, WS2813
-// WS281X_400K      50 uS        NeoPixel, WS2811, WS2812, WS2813
+// WS2811           300 uS       WS2811
+// WS281X           300 uS       NeoPixel, WS2812, WS2813
+// WS281X_800K      50 uS        NeoPixel, WS2812, WS2813
+// WS281X_400K      50 uS        NeoPixel, WS2812, WS2813
 // SK6812           80 uS        SK6812
 // LC6812           80 uS        LC6812
 // APA106           50 uS        APA106
