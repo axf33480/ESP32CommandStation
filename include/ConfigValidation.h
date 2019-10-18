@@ -283,6 +283,12 @@ COPYRIGHT (c) 2019 Mike Dunston
 ///////////////////////////////////////////////////////////////////////////////
 // LCC interface configuration validations
 ///////////////////////////////////////////////////////////////////////////////
+#if !defined(LCC_NODE_ID) || !defined(LCC_CAN_RX_PIN) || \
+    !defined(LCC_CAN_TX_PIN)
+#error "Invalid Configuration detected, Config_LCC.h is a mandatory module " \
+       "and can not be disabled."
+#endif
+
 #if LCC_CAN_RX_PIN != NOT_A_PIN
   #if STATUS_LED_ENABLED && STATUS_LED_DATA_PIN == LCC_CAN_RX_PIN
   #error "Invalid Configuration detected, STATUS_LED_DATA_PIN and " \
