@@ -76,6 +76,7 @@ The entries below are not tracked to a specific release or in any particular pri
 -   [ ] OTA: OTA support via JMRI / LCC.
 -   [ ] OTA: return to normal mode on Nextion when OTA fails.
 -   [ ] S88: Add S88 sensor data to InfoScreen status line, 16 sensor output rotation.
+-   [ ] S88: Convert to StateFlow model.
 -   [ ] Web: Add strict validation of input parameter data.
 -   [ ] Web: Expose Loco Consist creation.
 -   [ ] Web: Report optional module failures via config portal.
