@@ -48,18 +48,18 @@ using esp32cs::http::HTTP_ENCODING_GZIP;
 using esp32cs::http::WebSocketEvent;
 
 // Captive Portal landing page
-static constexpr const char * const CAPTIVE_PORTAL_HTML =
-  "<html>"
-  "<title>ESP32 Command Station v%s</title>"
-  "<meta http-equiv=\"refresh\" content=\"30;url='/captiveauth'\" /> "
-  "<body>"
-  "<h1>Welcome to the ESP32 Command Station</h1>"
-  "<h2>Open your browser and navigate to any website and it will open the "
-  "ESP32 Command Station</h2>"
-  "<p>Click <a href=\"/captiveauth\">here</a> to close this portal "
-  "page if it does not automatically close.</p>" 
-  "</body>"
-  "</html>";
+static constexpr const char * const CAPTIVE_PORTAL_HTML = R"!^!(
+<html>
+ <head>
+  <title>%s v%s</title>
+  <meta http-equiv="refresh" content="30;url='/captiveauth'" />
+ </head>
+ <body>
+  <h1>Welcome to the %s</h1>
+  <h2>Open your browser and navigate to any website and it will open the %s</h2>
+  <p>Click <a href="/captiveauth">here</a> to close this portal page if it does not automatically close.</p>
+ </body>
+</html>)!^!";
 
 uninitialized<Httpd> httpd;
 OSMutex webSocketLock;
@@ -83,7 +83,9 @@ void init_webserver(MDNS *dns)
   // if the soft AP interface is enabled, setup the captive portal
   if (configStore->isAPEnabled())
   {
-    httpd->captive_portal(StringPrintf(CAPTIVE_PORTAL_HTML, PROJECT_VER));
+    httpd->captive_portal(
+      StringPrintf(CAPTIVE_PORTAL_HTML, PROJECT_NAME, PROJECT_VER, PROJECT_NAME
+                 , PROJECT_NAME));
   }
   httpd->static_uri("/index.html", indexHtmlGz, indexHtmlGz_size
                   , MIME_TYPE_TEXT_HTML, HTTP_ENCODING_GZIP);
