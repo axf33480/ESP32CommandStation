@@ -69,7 +69,6 @@ constexpr TickType_t S88_SENSOR_CHECK_DELAY = pdMS_TO_TICKS(50);
 
 static constexpr const char * S88_SENSORS_JSON_FILE = "s88.json";
 
-TaskHandle_t S88BusManager::_taskHandle;
 OSMutex S88BusManager::_s88SensorLock;
 
 static constexpr UBaseType_t S88_SENSOR_TASK_PRIORITY = 1;
@@ -86,7 +85,7 @@ void S88BusManager::init()
   pinMode(S88_LOAD_PIN, OUTPUT);
 
   LOG(INFO, "[S88] Initializing SensorBus list");
-  json root = json::parse(configStore->load(S88_SENSORS_JSON_FILE));
+  nlohmann::json root = nlohmann::json::parse(configStore->load(S88_SENSORS_JSON_FILE));
   uint16_t s88BusCount = root.contains(JSON_COUNT_NODE) ? root[JSON_COUNT_NODE].get<int>() : 0;
   Singleton<InfoScreen>::instance()->replaceLine(
     INFO_SCREEN_ROTATING_STATUS_LINE, "Found %02d S88 Bus", s88BusCount);
@@ -95,12 +94,11 @@ void S88BusManager::init()
     for(auto bus : root[JSON_SENSORS_NODE])
     {
       string data = bus.dump();
-      s88SensorBus.add(new S88SensorBus(data));
+      s88SensorBus.emplace_back(new S88SensorBus(data));
     }
   }
-  LOG(INFO, "[S88] Loaded %d Sensor Buses", s88SensorBus.length());
-  _s88SensorLock = xSemaphoreCreateMutex();
-  xTaskCreate(s88SensorTask, "S88SensorManager", S88_SENSOR_TASK_STACK_SIZE, NULL, S88_SENSOR_TASK_PRIORITY, &_taskHandle);
+  LOG(INFO, "[S88] Loaded %d Sensor Buses", s88SensorBus.size());
+  xTaskCreate(s88SensorTask, "S88SensorManager", S88_SENSOR_TASK_STACK_SIZE, NULL, S88_SENSOR_TASK_PRIORITY, nullptr);
 #endif
 }
 

@@ -95,7 +95,6 @@ public:
   static std::string getStateAsJson();
   static std::string get_state_for_dccpp();
 private:
-  static TaskHandle_t _taskHandle;
   static OSMutex _s88SensorLock;
 };
 
