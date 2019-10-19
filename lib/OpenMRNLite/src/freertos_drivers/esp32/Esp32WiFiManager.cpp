@@ -1090,6 +1090,14 @@ void Esp32WiFiManager::clear_ssid_scan_results()
     ssidScanResults_.clear();
 }
 
+void Esp32WiFiManager::schedule_mdns_publish(const char *name, const char *service, uint16_t port)
+{
+    stack_->service()->executor()->add(new CallbackExecutable([name, service, port]()
+    {
+        mdns_publish(name, service, port);
+    }));
+}
+
 } // namespace openmrn_arduino
 
 /// Maximum number of milliseconds to wait for mDNS query responses.
@@ -1125,7 +1133,16 @@ void mdns_publish(const char *name, const char *service, uint16_t port)
         protocol_name.c_str(), port);
     esp_err_t res = mdns_service_add(
         NULL, service_name.c_str(), protocol_name.c_str(), port, NULL, 0);
-    LOG(VERBOSE, "[mDNS] mdns_service_add: %s.", esp_err_to_name(res));
+    LOG(VERBOSE, "[mDNS] mdns_service_add(%s.%s:%d): %s.", service_name.c_str(),
+        protocol_name.c_str(), port, esp_err_to_name(res));
+    // ESP_FAIL will be triggered if there is a timeout during publish of the
+    // new mDNS entry. The mDNS task runs at a very low priority on the PRO_CPU
+    // which is also where the OpenMRN Executor runs from which can cause a
+    // race condition.
+    if (res == ESP_FAIL)
+    {
+        Singleton<Esp32WiFiManager>::instance()->schedule_mdns_publish(name, service, port);
+    }
 }
 
 // Removes advertisement of an mDNS service name.

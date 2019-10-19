@@ -209,6 +209,14 @@ public:
     /// Clears the SSID scan results.
     void clear_ssid_scan_results();
 
+    /// Schedules a @ref CallbackExecutable on the @ref Executor used by the
+    /// @ref SimpleCanStack.
+    ///
+    /// @param name is the name of the mDNS service to publish.
+    /// @param service is the service name to publish.
+    /// @param port is the port for the service to be published.
+    void schedule_mdns_publish(const char *name, const char *service, uint16_t port);
+
 private:
     /// Default constructor.
     Esp32WiFiManager();
