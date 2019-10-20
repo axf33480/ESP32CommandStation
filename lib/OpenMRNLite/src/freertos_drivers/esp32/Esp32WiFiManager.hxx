@@ -209,13 +209,19 @@ public:
     /// Clears the SSID scan results.
     void clear_ssid_scan_results();
 
-    /// Schedules a @ref CallbackExecutable on the @ref Executor used by the
-    /// @ref SimpleCanStack.
+    /// Advertises a service via mDNS.
     ///
-    /// @param name is the name of the mDNS service to publish.
     /// @param service is the service name to publish.
     /// @param port is the port for the service to be published.
-    void schedule_mdns_publish(const char *name, const char *service, uint16_t port);
+    ///
+    /// Note: This will schedule a @ref CallbackExecutable on the @ref Executor
+    /// used by the @ref SimpleCanStack.
+    void mdns_publish(string service, uint16_t port);
+
+    /// Removes the advertisement of a service via mDNS.
+    ///
+    /// @param service is the service name to remove from advertising.
+    void mdns_unpublish(string service);
 
 private:
     /// Default constructor.
@@ -362,6 +368,13 @@ private:
 
     /// Internal flag for tracking that the mDNS system has been initialized.
     bool mdnsInitialized_{false};
+
+    /// Protects the mdnsInitialized_ flag.
+    OSMutex mdnsInitLock_;
+
+    /// Internal holder for mDNS entries which could not be published due to
+    /// mDNS not being initialized yet.
+    std::map<std::string, uint16_t> mdnsDeferred_;
 
     DISALLOW_COPY_AND_ASSIGN(Esp32WiFiManager);
 };

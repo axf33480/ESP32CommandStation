@@ -80,6 +80,15 @@ void mdns_publish(const char *name, const char *service, uint16_t port);
 /// exposed in the MDNS class but is supported on the ESP32.
 void mdns_unpublish(const char *service);
 
+/// Splits a service name since the ESP32 mDNS library requires the service
+/// name and service protocol to be passed in individually.
+///
+/// @param service_name is the service name to be split.
+/// @param protocol_name is the protocol portion of the service name.
+///
+/// Note: service_name *WILL* be modified by this call.
+void split_mdns_service_name(string *service_name, string *protocol_name);
+
 // End of global namespace block.
 
 namespace openmrn_arduino
@@ -428,8 +437,6 @@ void Esp32WiFiManager::process_wifi_event(system_event_t *event)
         esp_wifi_get_mac(WIFI_IF_STA, mac);
         LOG(INFO, "[WiFi] MAC Address: %s", mac_to_string(mac).c_str());
 
-        start_mdns_system();
-
         if (stationStaticIP_)
         {
             // Stop the DHCP service before connecting, this allows us to
@@ -490,6 +497,11 @@ void Esp32WiFiManager::process_wifi_event(system_event_t *event)
             "[WiFi] IP address is " IPSTR ", starting hub (if enabled) and "
             "uplink.",
             IP2STR(&ip_info.ip));
+
+        // Start the mDNS system since we have an IP address, the mDNS system
+        // on the ESP32 requires that the IP address be assigned otherwise it
+        // will not start the UDP listener.
+        start_mdns_system();
 
         // Set the flag that indictes we have an IPv4 address.
         xEventGroupSetBits(wifiStatusEventGroup_, WIFI_GOTIP_BIT);
@@ -563,8 +575,8 @@ void Esp32WiFiManager::process_wifi_event(system_event_t *event)
         esp_wifi_get_mac(WIFI_IF_AP, mac);
         LOG(INFO, "[SoftAP] MAC Address: %s", mac_to_string(mac).c_str());
 
-        start_mdns_system();
-
+        // If the SoftAP is not configured to use a static IP it will default
+        // to 192.168.4.1.
         if (softAPStaticIP_ && wifiMode_ != WIFI_MODE_STA)
         {
             // Stop the DHCP server so we can reconfigure it.
@@ -613,6 +625,14 @@ void Esp32WiFiManager::process_wifi_event(system_event_t *event)
             LOG(INFO, "[SoftAP] Starting DHCP Server.");
             ESP_ERROR_CHECK(
                 tcpip_adapter_dhcps_start(TCPIP_ADAPTER_IF_AP));
+        }
+
+        // If we are not operating in SoftAP mode only we can start the mDNS
+        // system now, otherwise we need to defer it until the station has
+        // received it's IP address to avoid reinitializing the mDNS system.
+        if (wifiMode_ == WIFI_MODE_AP)
+        {
+            start_mdns_system();
         }
     }
     else if (event->event_id == SYSTEM_EVENT_AP_STACONNECTED)
@@ -666,30 +686,6 @@ void Esp32WiFiManager::enable_verbose_logging()
 {
     esp32VerboseLogging_ = true;
     enable_esp_wifi_logging();
-}
-
-void Esp32WiFiManager::start_mdns_system()
-{
-    // If we have already initialized mDNS we can exit early.
-    if (mdnsInitialized_)
-    {
-        return;
-    }
-
-    // Initialize the mDNS system.
-    LOG(INFO, "[mDNS] Initializing mDNS system");
-    ESP_ERROR_CHECK(mdns_init());
-
-    // Set the mDNS hostname based on our generated hostname so it can be found
-    // by other nodes.
-    LOG(INFO, "[mDNS] Setting mDNS hostname to \"%s\"", hostname_.c_str());
-    ESP_ERROR_CHECK(mdns_hostname_set(hostname_.c_str()));
-
-    // Set the default mDNS instance name to the generated hostname.
-    ESP_ERROR_CHECK(mdns_instance_name_set(hostname_.c_str()));
-
-    // Set flag to indicate we have initialized mDNS.
-    mdnsInitialized_ = true;
 }
 
 // If the Esp32WiFiManager is setup to manage the WiFi system, the following
@@ -976,7 +972,7 @@ void Esp32WiFiManager::stop_hub()
 {
     if (hub_)
     {
-        mdns_unpublish(hubServiceName_.c_str());
+        mdns_unpublish(hubServiceName_);
         LOG(INFO, "[HUB] Shutting down TCP/IP listener");
         hub_.reset(nullptr);
     }
@@ -996,7 +992,7 @@ void Esp32WiFiManager::start_hub()
     {
         usleep(HUB_STARTUP_DELAY_USEC);
     }
-    mdns_publish(NULL, hubServiceName_.c_str(), hub_port);
+    mdns_publish(hubServiceName_, hub_port);
 }
 
 // Disconnects and shuts down the uplink connector socket if running.
@@ -1090,12 +1086,103 @@ void Esp32WiFiManager::clear_ssid_scan_results()
     ssidScanResults_.clear();
 }
 
-void Esp32WiFiManager::schedule_mdns_publish(const char *name, const char *service, uint16_t port)
+void Esp32WiFiManager::mdns_publish(string service, const uint16_t port)
 {
-    stack_->service()->executor()->add(new CallbackExecutable([name, service, port]()
     {
-        mdns_publish(name, service, port);
+        OSMutexLock l(&mdnsInitLock_);
+        if (!mdnsInitialized_)
+        {
+            // since mDNS has not been initialized, store this publish until
+            // it has been initialized.
+            mdnsDeferred_[service] = port;
+            return;
+        }
+    }
+
+    // Schedule the publish to be done through the Executor since we may need
+    // to retry it.
+    stack_->executor()->add(new CallbackExecutable([service, port]()
+    {
+        string service_name = service;
+        string protocol_name;
+        split_mdns_service_name(&service_name, &protocol_name);
+        esp_err_t res = mdns_service_add(
+            NULL, service_name.c_str(), protocol_name.c_str(), port, NULL, 0);
+        LOG(VERBOSE, "[mDNS] mdns_service_add(%s.%s:%d): %s."
+          , service_name.c_str(), protocol_name.c_str(), port
+          , esp_err_to_name(res));
+        // ESP_FAIL will be triggered if there is a timeout during publish of
+        // the new mDNS entry. The mDNS task runs at a very low priority on the
+        // PRO_CPU which is also where the OpenMRN Executor runs from which can
+        // cause a race condition.
+        if (res == ESP_FAIL)
+        {
+            // Send it back onto the scheduler to be retried
+            Singleton<Esp32WiFiManager>::instance()->mdns_publish(service
+                                                                , port);
+        }
+        else
+        {
+            LOG(INFO, "[mDNS] Advertising %s.%s:%d.", service_name.c_str()
+              , protocol_name.c_str(), port);
+        }
     }));
+}
+
+void Esp32WiFiManager::mdns_unpublish(string service)
+{
+    {
+        OSMutexLock l(&mdnsInitLock_);
+        if (!mdnsInitialized_) 
+        {
+            // Since mDNS is not in an initialized state we can discard the
+            // unpublish event.
+            return;
+        }
+    }
+    string service_name = service;
+    string protocol_name;
+    split_mdns_service_name(&service_name, &protocol_name);
+    LOG(INFO, "[mDNS] Removing advertisement of %s.%s."
+      , service_name.c_str(), protocol_name.c_str());
+    esp_err_t res =
+        mdns_service_remove(service_name.c_str(), protocol_name.c_str());
+    LOG(VERBOSE, "[mDNS] mdns_service_remove: %s.", esp_err_to_name(res));
+}
+
+void Esp32WiFiManager::start_mdns_system()
+{
+    {
+        OSMutexLock l(&mdnsInitLock_);
+
+        // If we have already initialized mDNS we can exit early.
+        if (mdnsInitialized_)
+        {
+            return;
+        }
+
+        // Initialize the mDNS system.
+        LOG(INFO, "[mDNS] Initializing mDNS system");
+        ESP_ERROR_CHECK(mdns_init());
+
+        // Set the mDNS hostname based on our generated hostname so it can be
+        // found by other nodes.
+        LOG(INFO, "[mDNS] Setting mDNS hostname to \"%s\"", hostname_.c_str());
+        ESP_ERROR_CHECK(mdns_hostname_set(hostname_.c_str()));
+
+        // Set the default mDNS instance name to the generated hostname.
+        ESP_ERROR_CHECK(mdns_instance_name_set(hostname_.c_str()));
+
+        // Set flag to indicate we have initialized mDNS.
+        mdnsInitialized_ = true;
+    }
+
+    // Publish any deferred mDNS entries
+    for (auto & entry : mdnsDeferred_)
+    {
+        mdns_publish(entry.first, entry.second);
+    }
+    mdnsDeferred_.clear();
 }
 
 } // namespace openmrn_arduino
@@ -1106,8 +1193,20 @@ static constexpr uint32_t MDNS_QUERY_TIMEOUT = 2000;
 /// Maximum number of results to capture for mDNS query requests.
 static constexpr size_t MDNS_MAX_RESULTS = 10;
 
-/// Splits a service name since the ESP32 mDNS library requires the service
-/// name and service protocol to be passed in individually.
+// Advertises an mDNS service name.
+void mdns_publish(const char *name, const char *service, uint16_t port)
+{
+    // The name parameter is unused today.
+    Singleton<Esp32WiFiManager>::instance()->mdns_publish(service, port);
+}
+
+// Removes advertisement of an mDNS service name.
+void mdns_unpublish(const char *service)
+{
+    Singleton<Esp32WiFiManager>::instance()->mdns_unpublish(service);
+}
+
+// Splits an mDNS service name.
 void split_mdns_service_name(string *service_name, string *protocol_name)
 {
     HASSERT(service_name != nullptr);
@@ -1122,41 +1221,6 @@ void split_mdns_service_name(string *service_name, string *protocol_name)
     }
 }
 
-// Advertises an mDNS service name for this node.
-void mdns_publish(const char *name, const char *service, uint16_t port)
-{
-    string service_name = service;
-    string protocol_name;
-    split_mdns_service_name(&service_name, &protocol_name);
-
-    LOG(INFO, "[mDNS] Advertising %s.%s:%d.", service_name.c_str(),
-        protocol_name.c_str(), port);
-    esp_err_t res = mdns_service_add(
-        NULL, service_name.c_str(), protocol_name.c_str(), port, NULL, 0);
-    LOG(VERBOSE, "[mDNS] mdns_service_add(%s.%s:%d): %s.", service_name.c_str(),
-        protocol_name.c_str(), port, esp_err_to_name(res));
-    // ESP_FAIL will be triggered if there is a timeout during publish of the
-    // new mDNS entry. The mDNS task runs at a very low priority on the PRO_CPU
-    // which is also where the OpenMRN Executor runs from which can cause a
-    // race condition.
-    if (res == ESP_FAIL)
-    {
-        Singleton<Esp32WiFiManager>::instance()->schedule_mdns_publish(name, service, port);
-    }
-}
-
-// Removes advertisement of an mDNS service name.
-void mdns_unpublish(const char *service)
-{
-    string service_name = service;
-    string protocol_name;
-    split_mdns_service_name(&service_name, &protocol_name);
-    LOG(INFO, "[mDNS] Removing advertisement of %s.%s.", service_name.c_str(),
-        protocol_name.c_str());
-    esp_err_t res =
-        mdns_service_remove(service_name.c_str(), protocol_name.c_str());
-    LOG(VERBOSE, "[mDNS] mdns_service_remove: %s.", esp_err_to_name(res));
-}
 
 // EAI_AGAIN may not be defined on the ESP32
 #ifndef EAI_AGAIN
