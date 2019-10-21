@@ -44,6 +44,10 @@ const char * buildTime = __DATE__ " " __TIME__;
 // resolved thus it is disabled by default.
 // OVERRIDE_CONST_TRUE(cs_railcom_enabled);
 
+// Enabling this will increase the app_main task priority and can cause other
+// tasks that run on the PRO_CPU to be delayed.
+//OVERRIDE_CONST(cs_main_task_priority, OPENMRN_TASK_PRIORITY);
+
 unique_ptr<OpenMRN> openmrn;
 
 // Esp32ConfigDef comes from CSConfigDescriptor.h and is specific to this
@@ -276,8 +280,8 @@ extern "C" void app_main()
   Singleton<InfoScreen>::instance()->replaceLine(
     INFO_SCREEN_ROTATING_STATUS_LINE, "ESP32-CS Started");
 
-  // Increase task priority prior to handing our task to the executor.
-  vTaskPrioritySet(NULL, openmrn_arduino::OPENMRN_TASK_PRIORITY);
+  // Adjust task priority prior to handing our task to the executor.
+  vTaskPrioritySet(NULL, config_cs_main_task_priority());
 
   // donate our task thread to OpenMRN executor.
   openmrn->loop_executor();

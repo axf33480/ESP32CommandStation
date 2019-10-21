@@ -20,6 +20,8 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 #include <utils/constants.hxx>
 
+DECLARE_CONST(cs_main_task_priority);
+
 DECLARE_CONST(cs_force_factory_reset);
 DECLARE_CONST(lcc_force_factory_reset);
 DECLARE_CONST(lcc_sd_sync_interval_sec);

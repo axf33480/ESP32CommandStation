@@ -29,6 +29,12 @@ COPYRIGHT (c) 2019 Mike Dunston
 #include "DefaultConfigs.h"
 
 ///////////////////////////////////////////////////////////////////////////////
+// This is the priority at which the app_main will increase to prior to handing
+// over to the LCC Executor.
+///////////////////////////////////////////////////////////////////////////////
+DEFAULT_CONST(cs_main_task_priority, 1);
+
+///////////////////////////////////////////////////////////////////////////////
 // This flag will clear the stored configuration data causing the command
 // station to regenerate the configuration from scratch. This is usually not
 // necessary.
