@@ -262,6 +262,21 @@ DCC_PROTOCOL_COMMAND_HANDLER(PowerOffCommand,
   return "<p0 OPS>";
 })
 
+#define GET_LOCO_VIA_EXECUTOR(NAME, address)                                          \
+  TrainImpl *NAME = nullptr;                                                          \
+  {                                                                                   \
+    SyncNotifiable n;                                                                 \
+    extern unique_ptr<OpenMRN> openmrn;                                               \
+    openmrn->stack()->executor()->add(new CallbackExecutable(                         \
+    [&]()                                                                             \
+    {                                                                                 \
+      NAME = trainNodes->get_train_impl(commandstation::DccMode::DCC_128_LONG_ADDRESS \
+                                      , address);                                     \
+      n.notify();                                                                     \
+    }));                                                                              \
+    n.wait_for_notification();                                                        \
+  }
+
 // <t {REGISTER} {LOCO} {SPEED} {DIRECTION}> command handler, this command
 // converts the provided locomotive control command into a compatible DCC
 // locomotive control packet.
@@ -274,9 +289,8 @@ DCC_PROTOCOL_COMMAND_HANDLER(ThrottleCommandAdapter,
   uint8_t req_speed = std::stoi(arguments[2]);
   uint8_t req_dir = std::stoi(arguments[3]);
 
-  TrainImpl *impl =
-    trainNodes->get_train_impl(commandstation::DccMode::DCC_128_LONG_ADDRESS
-                             , loco_addr);
+  GET_LOCO_VIA_EXECUTOR(impl, loco_addr);
+
   dcc::SpeedType speed(impl->get_speed());
   speed.set_dcc_128(req_speed);
   speed.set_direction(req_dir ? dcc::SpeedType::FORWARD : dcc::SpeedType::REVERSE);
@@ -295,9 +309,8 @@ DCC_PROTOCOL_COMMAND_HANDLER(ThrottleExCommandAdapter,
   int8_t req_speed = std::stoi(arguments[1]);
   int8_t req_dir = std::stoi(arguments[2]);
 
-  TrainImpl *impl =
-    trainNodes->get_train_impl(commandstation::DccMode::DCC_128_LONG_ADDRESS
-                             , loco_addr);
+  GET_LOCO_VIA_EXECUTOR(impl, loco_addr);
+
   dcc::SpeedType speed(impl->get_speed());
   if (req_speed >= 0)
   {
@@ -323,9 +336,8 @@ DCC_PROTOCOL_COMMAND_HANDLER(FunctionCommandAdapter,
   uint8_t last{4};
   uint8_t bits{func_byte};
 
-  auto train =
-    trainNodes->get_train_impl(commandstation::DccMode::DCC_128_LONG_ADDRESS
-                             , loco_addr);
+  GET_LOCO_VIA_EXECUTOR(impl, loco_addr);
+
   // check this is a request for functions F13-F28
   if(arguments.size() > 2)
   {
@@ -358,12 +370,12 @@ DCC_PROTOCOL_COMMAND_HANDLER(FunctionCommandAdapter,
     }
     else
     {
-      train->set_fn(0, func_byte & BIT(4));
+      impl->set_fn(0, func_byte & BIT(4));
     }
   }
   for(uint8_t id = first; id <= last; id++)
   {
-    train->set_fn(id, bits & BIT(id - first));
+    impl->set_fn(id, bits & BIT(id - first));
   }
   return COMMAND_NO_RESPONSE;
 });
@@ -377,8 +389,10 @@ DCC_PROTOCOL_COMMAND_HANDLER(FunctionExCommandAdapter,
   int loco_addr = std::stoi(arguments[0]);
   int function = std::stoi(arguments[1]);
   int state = std::stoi(arguments[2]);
-  trainNodes->get_train_impl(commandstation::DccMode::DCC_128_LONG_ADDRESS
-                           , loco_addr)->set_fn(function, state);
+
+  GET_LOCO_VIA_EXECUTOR(impl, loco_addr);
+
+  impl->set_fn(function, state);
   return COMMAND_NO_RESPONSE;
 });
 
