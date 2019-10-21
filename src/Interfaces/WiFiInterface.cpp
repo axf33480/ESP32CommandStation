@@ -183,8 +183,7 @@ void WiFiInterface::init()
         LOG(INFO, "[WiFi] Starting JMRI listener");
         JMRIListener.reset(new SocketListener(JMRI_LISTENER_PORT, [](int fd)
         {
-          extern unique_ptr<OpenMRN> openmrn;
-          new JmriClient(fd, openmrn->stack()->service());
+          new JmriClient(fd, Singleton<esp32cs::http::Httpd>::instance());
         }));
         mDNS.publish("jmri", "_esp32cs._tcp", JMRI_LISTENER_PORT);
       }
