@@ -36,8 +36,8 @@ constexpr uint16_t JMRI_LISTENER_PORT = 2560;
 class JmriClient : private StateFlowBase, public DCCPPProtocolConsumer
 {
 public:
-  JmriClient(int fd, Service *service)
-    : StateFlowBase(service), DCCPPProtocolConsumer(), fd_(fd), remoteIP_(0)
+  JmriClient(int fd, uint32_t remote_ip, Service *service)
+    : StateFlowBase(service), DCCPPProtocolConsumer(), fd_(fd), remoteIP_(remote_ip)
   {
     LOG(INFO, "[JMRI %s] Connected", name().c_str());
     int clientCount = 0;
@@ -183,7 +183,12 @@ void WiFiInterface::init()
         LOG(INFO, "[WiFi] Starting JMRI listener");
         JMRIListener.reset(new SocketListener(JMRI_LISTENER_PORT, [](int fd)
         {
-          new JmriClient(fd, Singleton<esp32cs::http::Httpd>::instance());
+          sockaddr_in source;
+          socklen_t source_len = sizeof(sockaddr_in);
+          bzero(&source, sizeof(sockaddr_in));
+          getpeername(fd, (sockaddr *)&source, &source_len);
+          new JmriClient(fd, ntohl(source.sin_addr.s_addr)
+                       , Singleton<esp32cs::http::Httpd>::instance());
         }));
         mDNS.publish("jmri", "_esp32cs._tcp", JMRI_LISTENER_PORT);
       }
