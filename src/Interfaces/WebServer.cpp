@@ -38,11 +38,12 @@ using esp32cs::http::AbstractHttpResponse;
 using esp32cs::http::StringResponse;
 using esp32cs::http::WebSocketFlow;
 using esp32cs::http::MIME_TYPE_TEXT_HTML;
+using esp32cs::http::MIME_TYPE_TEXT_JAVASCRIPT;
 using esp32cs::http::MIME_TYPE_TEXT_PLAIN;
+using esp32cs::http::MIME_TYPE_TEXT_XML;
 using esp32cs::http::MIME_TYPE_TEXT_CSS;
 using esp32cs::http::MIME_TYPE_IMAGE_PNG;
 using esp32cs::http::MIME_TYPE_IMAGE_GIF;
-using esp32cs::http::MIME_TYPE_TEXT_JAVASCRIPT;
 using esp32cs::http::MIME_TYPE_APPLICATION_JSON;
 using esp32cs::http::HTTP_ENCODING_GZIP;
 using esp32cs::http::WebSocketEvent;
@@ -112,6 +113,21 @@ void init_webserver(MDNS *dns)
   {
     return new StringResponse(configStore->getCSFeatures()
                             , MIME_TYPE_APPLICATION_JSON);
+  });
+  httpd->uri("/fs", HttpMethod::GET, [&](HttpRequest *req)
+  {
+    string path = req->param("path");
+    string data = read_file_to_string(path);
+    string mimetype;
+    if (path.find(".xml") != string::npos)
+    {
+      mimetype = MIME_TYPE_TEXT_XML;
+    }
+    else if (path.find(".json") != string::npos)
+    {
+      mimetype = MIME_TYPE_APPLICATION_JSON;
+    }
+    return new StringResponse(data, mimetype);
   });
   httpd->uri("/power", HttpMethod::GET | HttpMethod::PUT, process_power);
   httpd->uri("/config", HttpMethod::GET | HttpMethod::POST, process_config);
