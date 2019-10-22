@@ -292,7 +292,10 @@ DCC_PROTOCOL_COMMAND_HANDLER(ThrottleCommandAdapter,
   GET_LOCO_VIA_EXECUTOR(impl, loco_addr);
 
   dcc::SpeedType speed(impl->get_speed());
+  LOG(INFO, "[DCC++ loco %d] Set speed to %d", loco_addr, req_speed);
   speed.set_dcc_128(req_speed);
+  LOG(INFO, "[DCC++ loco %d] Set direction to %s", loco_addr
+      , req_dir ? "FWD" : "REV");
   speed.set_direction(req_dir ? dcc::SpeedType::FORWARD : dcc::SpeedType::REVERSE);
   impl->set_speed(speed);
   return convert_loco_to_dccpp_state(impl, reg_num);
@@ -314,10 +317,13 @@ DCC_PROTOCOL_COMMAND_HANDLER(ThrottleExCommandAdapter,
   dcc::SpeedType speed(impl->get_speed());
   if (req_speed >= 0)
   {
+    LOG(INFO, "[DCC++ loco %d] Set speed to %d", loco_addr, req_speed);
     speed.set_dcc_128(req_speed);
   }
   if (req_dir >= 0)
   {
+    LOG(INFO, "[DCC++ loco %d] Set direction to %s", loco_addr
+      , req_dir ? "FWD" : "REV");
     speed.set_direction(req_dir ? dcc::SpeedType::FORWARD : dcc::SpeedType::REVERSE);
   }
   impl->set_speed(speed);
@@ -375,6 +381,8 @@ DCC_PROTOCOL_COMMAND_HANDLER(FunctionCommandAdapter,
   }
   for(uint8_t id = first; id <= last; id++)
   {
+    LOG(INFO, "[DCC++ loco %d] Set function %d to %d", loco_addr, id
+      , (int)(bits & BIT(id - first)));
     impl->set_fn(id, bits & BIT(id - first));
   }
   return COMMAND_NO_RESPONSE;
@@ -391,7 +399,8 @@ DCC_PROTOCOL_COMMAND_HANDLER(FunctionExCommandAdapter,
   int state = std::stoi(arguments[2]);
 
   GET_LOCO_VIA_EXECUTOR(impl, loco_addr);
-
+  LOG(INFO, "[DCC++ loco %d] Set function %d to %d", loco_addr, function
+    , state);
   impl->set_fn(function, state);
   return COMMAND_NO_RESPONSE;
 });
