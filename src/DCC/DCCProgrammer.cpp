@@ -211,7 +211,7 @@ void writeOpsCVByte(const uint16_t locoAddress, const uint16_t cv
     }
     b->data()->add_dcc_pom_write1(cv, cvValue);
     b->data()->packet_header.rept_count = 3;
-    trackInterface->send(b.release());
+    trackInterface->send(b.get());
   }
   else
   {
@@ -240,7 +240,7 @@ void writeOpsCVBit(const uint16_t locoAddress, const uint16_t cv
     b->data()->add_dcc_prog_command(0xe8, cv - 1
                                   , (uint8_t)(0xF0 + bit + value * 8));
     b->data()->packet_header.rept_count = 3;
-    trackInterface->send(b.release());
+    trackInterface->send(b.get());
   }
   else
   {
