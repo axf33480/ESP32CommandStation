@@ -191,39 +191,59 @@ bool writeProgCVBit(const uint16_t cv, const uint8_t bit, const bool value)
   return writeVerified;
 }
 
-void writeOpsCVByte(const uint16_t locoAddress, const uint16_t cv, const uint8_t cvValue)
+void writeOpsCVByte(const uint16_t locoAddress, const uint16_t cv
+                  , const uint8_t cvValue)
 {
-  LOG(VERBOSE, "[OPS] Updating CV %d to %d for loco %d", cv, cvValue, locoAddress);
-  auto *b = trackInterface->alloc();
-  b->data()->start_dcc_packet();
-  if(locoAddress > 127)
+  auto b = get_buffer_deleter(trackInterface->alloc());
+  if (b)
   {
-    b->data()->add_dcc_address(dcc::DccLongAddress(locoAddress));
+    LOG(INFO, "[OPS] Updating CV %d to %d for loco %d", cv, cvValue
+      , locoAddress);
+
+    b->data()->start_dcc_packet();
+    if(locoAddress > 127)
+    {
+      b->data()->add_dcc_address(dcc::DccLongAddress(locoAddress));
+    }
+    else
+    {
+      b->data()->add_dcc_address(dcc::DccShortAddress(locoAddress));
+    }
+    b->data()->add_dcc_pom_write1(cv, cvValue);
+    b->data()->packet_header.rept_count = 3;
+    trackInterface->send(b.release());
   }
   else
   {
-    b->data()->add_dcc_address(dcc::DccShortAddress(locoAddress));
+    LOG_ERROR("[OPS] Failed to retrieve DCC Packet for programming request");
   }
-  b->data()->add_dcc_pom_write1(cv, cvValue);
-  b->data()->packet_header.rept_count = 3;
-  trackInterface->send(b);
 }
 
-void writeOpsCVBit(const uint16_t locoAddress, const uint16_t cv, const uint8_t bit, const bool value)
+void writeOpsCVBit(const uint16_t locoAddress, const uint16_t cv
+                 , const uint8_t bit, const bool value)
 {
-  LOG(VERBOSE, "[OPS] Updating CV %d bit %d to %d for loco %d", cv, bit, value, locoAddress);
-  auto *b = trackInterface->alloc();
-  b->data()->start_dcc_packet();
-  if(locoAddress > 127)
+  auto b = get_buffer_deleter(trackInterface->alloc());
+  if (b)
   {
-    b->data()->add_dcc_address(dcc::DccLongAddress(locoAddress));
+    LOG(INFO, "[OPS] Updating CV %d bit %d to %d for loco %d", cv, bit, value
+      , locoAddress);
+    b->data()->start_dcc_packet();
+    if(locoAddress > 127)
+    {
+      b->data()->add_dcc_address(dcc::DccLongAddress(locoAddress));
+    }
+    else
+    {
+      b->data()->add_dcc_address(dcc::DccShortAddress(locoAddress));
+    }
+    // TODO add_dcc_pom_write_bit(cv, bit, value)
+    b->data()->add_dcc_prog_command(0xe8, cv - 1
+                                  , (uint8_t)(0xF0 + bit + value * 8));
+    b->data()->packet_header.rept_count = 3;
+    trackInterface->send(b.release());
   }
   else
   {
-    b->data()->add_dcc_address(dcc::DccShortAddress(locoAddress));
+    LOG_ERROR("[OPS] Failed to retrieve DCC Packet for programming request");
   }
-  // TODO add_dcc_pom_write_bit(cv, bit, value)
-  b->data()->add_dcc_prog_command(0xe8, cv - 1, (uint8_t)(0xF0 + bit + value * 8));
-  b->data()->packet_header.rept_count = 3;
-  trackInterface->send(b);
 }
