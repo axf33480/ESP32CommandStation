@@ -35,15 +35,14 @@ void EStopHandler::set_state(bool new_value)
     {
       OSMutexLock l(&lock_);
       remaining_ = config_cs_estop_packet_count();
-      Singleton<SimpleUpdateLoop>::instance()->add_refresh_source(this
-                                                                , UpdateLoopBase::ESTOP_PRIORITY);
+      packet_processor_add_refresh_source(this, UpdateLoopBase::ESTOP_PRIORITY);
     }
   }
   else
   {
     OSMutexLock l(&lock_);
     remaining_ = 0;
-    Singleton<SimpleUpdateLoop>::instance()->remove_refresh_source(this);
+    packet_processor_remove_refresh_source(this);
   }
 }
 
@@ -56,7 +55,7 @@ void EStopHandler::get_next_packet(unsigned code, Packet* packet)
     remaining_--;
     if (remaining_ <= 0)
     {
-      Singleton<SimpleUpdateLoop>::instance()->remove_refresh_source(this);
+      packet_processor_remove_refresh_source(this);
     }
   }
 }
