@@ -714,15 +714,9 @@ void Esp32WiFiManager::start_wifi_system()
         return;
     }
 
-    // When CONFIG_USE_ONLY_LWIP_SELECT is enabled it is necessary to start the
-    // TCP/IP stack *BEFORE* creating the SimpleStack instance. This can only
-    // be done by using a dynamic instance of openmrn_arduino::OpenMRN or using
-    // the init(openlcb::NodeID) method.
-#if !CONFIG_USE_ONLY_LWIP_SELECT
     // Initialize the TCP/IP adapter stack.
     LOG(INFO, "[WiFi] Starting TCP/IP stack");
     tcpip_adapter_init();
-#endif // CONFIG_USE_ONLY_LWIP_SELECT
 
     // Install event loop handler.
     ESP_ERROR_CHECK(esp_event_loop_init(wifi_event_handler, this));

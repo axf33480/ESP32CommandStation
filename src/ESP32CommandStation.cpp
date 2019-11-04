@@ -164,13 +164,6 @@ extern "C" void app_main()
     }
   }
 
-  // When this option is enabled we need to start the TCP/IP stack before the
-  // startup of the OpenMRN stack which includes the Esp32WiFiManager code.
-#if CONFIG_USE_ONLY_LWIP_SELECT
-  LOG(INFO, "[WiFi] Starting TCP/IP stack");
-  tcpip_adapter_init();
-#endif
-
   // Configure ADC1 up front to use 12 bit (0-4095) as we use it for all
   // monitored h-bridges.
   LOG(INFO, "[ADC] Configure 12-bit ADC resolution");
