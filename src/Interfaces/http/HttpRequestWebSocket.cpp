@@ -125,6 +125,7 @@ StateFlowBase::Action WebSocketFlow::read_fully_with_timeout(void *buf
                                                            , StateFlowBase::Callback success
                                                            , StateFlowBase::Callback timeout)
 {
+  LOG(VERBOSE, "[WebSocket fd:%d] requesting %zu bytes", fd_, size);
   buf_ = (uint8_t *)buf;
   buf_offs_ = 0;
   buf_remain_ = size;
@@ -138,12 +139,17 @@ StateFlowBase::Action WebSocketFlow::read_fully_with_timeout(void *buf
 StateFlowBase::Action WebSocketFlow::data_received()
 {
   HASSERT(buf_next_);
+  size_t received = (buf_remain_ - helper_.remaining_);
+  LOG(VERBOSE
+    , "[WebSocket fd:%d] hasError:%d, readFully:%d, readNonblocking:%d, "
+      "readWithTimeout: %d, remaining:%d, received:%zu"
+    , fd_, helper_.hasError_, helper_.readFully_, helper_.readNonblocking_
+    , helper_.readWithTimeout_, helper_.remaining_, received);
   if (helper_.hasError_)
   {
     LOG(INFO, "[WebSocket fd:%d] read-error, disconnecting", fd_);
     return yield_and_call(STATE(shutdown_connection));
   }
-  size_t received = (buf_remain_ - helper_.remaining_);
   buf_remain_ -= received;
   buf_offs_ += received;
   LOG(VERBOSE, "[WebSocket fd:%d] Received %zu bytes, %zu bytes remain", fd_
@@ -351,7 +357,7 @@ StateFlowBase::Action WebSocketFlow::send_frame_header()
     data_[1] = textToSend_.length();
     memcpy(data_ + 2, textToSend_.data(), textToSend_.length());
     data_size_ = textToSend_.length();
-    send_size = data_size_ + 4;
+    send_size = data_size_ + 2;
   }
   else if (textToSend_.length() < max_frame_size_ - 4)
   {
@@ -374,6 +380,7 @@ StateFlowBase::Action WebSocketFlow::send_frame_header()
     memcpy(data_+ 4, textToSend_.data(), data_size_);
     send_size = data_size_ + 4;
   }
+  LOG(VERBOSE, "[WebSocket fd:%d] send:%zu, text:%zu", fd_, send_size, textToSend_.length());
   return write_repeated(&helper_, fd_, data_, send_size, STATE(frame_sent));
 }
 
@@ -381,6 +388,7 @@ StateFlowBase::Action WebSocketFlow::frame_sent()
 {
   if (helper_.hasError_)
   {
+    LOG(INFO, "[WebSocket fd:%d] write error, disconnecting", fd_);
     return yield_and_call(STATE(shutdown_connection));
   }
   OSMutexLock l(&textLock_);
