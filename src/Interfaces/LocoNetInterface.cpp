@@ -20,51 +20,81 @@ COPYRIGHT (c) 2019 Mike Dunston
 #if LOCONET_ENABLED
 LocoNetESP32Uart locoNet(LOCONET_RX_PIN, LOCONET_TX_PIN, LOCONET_UART, LOCONET_INVERTED_LOGIC, LOCONET_ENABLE_RX_PIN_PULLUP);
 
+// TODO: consider bridge code to wake up an executable already executing inside
+// the stack rather than create on the fly.
+#define GET_LOCO_VIA_EXECUTOR(NAME, address)                                          \
+  TrainImpl *NAME = nullptr;                                                          \
+  {                                                                                   \
+    SyncNotifiable n;                                                                 \
+    extern unique_ptr<OpenMRN> openmrn;                                               \
+    openmrn->stack()->executor()->add(new CallbackExecutable(                         \
+    [&]()                                                                             \
+    {                                                                                 \
+      NAME = trainNodes->get_train_impl(commandstation::DccMode::DCC_128_LONG_ADDRESS \
+                                      , address);                                     \
+      n.notify();                                                                     \
+    }));                                                                              \
+    n.wait_for_notification();                                                        \
+  }
+
+// temporary solution for persistance of the locomotive address to slot
+// mapping. Each slot can hold one locomotive at a time, this will require
+// additional maintenance for the purging of slots etc.
+// TODO: add locking to protect this vector.
+vector<uint16_t> slotMap;
+
 void initializeLocoNet()
 {
   Singleton<InfoScreen>::instance()->replaceLine(
     INFO_SCREEN_ROTATING_STATUS_LINE, "LocoNet Init");
   locoNet.begin();
   locoNet.onPacket(OPC_GPON, [](lnMsg *msg) {
-    MotorBoardManager::powerOnAll();
+    trackSignal->enable_ops_output();
   });
   locoNet.onPacket(OPC_GPOFF, [](lnMsg *msg) {
-    MotorBoardManager::powerOffAll();
+    trackSignal->disable_ops_output();
   });
   locoNet.onPacket(OPC_IDLE, [](lnMsg *msg) {
-    LocomotiveManager::emergencyStop();
+    Singleton<esp32cs::EStopHandler>::instance()->set_state(true);
   });
   locoNet.onPacket(OPC_LOCO_ADR, [](lnMsg *msg) {
     lnMsg response = {0};
-    auto loco = LocomotiveManager::getLocomotive(msg->la.adr_lo + (msg->la.adr_hi << 7));
+    uint16_t locoAddress = (msg->la.adr_lo + (msg->la.adr_hi << 7));
+    // TODO: add locking
+    uint8_t slot = slotMap.size() + 1;
+    slotMap[slot - 1] = locoAddress;
+    GET_LOCO_VIA_EXECUTOR(loco, locoAddress);
     response.sd.command = OPC_SL_RD_DATA;
     response.sd.mesg_size = 0x0E;
-    response.sd.slot = loco->getRegister();
+    response.sd.slot = slot;
     response.sd.stat = LOCO_IDLE | DEC_MODE_128;
     response.sd.adr = msg->la.adr_lo;
     response.sd.adr2 = msg->la.adr_hi;
     response.sd.dirf = DIRF_F0;
     response.sd.trk = GTRK_MLOK1;
-    if(MotorBoardManager::isTrackPowerOn()) {
+    if(trackSignal->is_enabled()) {
       response.sd.trk |= GTRK_POWER;
     }
+    // TODO: add prog track status
+    /*
     if(progTrackBusy) {
       response.sd.trk |= GTRK_PROG_BUSY;
     }
+    */
     locoNet.send(&response);
   });
   locoNet.onPacket(OPC_LOCO_SPD, [](lnMsg *msg) {
-    auto loco = LocomotiveManager::getLocomotiveByRegister(msg->lsp.slot);
+    GET_LOCO_VIA_EXECUTOR(loco, slotMap[msg->lsp.slot - 1]);
     if(loco) {
       auto speed = loco->get_speed();
-      speed.set_dcc_128(msg->lsp.spd)
+      speed.set_dcc_128(msg->lsp.spd);
       loco->set_speed(speed);
     } else {
       locoNet.send(OPC_LONG_ACK, OPC_LOCO_SPD, 0);
     }
   });
   locoNet.onPacket(OPC_LOCO_DIRF, [](lnMsg *msg) {
-    auto loco = LocomotiveManager::getLocomotiveByRegister(msg->ldf.slot);
+    GET_LOCO_VIA_EXECUTOR(loco, slotMap[msg->ldf.slot - 1]);
     if(loco) {
       auto speed = loco->get_speed();
       speed.set_direction(msg->ldf.dirf & DIRF_DIR);
@@ -79,7 +109,7 @@ void initializeLocoNet()
     }
   });
   locoNet.onPacket(OPC_LOCO_SND, [](lnMsg *msg) {
-    auto loco = LocomotiveManager::getLocomotiveByRegister(msg->ls.slot);
+    GET_LOCO_VIA_EXECUTOR(loco, slotMap[msg->ls.slot - 1]);
     if(loco) {
       loco->set_fn(5, msg->ls.snd & SND_F5);
       loco->set_fn(6, msg->ls.snd & SND_F6);
@@ -89,6 +119,8 @@ void initializeLocoNet()
       locoNet.send(OPC_LONG_ACK, OPC_LOCO_SND, 0);
     }
   });
+  // TOOD: reimplement prog track interface
+  /*
   locoNet.onPacket(OPC_WR_SL_DATA, [](lnMsg *msg) {
     if(msg->pt.slot == PRG_SLOT) {
       if(msg->pt.command == 0x00) {
@@ -158,6 +190,7 @@ void initializeLocoNet()
       }
     }
   });
+  */
   locoNet.onPacket(OPC_INPUT_REP, [](lnMsg *msg) {
     LOG(INFO, "LocoNet INPUT_REPORT %02x : %02x", msg->ir.in1, msg->ir.in2);
   });
