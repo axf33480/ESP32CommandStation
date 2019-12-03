@@ -55,3 +55,12 @@ NextionSetupPage::NextionSetupPage(Nextion &nextion) :
     }
   });
 }
+
+void NextionSetupPage::displayPage()
+{
+  _versionText.setText(PROJECT_VER);
+  _ssidText.setText(configStore->getSSID().c_str());
+  tcpip_adapter_ip_info_t ip;
+  tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_STA, &ip);
+  _ipAddrText.setText(ipv4_to_string(ntohl(ip.ip.addr)).c_str());
+}
