@@ -9,22 +9,12 @@ jobs:
     strategy:
       max-parallel: 2
       matrix:
-        target: [esp32, pcb, pcb_oled_sh1106, pcb_oled_ssd1306, pcb_lcd_20x4, pcb_lcd_16x2]
+        target: [esp32]
     steps:
     - uses: actions/checkout@v1
-    - name: Install Python Wheel
-      run: pip install wheel
-    - name: Install pyparsing
-      run: pip install pyparsing
-    - name: Install PlatformIO Core
-      run: pip install -U https://github.com/platformio/platformio/archive/develop.zip
-    - name: Install PlatformIO Espressif32 platform
-      run: python -m platformio platform install https://github.com/platformio/platform-espressif32.git
-    - name: Compile
-      run: |
-        python -m platformio run -e ${{ matrix.target }}
-        mkdir build
-        cp .pio/build/${{ matrix.target }}/firmware.bin build/${{ matrix.target }}.bin
+    - name: build
+      uses: docker://espressif/idf:release-v4.0
+      run: idf.py clean menuconfig build
     - name: Package binaries
       uses: actions/upload-artifact@v1
       with:
