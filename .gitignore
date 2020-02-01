@@ -1,11 +1,13 @@
-.pio*
+build
+sdkconfig
+sdkconfig.old
 .clang_complete
 .gcc-flags.json
 .vscode
 utils/*.pyc
 utils/__pycache__
-include/generated/*
 *.code-workspace
 docs/html
 docs/esp32cs.tag
 docs/warnings
+data/*.gz

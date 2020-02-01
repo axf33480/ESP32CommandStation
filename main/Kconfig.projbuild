@@ -1,0 +1,758 @@
+menu "ESP32 Command Station"
+    menu "WiFi"
+        config HOSTNAME_PREFIX
+            string "Hostname prefix"
+            default "esp32cs_"
+            help
+                The LCC node id will be appended to this value, ie: esp32cs_050101013F00.
+        choice WIFI_MODE
+            bool "WiFi mode"
+            default WIFI_MODE_SOFTAP
+            config WIFI_MODE_STATION
+                bool "Connect to SSID"
+            config WIFI_MODE_SOFTAP
+                bool "Create SoftAP"
+            config WIFI_MODE_SOFTAP_STATION
+                bool "Connect to SSID and create SoftAP"
+        endchoice
+
+        config WIFI_SOFTAP_SSID
+            string "SoftAP SSID"
+            depends on WIFI_MODE_SOFTAP
+        config WIFI_SSID
+            string "SSID"
+            depends on WIFI_MODE_STATION || WIFI_MODE_SOFTAP_STATION
+        config WIFI_PASSWORD
+            string "Password"
+            depends on WIFI_MODE_STATION || WIFI_MODE_SOFTAP_STATION
+        choice WIFI_IP_TYPE
+            bool "WiFi IP"
+            default WIFI_IP_DHCP
+            config WIFI_IP_DHCP
+                bool "DHCP"
+            config WIFI_IP_STATIC
+                bool "Static"
+        endchoice
+        config WIFI_STATIC_IP_ADDRESS
+            string "IP address"
+            default "10.0.0.155"
+            depends on WIFI_IP_STATIC
+        config WIFI_STATIC_IP_GATEWAY
+            string "Gateway IP address"
+            default "10.0.0.1"
+            depends on WIFI_IP_STATIC
+        config WIFI_STATIC_IP_SUBNET
+            string "Subnet mask"
+            default "255.255.255.0"
+            depends on WIFI_IP_STATIC
+        config WIFI_STATIC_IP_DNS
+            string "Primary DNS address"
+            default "8.8.8.8"
+            depends on WIFI_IP_STATIC
+        config WIFI_SOFT_AP_CHANNEL
+            int
+            default 6
+    endmenu
+
+    menu "H-Bridge"
+        menu "OPS"
+            config OPS_TRACK_NAME
+                string "Name"
+                default "OPS"
+
+            choice OPS_HBRIDGE_TYPE
+                bool "H-Bridge type"
+                default OPS_HBRIDGE_L298
+                help
+                    The following motor driver modules are supported:
+                    L298           : Arduino Motor shield Rev3 based on the L298 chip. Max Output 2A per channel https://store.arduino.cc/usa/arduino-motor-shield-rev3
+                    LMD18200       : Texas Instruments LMD18200 55V 3A h-bridge. http://www.ti.com/lit/ds/symlink/lmd18200.pdf
+                    POLOLU         : Pololu MC33926 Motor Driver (shield or carrier). Max Output 2.5A per channel https://www.pololu.com/product/1213 / https://www.pololu.com/product/2503
+                    BTS7960B_5A    : Infineon Technologies BTS 7960 Motor Driver Module. Max Output 5A (43A actual max) https://www.infineon.com/dgdl/bts7960b-pb-final.pdf
+                    BTS7960B_10A   : Infineon Technologies BTS 7960 Motor Driver Module. Max Output 10A (43A actual max) https://www.infineon.com/dgdl/bts7960b-pb-final.pdf
+                config OPS_HBRIDGE_L298
+                    bool "L298"
+                config OPS_HBRIDGE_LMD18200
+                    bool "LMD18200"
+                config OPS_HBRIDGE_POLOLU
+                    bool "Pololu MC33926"
+                config OPS_HBRIDGE_BTS7960B_5A
+                    bool "BTS7960B (5A limit)"
+                config OPS_HBRIDGE_BTS7960B_10A
+                    bool "BTS7960B (10A limit)"
+            endchoice
+
+            config OPS_HBRIDGE_TYPE_NAME
+                string
+                default "L298" if OPS_HBRIDGE_L298
+                default "LMD18200" if OPS_HBRIDGE_LMD18200
+                default "MC33926" if OPS_HBRIDGE_POLOLU
+                default "BTS7960B" if OPS_HBRIDGE_BTS7960B_5A
+                default "BTS7960B" if OPS_HBRIDGE_BTS7960B_10A
+
+            config OPS_HBRIDGE_MAX_MILLIAMPS
+                int "H-Bridge maximum milliamps"
+                help
+                    This is the rated maximum milliamps for the H-Bridge IC.
+                default 2000 if OPS_HBRIDGE_L298
+                default 3000 if OPS_HBRIDGE_LMD18200
+                default 2500 if OPS_HBRIDGE_POLOLU
+                default 43000 if OPS_HBRIDGE_BTS7960B_5A
+                default 43000 if OPS_HBRIDGE_BTS7960B_10A
+
+            config OPS_HBRIDGE_LIMIT_MILLIAMPS
+                int "H-Bridge limit milliamps"
+                default 2000 if OPS_HBRIDGE_L298
+                default 3000 if OPS_HBRIDGE_LMD18200
+                default 2500 if OPS_HBRIDGE_POLOLU
+                default 5000 if OPS_HBRIDGE_BTS7960B_5A
+                default 10000 if OPS_HBRIDGE_BTS7960B_10A
+    
+            config OPS_ENABLE_PIN
+                int "H-Bridge enable/pwm pin"
+                default 25
+                range 0 32
+                help
+                    This pin will be HIGH when the H-Bridge output should be
+                    enabled and will be LOW when it should be disabled. This
+                    pin should typically be connected to the PWM input of the
+                    H-Bridge IC.
+
+            config OPS_THERMAL_PIN
+                int "PH-Bridge Thermal Alert pin"
+                range 0 39
+                default -1
+                depends on OPS_HBRIDGE_LMD18200
+                help
+                    The LMD18200 has a thermal alert pin that will be HIGH if
+                    the IC is too HOT for normal operation. When the command
+                    station detects this condition it will shutdown the track
+                    output and re-enable it once the thermal alert has been
+                    cleared.
+
+            config OPS_SIGNAL_PIN
+                int "H-Bridge signal/direction pin"
+                default 19
+                range 0 32
+                help
+                    This pin will transition HIGH/LOW based on the DCC signal
+                    data being generated by the command station. This should
+                    typically be connected to the direction pin on the H-Bridge
+                    IC.
+
+            choice OPS_CURRENT_SENSE_PIN
+                bool "H-Bridge current sense pin"
+                help
+                    This is used for short circuit detection.
+                default OPS_ADC_CHANNEL_0
+                config OPS_ADC_CHANNEL_0
+                    bool "ADC1 Channel 0 (GPIO 36)"
+                config OPS_ADC_CHANNEL_1
+                    bool "ADC1 Channel 1 (GPIO 37)"
+                    help
+                        Note this pin may not be exposed on all ESP32 modules
+                config OPS_ADC_CHANNEL_2
+                    bool "ADC1 Channel 2 (GPIO 38)"
+                    help
+                        Note this pin may not be exposed on all ESP32 modules
+                config OPS_ADC_CHANNEL_3
+                    bool "ADC1 Channel 3 (GPIO 39)"
+                config OPS_ADC_CHANNEL_4
+                    bool "ADC1 Channel 4 (GPIO 32)"
+                config OPS_ADC_CHANNEL_5
+                    bool "ADC1 Channel 5 (GPIO 33)"
+                config OPS_ADC_CHANNEL_6
+                    bool "ADC1 Channel 6 (GPIO 34)"
+                config OPS_ADC_CHANNEL_7
+                    bool "ADC1 Channel 7 (GPIO 35)"
+            endchoice
+
+            config OPS_ADC
+                int
+                default 0 if OPS_ADC_CHANNEL_0
+                default 1 if OPS_ADC_CHANNEL_1
+                default 2 if OPS_ADC_CHANNEL_2
+                default 3 if OPS_ADC_CHANNEL_3
+                default 4 if OPS_ADC_CHANNEL_4
+                default 5 if OPS_ADC_CHANNEL_5
+                default 6 if OPS_ADC_CHANNEL_6
+                default 7 if OPS_ADC_CHANNEL_7
+
+            config OPS_RAILCOM
+                bool "Enable RailCom detector"
+                default n
+                help
+                    Enabling this functionality will cause the command station
+                    to interrupt the DCC signal between packets to
+                    receive/decode any RailCom data that decoders may be
+                    writing to the rails.
+
+            config OPS_RAILCOM_ENABLE_PIN
+                int "RailCom detector enable pin"
+                depends on OPS_RAILCOM
+                help
+                    This pin will go HIGH when the RailCom detector circuitry
+                    should be active and will go LOW when it should be
+                    disabled.
+    
+            config OPS_RAILCOM_BRAKE_PIN
+                int "H-Bridge brake pin"
+                depends on OPS_RAILCOM && OPS_HBRIDGE_LMD18200
+                help
+                    This pin should be connected to the H-Bridge BRAKE pin
+                    input and is used to put the H-Bridge into a "coast" mode.
+
+            config OPS_RAILCOM_SHORT_PIN
+                int "RailCom detector short pin"
+                range -1 39
+                default -1
+                depends on OPS_RAILCOM
+                help
+                    The RailCom detector circuitry should pull this input to
+                    HIGH to indicate a short has been detected via the RailCom
+                    detector.
+
+            choice OPS_RAILCOM_UART
+                bool "RailCom UART"
+                default OPS_RAILCOM_UART1
+                depends on OPS_RAILCOM
+                config OPS_RAILCOM_UART1
+                    bool "UART1"
+                config OPS_RAILCOM_UART2
+                    bool "UART2"
+            endchoice
+
+            config OPS_RAILCOM_UART_RX_PIN
+                int "H-Bridge enable/pwm pin"
+                range 0 32
+                depends on OPS_RAILCOM
+                help
+                    This pin should be connected to the RailCom detector data
+                    output.
+
+            config OPS_PREAMBLE_BITS
+                int "DCC packet preamble bits"
+                range 11 20
+                default 11 if !OPS_RAILCOM
+                default 16 if OPS_RAILCOM
+                help
+                    This controls the number of "1" bits to be transmitted
+                    before the payload of the DCC packet. If RailCom is enabled
+                    this must be at least 16, when RailCom is not enabled this
+                    can be as few as 11.
+        
+            config OPS_ENERGIZE_ON_STARTUP
+                bool "Energize track upon startup"
+                default n
+                help
+                    Enabling this option will energize the OPS track
+                    automatically upon startup of the command station.
+        endmenu
+
+        menu "PROG"
+            config PROG_TRACK_NAME
+                string "Name"
+                default "PROG"
+
+            choice PROG_HBRIDGE_TYPE
+                bool "H-Bridge type"
+                default PROG_HBRIDGE_L298
+                help
+                    The following motor driver modules are supported:
+                    L298           : Arduino Motor shield Rev3 based on the L298 chip. Max Output 2A per channel https://store.arduino.cc/usa/arduino-motor-shield-rev3
+                    LMD18200       : Texas Instruments LMD18200 55V 3A h-bridge. http://www.ti.com/lit/ds/symlink/lmd18200.pdf
+                    POLOLU         : Pololu MC33926 Motor Driver (shield or carrier). Max Output 2.5A per channel https://www.pololu.com/product/1213 / https://www.pololu.com/product/2503
+                    BTS7960B_5A    : Infineon Technologies BTS 7960 Motor Driver Module. Max Output 5A (43A actual max) https://www.infineon.com/dgdl/bts7960b-pb-final.pdf
+                    BTS7960B_10A   : Infineon Technologies BTS 7960 Motor Driver Module. Max Output 10A (43A actual max) https://www.infineon.com/dgdl/bts7960b-pb-final.pdf
+                config PROG_HBRIDGE_L298
+                    bool "L298"
+                config PROG_HBRIDGE_LMD18200
+                    bool "LMD18200"
+                config PROG_HBRIDGE_POLOLU
+                    bool "Pololu MC33926"
+                config PROG_HBRIDGE_BTS7960B_5A
+                    bool "BTS7960B (5A limit)"
+                config PROG_HBRIDGE_BTS7960B_10A
+                    bool "BTS7960B (10A limit)"
+            endchoice
+
+            config PROG_HBRIDGE_TYPE_NAME
+                string
+                default "L298" if PROG_HBRIDGE_L298
+                default "LMD18200" if PROG_HBRIDGE_LMD18200
+                default "MC33926" if PROG_HBRIDGE_POLOLU
+                default "BTS7960B" if PROG_HBRIDGE_BTS7960B_5A
+                default "BTS7960B" if PROG_HBRIDGE_BTS7960B_10A
+
+            config PROG_HBRIDGE_MAX_MILLIAMPS
+                int "H-Bridge maximum milliamps"
+                default 2000 if PROG_HBRIDGE_L298
+                default 3000 if PROG_HBRIDGE_LMD18200
+                default 2500 if PROG_HBRIDGE_POLOLU
+                default 43000 if PROG_HBRIDGE_BTS7960B_5A
+                default 43000 if PROG_HBRIDGE_BTS7960B_10A
+
+            config PROG_HBRIDGE_LIMIT_MILLIAMPS
+                int "H-Bridge limit milliamps"
+                default 2000 if PROG_HBRIDGE_L298
+                default 3000 if PROG_HBRIDGE_LMD18200
+                default 2500 if PROG_HBRIDGE_POLOLU
+                default 5000 if PROG_HBRIDGE_BTS7960B_5A
+                default 10000 if PROG_HBRIDGE_BTS7960B_10A
+
+            config PROG_ENABLE_PIN
+                int "H-Bridge enable pin"
+                default 23
+                range 0 32
+                help
+                    This pin will be HIGH when the H-Bridge output should be
+                    enabled and will be LOW when it should be disabled. This
+                    pin should typically be connected to the PWM input of the
+                    H-Bridge IC.
+
+            config PROG_SIGNAL_PIN
+                int "H-Bridge signal pin"
+                default 18
+                range 0 32
+                help
+                    This pin will transition HIGH/LOW based on the DCC signal
+                    data being generated by the command station. This should
+                    typically be connected to the direction pin on the H-Bridge
+                    IC.
+
+            choice PROG_CURRENT_SENSE_PIN
+            bool "H-Bridge current sense pin"
+                default PROG_ADC_CHANNEL_3
+                help
+                    This pin must be connected to the H-Bridge current sense
+                    output pin, failure to do so will result in no ability to
+                    read/write/validate CVs successfully.
+                config PROG_ADC_CHANNEL_0
+                    bool "ADC1 Channel 0 (GPIO 36)"
+                    depends on !OPS_ADC_CHANNEL_0
+                config PROG_ADC_CHANNEL_1
+                    bool "ADC1 Channel 1 (GPIO 37)"
+                    help
+                        Note this pin may not be exposed on all ESP32 modules
+                    depends on !OPS_ADC_CHANNEL_1
+                config PROG_ADC_CHANNEL_2
+                    bool "ADC1 Channel 2 (GPIO 38)"
+                    help
+                        Note this pin may not be exposed on all ESP32 modules
+                    depends on !OPS_ADC_CHANNEL_2
+                config PROG_ADC_CHANNEL_3
+                    bool "ADC1 Channel 3 (GPIO 39)"
+                    depends on !OPS_ADC_CHANNEL_3
+                config PROG_ADC_CHANNEL_4
+                    bool "ADC1 Channel 4 (GPIO 32)"
+                    depends on !OPS_ADC_CHANNEL_4
+                config PROG_ADC_CHANNEL_5
+                    bool "ADC1 Channel 5 (GPIO 33)"
+                    depends on !OPS_ADC_CHANNEL_5
+                config PROG_ADC_CHANNEL_6
+                    bool "ADC1 Channel 6 (GPIO 34)"
+                    depends on !OPS_ADC_CHANNEL_6
+                config PROG_ADC_CHANNEL_7
+                    bool "ADC1 Channel 7 (GPIO 35)"
+                    depends on !OPS_ADC_CHANNEL_7
+            endchoice
+
+            config PROG_ADC
+                int
+                default 0 if PROG_ADC_CHANNEL_0
+                default 1 if PROG_ADC_CHANNEL_1
+                default 2 if PROG_ADC_CHANNEL_2
+                default 3 if PROG_ADC_CHANNEL_3
+                default 4 if PROG_ADC_CHANNEL_4
+                default 5 if PROG_ADC_CHANNEL_5
+                default 6 if PROG_ADC_CHANNEL_6
+                default 7 if PROG_ADC_CHANNEL_7
+
+            config PROG_PREAMBLE_BITS
+                int "DCC packet preamble bits"
+                range 22 75
+                default 22
+                help
+                    This controls the number of "1" bits to be transmitted
+                    before the payload of the DCC packet. Some decoders may
+                    require more "1" bits for proper operation, this is usually
+                    only a problem with some brands of sound decoders.
+
+        endmenu
+
+        choice ADC_ATTENUATION
+            bool "ADC attenuation"
+            default ADC_ATTEN_DB_11
+            help
+                This setting controls the expected voltage on the current
+                sense input pins.
+                0 dB attenuation gives full-scale voltage 1.1V
+                2.5 dB attenuation gives full-scale voltage 1.5V
+                6 dB attenuation gives full-scale voltage 2.2V
+                11 dB attenuation gives full-scale voltage 3.9V
+            config ADC_ATTEN_DB_0
+                bool "0 db (1.1V max)"
+            config ADC_ATTEN_DB_2_5
+                bool "2.5 db (1.5V max)"
+            config ADC_ATTEN_DB_6
+                bool "6 db (2.2V max)"
+            config ADC_ATTEN_DB_11
+                bool "11 db (3.9V max)"
+        endchoice
+
+        config ADC_ATTENUATION
+            int
+            default 0 if ADC_ATTEN_DB_0
+            default 1 if ADC_ATTEN_DB_2_5
+            default 2 if ADC_ATTEN_DB_6
+            default 3 if ADC_ATTEN_DB_11
+    endmenu
+
+    menu "LCC"
+        config LCC_NODE_ID
+            hex "Node ID"
+            default 0x050101013F00
+            help 
+                This is the LCC node identifier for the ESP32 Command Station. It is
+                recommended, but not required, to request your own ID range via:
+                https://registry.openlcb.org/requestuniqueidrange
+
+        config LCC_CAN_ENABLED
+            bool "CAN interface"
+            default n
+            help
+                Enabling this option will require an externally connected SN6565HVD23x
+                or MCP2551 IC.
+
+        config LCC_CAN_RX_PIN
+            int "CAN RX Pin"
+            range 0 39
+            depends on LCC_CAN_ENABLED
+            help
+                This is the ESP32 pin connected to the SN6565HVD23x/MCP2551 R (RX) pin.
+
+        config LCC_CAN_TX_PIN
+            int "CAN TX Pin"
+            range 0 32
+            depends on LCC_CAN_ENABLED
+            help
+                This is the ESP32 pin connected to the SN6565HVD23x/MCP2551 D (TX) pin.
+
+        config LCC_FACTORY_RESET
+            bool "Force factory reset on every startup"
+            default n
+            help
+                Enabling this option will force the removal of the cached CDI and node
+                configuration files on every startup of the node. This is generally not
+                required or recommended.
+    endmenu
+
+    menu "Status Display"
+        choice DISPLAY_TYPE
+            bool "Type of display connected to the Command Station"
+            default DISPLAY_TYPE_NONE
+            config DISPLAY_TYPE_NONE
+                bool "None"
+            config DISPLAY_TYPE_OLED
+                bool "OLED"
+            config DISPLAY_TYPE_LCD
+                bool "LCD"
+        endchoice
+
+        config DISPLAY_ADDRESS
+            hex "I2C Address"
+            default "0x3C"
+            depends on DISPLAY_TYPE_OLED || DISPLAY_TYPE_LCD
+            help
+                This is the I2C address for the display, most OLED screens use
+                0x3C or 0x3D and most LCDs use 0x27.
+
+        config DISPLAY_SCL
+            int "I2C SCL pin"
+            default 21
+            range 0 32
+            depends on DISPLAY_TYPE_OLED || DISPLAY_TYPE_LCD
+
+        config DISPLAY_SDA
+            int "I2C SDA pin"
+            default 23
+            range 0 32
+            depends on DISPLAY_TYPE_OLED || DISPLAY_TYPE_LCD
+
+        config DISPLAY_LCD_LINE_COUNT
+            int "LCD line count"
+            default 4
+            help
+                This defines how many lines the LCD screen can display, typically either 2 or 4.
+            depends on DISPLAY_TYPE_LCD
+
+        config DISPLAY_LCD_COLUMN_COUNT
+            int "LCD column count"
+            default 20
+            help
+                This defines how many columns the LCD screen can display, typically either 16 or 20.
+            depends on DISPLAY_TYPE_LCD
+    
+        config DISPLAY_OLED_LINE_COUNT
+            int "OLED line count"
+            default 5
+            help
+                This defines how many lines the OLED screen can display, typically this is 5.
+            depends on DISPLAY_TYPE_OLED
+
+        config DISPLAY_OLED_RESET_PIN
+            int "OLED Reset pin"
+            default -1
+            help
+                This optional pin can be used if the OLED display uses a dedicated pin for reset.
+            depends on DISPLAY_TYPE_OLED
+
+        choice DISPLAY_OLED_CHIPSET
+            bool "OLED Chipset"
+            default DISPLAY_OLED_SH1106
+            depends on DISPLAY_TYPE_OLED
+            config DISPLAY_OLED_SH1106
+                bool "SH1106"
+            config DISPLAY_OLED_SSD1306
+                bool "SSD1306"
+        endchoice
+
+        config DISPLAY_OLED_VFLIP
+            bool "Vertically flip"
+            default n
+            depends on DISPLAY_TYPE_OLED
+    endmenu
+
+    menu "Status LED"
+        config STATUS_LED
+            bool "Enable status LED functionality"
+            default n
+        
+        config STATUS_LED_DATA_PIN
+            int "LED data pin"
+            range 0 32
+            depends on STATUS_LED
+
+        config STATUS_LED_BRIGHTNESS
+            int "LED brightness"
+            default 128
+            help
+                Controls how bright the LEDs will appear. The lower the value the darker the LED will appear.
+                Recommended value is 128.
+            range 0 255
+            depends on STATUS_LED
+
+        choice STATUS_LED_TYPE
+            bool "LED type"
+            default STATUS_LED_TYPE_WS281X
+            depends on STATUS_LED
+            help
+                This defines the type of LED, the following types are supported:
+                STATUS_LED_TYPE  RESET PULSE  LED TYPES
+                WS2811           300 uS       WS2811
+                WS281X           300 uS       NeoPixel, WS2812, WS2813
+                WS281X_800K      50 uS        NeoPixel, WS2812, WS2813
+                WS281X_400K      50 uS        NeoPixel, WS2812, WS2813
+                SK6812           80 uS        SK6812
+                LC6812           80 uS        LC6812
+                APA106           50 uS        APA106
+                Note: APA106 is the type used for testing.
+            config STATUS_LED_TYPE_WS281X
+                bool "WS281X"
+            config STATUS_LED_TYPE_WS281X_800K
+                bool "WS281X (800k)"
+            config STATUS_LED_TYPE_WS281X_400K
+                bool "WS281X (400k)"
+            config STATUS_LED_TYPE_WS2811
+                bool "WS2811"
+            config STATUS_LED_TYPE_SK6812
+                bool "SK6812"
+            config STATUS_LED_TYPE_LC6812
+                bool "LC6812"
+            config STATUS_LED_TYPE_APA106
+                bool "APA106"
+        endchoice
+
+        choice STATUS_LED_COLOR
+            bool "LED color order"
+            default STATUS_LED_COLOR_RGB
+            depends on STATUS_LED
+            config STATUS_LED_COLOR_RGB
+                bool "Red, Green, Blue"
+            config STATUS_LED_COLOR_BRG
+                bool "Blue, Red, Green"
+            config STATUS_LED_COLOR_RBG
+                bool "Red, Blue, Green"
+            config STATUS_LED_COLOR_RGBW
+                bool "Red, Green, Blue, White"
+            config STATUS_LED_COLOR_GRBW
+                bool "Green, Red, Blue, White"
+        endchoice
+    endmenu
+    
+    menu "S88 Sensors"
+        config S88
+            bool "Enable S88 Sensor functionality"
+            default n
+        config S88_CLOCK_PIN
+            int "S88 Clock pin"
+            range 0 32
+            depends on S88
+        config S88_RESET_PIN
+            int "S88 Reset pin"
+            range 0 32
+            depends on S88
+        config S88_LOAD_PIN
+            int "S88 Load pin"
+            range 0 32
+            depends on S88
+        config S88_FIRST_SENSOR
+            int "First sensor ID"
+            default 255
+        config S88_MAX_SENSORS_PER_BUS
+            int
+            default 255
+    endmenu
+
+    menu "HC12 Radio"
+        config HC12
+            bool "Enable HC12 Radio interface"
+            default n
+            help
+                The HC12 is a radio receiver that was previously used by some
+                throttles to wirelessly send packet data to the ESP32 Command
+                Station.
+        config HC12_RX_PIN
+            int "RX pin"
+            range 0 39
+            depends on HC12
+        config HC12_TX_PIN
+            int "TX pin"
+            range 0 32
+            depends on HC12
+        choice HC12_UART
+            bool "UART"
+            default HC12_UART_UART1
+            depends on HC12
+            config HC12_UART_UART1
+                bool "UART1"
+                depends on !OPS_RAILCOM_UART1
+            config HC12_UART_UART2
+                bool "UART2"
+                depends on !OPS_RAILCOM_UART2
+        endchoice
+    endmenu
+
+    menu "Nextion"
+        config NEXTION
+            bool "Enable Nextion HMI interface"
+            default n
+            help
+                The Nextion HMI interface provides a throttle interface
+                directly connected to the ESP32 Command Station.
+        config NEXTION_RX_PIN
+            int "RX Pin"
+            range 0 39
+            help
+                This should be connected to the TX pin on the Nextion HMI,
+                typically the blue wire.
+            depends on NEXTION
+        config NEXTION_TX_PIN
+            int "TX Pin"
+            range 0 32
+            help
+                This should be connected to the RX pin on the Nextion HMI,
+                typically the yellow wire.
+            depends on NEXTION
+        config NEXTION_BAUD_RATE
+            int "BAUD rate"
+            default 115200
+            help
+                This must match the "bauds=XXX" value set in the Nextion
+                HMI initialization event.
+            depends on NEXTION
+        choice NEXTION_UART
+            bool "Hardware UART to use for the Nextion HMI"
+            default NEXTION_UART_UART1
+            depends on NEXTION
+            config NEXTION_UART_UART1
+                bool "UART1"
+                depends on !OPS_RAILCOM_UART1 && !HC12_UART_UART1
+            config NEXTION_UART_UART2
+                bool "UART2"
+                depends on !OPS_RAILCOM_UART2 && !HC12_UART_UART2
+        endchoice
+    endmenu
+
+    menu "LocoNet"
+        config LOCONET
+            bool "Enable LocoNet interface"
+            default n
+            help
+                The LocoNet interface allows using many of the available
+                LocoNet sensors, throttles, accessories, etc with the ESP32
+                Command Station. It is still under active development, if you
+                find a device that does not work please let us know.
+        config LOCONET_RX_PIN
+            int "Pin connected to the LocoNet RX pin"
+            range 0 39
+            depends on LOCONET
+        config LOCONET_TX_PIN
+            int "Pin connected to the LocoNet TX pin"
+            range 0 32
+            depends on LOCONET
+        choice LOCONET_UART
+            bool "Hardware UART to use for LocoNet"
+            default HC12_UART_UART1
+            depends on LOCONET
+            config LOCONET_UART_UART1
+                bool "UART1"
+                depends on !OPS_RAILCOM_UART1 && !HC12_UART_UART1 && !NEXTION_UART_UART1
+            config LOCONET_UART_UART2
+                bool "UART2"
+                depends on !OPS_RAILCOM_UART2 && !HC12_UART_UART2 && !NEXTION_UART_UART2
+        endchoice
+        config LOCONET_INVERTED_LOGIC
+            bool "Use inverted logic"
+            default y
+            help
+                If you are using the LM311 circuit as defined on the ESP32
+                Command Station website it is necessary to invert the logic.
+                If you are using a different circuit you might be able to
+                disable this option.
+        config LOCONET_RX_PULLUP
+            bool "Use pull-up resistor on RX pin"
+            default y
+            help
+                If you are using the LM311 circuit as defined in the ESP32
+                Command Station website and do not have a resistor connected
+                between 3v3 (VCC) and the LOCONET_RX_PIN it is necessary to
+                enable the internal pull up for the RX pin to ensure proper
+                logic. If you have an external pull-up resistor this option can
+                be disabled.
+    endmenu
+
+    menu "Advanced"
+        config ENABLE_OUTPUTS
+            bool "Enable GPIO pins to be used as outputs"
+            default y
+
+        config ENABLE_SENSORS
+            bool "Enable GPIO pins to be used as sensors"
+            default y
+
+        config ALLOW_USAGE_OF_RESTRICTED_GPIO_PINS
+            bool "Allow usage of restricted GPIO pins"
+            help
+                Enables usage of the following pins for sensors and outputs
+                0 - Bootstrap / Firmware Flash Download
+                1 - UART0 TX
+                2 - Bootstrap / Firmware Flash Download
+                3 - UART0 RX
+                5 - Bootstrap
+                6, 7, 8, 9, 10, 11 - flash pins
+                12, 15 - Bootstrap / SD pins
+            default n
+            depends on ENABLE_OUTPUTS || ENABLE_SENSORS
+    endmenu
+endmenu
