@@ -18,10 +18,12 @@ mkdir -p ${BUILD_DIR} ${BUILD_DIR}/config
 
 # install GCC 8.2.0 toolchain
 if [ ! -f ${TOOLCHAIN_DIR}/bin/xtensa-esp32-elf-gcc ]; then
+    echo "Toolchain not found, downloading..."
     curl -k https://dl.espressif.com/dl/xtensa-esp32-elf-gcc8_2_0-esp-2019r2-linux-amd64.tar.gz \
         -o ${RUN_DIR}/xtensa-esp32-elf-gcc8_2_0-esp-2019r2-linux-amd64.tar.gz
     mkdir -p ${TOOLCHAIN_DIR}
-    cd ${TOOLCHAIN_DIR} && tar zxf ${RUN_DIR}xtensa-esp32-elf-gcc8_2_0-esp-2019r2-linux-amd64.tar.gz
+    echo "Installing toolchain..."
+    cd ${TOOLCHAIN_DIR} && tar zxf ${RUN_DIR}/xtensa-esp32-elf-gcc8_2_0-esp-2019r2-linux-amd64.tar.gz
 fi
 
 # add toolchain to the path
@@ -29,11 +31,13 @@ export PATH=${TOOLCHAIN_DIR}/bin:${PATH}
 
 # clone ESP-IDF
 if [ ! -d ${IDF_PATH} ]; then
-    git clone -C ${IDF_PATH} https://github.com/espressif/esp-idf.git -b release/v4.0 -j4 --recurse-submodules
+    echo "ESP-IDF not available, cloning..."
+    git clone -b release/v4.0 --recurse-submodules https://github.com/espressif/esp-idf.git -j4 ${IDF_PATH}
     cd ${IDF_PATH} && python -m pip install -r requirements.txt
 fi
 
 # generate config.env file for confgen.py and cmake
+echo "Generating config.env"
 cat > ${BUILD_DIR}/config.env <<CONFIG_ENV_EOF
 {
     "COMPONENT_KCONFIGS": "$(find ${IDF_PATH}/components -name Kconfig -printf '%p ')",
@@ -47,6 +51,7 @@ CONFIG_ENV_EOF
 
 # create default sdkconfig
 export IDF_TARGET=esp32
+echo "Generating default sdkconfig"
 python ${IDF_PATH}/tools/kconfig_new/confgen.py \
     --kconfig ${IDF_PATH}/Kconfig \
     --config ${RUN_DIR}/sdkconfig \
