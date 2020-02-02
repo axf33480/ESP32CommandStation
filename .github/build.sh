@@ -23,11 +23,10 @@ if [ ! -f ${TOOLCHAIN_DIR}/bin/xtensa-esp32-elf-gcc ]; then
         -o ${RUN_DIR}/xtensa-esp32-elf-gcc8_2_0-esp-2019r2-linux-amd64.tar.gz
     mkdir -p ${TOOLCHAIN_DIR}
     echo "Installing toolchain..."
-    cd ${TOOLCHAIN_DIR} && tar zxvf ${RUN_DIR}/xtensa-esp32-elf-gcc8_2_0-esp-2019r2-linux-amd64.tar.gz
-    echo "Adding ${TOOLCHAIN_DIR}/bin to the path"
+    tar -C ${TOOLCHAIN_DIR} zxf ${RUN_DIR}/xtensa-esp32-elf-gcc8_2_0-esp-2019r2-linux-amd64.tar.gz
+    echo "Adding ${TOOLCHAIN_DIR}/xtensa-esp32-elf/bin to the path"
     # add toolchain to the path
-    export PATH=${TOOLCHAIN_DIR}/bin:${PATH}
-    ls -l ${TOOLCHAIN_DIR}/bin
+    export PATH=${TOOLCHAIN_DIR}/xtensa-esp32-elf/bin:${PATH}
 fi
 
 
