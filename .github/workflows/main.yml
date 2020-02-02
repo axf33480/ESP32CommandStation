@@ -18,6 +18,12 @@ jobs:
       run: pip install wheel
     - name: build
       run: bash .github/build.sh
+    - name: Set up Python 2.7
+      uses: actions/setup-python@v1
+      with:
+        python-version: 2.7
+    - name: Analyze Ninja Build log
+      run: python .github/ninja-log-analyze.py -C build
     - name: Package binaries
       uses: actions/upload-artifact@v1
       with:
