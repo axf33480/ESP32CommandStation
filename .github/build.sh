@@ -21,9 +21,17 @@ if [ ! -f ${TOOLCHAIN_DIR}/bin/xtensa-esp32-elf-gcc ]; then
     echo "Toolchain not found, downloading..."
     curl -k https://dl.espressif.com/dl/xtensa-esp32-elf-gcc8_2_0-esp-2019r2-linux-amd64.tar.gz \
         -o ${RUN_DIR}/xtensa-esp32-elf-gcc8_2_0-esp-2019r2-linux-amd64.tar.gz
+    if [ $? -ne 0 ]; then
+        echo "Download failed!"
+        exit 1
+    fi
     mkdir -p ${TOOLCHAIN_DIR}
     echo "Installing toolchain..."
     tar zxf ${RUN_DIR}/xtensa-esp32-elf-gcc8_2_0-esp-2019r2-linux-amd64.tar.gz -C ${TOOLCHAIN_DIR}
+    if [ $? -ne 0 ]; then
+        echo "Install failed!"
+        exit 1
+    fi
     echo "Adding ${TOOLCHAIN_DIR}/xtensa-esp32-elf/bin to the path"
     # add toolchain to the path
     export PATH=${TOOLCHAIN_DIR}/xtensa-esp32-elf/bin:${PATH}
@@ -34,6 +42,10 @@ fi
 if [ ! -d ${IDF_PATH} ]; then
     echo "ESP-IDF not available, cloning..."
     git clone -b release/v4.0 --recurse-submodules https://github.com/espressif/esp-idf.git -j4 ${IDF_PATH}
+    if [ $? -ne 0 ]; then
+        echo "Git clone failed!"
+        exit 1
+    fi
     cd ${IDF_PATH} && python -m pip install -r requirements.txt
 fi
 
@@ -64,5 +76,13 @@ python ${IDF_PATH}/tools/kconfig_new/confgen.py \
     --output json ${BUILD_DIR}/config/sdkconfig.json \
     --output json_menus ${BUILD_DIR}/config/kconfig_menus.json \
     --output config ${RUN_DIR}/sdkconfig
+if [ $? -ne 0 ]; then
+    echo "sdkconfig generation failed!"
+    exit 1
+fi
 
+# build via cmake/ninja
 cd ${BUILD_DIR} && cmake ${RUN_DIR} -G Ninja && ninja
+
+# print size information
+python ${IDF_PATH}/tools/idf_size.py ${BUILD_DIR}/ESP32CommandStation.map
