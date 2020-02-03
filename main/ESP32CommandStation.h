@@ -198,6 +198,8 @@ static void create_config_descriptor_xml(
   ConfigDef cfg(config.offset());
   cfg.config_renderer().render_cdi(&cdi_string);
 
+  cdi_string += '\0';
+
   bool need_write = false;
   LOG(INFO, "[CDI] Checking %s...", filename);
   FILE *ff = fopen(filename, "rb");
