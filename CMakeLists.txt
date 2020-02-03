@@ -6,6 +6,10 @@ set(PROJECT_VER "1.5.0")
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
+if(IDF_VERSION_MAJOR LESS 4)
+    message(FATAL_ERROR "ESP32CommandStation requires IDF v4.0 or later")
+endif()
+
 set(SUPPORTED_TARGETS esp32)
 project(ESP32CommandStation)
 
@@ -27,9 +31,9 @@ FIND_PROGRAM(GZIP
         /usr/local/bin
 )
 
-IF(NOT GZIP)
-  MESSAGE(FATAL_ERROR "Unable to find 'gzip' program")
-ENDIF(NOT GZIP)
+if(NOT GZIP)
+  message(FATAL_ERROR "Unable to find 'gzip' program")
+endif()
 
 add_custom_command(OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/data/index.html.gz"
     COMMAND ${GZIP} -fk ${CMAKE_CURRENT_SOURCE_DIR}/data/index.html
