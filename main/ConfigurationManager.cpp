@@ -496,7 +496,7 @@ void ConfigurationManager::configureLCC()
   // Create the default internal configuration file if it doesn't already exist.
   configFd_ =
     lccStack->create_config_file_if_needed(cfg_.seg().internal_config()
-                                         , ESP32CS_CDI_VERSION
+                                         , CONFIG_ESP32CS_CDI_VERSION
                                          , openlcb::CONFIG_FILE_SIZE);
 
   if (sd_)

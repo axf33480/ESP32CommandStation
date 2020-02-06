@@ -754,5 +754,9 @@ menu "ESP32 Command Station"
                 12, 15 - Bootstrap / SD pins
             default n
             depends on ENABLE_OUTPUTS || ENABLE_SENSORS
+
+        config ESP32CS_CDI_VERSION
+            hex
+            default 0x0150
     endmenu
 endmenu
