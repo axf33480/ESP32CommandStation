@@ -38,9 +38,6 @@ using std::set;
 // include json library
 #include <json.hpp>
 
-// OpenMRN library components
-//#include <OpenMRNLite.h>
-
 #include <dcc/DccDebug.hxx>
 #include <dcc/LocalTrackIf.hxx>
 #include <dcc/Loco.hxx>
@@ -95,10 +92,6 @@ using std::set;
 #endif
 
 #include "sdkconfig.h"
-
-// Sanity check the configuration and generate a compilation failure if any of
-// the settings overlap or are invalid.
-#include "ConfigValidation.h"
 
 // Declare namespace uses for OpenMRN components that are used
 using dcc::Dcc128Train;
