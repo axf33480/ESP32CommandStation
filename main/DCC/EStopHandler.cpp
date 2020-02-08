@@ -24,12 +24,14 @@ void EStopHandler::set_state(bool new_value)
 {
   if (new_value)
   {
-    for (size_t id = 0; id < trainNodes->size(); id++)
+    // TODO: add helper method on AllTrainNodes for this.
+    auto  trains = Singleton<AllTrainNodes>::instance();
+    for (size_t id = 0; id < trains->size(); id++)
     {
-      auto node = trainNodes->get_train_node_id(id);
+      auto node = trains->get_train_node_id(id);
       if (node)
       {
-        trainNodes->get_train_impl(node)->set_emergencystop();
+        trains->get_train_impl(node)->set_emergencystop();
       }
     }
     {

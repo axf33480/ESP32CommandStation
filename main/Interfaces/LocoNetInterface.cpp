@@ -30,7 +30,7 @@ LocoNetESP32Uart locoNet(LOCONET_RX_PIN, LOCONET_TX_PIN, LOCONET_UART, LOCONET_I
     openmrn->stack()->executor()->add(new CallbackExecutable(                         \
     [&]()                                                                             \
     {                                                                                 \
-      NAME = trainNodes->get_train_impl(commandstation::DccMode::DCC_128_LONG_ADDRESS \
+      NAME = Singleton<AllTrainNodes>::instance()->get_train_impl(commandstation::DccMode::DCC_128_LONG_ADDRESS \
                                       , address);                                     \
       n.notify();                                                                     \
     }));                                                                              \

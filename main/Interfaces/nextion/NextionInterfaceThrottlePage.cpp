@@ -93,7 +93,7 @@ const uint8_t FG3_PIC_ON=76;
     openmrn->stack()->executor()->add(new CallbackExecutable(                         \
     [&]()                                                                             \
     {                                                                                 \
-      NAME = trainNodes->get_train_impl(commandstation::DccMode::DCC_128_LONG_ADDRESS \
+      NAME = Singleton<AllTrainNodes>::instance()->get_train_impl(commandstation::DccMode::DCC_128_LONG_ADDRESS \
                                       , address);                                     \
       n.notify();                                                                     \
     }));                                                                              \
@@ -101,7 +101,7 @@ const uint8_t FG3_PIC_ON=76;
   }
 #else
 #define GET_LOCO_VIA_EXECUTOR(NAME, address)                                          \
-  TrainImpl *NAME = trainNodes->get_train_impl(commandstation::DccMode::DCC_128_LONG_ADDRESS \
+  TrainImpl *NAME = Singleton<AllTrainNodes>::instance()->get_train_impl(commandstation::DccMode::DCC_128_LONG_ADDRESS \
                                       , address);
 #endif
 //

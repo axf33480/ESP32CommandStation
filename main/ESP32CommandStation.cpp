@@ -94,7 +94,6 @@ namespace openlcb
 uninitialized<RMTTrackDevice> trackSignal;
 uninitialized<LocalTrackIf> trackInterface;
 uninitialized<RailcomHubFlow> railComHub;
-uninitialized<commandstation::AllTrainNodes> trainNodes;
 uninitialized<RailcomPrintfFlow> railComDataDumper;
 
 // when the command station starts up the first time the config is blank
@@ -261,10 +260,10 @@ extern "C" void app_main()
   esp32cs::Esp32TrainDatabase trainDb(lccStack.get());
 
   // Initialize the Train Search and Train Manager.
-  trainNodes.emplace(&trainDb, &trainService, lccStack->info_flow()
-                   , lccStack->memory_config_handler()
-                   , trainDb.get_readonly_train_cdi()
-                   , trainDb.get_readonly_temp_train_cdi());
+  AllTrainNodes trainNodes(&trainDb, &trainService, lccStack->info_flow()
+                         , lccStack->memory_config_handler()
+                         , trainDb.get_readonly_train_cdi()
+                         , trainDb.get_readonly_temp_train_cdi());
 
   LOG(INFO, "\n\nESP32 Command Station Startup complete!\n");
   Singleton<StatusDisplay>::instance()->replaceLine(

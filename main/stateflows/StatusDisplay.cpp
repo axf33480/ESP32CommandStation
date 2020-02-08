@@ -233,7 +233,7 @@ StateFlowBase::Action StatusDisplay::update()
     else if (rotatingIndex_ == 2)
     {
       replaceLine(INFO_SCREEN_ROTATING_STATUS_LINE, "Active Locos:%3d"
-                , trainNodes->size()
+                , Singleton<AllTrainNodes>::instance()->size()
       );
     }
     else if (rotatingIndex_ == 3)

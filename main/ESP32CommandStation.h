@@ -76,8 +76,8 @@ using std::set;
 #include <utils/Uninitialized.hxx>
 
 // Train Search components
-#include "TrainDb.hxx"
-#include "AllTrainNodes.hxx"
+#include <AllTrainNodes.hxx>
+#include <TrainDb.hxx>
 
 // Define NOT_A_PIN in case it hasn't been defined already, this should be
 // defined inside Arduino.h
@@ -131,6 +131,10 @@ using openlcb::TractionProxyService;
 using openlcb::TrainService;
 using openlcb::WriteHelper;
 
+using commandstation::AllTrainNodes;
+using commandstation::TrainDb;
+using commandstation::TrainDbEntry;
+
 // Include ESP32 Command Station component declarations
 #include "ESP32CSConstants.h"
 #include "JsonConstants.h"
@@ -162,7 +166,6 @@ using openlcb::WriteHelper;
 
 extern uninitialized<RMTTrackDevice> trackSignal;
 extern uninitialized<LocalTrackIf> trackInterface;
-extern uninitialized<commandstation::AllTrainNodes> trainNodes;
 
 class CDIHelper
 {

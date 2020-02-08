@@ -733,7 +733,7 @@ extern unique_ptr<SimpleCanStack> lccStack;
     lccStack->executor()->add(new CallbackExecutable(                                 \
     [&]()                                                                             \
     {                                                                                 \
-      NAME = trainNodes->get_train_impl(commandstation::DccMode::DCC_128_LONG_ADDRESS \
+      NAME = Singleton<AllTrainNodes>::instance()->get_train_impl(commandstation::DccMode::DCC_128_LONG_ADDRESS \
                                       , address);                                     \
       n.notify();                                                                     \
     }));                                                                              \
@@ -820,16 +820,17 @@ HTTP_HANDLER_IMPL(process_loco, request)
     {
       // get all active locomotives
       string res = "[";
-      for (size_t id = 0; id < trainNodes->size(); id++)
+      auto trains = Singleton<AllTrainNodes>::instance();
+      for (size_t id = 0; id < trains->size(); id++)
       {
-        auto nodeid = trainNodes->get_train_node_id(id);
+        auto nodeid = trains->get_train_node_id(id);
         if (nodeid)
         {
           if (res.length() > 1)
           {
             res += ",";
           }
-          auto loco = trainNodes->get_train_impl(nodeid);
+          auto loco = trains->get_train_impl(nodeid);
           res += convert_loco_to_json(loco);
         }
       }
@@ -875,7 +876,7 @@ HTTP_HANDLER_IMPL(process_loco, request)
       else if(request->method() == HttpMethod::DELETE)
       {
         // we don't need to queue it up on the executor as it is done internally.
-        trainNodes->remove_train_impl(address);
+        Singleton<AllTrainNodes>::instance()->remove_train_impl(address);
 #if NEXTION_ENABLED
         static_cast<NextionThrottlePage *>(nextionPages[THROTTLE_PAGE])->invalidateLocomotive(address);
 #endif

@@ -179,12 +179,13 @@ DCC_PROTOCOL_COMMAND_HANDLER(StatusCommand,
   string status = StringPrintf("<iDCC++ ESP32 Command Station: V-%s / %s %s>"
                 , app_data->version, app_data->date, app_data->time);
   status += trackSignal->get_state_for_dccpp();
-  for (size_t id = 0; id < trainNodes->size(); id++)
+  auto trains = Singleton<AllTrainNodes>::instance();
+  for (size_t id = 0; id < trains->size(); id++)
   {
-    auto nodeid = trainNodes->get_train_node_id(id);
+    auto nodeid = trains->get_train_node_id(id);
     if (nodeid)
     {
-      auto impl = trainNodes->get_train_impl(nodeid);
+      auto impl = trains->get_train_impl(nodeid);
       status += convert_loco_to_dccpp_state(impl, id);
     }
   }
@@ -268,7 +269,7 @@ extern unique_ptr<SimpleCanStack> lccStack;
     lccStack->executor()->add(new CallbackExecutable(                                 \
     [&]()                                                                             \
     {                                                                                 \
-      NAME = trainNodes->get_train_impl(commandstation::DccMode::DCC_128_LONG_ADDRESS \
+      NAME = Singleton<AllTrainNodes>::instance()->get_train_impl(commandstation::DccMode::DCC_128_LONG_ADDRESS \
                                       , address);                                     \
       n.notify();                                                                     \
     }));                                                                              \

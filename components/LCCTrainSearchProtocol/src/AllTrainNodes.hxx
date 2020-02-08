@@ -39,6 +39,8 @@
 #include <vector>
 
 #include <openlcb/SimpleInfoProtocol.hxx>
+#include <utils/Singleton.hxx>
+
 #include "TrainDb.hxx"
 
 namespace openlcb {
@@ -51,7 +53,7 @@ class MemoryConfigHandler;
 namespace commandstation {
 class FindProtocolServer;
 
-class AllTrainNodes {
+class AllTrainNodes : public Singleton<AllTrainNodes> {
  public:
   AllTrainNodes(TrainDb* db, openlcb::TrainService* traction_service,
                 openlcb::SimpleInfoFlow* info_flow,
