@@ -36,7 +36,7 @@ void EStopHandler::set_state(bool new_value)
     }
     {
       OSMutexLock l(&lock_);
-      remaining_ = config_cs_estop_packet_count();
+      remaining_ = CONFIG_DCC_ESTOP_PACKET_COUNT;
       packet_processor_add_refresh_source(this, UpdateLoopBase::ESTOP_PRIORITY);
     }
   }

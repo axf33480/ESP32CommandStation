@@ -24,13 +24,16 @@ HC12Radio::HC12Radio(Service *service, uart_port_t port, gpio_num_t rx
                    , gpio_num_t tx)
                    : StateFlowBase(service), uart_(port), rx_(rx), tx_(tx)
 {
+#if CONFIG_HC12
   start_flow(STATE(initialize));
+#endif
 }
 
 StateFlowBase::Action HC12Radio::initialize()
 {
-  CONFIGURE_UART("hc12", uart_, config_hc12_uart_speed(), rx_, tx_
-               , config_hc12_buffer_size(), config_hc12_buffer_size())
+#if CONFIG_HC12
+  CONFIGURE_UART("hc12", uart_, CONFIG_HC12_BAUD_RATE, rx_, tx_
+               , CONFIG_HC12_BUFFER_SIZE, CONFIG_HC12_BUFFER_SIZE)
 
   uartFd_ = open(StringPrintf("/dev/uart/%d", uart_).c_str()
                , O_RDWR | O_NONBLOCK);
@@ -46,6 +49,7 @@ StateFlowBase::Action HC12Radio::initialize()
 
   LOG_ERROR("[HC12] Initialization failure, unable to open UART device: %s"
           , strerror(errno));
+#endif
   return exit();
 }
 

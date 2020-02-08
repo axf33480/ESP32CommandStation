@@ -237,7 +237,7 @@ Esp32TrainDatabase::Esp32TrainDatabase(openlcb::SimpleStackBase *stack)
   trainCdiFile_.reset(new ROFileMemorySpace(TRAIN_CDI_FILE));
   tempTrainCdiFile_.reset(new ROFileMemorySpace(TEMP_TRAIN_CDI_FILE));
   persistFlow_.emplace(stack->service()
-                     , SEC_TO_NSEC(config_cs_train_db_auto_persist_sec)
+                     , SEC_TO_NSEC(CONFIG_ROSTER_PERSISTENCE_INTERVAL_SEC)
                      , std::bind(&Esp32TrainDatabase::persist, this));
 
   LOG(INFO, "[TrainDB] Initializing...");
@@ -342,7 +342,8 @@ unsigned Esp32TrainDatabase::add_dynamic_entry(TrainDbEntry* temp_entry)
     {
       return (*entry)->get_legacy_address();
     }
-    else if (config_cs_train_db_auto_create_entries() == CONSTANT_TRUE)
+#if CONFIG_CREATE_TRAIN_ROSTER_ENTRY_ON_FIRST_USE
+    else
     {
       // discard the provided entry and create a new entry
       delete temp_entry;
@@ -350,11 +351,13 @@ unsigned Esp32TrainDatabase::add_dynamic_entry(TrainDbEntry* temp_entry)
       knownTrains_.emplace(
         new Esp32TrainDbEntry(Esp32PersistentTrainData(address, mode)));
     }
+#else
     else
     {
       // add the temporary train to our known trains collection
       temporaryTrains_.emplace(temp_entry);
     }
+#endif // CONFIG_CREATE_TRAIN_ROSTER_ENTRY_ON_FIRST_USE
   }
   return address;
 }

@@ -34,8 +34,8 @@ void *node_reboot(void *arg)
 
 void reboot()
 {
-  os_thread_create(nullptr, nullptr, config_cs_main_task_priority() + 1
-                 , 2048, node_reboot, nullptr);
+  os_thread_create(nullptr, nullptr, uxTaskPriorityGet(NULL) + 1, 2048
+                 , node_reboot, nullptr);
 }
 
 ssize_t os_get_free_heap()

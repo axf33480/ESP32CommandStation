@@ -64,10 +64,10 @@ NextionHMI::NextionHMI(Service *service)
 StateFlowBase::Action NextionHMI::initialize()
 {
   LOG(INFO, "[Nextion] Initializing UART(%d) at %u baud on RX %d, TX %d"
-    , NEXTION_UART_NUM, config_nextion_uart_speed()
-    , config_nextion_rx_pin(), config_nextion_tx_pin());
-  nextionSerial.begin(config_nextion_uart_speed(), SERIAL_8N1
-              , config_nextion_rx_pin(), config_nextion_tx_pin());
+    , NEXTION_UART_NUM, CONFIG_NEXTION_UART_BAUD
+    , CONFIG_NEXTION_RX_PIN, CONFIG_NEXTION_TX_PIN);
+  nextionSerial.begin(CONFIG_NEXTION_UART_BAUD, SERIAL_8N1
+              , CONFIG_NEXTION_RX_PIN, CONFIG_NEXTION_TX_PIN);
   return yield_and_call(STATE(detect_display));
 }
 

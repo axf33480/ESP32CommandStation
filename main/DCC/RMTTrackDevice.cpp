@@ -433,8 +433,8 @@ RMTTrackDevice::RMTTrackDevice(SimpleCanStack *stack
                              : BitEventInterface(Defs::CLEAR_EMERGENCY_OFF_EVENT
                                                , Defs::EMERGENCY_OFF_EVENT)
                              , stack_(stack)
-                             , opsPacketQueue_(DeviceBuffer<Packet>::create(config_rmt_packet_queue_ops()))
-                             , progPacketQueue_(DeviceBuffer<Packet>::create(config_rmt_packet_queue_prog()))
+                             , opsPacketQueue_(DeviceBuffer<Packet>::create(CONFIG_OPS_PACKET_QUEUE_SIZE))
+                             , progPacketQueue_(DeviceBuffer<Packet>::create(CONFIG_PROG_PACKET_QUEUE_SIZE))
 #if CONFIG_OPS_RAILCOM
                              , railComHub_(railComHub)
 #endif // CONFIG_OPS_RAILCOM
@@ -459,68 +459,56 @@ RMTTrackDevice::RMTTrackDevice(SimpleCanStack *stack
   rmt_register_tx_end_callback(rmt_tx_complete_isr_callback, this);
 
 #if CONFIG_OPS_RAILCOM
-  if (config_cs_railcom_enabled() == CONSTANT_TRUE)
+  LOG(INFO
+    , "[OPS] Initializing RailCom detector using UART %d on data pin: %d, "
+      "enable pin: %d, h-bridge enable pin:%d, h-bridge brake pin: %d"
+    , railComUartPort_, CONFIG_OPS_RAILCOM_UART_RX_PIN, railComEnablePin_
+    , opsOutputEnablePin_, railComBrakeEnablePin_);
+  gpio_pad_select_gpio(railComEnablePin_);
+  ESP_ERROR_CHECK(gpio_set_direction(railComEnablePin_, GPIO_MODE_OUTPUT));
+  ESP_ERROR_CHECK(gpio_pulldown_en(railComEnablePin_));
+  ESP_ERROR_CHECK(gpio_set_level(railComEnablePin_, 0));
+  gpio_pad_select_gpio(railComBrakeEnablePin_);
+  ESP_ERROR_CHECK(gpio_set_direction(railComBrakeEnablePin_, GPIO_MODE_OUTPUT));
+  ESP_ERROR_CHECK(gpio_pullup_en(railComBrakeEnablePin_));
+  ESP_ERROR_CHECK(gpio_set_level(railComBrakeEnablePin_, 1));
+  uart_config_t uart =
   {
-    LOG(INFO
-      , "[OPS] Initializing RailCom detector using UART %d on data pin: %d, "
-        "enable pin: %d, h-bridge enable pin:%d, h-bridge brake pin: %d"
-      , railComUartPort_, CONFIG_OPS_RAILCOM_UART_RX_PIN, railComEnablePin_
-      , opsOutputEnablePin_, railComBrakeEnablePin_);
-    gpio_pad_select_gpio(railComEnablePin_);
-    ESP_ERROR_CHECK(gpio_set_direction(railComEnablePin_, GPIO_MODE_OUTPUT));
-    ESP_ERROR_CHECK(gpio_pulldown_en(railComEnablePin_));
-    ESP_ERROR_CHECK(gpio_set_level(railComEnablePin_, 0));
-    gpio_pad_select_gpio(railComBrakeEnablePin_);
-    ESP_ERROR_CHECK(gpio_set_direction(railComBrakeEnablePin_, GPIO_MODE_OUTPUT));
-    ESP_ERROR_CHECK(gpio_pullup_en(railComBrakeEnablePin_));
-    ESP_ERROR_CHECK(gpio_set_level(railComBrakeEnablePin_, 1));
-    uart_config_t uart =
-    {
-      .baud_rate           = 250000L,
-      .data_bits           = UART_DATA_8_BITS,         // 8 bit bytes
-      .parity              = UART_PARITY_DISABLE,      // no partity
-      .stop_bits           = UART_STOP_BITS_1,         // one stop bit
-      .flow_ctrl           = UART_HW_FLOWCTRL_DISABLE, // no flow control
-      .rx_flow_ctrl_thresh = 0,                        // unused
-      .use_ref_tick        = false                     // unused
-    };
-    ESP_ERROR_CHECK(uart_param_config(railComUartPort_, &uart));
-    ESP_ERROR_CHECK(uart_set_pin(railComUartPort_, UART_PIN_NO_CHANGE
-                               , CONFIG_OPS_RAILCOM_UART_RX_PIN
-                               , UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
-    ESP_ERROR_CHECK(
-      uart_driver_install(railComUartPort_    // hardware UART index
-                        , UART_FIFO_LEN + 1   // RX buffer size
-                        , 0                   // TX buffer size (disabled)
-                        , 0                   // event queue size (disabled)
-                        , NULL                // event queue handle (unused)
-                        , 0));                // ISR flags (defaults)
+    .baud_rate           = 250000L,
+    .data_bits           = UART_DATA_8_BITS,         // 8 bit bytes
+    .parity              = UART_PARITY_DISABLE,      // no partity
+    .stop_bits           = UART_STOP_BITS_1,         // one stop bit
+    .flow_ctrl           = UART_HW_FLOWCTRL_DISABLE, // no flow control
+    .rx_flow_ctrl_thresh = 0,                        // unused
+    .use_ref_tick        = false                     // unused
+  };
+  ESP_ERROR_CHECK(uart_param_config(railComUartPort_, &uart));
+  ESP_ERROR_CHECK(uart_set_pin(railComUartPort_, UART_PIN_NO_CHANGE
+                              , CONFIG_OPS_RAILCOM_UART_RX_PIN
+                              , UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
+  ESP_ERROR_CHECK(
+    uart_driver_install(railComUartPort_    // hardware UART index
+                      , UART_FIFO_LEN + 1   // RX buffer size
+                      , 0                   // TX buffer size (disabled)
+                      , 0                   // event queue size (disabled)
+                      , NULL                // event queue handle (unused)
+                      , 0));                // ISR flags (defaults)
 
-    // disable the default IDF UART ISR for RailCom port
-    ESP_ERROR_CHECK(uart_isr_free(railComUartPort_));
-    uart_intr_config_t uart_intr =
-    {
-      .intr_enable_mask = 0                          // none enabled by default
-    , .rx_timeout_thresh = UART_TOUT_THRESH_DEFAULT
-    , .txfifo_empty_intr_thresh = 0                  // unused
-    , .rxfifo_full_thresh = UART_FULL_THRESH_DEFAULT
-    };
-    ESP_ERROR_CHECK(uart_isr_register(railComUartPort_, railcom_uart_isr, this
-                                    , RAILCOM_ISR_FLAGS, nullptr));
-    ESP_ERROR_CHECK(uart_intr_config(railComUartPort_, &uart_intr));
-    LOG(INFO, "[OPS] RailCom detector configured");
-    railcomReader_ = std::bind(&RMTTrackDevice::read_railcom_response, this);
-    railcomEnabled_ = true;
-  }
-
-  // if we do not have a RailCom reader implementation at this point we either
-  // don't have it enabled or init failed. Asign the default no-op handler.
-  if (!railcomReader_)
+  // disable the default IDF UART ISR for RailCom port
+  ESP_ERROR_CHECK(uart_isr_free(railComUartPort_));
+  uart_intr_config_t uart_intr =
   {
-    railcomReader_ = std::bind(&RMTTrackDevice::read_railcom_response_noop
-                             , this);
-    railcomEnabled_ = false;
-  }
+    .intr_enable_mask = 0                          // none enabled by default
+  , .rx_timeout_thresh = UART_TOUT_THRESH_DEFAULT
+  , .txfifo_empty_intr_thresh = 0                  // unused
+  , .rxfifo_full_thresh = UART_FULL_THRESH_DEFAULT
+  };
+  ESP_ERROR_CHECK(uart_isr_register(railComUartPort_, railcom_uart_isr, this
+                                  , RAILCOM_ISR_FLAGS, nullptr));
+  ESP_ERROR_CHECK(uart_intr_config(railComUartPort_, &uart_intr));
+  LOG(INFO, "[OPS] RailCom detector configured");
+  railcomReader_ = std::bind(&RMTTrackDevice::read_railcom_response, this);
+  railcomEnabled_ = true;
 #endif // CONFIG_OPS_RAILCOM
 
   opsHBridge_.reset(

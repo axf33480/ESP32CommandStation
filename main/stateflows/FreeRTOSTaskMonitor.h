@@ -22,6 +22,8 @@ COPYRIGHT (c) 2019-2020 Mike Dunston
 #include <executor/StateFlow.hxx>
 #include <openlcb/SimpleStack.hxx>
 
+#include "sdkconfig.h"
+
 class FreeRTOSTaskMonitor : public StateFlowBase
 {
 public:
@@ -30,7 +32,9 @@ public:
 private:
   StateFlowTimer timer_{this};
   const uint64_t reportInterval_;
+#if CONFIG_TASK_LIST_REPORT
   const uint64_t taskListInterval_;
+#endif
   uint64_t lastTaskList_{0};
 
   STATE_FLOW_STATE(report);

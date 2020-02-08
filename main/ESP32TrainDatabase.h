@@ -24,9 +24,8 @@ COPYRIGHT (c) 2019-2020 Mike Dunston
 #include <openlcb/TractionTrain.hxx>
 #include <os/OS.hxx>
 
-#include "TrainDb.hxx"
+#include <TrainDb.hxx>
 
-#include "ESP32CSConstants.h"
 #include "stateflows/AutoPersistCallbackFlow.h"
 
 namespace esp32cs

@@ -24,30 +24,56 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 
 const char * buildTime = __DATE__ " " __TIME__;
 
+// GCC pre-compiler trick to expand the value from a #define constant
+#define OVERRIDE_CONST_EXPAND_VALUE(var, value) OVERRIDE_CONST(var, value)
+
+#if CONFIG_LCC_GC_NEWLINES
+///////////////////////////////////////////////////////////////////////////////
 // This will generate newlines after GridConnect each packet being sent.
-// OVERRIDE_CONST_TRUE(gc_generate_newlines);
+///////////////////////////////////////////////////////////////////////////////
+OVERRIDE_CONST_TRUE(gc_generate_newlines);
+#endif
 
-// This will print all GridConnect packets to the serial console.
-// OVERRIDE_CONST_TRUE(lcc_print_all_packets);
+///////////////////////////////////////////////////////////////////////////////
+// Increase the number of memory spaces available at runtime to account for the
+// Traction protocol CDI/FDI needs.
+///////////////////////////////////////////////////////////////////////////////
+OVERRIDE_CONST_EXPAND_VALUE(num_memory_spaces, CONFIG_LCC_MEMORY_SPACES);
 
-// Uncomment to list task statistics periodically.
-// OVERRIDE_CONST_TRUE(cs_task_list_report);
+///////////////////////////////////////////////////////////////////////////////
+// Increase the GridConnect buffer size to improve performance by bundling more
+// than one GridConnect packet into the same send() call to the socket.
+///////////////////////////////////////////////////////////////////////////////
+OVERRIDE_CONST_EXPAND_VALUE(gridconnect_buffer_size, CONFIG_TCP_MSS);
 
-// Uncomment to force a factory reset of all configuration data on startup.
-// WARNING: THIS WILL CLEAR *ALL* PERSISTENT DATA!
-// OVERRIDE_CONST_TRUE(cs_force_factory_reset);
+///////////////////////////////////////////////////////////////////////////////
+// This will allow up to 500 usec for the buffer to fill up before sending it
+// out over the socket connection.
+///////////////////////////////////////////////////////////////////////////////
+OVERRIDE_CONST_EXPAND_VALUE(gridconnect_buffer_delay_usec
+                          , CONFIG_LCC_GC_DELAY_USEC);
 
-// Uncomment to have all railcom data printed as it is received.
-// OVERRIDE_CONST_TRUE(enable_railcom_packet_dump);
+///////////////////////////////////////////////////////////////////////////////
+// This limites the number of outbound GridConnect packets which limits the
+// memory used by the BufferPort.
+///////////////////////////////////////////////////////////////////////////////
+OVERRIDE_CONST_EXPAND_VALUE(gridconnect_bridge_max_outgoing_packets
+                          , CONFIG_LCC_GC_OUTBOUND_PACKET_LIMIT);
 
-// This enables RailCom support in conjunction with the required configuration
-// settings. There are a few issues with enabling this that still need to be
-// resolved thus it is disabled by default.
-// OVERRIDE_CONST_TRUE(cs_railcom_enabled);
+///////////////////////////////////////////////////////////////////////////////
+// This increases number of state flows to invoke before checking for any FDs
+// that have pending data.
+///////////////////////////////////////////////////////////////////////////////
+OVERRIDE_CONST_EXPAND_VALUE(executor_select_prescaler
+                          , LCC_EXECUTOR_SELECT_PRESCALER);
 
-// Enabling this will increase the app_main task priority and can cause other
-// tasks that run on the PRO_CPU to be delayed.
-//OVERRIDE_CONST(cs_main_task_priority, OPENMRN_TASK_PRIORITY);
+///////////////////////////////////////////////////////////////////////////////
+// This increases the number of local nodes and aliases available for the LCC
+// stack. This is needed to allow for virtual train nodes.
+///////////////////////////////////////////////////////////////////////////////
+OVERRIDE_CONST_EXPAND_VALUE(local_nodes_count, CONFIG_LCC_LOCAL_NODE_COUNT);
+OVERRIDE_CONST_EXPAND_VALUE(local_alias_cache_size
+                          , CONFIG_LCC_LOCAL_NODE_COUNT);
 
 unique_ptr<SimpleCanStack> lccStack;
 
@@ -203,7 +229,7 @@ extern "C" void app_main()
 
   // Initialize Local Track inteface.
   trackInterface.emplace(lccStack->service()
-                       , config_cs_track_pool_size());
+                       , CONFIG_DCC_PACKET_POOL_SIZE);
 
 #if 0
   // Initialize the MemorySpace handler for CV read/write.
@@ -231,11 +257,10 @@ extern "C" void app_main()
   // Initialize the e-stop event handler
   esp32cs::EStopHandler eStop(lccStack->node());
 
+#if CONFIG_OPS_RAILCOM_DUMP_PACKETS
   // Add a data dumper for the RailCom Hub
-  if (config_enable_railcom_packet_dump() == CONSTANT_TRUE)
-  {
-    railComDataDumper.emplace(&railComHub.value());
-  }
+  railComDataDumper.emplace(&railComHub.value());
+#endif
 
   // Initialize the Programming Track backend handler
   ProgrammingTrackBackend
@@ -269,11 +294,7 @@ extern "C" void app_main()
   Singleton<StatusDisplay>::instance()->replaceLine(
     INFO_SCREEN_ROTATING_STATUS_LINE, "ESP32-CS Started");
 
-  // Adjust task priority prior to handing our task to the executor.
-  vTaskPrioritySet(NULL, config_cs_main_task_priority());
-
   // donate our task thread to OpenMRN executor.
-  //openmrn->loop_executor();
   lccStack->loop_executor();
 }
 

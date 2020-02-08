@@ -33,7 +33,7 @@ static constexpr const char *TURNOUT_TYPE_STRINGS[] =
 
 TurnoutManager::TurnoutManager(openlcb::Node *node, Service *service)
   : turnoutEventConsumer_(node, this)
-  , persistFlow_(service, SEC_TO_NSEC(config_cs_turnouts_auto_persist_sec())
+  , persistFlow_(service, SEC_TO_NSEC(CONFIG_TURNOUTS_PERSISTENCE_INTERVAL_SEC)
               , std::bind(&TurnoutManager::persist, this))
   , dirty_(false)
 {

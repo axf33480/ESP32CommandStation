@@ -21,9 +21,13 @@ COPYRIGHT (c) 2019-2020 Mike Dunston
 #include <executor/Service.hxx>
 #include <executor/StateFlow.hxx>
 #include <NeoPixelBrightnessBus.h>
+#include <utils/constants.hxx>
 
-#include "ESP32CSConstants.h"
 #include "sdkconfig.h"
+
+#ifndef CONFIG_STATUS_LED_UPDATE_INTERVAL_MSEC
+#define CONFIG_STATUS_LED_UPDATE_INTERVAL_MSEC 450
+#endif
 
 #if !defined(CONFIG_STATUS_LED) || defined(STATUS_LED_COLOR_RGB)
 #define NEO_COLOR_TYPE RgbColor
@@ -103,7 +107,7 @@ public:
   StatusLED(Service *service)
     : StateFlowBase(service)
     , bus_(nullptr)
-    , updateInterval_(MSEC_TO_NSEC(config_status_led_update_interval_msec()))
+    , updateInterval_(MSEC_TO_NSEC(CONFIG_STATUS_LED_UPDATE_INTERVAL_MSEC))
   {
     for(int index = 0; index < LED::MAX_LED; index++)
     {

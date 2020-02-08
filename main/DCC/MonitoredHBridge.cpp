@@ -244,10 +244,13 @@ StateFlowBase::Action MonitoredHBridge::init()
     ESP_ERROR_CHECK(gpio_pullup_en(thermalWarningPin_));
   }
 
-  if (!isProgTrack_ && config_cs_energize_ops_on_boot() == CONSTANT_TRUE)
+#if CONFIG_OPS_ENERGIZE_ON_STARTUP
+  if (!isProgTrack_)
   {
     enable();
   }
+#endif
+
   return call_immediately(STATE(sleep_and_check_state));
 }
 

@@ -135,8 +135,16 @@ void recursiveWalkTree(const string &path, bool remove=false)
 ConfigurationManager::ConfigurationManager(const esp32cs::Esp32ConfigDef &cfg)
   : cfg_(cfg)
 {
-  bool factory_reset_config{config_cs_force_factory_reset() == CONSTANT_TRUE};
-  bool lcc_factory_reset{config_lcc_force_factory_reset() == CONSTANT_TRUE};
+#if CONFIG_ESP32CS_FORCE_FACTORY_RESET
+  bool factory_reset_config{true};
+#else
+  bool factory_reset_config{false};
+#endif
+#if CONFIG_LCC_FACTORY_RESET
+  bool lcc_factory_reset{true};
+#else
+  bool lcc_factory_reset{false};
+#endif
   bool persist_config{true};
   struct stat statbuf;
 
@@ -311,7 +319,7 @@ ConfigurationManager::ConfigurationManager(const esp32cs::Esp32ConfigDef &cfg)
   }
 
 #ifdef DEDICATED_MODULE_EXECUTOR
-  moduleExecutor.start_thread("modules", config_cs_main_task_priority(), 4096);
+  moduleExecutor.start_thread("modules", uxTaskPriorityGet(NULL), 4096);
 #endif
 }
 
@@ -469,6 +477,10 @@ bool ConfigurationManager::setNodeID(string value)
   return false;
 }
 
+#ifndef CONFIG_LCC_SD_FSYNC_SEC
+#define CONFIG_LCC_SD_FSYNC_SEC 10
+#endif
+
 void ConfigurationManager::configureLCC()
 {
   auto lccConfig = csConfig[JSON_LCC_NODE];
@@ -505,16 +517,15 @@ void ConfigurationManager::configureLCC()
     // adding a periodic fsync call for the LCC configuration file ensures that
     // config changes are saved since the LCC config file is less than 512b.
     LOG(INFO, "[Config] Creating automatic fsync(%d) calls every %d seconds."
-      , configFd_, config_lcc_sd_sync_interval_sec());
+      , configFd_, CONFIG_LCC_SD_FSYNC_SEC);
     configAutoSync_.reset(new AutoSyncFileFlow(lccStack->service()
                         , configFd_
-                        , SEC_TO_USEC(config_lcc_sd_sync_interval_sec())));
+                        , SEC_TO_USEC(CONFIG_LCC_SD_FSYNC_SEC)));
   }
-  if (config_lcc_print_all_packets() == CONSTANT_TRUE)
-  {
-    LOG(INFO, "[Config] Configuring LCC packet printer");
-    lccStack->print_all_packets();
-  }
+#if CONFIG_LCC_PRINT_ALL_PACKETS
+  LOG(INFO, "[Config] Configuring LCC packet printer");
+  lccStack->print_all_packets();
+#endif
 }
 
 void ConfigurationManager::setLCCHub(bool enabled)

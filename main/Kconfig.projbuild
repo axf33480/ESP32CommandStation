@@ -54,7 +54,7 @@ menu "ESP32 Command Station"
             default 6
     endmenu
 
-    menu "H-Bridge"
+    menu "DCC Signal"
         menu "OPS"
             config OPS_TRACK_NAME
                 string "Name"
@@ -230,6 +230,11 @@ menu "ESP32 Command Station"
                     This pin should be connected to the RailCom detector data
                     output.
 
+            config OPS_RAILCOM_DUMP_PACKETS
+                bool "Display all RailCom packets as they are received"
+                default n
+                depends on OPS_RAILCOM
+
             config OPS_PREAMBLE_BITS
                 int "DCC packet preamble bits"
                 range 11 20
@@ -247,6 +252,15 @@ menu "ESP32 Command Station"
                 help
                     Enabling this option will energize the OPS track
                     automatically upon startup of the command station.
+
+            config OPS_PACKET_QUEUE_SIZE
+                int "Number of DCC packets to queue for the OPS track"
+                default 10
+                help
+                    This is the number of raw DCC packets to allow for outbound
+                    transmission to the track. Generally this does not need to
+                    be very large and should be around the same size as
+                    DCC_PACKET_POOL_SIZE.
         endmenu
 
         menu "PROG"
@@ -378,6 +392,14 @@ menu "ESP32 Command Station"
                     require more "1" bits for proper operation, this is usually
                     only a problem with some brands of sound decoders.
 
+            config PROG_PACKET_QUEUE_SIZE
+                int "Number of DCC packets to queue for the PROG track"
+                default 5
+                help
+                    This is the number of raw DCC packets to allow for outbound
+                    transmission to the track. Generally this does not need to
+                    be very large and should be around the same size as
+                    DCC_PACKET_POOL_SIZE.
         endmenu
 
         choice ADC_ATTENUATION
@@ -406,6 +428,18 @@ menu "ESP32 Command Station"
             default 1 if ADC_ATTEN_DB_2_5
             default 2 if ADC_ATTEN_DB_6
             default 3 if ADC_ATTEN_DB_11
+    
+        config DCC_PACKET_POOL_SIZE
+            int "Maximum number of DCC packets to queue"
+            help
+                Declares the maximum number of DCC packets to allow for the
+                track, generally this does not need to be very large and the
+                default value should be sufficient.
+            default 5
+
+        config DCC_ESTOP_PACKET_COUNT
+            int "Number of eStop packets to send before powering off track"
+            default 200
     endmenu
 
     menu "LCC"
@@ -413,16 +447,17 @@ menu "ESP32 Command Station"
             hex "Node ID"
             default 0x050101013F00
             help 
-                This is the LCC node identifier for the ESP32 Command Station. It is
-                recommended, but not required, to request your own ID range via:
+                This is the LCC node identifier for the ESP32 Command Station.
+                It is recommended, but not required, to request your own ID
+                range via:
                 https://registry.openlcb.org/requestuniqueidrange
 
         config LCC_CAN_ENABLED
             bool "CAN interface"
             default n
             help
-                Enabling this option will require an externally connected SN6565HVD23x
-                or MCP2551 IC.
+                Enabling this option will require an externally connected
+                SN6565HVD23x or MCP2551 IC.
 
         config LCC_CAN_RX_PIN
             int "CAN RX Pin"
@@ -442,9 +477,54 @@ menu "ESP32 Command Station"
             bool "Force factory reset on every startup"
             default n
             help
-                Enabling this option will force the removal of the cached CDI and node
-                configuration files on every startup of the node. This is generally not
-                required or recommended.
+                Enabling this option will force the removal of the cached CDI
+                and node configuration files on every startup of the node. This
+                is generally not required or recommended.
+
+        config LCC_GC_NEWLINES
+            bool "Generate newlines at the end of every GridConnect packet"
+            help
+                Enabling this option will generate a newline character after
+                every GridConnect packet that is sent out. This is generally
+                only needed for debug purposes.
+            default n
+
+        config LCC_PRINT_ALL_PACKETS
+            bool "Generate newlines at the end of every GridConnect packet"
+            help
+                Enabling this option will generate a newline character after
+                every GridConnect packet that is sent out. This is generally
+                only needed for debug purposes.
+            default n
+
+        config LCC_MEMORY_SPACES
+            int "Number of memory spaces to allocate in the OpenMRN stack"
+            default 10
+
+        config LCC_GC_DELAY_USEC
+            int "Number of memory spaces to allocate in the OpenMRN stack"
+            default 500
+
+        config LCC_GC_OUTBOUND_PACKET_LIMIT
+            int "Maximum number of outbound GridConnect packets"
+            default 2
+
+        config LCC_EXECUTOR_SELECT_PRESCALER
+            int "Number of StateFlows to execute before issuing a select() call"
+            default 60
+
+        config LCC_LOCAL_NODE_COUNT
+            int "Maximum number of 'local' LCC nodes to allow"
+            help
+                This controls how many trains will be supported concurrently by
+                the command station.
+            default 30
+
+        config LCC_SD_FSYNC_SEC
+            int "Seconds between automatic calls to fsync() for the LCC config file"
+            help
+                This is only used when an SD card is detected.
+            default 10
     endmenu
 
     menu "Status Display"
@@ -588,6 +668,11 @@ menu "ESP32 Command Station"
             config STATUS_LED_COLOR_GRBW
                 bool "Green, Red, Blue, White"
         endchoice
+
+        config STATUS_LED_UPDATE_INTERVAL_MSEC
+            int "Number of milliseconds between LED updates"
+            default 450
+            depends on STATUS_LED
     endmenu
     
     menu "S88 Sensors"
@@ -641,6 +726,14 @@ menu "ESP32 Command Station"
                 bool "UART2"
                 depends on !OPS_RAILCOM_UART2
         endchoice
+        config HC12_BAUD_RATE
+            int "BAUD rate for HC12 Radio"
+            depends on HC12
+            default 19200
+        config HC12_BUFFER_SIZE
+            int
+            depends on HC12
+            default 256
     endmenu
 
     menu "Nextion"
@@ -755,8 +848,43 @@ menu "ESP32 Command Station"
             default n
             depends on ENABLE_OUTPUTS || ENABLE_SENSORS
 
-        config ESP32CS_CDI_VERSION
-            hex
-            default 0x0150
-    endmenu
+        config TASK_MONITOR_INTERVAL_SEC
+            int "Seconds between task monitoring printing"
+            default 45
+    
+        config TASK_LIST_REPORT
+            bool "Print FreeRTOS task list periodically"
+            default n
+
+        config TASK_LIST_INTERVAL_SEC
+            int "Seconds between FreeRTOS task list printing"
+            default 300
+            depends on TASK_LIST_REPORT
+        
+        config CREATE_TRAIN_ROSTER_ENTRY_ON_FIRST_USE
+            bool "Create a roster entry for new trains on first use"
+            default y
+
+        config ROSTER_PERSISTENCE_INTERVAL_SEC
+            int "Number of seconds between automatic persistence of train roster"
+            default 30
+
+        config TURNOUTS_PERSISTENCE_INTERVAL_SEC
+            int "Number of seconds between automatic persistence of turnout list"
+            default 30
+
+        endmenu
+
+    config ESP32CS_FORCE_FACTORY_RESET
+        bool "Clear *ALL* configuration settings on startup"
+        default n
+        help
+            Enabling this option will force clear all persistent configuration
+            settings upon startup. This generally should not be required to be
+            used.
+
+    config ESP32CS_CDI_VERSION
+        hex
+        default 0x0150
+
 endmenu

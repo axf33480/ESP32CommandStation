@@ -17,22 +17,24 @@ COPYRIGHT (c) 2019-2020 Mike Dunston
 
 #include "ESP32CommandStation.h"
 
+#ifndef CONFIG_TASK_LIST_INTERVAL_SEC
+#define CONFIG_TASK_LIST_INTERVAL_SEC 300
+#endif
+
 FreeRTOSTaskMonitor::FreeRTOSTaskMonitor(Service *service)
   : StateFlowBase(service)
   // explicit cast is necessary for these next two lines due to compiler
   // warnings for data type truncation.
-  , reportInterval_{(uint64_t)SEC_TO_NSEC(config_cs_task_stats_report_interval_sec())}
-  , taskListInterval_{(uint64_t)SEC_TO_USEC(config_cs_task_list_list_interval_sec())}
-{
-#if configUSE_TRACE_FACILITY
-  start_flow(STATE(delay));
+  , reportInterval_{(uint64_t)SEC_TO_NSEC(CONFIG_TASK_MONITOR_INTERVAL_SEC)}
+#if CONFIG_TASK_LIST_REPORT
+  , taskListInterval_{(uint64_t)SEC_TO_USEC(CONFIG_TASK_LIST_INTERVAL_SEC)}
 #endif
+{
+  start_flow(STATE(delay));
 }
 
 StateFlowBase::Action FreeRTOSTaskMonitor::report()
 {
-  vector<TaskStatus_t> taskList;
-  uint32_t ulTotalRunTime{0};
   UBaseType_t taskCount = uxTaskGetNumberOfTasks();
   LOG(INFO,
       "[TaskMon] uptime: %02d:%02d:%02d freeHeap: %u, largest free block: %u, "
@@ -45,12 +47,10 @@ StateFlowBase::Action FreeRTOSTaskMonitor::report()
     , taskCount
     , mainBufferPool->total_size()
   );
-  // exit early if we do not need to report task state
-  if (config_cs_task_list_report() == CONSTANT_FALSE)
-  {
-    return call_immediately(STATE(delay));
-  }
+#if CONFIG_TASK_LIST_REPORT
+  vector<TaskStatus_t> taskList;
   uint64_t now = esp_timer_get_time();
+  uint32_t ulTotalRunTime{0};
   if ((now - lastTaskList_) > taskListInterval_ || !lastTaskList_)
   {
     taskList.resize(taskCount);
@@ -88,5 +88,6 @@ StateFlowBase::Action FreeRTOSTaskMonitor::report()
     }
     lastTaskList_ = now;
   }
+#endif // CONFIG_TASK_LIST_REPORT
   return call_immediately(STATE(delay));
 }
