@@ -448,8 +448,7 @@ RMTTrackDevice::RMTTrackDevice(SimpleCanStack *stack
   vfs.write_p = &rmt_track_write;
   ESP_ERROR_CHECK(esp_vfs_register("/dev/track", &vfs, this));
 
-  Singleton<StatusDisplay>::instance()->replaceLine(
-    INFO_SCREEN_ROTATING_STATUS_LINE, "RMT Init");
+  Singleton<StatusDisplay>::instance()->status("RMT Init");
   initRMTDevice(CONFIG_OPS_TRACK_NAME, opsRMTChannel_, opsSignalPin_
               , opsPreambleBits_);
   initRMTDevice(CONFIG_PROG_TRACK_NAME, progRMTChannel_, progSignalPin_

@@ -105,8 +105,8 @@ void OutputManager::init()
   if(root.contains(JSON_COUNT_NODE))
   {
     uint16_t outputCount = root[JSON_COUNT_NODE].get<uint16_t>();
-    Singleton<StatusDisplay>::instance()->replaceLine(
-      INFO_SCREEN_ROTATING_STATUS_LINE, "Found %02d Outputs", outputCount);
+    Singleton<StatusDisplay>::instance()->status("Found %02d Outputs"
+                                               , outputCount);
     for(auto output : root[JSON_OUTPUTS_NODE])
     {
       string data = output.dump();

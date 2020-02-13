@@ -202,8 +202,7 @@ WEBSOCKET_STREAM_HANDLER_IMPL(process_websocket_event, client, event, data
   {
     webSocketClients.push_back(
       esp32cs::make_unique<WebSocketClient>(client->id(), client->ip()));
-    Singleton<StatusDisplay>::instance()->replaceLine(
-      INFO_SCREEN_CLIENTS_LINE, "TCP Conn: %02d"
+    Singleton<StatusDisplay>::instance()->tcp_clients("TCP Conn: %02d"
     , webSocketClients.size() + jmriClients.size());
   }
   else if (event == WebSocketEvent::WS_EVENT_DISCONNECT)
@@ -214,8 +213,7 @@ WEBSOCKET_STREAM_HANDLER_IMPL(process_websocket_event, client, event, data
       {
         return inst->id() == client->id();
       }));
-    Singleton<StatusDisplay>::instance()->replaceLine(
-      INFO_SCREEN_CLIENTS_LINE, "TCP Conn: %02d",
+    Singleton<StatusDisplay>::instance()->tcp_clients("TCP Conn: %02d",
       webSocketClients.size() + jmriClients.size());
   }
   else if (event == WebSocketEvent::WS_EVENT_TEXT)

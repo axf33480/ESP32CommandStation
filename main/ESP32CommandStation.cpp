@@ -291,8 +291,7 @@ extern "C" void app_main()
                          , trainDb.get_readonly_temp_train_cdi());
 
   LOG(INFO, "\n\nESP32 Command Station Startup complete!\n");
-  Singleton<StatusDisplay>::instance()->replaceLine(
-    INFO_SCREEN_ROTATING_STATUS_LINE, "ESP32-CS Started");
+  Singleton<StatusDisplay>::instance()->status("ESP32-CS Started");
 
   // donate our task thread to OpenMRN executor.
   lccStack->loop_executor();

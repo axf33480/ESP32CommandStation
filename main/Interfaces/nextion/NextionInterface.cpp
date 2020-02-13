@@ -181,8 +181,7 @@ uninitialized<NextionHMI> nextionHMI;
 void nextionInterfaceInit()
 {
 #if CONFIG_NEXTION
-  Singleton<StatusDisplay>::instance()->replaceLine(
-    INFO_SCREEN_ROTATING_STATUS_LINE, "Init Nextion");
+  Singleton<StatusDisplay>::instance()->status("Init Nextion");
   extern unique_ptr<OpenMRN> openmrn;
   nextionHMI.emplace(openmrn->stack()->service());
 #endif // CONFIG_NEXTION

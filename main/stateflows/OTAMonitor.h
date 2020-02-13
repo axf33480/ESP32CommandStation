@@ -53,8 +53,7 @@ public:
       StatusLED::LED::EXT_1, StatusLED::COLOR::GREEN_BLINK);
     Singleton<StatusLED>::instance()->setStatusLED(
       StatusLED::LED::EXT_2, StatusLED::COLOR::GREEN_BLINK, true);
-    Singleton<StatusDisplay>::instance()->replaceLine(
-      INFO_SCREEN_STATION_INFO_LINE, "Update starting");
+    Singleton<StatusDisplay>::instance()->status("Update starting");
 #if CONFIG_NEXTION
     titlePage_->show();
     titlePage_->setStatusText(0, "OTA Started...");
@@ -78,8 +77,7 @@ public:
     titlePage_->setStatusText(1, "Update Complete");
     titlePage_->setStatusText(2, "Rebooting");
 #endif
-    Singleton<StatusDisplay>::instance()->replaceLine(
-      INFO_SCREEN_STATION_INFO_LINE, "Update Complete");
+    Singleton<StatusDisplay>::instance()->status("Update Complete");
 
     // reset countdown and trigger the restart
     countdown_ = StatusLED::LED::MAX_LED;
@@ -102,8 +100,7 @@ public:
 #if CONFIG_NEXTION
     titlePage_->setStatusText(1, esp_err_to_name(err));
 #endif
-    Singleton<StatusDisplay>::instance()->replaceLine(
-      INFO_SCREEN_STATION_INFO_LINE, esp_err_to_name(err));
+    Singleton<StatusDisplay>::instance()->status(esp_err_to_name(err));
 
     // restart the node due to failure
     start_flow(STATE(reboot_node));
@@ -112,8 +109,7 @@ public:
   void report_progress(uint32_t progress)
   {
     progress_ += progress;
-    Singleton<StatusDisplay>::instance()->replaceLine(
-      INFO_SCREEN_STATION_INFO_LINE, "Recv: %d", progress_);
+    Singleton<StatusDisplay>::instance()->status("Recv: %d", progress_);
 #if CONFIG_NEXTION
     titlePage_->setStatusText(1
                             , StringPrintf("Received: %d", progress_).c_str());
@@ -141,8 +137,7 @@ private:
       // turn off lights
       Singleton<StatusLED>::instance()->setStatusLED(
         (StatusLED::LED)countdown_, StatusLED::COLOR::OFF);
-      Singleton<StatusDisplay>::instance()->replaceLine(
-        INFO_SCREEN_STATION_INFO_LINE, "reboot in %2d...", countdown_);
+      Singleton<StatusDisplay>::instance()->status("reboot in %2d...", countdown_);
       LOG(WARNING, "ESP32 will reboot in %d seconds...", countdown_);
       --countdown_;
       return sleep_and_call(&timer_, SEC_TO_NSEC(1), STATE(delay_and_reboot));

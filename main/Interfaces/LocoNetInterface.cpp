@@ -45,8 +45,7 @@ vector<uint16_t> slotMap;
 
 void initializeLocoNet()
 {
-  Singleton<StatusDisplay>::instance()->replaceLine(
-    INFO_SCREEN_ROTATING_STATUS_LINE, "LocoNet Init");
+  Singleton<StatusDisplay>::instance()->status("LocoNet Init");
   locoNet.begin();
   locoNet.onPacket(OPC_GPON, [](lnMsg *msg)
   {

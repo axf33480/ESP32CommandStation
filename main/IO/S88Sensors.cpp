@@ -78,8 +78,7 @@ void S88BusManager::init()
   LOG(INFO, "[S88] Initializing SensorBus list");
   nlohmann::json root = nlohmann::json::parse(Singleton<ConfigurationManager>::instance()->load(S88_SENSORS_JSON_FILE));
   uint16_t s88BusCount = root.contains(JSON_COUNT_NODE) ? root[JSON_COUNT_NODE].get<int>() : 0;
-  Singleton<StatusDisplay>::instance()->replaceLine(
-    INFO_SCREEN_ROTATING_STATUS_LINE, "Found %02d S88 Bus", s88BusCount);
+  Singleton<StatusDisplay>::instance()->status("Found %02d S88 Bus", s88BusCount);
   if(s88BusCount > 0)
   {
     for(auto bus : root[JSON_SENSORS_NODE])
@@ -244,8 +243,7 @@ S88SensorBus::S88SensorBus(string &data)
   _dataPin = object[JSON_PIN_NODE];
   _lastSensorID = _sensorIDBase = object[JSON_S88_SENSOR_BASE_NODE];
   uint16_t sensorCount = object[JSON_COUNT_NODE];
-  Singleton<StatusDisplay>::instance()->replaceLine(
-    INFO_SCREEN_ROTATING_STATUS_LINE, "S88(%d) %02d sensors", _id
+  Singleton<StatusDisplay>::instance()->status("S88(%d) %02d sensors", _id
   , sensorCount);
   if(sensorCount > 0)
   {

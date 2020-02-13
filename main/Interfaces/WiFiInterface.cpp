@@ -47,8 +47,8 @@ public:
       jmriClients.push_back(fd_);
       clientCount = webSocketClients.size() + jmriClients.size();
     }
-    Singleton<StatusDisplay>::instance()->replaceLine(
-      INFO_SCREEN_CLIENTS_LINE, "TCP Conn: %02d", clientCount);
+    Singleton<StatusDisplay>::instance()->tcp_clients("TCP Conn: %02d"
+                                                    , clientCount);
     bzero(buf_, BUFFER_SIZE);
 
     struct timeval tm;
@@ -70,8 +70,8 @@ public:
                       , fd_));
       clientCount = webSocketClients.size() + jmriClients.size();
     }
-    Singleton<StatusDisplay>::instance()->replaceLine(
-      INFO_SCREEN_CLIENTS_LINE, "TCP Conn: %02d", clientCount);
+    Singleton<StatusDisplay>::instance()->tcp_clients("TCP Conn: %02d"
+                                                    , clientCount);
     ::close(fd_);
   }
 private:
@@ -143,10 +143,8 @@ void WiFiInterface::init()
   auto nextionTitlePage = static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE]);
   nextionTitlePage->setStatusText(0, "Initializing WiFi");
 #endif
-  Singleton<StatusDisplay>::instance()->replaceLine(
-    INFO_SCREEN_IP_ADDR_LINE, "IP:Pending");
-  Singleton<StatusDisplay>::instance()->replaceLine(
-    INFO_SCREEN_CLIENTS_LINE, "TCP Conn: 00");
+  Singleton<StatusDisplay>::instance()->wifi("IP:Pending");
+  Singleton<StatusDisplay>::instance()->tcp_clients("TCP Conn: 0");
 
   Singleton<Esp32WiFiManager>::instance()->add_event_callback([](system_event_t *event) {
 #if NEXTION_ENABLED
@@ -162,21 +160,18 @@ void WiFiInterface::init()
           StatusLED::LED::WIFI, StatusLED::COLOR::GREEN);
         tcpip_adapter_ip_info_t ip_info;
         tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_STA, &ip_info);
-        Singleton<StatusDisplay>::instance()->replaceLine(INFO_SCREEN_IP_ADDR_LINE
+        Singleton<StatusDisplay>::instance()->wifi(
 #if (CONFIG_DISPLAY_TYPE_LCD && CONFIG_DISPLAY_LCD_COLUMN_COUNT >= 20) || CONFIG_DISPLAY_TYPE_OLED
-                              , "IP: " IPSTR
-#else
-                              , IPSTR
+                              "IP: "
 #endif
-                              , IP2STR(&ip_info.ip)
+                              IPSTR, IP2STR(&ip_info.ip)
         );
       }
       else
       {
         Singleton<StatusLED>::instance()->setStatusLED(
           StatusLED::LED::WIFI, StatusLED::COLOR::BLUE);
-        Singleton<StatusDisplay>::instance()->replaceLine(
-          INFO_SCREEN_IP_ADDR_LINE, "SSID: %s"
+        Singleton<StatusDisplay>::instance()->wifi("SSID: %s"
         , Singleton<ConfigurationManager>::instance()->getSSID().c_str());
       }
       if (!JMRIListener)
@@ -205,8 +200,7 @@ void WiFiInterface::init()
         StatusLED::LED::WIFI, StatusLED::COLOR::RED);
       LOG(INFO, "[WiFi] Shutting down JMRI listener");
       JMRIListener.reset(nullptr);
-      Singleton<StatusDisplay>::instance()->replaceLine(
-        INFO_SCREEN_IP_ADDR_LINE, "Disconnected");
+      Singleton<StatusDisplay>::instance()->wifi("Disconnected");
     }
     else if (event->event_id == SYSTEM_EVENT_STA_DISCONNECTED ||
              event->event_id == SYSTEM_EVENT_STA_START)

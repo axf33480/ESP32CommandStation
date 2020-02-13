@@ -73,8 +73,7 @@ vector<unique_ptr<RemoteSensor>> remoteSensors;
 void RemoteSensorManager::init()
 {
 #if SCAN_REMOTE_SENSORS_ON_STARTUP
-  Singleton<StatusDisplay>::instance()->replaceLine(
-    INFO_SCREEN_ROTATING_STATUS_LINE, "WiFiScan started");
+  Singleton<StatusDisplay>::instance()->status("WiFiScan started");
   int8_t networksFound;
 
   LOG(VERBOSE, "[RemoteSensors] Scanning for RemoteSensors");
@@ -83,8 +82,7 @@ void RemoteSensorManager::init()
   {
     delay(100);
     LOG(INFO, ".");
-    Singleton<StatusDisplay>::instance()->replaceLine(
-      INFO_SCREEN_ROTATING_STATUS_LINE, "WiFiScan pending");
+    Singleton<StatusDisplay>::instance()->status("WiFiScan pending");
   }
   const uint8_t REMOTE_SENSOR_PREFIX_LEN = String(REMOTE_SENSORS_PREFIX).length();
   for (int8_t i = 0; i < networksFound; i++)
@@ -93,8 +91,7 @@ void RemoteSensorManager::init()
     {
       const uint16_t sensorID = String(WiFi.SSID(i)).substring(REMOTE_SENSOR_PREFIX_LEN).toInt();
       LOG(VERBOSE, "[RemoteSensors] Found %s, assigning as sensor %d", WiFi.SSID(i).c_str(), sensorID);
-      Singleton<StatusDisplay>::instance()->replaceLine(
-        INFO_SCREEN_ROTATING_STATUS_LINE, F("RS %d: %s"), sensorID, WiFi.SSID(i).c_str());
+      Singleton<StatusDisplay>::instance()->status("RS %d: %s", sensorID, WiFi.SSID(i).c_str());
       createOrUpdate(sensorID);
     }
   }
