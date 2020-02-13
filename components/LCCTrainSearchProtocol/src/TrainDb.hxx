@@ -126,9 +126,6 @@ class TrainDb {
   virtual unsigned add_dynamic_entry(TrainDbEntry* entry) = 0;
 };
 
-extern struct const_traindb_entry_t const_lokdb[];
-extern size_t const_lokdb_size;
-
 class TrainDbFactoryResetHelper : public DefaultConfigUpdateListener {
 public:
   TrainDbFactoryResetHelper(const TrainDbConfig cfg) : cfg_(cfg.offset()) {}

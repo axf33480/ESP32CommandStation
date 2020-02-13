@@ -49,14 +49,6 @@
 
 namespace commandstation {
 
-// default to an empty database.
-struct const_traindb_entry_t __attribute__((weak)) const_lokdb[] =
-{
-};
-
-size_t __attribute__((weak)) const_lokdb_size =
-  sizeof(const_lokdb) / sizeof(const_traindb_entry_t);
-
 class DccTrainDbEntry : public TrainDbEntry {
  public:
   DccTrainDbEntry(unsigned address, DccMode mode)
@@ -528,12 +520,6 @@ AllTrainNodes::AllTrainNodes(TrainDb* db,
   HASSERT(ro_train_cdi_->read_only());
   HASSERT(ro_tmp_train_cdi_->read_only());
 
-  for (unsigned train_id = 0; train_id < const_lokdb_size; ++train_id) {
-    if (!db->is_train_id_known(train_id)) continue;
-    auto e = db->get_entry(train_id);
-    if (!e.get()) continue;
-    create_impl(train_id, e->get_legacy_drive_mode(), e->get_legacy_address());
-  }
   fdiSpace_.reset(new TrainFDISpace(this));
   memoryConfigService_->registry()->insert(
       nullptr, openlcb::MemoryConfigDefs::SPACE_FDI, fdiSpace_.get());
