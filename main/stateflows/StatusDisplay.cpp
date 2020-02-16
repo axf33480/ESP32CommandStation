@@ -457,7 +457,6 @@ StateFlowBase::Action StatusDisplay::init()
 
   // Scan the I2C bus and dump the output of devices that respond
   std::string scanresults =
-    "Scanning for I2C devices...\n"
     "     0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f\n"
     "00:         ";
   scanresults.reserve(256);
@@ -486,6 +485,9 @@ StateFlowBase::Action StatusDisplay::init()
       scanresults += " --";
     }
   }
+  LOG(INFO, "[StatusDisplay] %s", scanresults.c_str());
+  LOG(WARNING, "[StatusDisplay] A supported display was not detected, below "
+      "are the detected I2C devices\n%s", scanresults.c_str());
 #endif // !CONFIG_DISPLAY_TYPE_NONE
   return exit();
 }
