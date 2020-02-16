@@ -539,14 +539,6 @@ menu "ESP32 Command Station"
                 bool "LCD"
         endchoice
 
-        config DISPLAY_ADDRESS
-            hex "I2C Address"
-            default "0x3C"
-            depends on DISPLAY_TYPE_OLED || DISPLAY_TYPE_LCD
-            help
-                This is the I2C address for the display, most OLED screens use
-                0x3C or 0x3D and most LCDs use 0x27.
-
         config DISPLAY_SCL
             int "I2C SCL pin"
             default 21
@@ -563,21 +555,54 @@ menu "ESP32 Command Station"
             int "LCD line count"
             default 4
             help
-                This defines how many lines the LCD screen can display, typically either 2 or 4.
+                This defines how many lines the LCD screen can display,
+                typically either 2 or 4.
             depends on DISPLAY_TYPE_LCD
 
         config DISPLAY_LCD_COLUMN_COUNT
             int "LCD column count"
             default 20
             help
-                This defines how many columns the LCD screen can display, typically either 16 or 20.
+                This defines how many columns the LCD screen can display,
+                typically either 16 or 20.
             depends on DISPLAY_TYPE_LCD
-    
+
+        config DISPLAY_LCD_ENABLE_BITMASK
+            hex "LCD Enable bitmask"
+            help
+                Bit to set for the Enable pin
+            default 0x04
+            depends on DISPLAY_TYPE_LCD
+
+        config DISPLAY_LCD_REGISTER_SELECT_BITMASK
+            hex "LCD Register Select bitmask"
+            help
+                Bit to set for the Register Select pin
+            default 0x01
+            depends on DISPLAY_TYPE_LCD
+
+        config DISPLAY_LCD_BACKLIGHT
+            bool "Enable Backlight"
+            help
+                Enabling this option will set the backlight bitmask to ON. Some
+                LCD displays require this to be LOW.
+            default y
+            depends on DISPLAY_TYPE_LCD
+
+        config DISPLAY_LCD_BACKLIGHT_BITMASK
+            hex "LCD Backlight Enable bitmask"
+            help
+                Bit to set for the Backlight pin
+            default 0x08 if DISPLAY_LCD_BACKLIGHT
+            default 0x00 if !DISPLAY_LCD_BACKLIGHT
+            depends on DISPLAY_TYPE_LCD
+
         config DISPLAY_OLED_RESET_PIN
             int "OLED Reset pin"
             default -1
             help
-                This optional pin can be used if the OLED display uses a dedicated pin for reset.
+                This optional pin can be used if the OLED display uses a
+                dedicated pin for reset.
             depends on DISPLAY_TYPE_OLED
 
         config DISPLAY_OLED_VFLIP
@@ -593,19 +618,28 @@ menu "ESP32 Command Station"
                 bool "128x64"
             config DISPLAY_OLED_128x32
                 bool "128x32"
-            config DISPLAY_OLED_128x16
-                bool "128x16"
+            config DISPLAY_OLED_96x16
+                bool "96x16"
         endchoice
+
+        config DISPLAY_OLED_CONTRAST
+            int "Contrast ratio"
+            help
+                This controls how bright the OLED screen appears, default ratio
+                is 128 (out of 255).
+            default 128
+            range 0 255
 
         config DISPLAY_OLED_LINE_COUNT
             int
             default 8 if DISPLAY_OLED_128x64
             default 4 if DISPLAY_OLED_128x32
-            default 2 if DISPLAY_OLED_128x16
+            default 2 if DISPLAY_OLED_96x16
             depends on DISPLAY_TYPE_OLED
 
         config DISPLAY_OLED_WIDTH
             int
+            default 96 if DISPLAY_OLED_96x16
             default 128
             depends on DISPLAY_TYPE_OLED
 
@@ -613,16 +647,17 @@ menu "ESP32 Command Station"
             int
             default 64 if DISPLAY_OLED_128x64
             default 32 if DISPLAY_OLED_128x32
-            default 16 if DISPLAY_OLED_128x16
+            default 16 if DISPLAY_OLED_96x16
             depends on DISPLAY_TYPE_OLED
     
         config DISPLAY_I2C_TIMEOUT_MSEC
-            int 
-            default 50
+            int
+            default 10
 
         config DISPLAY_I2C_BUS_SPEED
             int
-            default 700000
+            default 700000 if DISPLAY_TYPE_OLED
+            default 100000 if DISPLAY_TYPE_LCD
     endmenu
 
     menu "Status LED"

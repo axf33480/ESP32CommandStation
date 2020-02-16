@@ -69,15 +69,16 @@ private:
 #endif
 
   /// Cache of the text to display on the OLED/LCD
-  std::string screenLines_[TEXT_ROW_COUNT];
+  std::string lines_[TEXT_ROW_COUNT];
+  bool lineChanged_[TEXT_ROW_COUNT];
 
+  uint8_t i2cAddr_;
   bool redraw_{true};
   bool sh1106_{false};
   StateFlowTimer timer_{this};
   uint8_t regZero_{0};
   uninitialized<LCCStatCollector> lccStatCollector_;
   uint8_t rotatingIndex_{0};
-  const uint8_t rotatingLineCount_;
   uint8_t updateCount_{0};
 };
 

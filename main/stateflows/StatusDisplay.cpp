@@ -21,6 +21,9 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 
 static constexpr uint8_t STATUS_DISPLAY_LINE_COUNT = 5;
 
+static constexpr TickType_t DISPLAY_I2C_TIMEOUT =
+  pdMS_TO_TICKS(CONFIG_DISPLAY_I2C_TIMEOUT_MSEC);
+
 #if CONFIG_DISPLAY_TYPE_OLED
 /// This is an 8x8 1bpp font with a 90deg rotation to make it usable on the
 /// OLED display. Adding a new character can be done by simply adding a new
@@ -188,7 +191,7 @@ static constexpr uint8_t OLED_MEMORY_MODE_VERTICAL     = 0x01;
 static constexpr uint8_t OLED_MEMORY_MODE_PAGE         = 0x02;
 static constexpr uint8_t OLED_MEMORY_COLUMN_RANGE      = 0x21;
 static constexpr uint8_t OLED_MEMORY_PAGE_RANGE        = 0x22;
-static constexpr uint8_t OLED_SET_PAGE                 = 0x80;
+static constexpr uint8_t OLED_SET_PAGE                 = 0xB0;
 
 // OLED Timing/Driving control
 static constexpr uint8_t OLED_CLOCK_DIVIDER            = 0xD5;
@@ -200,46 +203,90 @@ static constexpr uint8_t OLED_SET_VCOMH                = 0xDB;
 // OLED scroll control
 static constexpr uint8_t OLED_DISABLE_SCROLL           = 0x2E;
 
-/// Initialization sequence for the OLED displays, primarily tested with the
-/// SH1106. SSD1306 works similarly but may require additional settings which
-/// can be added if needed.
-static uint8_t OLED_INIT_SEQ[] =
+#elif CONFIG_DISPLAY_TYPE_LCD
+
+// LCD control commands
+static constexpr uint8_t LCD_DISPLAY_SHIFT             = 0x10;
+static constexpr uint8_t LCD_FUNCTION_SET              = 0x20;
+static constexpr uint8_t LCD_ADDRESS_SET               = 0x80;
+
+// LCD shift flags
+static constexpr uint8_t LCD_SHIFT_LEFT                = 0x08;
+static constexpr uint8_t LCD_SHIFT_RIGHT               = 0x0C;
+
+// LCD commands
+static constexpr uint8_t LCD_CMD_CLEAR_SCREEN          = 0x01;
+static constexpr uint8_t LCD_CMD_RETURN_HOME           = 0x02;
+static constexpr uint8_t LCD_CMD_ENTRY_MODE            = 0x04;
+static constexpr uint8_t LCD_CMD_DISPLAY_CONTROL       = 0x08;
+
+static constexpr uint8_t LCD_ENTRY_AUTO_SCROLL         = 0x01;
+static constexpr uint8_t LCD_ENTRY_LEFT_TO_RIGHT       = 0x02;
+
+// display control flags
+static constexpr uint8_t LCD_CURSOR_BLINK_ON           = 0x01;
+static constexpr uint8_t LCD_CURSOR_ON                 = 0x02;
+static constexpr uint8_t LCD_DISPLAY_ON                = 0x04;
+
+static constexpr uint8_t LCD_8BIT_MODE                 = 0x10;
+static constexpr uint8_t LCD_4BIT_MODE                 = 0x00;
+static constexpr uint8_t LCD_TWO_LINE_MODE             = 0x08;
+static constexpr uint8_t LCD_ONE_LINE_MODE             = 0x00;
+
+static inline bool send_to_lcd(uint8_t addr, uint8_t value)
 {
-  OLED_COMMAND_STREAM,
-  OLED_DISPLAY_OFF,
-  OLED_CLOCK_DIVIDER, 0x80,
-  OLED_DISPLAY_MUX, CONFIG_DISPLAY_OLED_HEIGHT - 1,
-  OLED_DISPLAY_OFFSET, 0x00,
-  OLED_DISPLAY_START_LINE,
-  OLED_SET_CHARGEPUMP,
-  OLED_CHARGEPUMP_ON,
-  OLED_MEMORY_MODE, OLED_MEMORY_MODE_HORIZONTAL,
-#if CONFIG_DISPLAY_OLED_VFLIP
-  OLED_SET_SEGMENT_MAP_INVERTED,
-  OLED_SET_SCAN_MODE_INVERTED,
-#else
-  OLED_SET_SEGMENT_MAP_NORMAL,
-  OLED_SET_SCAN_MODE_NORMAL,
-#endif
-#if CONFIG_DISPLAY_OLED_128x64
-  OLED_COM_PIN_MAP, 0x12,
-#elif CONFIG_DISPLAY_OLED_128x32 || CONFIG_DISPLAY_OLED_128x16
-// 96x16/96x32
-  OLED_COM_PIN_MAP, 0x02,
-#endif
-  OLED_SET_CONTRAST, 0xFF,
-  OLED_SET_PRECHARGE, 0x22,
-  OLED_SET_VCOMH, 0x20,
-  OLED_DISPLAY_RAM,
-  OLED_DISPLAY_NORMAL,
-  OLED_DISABLE_SCROLL,
-  OLED_DISPLAY_ON
-};
+  i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+  i2c_master_start(cmd);
+  i2c_master_write_byte(cmd, (addr << 1) | I2C_MASTER_WRITE, true);
+  i2c_master_write_byte(cmd, value, true);
+  i2c_master_stop(cmd);
+  esp_err_t ret =
+    ESP_ERROR_CHECK_WITHOUT_ABORT(i2c_master_cmd_begin(I2C_NUM_0, cmd
+                                                     , DISPLAY_I2C_TIMEOUT));
+  i2c_cmd_link_delete(cmd);
+  if (ret != ESP_OK)
+  {
+    return false;
+  }
+  return true;
+}
+
+static inline bool send_lcd_nibble(uint8_t addr, uint8_t value, bool data)
+{
+  uint8_t nibble = (value << 4);
+  
+  // always send the data with the backlight flag enabled
+  nibble |= CONFIG_DISPLAY_LCD_BACKLIGHT_BITMASK;
+
+  // if this is a data byte set the register select flag
+  if (data)
+  {
+    nibble |= CONFIG_DISPLAY_LCD_REGISTER_SELECT_BITMASK;
+  }
+
+  // send with ENABLE flag set
+  if(!send_to_lcd(addr, nibble | CONFIG_DISPLAY_LCD_ENABLE_BITMASK))
+  {
+    return false;
+  }
+
+  ets_delay_us(1);
+  // send without the ENABLE flag set
+  if(!send_to_lcd(addr, nibble & ~CONFIG_DISPLAY_LCD_ENABLE_BITMASK))
+  {
+    return false;
+  }
+  ets_delay_us(37);
+  return true;
+}
+
+static inline bool send_lcd_byte(uint8_t addr, uint8_t value, bool data)
+{
+  return send_lcd_nibble(addr, (value >> 4) & 0x0F, data) &&
+         send_lcd_nibble(addr, value & 0x0F, data);
+}
 
 #endif
-
-static constexpr TickType_t DISPLAY_I2C_TIMEOUT =
-  pdMS_TO_TICKS(CONFIG_DISPLAY_I2C_TIMEOUT_MSEC);
 
 #define I2C_READ_REG(address, reg, data, data_size, status)               \
   {                                                                       \
@@ -261,14 +308,9 @@ static constexpr TickType_t DISPLAY_I2C_TIMEOUT =
 
 StatusDisplay::StatusDisplay(openlcb::SimpleCanStack *stack, Service *service)
   : StateFlowBase(service)
-#if CONFIG_LOCONET
-  , rotatingLineCount_(7)
-#else
-  , rotatingLineCount_(5)
-#endif
 {
-  clear();
 #if !CONFIG_DISPLAY_TYPE_NONE
+  clear();
   lccStatCollector_.emplace(stack);
   start_flow(STATE(init));
 #endif
@@ -279,7 +321,8 @@ void StatusDisplay::clear()
   LOG(VERBOSE, "[StatusDisplay] clear screen");
   for(int line = 0; line < TEXT_ROW_COUNT; line++)
   {
-    screenLines_[line] = "";
+    lines_[line] = "";
+    lineChanged_[line] = true;
   }
 }
 
@@ -291,7 +334,8 @@ void StatusDisplay::info(const std::string &format, ...)
   va_start(args, format);
   vsnprintf(buf, sizeof(buf), format.c_str(), args);
   va_end(args);
-  screenLines_[0] = buf;
+  lines_[0] = buf;
+  lineChanged_[0] = true;
 #endif
 }
 
@@ -303,8 +347,8 @@ void StatusDisplay::status(const std::string &format, ...)
   va_start(args, format);
   vsnprintf(buf, sizeof(buf), format.c_str(), args);
   va_end(args);
-  // last line is always rotating status line
-  screenLines_[TEXT_ROW_COUNT - 1] = buf;
+  lines_[TEXT_ROW_COUNT - 1] = buf;
+  lineChanged_[TEXT_ROW_COUNT - 1] = true;
 #endif
 }
 
@@ -317,9 +361,11 @@ void StatusDisplay::wifi(const std::string &format, ...)
   vsnprintf(buf, sizeof(buf), format.c_str(), args);
   va_end(args);
 #if CONFIG_DISPLAY_OLED_LINE_COUNT >= 2 || CONFIG_DISPLAY_LCD_LINE_COUNT > 2
-  screenLines_[1] = buf;
+  lines_[1] = buf;
+  lineChanged_[1] = true;
 #else
-  screenLines_[0] = buf;
+  lines_[0] = buf;
+  lineChanged_[0] = true;
 #endif
 #endif
 }
@@ -332,7 +378,8 @@ void StatusDisplay::tcp_clients(const std::string &format, ...)
   va_start(args, format);
   vsnprintf(buf, sizeof(buf), format.c_str(), args);
   va_end(args);
-  screenLines_[2] = buf;
+  lines_[2] = buf;
+  lineChanged_[2] = true;
 #endif
 }
 
@@ -344,16 +391,15 @@ void StatusDisplay::track_power(const std::string &format, ...)
   va_start(args, format);
   vsnprintf(buf, sizeof(buf), format.c_str(), args);
   va_end(args);
-  screenLines_[2] = buf;
+  lines_[3] = buf;
+  lineChanged_[3] = true;
 #endif
 }
 
 StateFlowBase::Action StatusDisplay::init()
 {
 #if !CONFIG_DISPLAY_TYPE_NONE
-  bool wantScan{false};
   info("ESP32-CS: v%s", esp_ota_get_app_description()->version);
-  status("Starting Up");
   LOG(INFO, "[StatusDisplay] Initializing I2C driver...");
   i2c_config_t i2c_config =
   {
@@ -370,70 +416,76 @@ StateFlowBase::Action StatusDisplay::init()
   ESP_ERROR_CHECK(i2c_param_config(I2C_NUM_0, &i2c_config));
   ESP_ERROR_CHECK(i2c_driver_install(I2C_NUM_0, I2C_MODE_MASTER, 0, 0, 0));
 
-  LOG(INFO, "[StatusDisplay] Searching for I2C device on address 0x%02x..."
-    , CONFIG_DISPLAY_ADDRESS);
+  // scan a handful of known I2C address ranges for LCD or OLED devices
   esp_err_t ret;
-  I2C_READ_REG(CONFIG_DISPLAY_ADDRESS, 0, regZero_, 1, ret);
-  if (ret == ESP_OK)
-  {
 #if CONFIG_DISPLAY_TYPE_OLED
-    return call_immediately(STATE(initOLED));
-#elif CONFIG_DISPLAY_TYPE_LCD
-    return call_immediately(STATE(initLCD));
-#endif
-  }
-  else if (ret == ESP_ERR_TIMEOUT)
+  for(uint8_t addr = 0x3C; addr <= 0x3C; addr++)
   {
-    LOG_ERROR("[StatusDisplay] I2C device at address 0x%02x did not respond "
-              "within %dms, giving up", CONFIG_DISPLAY_ADDRESS
-            , CONFIG_DISPLAY_I2C_TIMEOUT_MSEC);
-  }
-  else
-  {
-    wantScan = true;
-  }
-
-  if (wantScan)
-  {
-    // Scan the I2C bus and dump the output of devices that respond
-    std::string scanresults =
-      "Scanning for I2C devices...\n"
-      "     0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f\n"
-      "00:         ";
-    scanresults.reserve(256);
-    for (uint8_t addr=3; addr < 0x78; addr++)
+    LOG(VERBOSE, "[StatusDisplay] Searching for OLED on address 0x%02x...", addr);
+    I2C_READ_REG(addr, 0, regZero_, 1, ret);
+    if (ret == ESP_OK)
     {
-      if (addr % 16 == 0)
-      {
-        scanresults += "\n" + int64_to_string_hex(addr) + ":";
-      }
-      i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-      i2c_master_start(cmd);
-      i2c_master_write_byte(cmd, (addr << 1) | I2C_MASTER_WRITE, true);
-      i2c_master_stop(cmd);
-      esp_err_t ret = i2c_master_cmd_begin(I2C_NUM_0, cmd, DISPLAY_I2C_TIMEOUT);
-      i2c_cmd_link_delete(cmd);
-      if (ret == ESP_OK)
-      {
-        scanresults += int64_to_string_hex(addr);
-      }
-      else if (ret == ESP_ERR_TIMEOUT)
-      {
-        scanresults += " ??";
-      }
-      else
-      {
-        scanresults += " --";
-      }
+      i2cAddr_ = addr;
+      return call_immediately(STATE(initOLED));
     }
-    LOG(WARNING,
-        "I2C display not found at 0x%02x\n%s",
-        CONFIG_DISPLAY_ADDRESS,
-        scanresults.c_str());
   }
-  // The only time we should encounter this case is if the I2C init
-  // fails. Cleanup and exit the flow.
+#elif CONFIG_DISPLAY_TYPE_LCD
+  // PCF8574 or MCP23008
+  for(uint8_t addr = 0x20; addr <= 0x27; addr++)
+  {
+    LOG(VERBOSE, "[StatusDisplay] Searching for LCD on address 0x%02x...", addr);
+    I2C_READ_REG(addr, 0, regZero_, 1, ret);
+    if (ret == ESP_OK)
+    {
+      i2cAddr_ = addr;
+      return call_immediately(STATE(initLCD));
+    }
+  }
+  // PCF8574A
+  for(uint8_t addr = 0x38; addr <= 0x3F; addr++)
+  {
+    LOG(VERBOSE, "[StatusDisplay] Searching for LCD on address 0x%02x...", addr);
+    I2C_READ_REG(addr, 0, regZero_, 1, ret);
+    if (ret == ESP_OK)
+    {
+      i2cAddr_ = addr;
+      return call_immediately(STATE(initLCD));
+    }
+  }
+#endif
   LOG(WARNING, "[StatusDisplay] no display detected");
+
+  // Scan the I2C bus and dump the output of devices that respond
+  std::string scanresults =
+    "Scanning for I2C devices...\n"
+    "     0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f\n"
+    "00:         ";
+  scanresults.reserve(256);
+  for (uint8_t addr=3; addr < 0x78; addr++)
+  {
+    if (addr % 16 == 0)
+    {
+      scanresults += "\n" + int64_to_string_hex(addr) + ":";
+    }
+    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+    i2c_master_start(cmd);
+    i2c_master_write_byte(cmd, (addr << 1) | I2C_MASTER_WRITE, true);
+    i2c_master_stop(cmd);
+    esp_err_t ret = i2c_master_cmd_begin(I2C_NUM_0, cmd, DISPLAY_I2C_TIMEOUT);
+    i2c_cmd_link_delete(cmd);
+    if (ret == ESP_OK)
+    {
+      scanresults += int64_to_string_hex(addr);
+    }
+    else if (ret == ESP_ERR_TIMEOUT)
+    {
+      scanresults += " ??";
+    }
+    else
+    {
+      scanresults += " --";
+    }
+  }
 #endif // !CONFIG_DISPLAY_TYPE_NONE
   return exit();
 }
@@ -441,6 +493,8 @@ StateFlowBase::Action StatusDisplay::init()
 StateFlowBase::Action StatusDisplay::initOLED()
 {
 #if CONFIG_DISPLAY_TYPE_OLED
+  LOG(INFO, "[StatusDisplay] OLED display detected on address 0x%02x"
+    , i2cAddr_);
 #if CONFIG_DISPLAY_OLED_RESET_PIN != -1
   static bool resetCalled = false;
   if(!resetCalled)
@@ -458,21 +512,73 @@ StateFlowBase::Action StatusDisplay::initOLED()
     gpio_set_level((gpio_num_t)CONFIG_DISPLAY_OLED_RESET_PIN, 1);
   }
 #endif // CONFIG_DISPLAY_OLED_RESET_PIN
+  LOG(INFO, "[StatusDisplay] Display size: %dx%d (%d pages)"
+    , CONFIG_DISPLAY_OLED_WIDTH, CONFIG_DISPLAY_OLED_HEIGHT, TEXT_ROW_COUNT);
   i2c_cmd_handle_t cmd = i2c_cmd_link_create();
   i2c_master_start(cmd);
-	i2c_master_write_byte(cmd, (CONFIG_DISPLAY_ADDRESS << 1) | I2C_MASTER_WRITE
-                      , true);
+	i2c_master_write_byte(cmd, (i2cAddr_ << 1) | I2C_MASTER_WRITE, true);
+  i2c_master_write_byte(cmd, OLED_COMMAND_STREAM, true);
+  i2c_master_write_byte(cmd, OLED_DISPLAY_OFF, true);
+  i2c_master_write_byte(cmd, OLED_DISPLAY_MUX, true);
+  i2c_master_write_byte(cmd, CONFIG_DISPLAY_OLED_WIDTH -1, true);
+  i2c_master_write_byte(cmd, OLED_DISPLAY_OFFSET, true);
+  i2c_master_write_byte(cmd, 0x00, true);
+  i2c_master_write_byte(cmd, OLED_DISPLAY_START_LINE, true);
+  i2c_master_write_byte(cmd, OLED_SET_CHARGEPUMP, true);
+  i2c_master_write_byte(cmd, OLED_CHARGEPUMP_ON, true);
   regZero_ &= 0xBF;
-  if (regZero_ == 0x08)
-  {
-    LOG(INFO, "[StatusDisplay] SH1106 detected");
-    sh1106_ = true;
-  }
   if (regZero_ == 0x03 || regZero_ == 0x06)
   {
-    LOG(INFO, "[StatusDisplay] SSD1306 detected");
+    LOG(INFO, "[StatusDisplay] OLED Driver IC: SSD1306");
+    i2c_master_write_byte(cmd, OLED_CLOCK_DIVIDER, true);
+    i2c_master_write_byte(cmd, 0x80, true);
+    i2c_master_write_byte(cmd, OLED_MEMORY_MODE, true);
+    i2c_master_write_byte(cmd, OLED_MEMORY_MODE_PAGE, true);
+    i2c_master_write_byte(cmd, OLED_SET_PRECHARGE, true);
+    i2c_master_write_byte(cmd, 0xF1, true);
+    i2c_master_write_byte(cmd, OLED_SET_VCOMH, true);
+    i2c_master_write_byte(cmd, 0x40, true);
   }
-  i2c_master_write(cmd, OLED_INIT_SEQ, sizeof(OLED_INIT_SEQ), true);
+  else if (regZero_ == 0x08)
+  {
+    LOG(INFO, "[StatusDisplay] OLED Driver IC: SH1106");
+    sh1106_ = true;
+    i2c_master_write_byte(cmd, OLED_CLOCK_DIVIDER, true);
+    i2c_master_write_byte(cmd, 0xF0, true);
+    i2c_master_write_byte(cmd, OLED_MEMORY_MODE, true);
+    i2c_master_write_byte(cmd, OLED_MEMORY_MODE_HORIZONTAL, true);
+    i2c_master_write_byte(cmd, OLED_SET_PRECHARGE, true);
+    i2c_master_write_byte(cmd, 0x22, true);
+    i2c_master_write_byte(cmd, OLED_SET_VCOMH, true);
+    i2c_master_write_byte(cmd, 0x30, true);
+  }
+  else
+  {
+    LOG(WARNING, "[StatusDisplay] Unrecognized OLED Register zero value: %x"
+      , regZero_);
+    // cleanup and abort init process
+    i2c_cmd_link_delete(cmd);
+    return exit();
+  }
+#if CONFIG_DISPLAY_OLED_VFLIP
+  i2c_master_write_byte(cmd, OLED_SET_SEGMENT_MAP_INVERTED, true);
+  i2c_master_write_byte(cmd, OLED_SET_SCAN_MODE_INVERTED, true);
+#else
+  i2c_master_write_byte(cmd, OLED_SET_SEGMENT_MAP_NORMAL, true);
+  i2c_master_write_byte(cmd, OLED_SET_SCAN_MODE_NORMAL, true);
+#endif
+  i2c_master_write_byte(cmd, OLED_COM_PIN_MAP, true);
+#if CONFIG_DISPLAY_OLED_128x64
+  i2c_master_write_byte(cmd, 0x12, true);
+#elif CONFIG_DISPLAY_OLED_128x32 || CONFIG_DISPLAY_OLED_96x16
+  i2c_master_write_byte(cmd, 0x02, true);
+#endif
+  i2c_master_write_byte(cmd, OLED_SET_CONTRAST, true);
+  i2c_master_write_byte(cmd, CONFIG_DISPLAY_OLED_CONTRAST, true);
+  i2c_master_write_byte(cmd, OLED_DISPLAY_RAM, true);
+  i2c_master_write_byte(cmd, OLED_DISPLAY_NORMAL, true);
+  i2c_master_write_byte(cmd, OLED_DISABLE_SCROLL, true);
+  i2c_master_write_byte(cmd, OLED_DISPLAY_ON, true);
 	i2c_master_stop(cmd);
 
   LOG(INFO, "[StatusDisplay] Sending init parameters to OLED display");
@@ -497,12 +603,42 @@ StateFlowBase::Action StatusDisplay::initLCD()
 {
 #if CONFIG_DISPLAY_TYPE_LCD
   LOG(INFO,
-      "[StatusDisplay] Detected LCD on address %02x, initializing %dx%x display..."
-    , CONFIG_DISPLAY_ADDRESS, CONFIG_DISPLAY_LCD_COLUMN_COUNT
-    , CONFIG_DISPLAY_LCD_LINE_COUNT);
-  lcdDisplay.begin(CONFIG_DISPLAY_LCD_COLUMN_COUNT, CONFIG_DISPLAY_LCD_LINE_COUNT);
-  lcdDisplay.setBacklight(255);
-  lcdDisplay.clear();
+      "[StatusDisplay] Detected LCD on address 0x%02x, initializing %dx%x "
+      "display..."
+    , i2cAddr_, CONFIG_DISPLAY_LCD_COLUMN_COUNT, CONFIG_DISPLAY_LCD_LINE_COUNT);
+
+  // wake up the LCD and init to known state
+  send_to_lcd(i2cAddr_, 0x00);
+  vTaskDelay(pdMS_TO_TICKS(10));
+
+  // send init data to reset to 8 bit mode
+  send_to_lcd(i2cAddr_, (LCD_FUNCTION_SET | LCD_8BIT_MODE | CONFIG_DISPLAY_LCD_ENABLE_BITMASK));
+  ets_delay_us(1);
+  send_to_lcd(i2cAddr_, (LCD_FUNCTION_SET | LCD_8BIT_MODE));
+  ets_delay_us(4537);
+  send_to_lcd(i2cAddr_, (LCD_FUNCTION_SET | LCD_8BIT_MODE | CONFIG_DISPLAY_LCD_ENABLE_BITMASK));
+  ets_delay_us(1);
+  send_to_lcd(i2cAddr_, (LCD_FUNCTION_SET | LCD_8BIT_MODE));
+  ets_delay_us(237);
+  send_to_lcd(i2cAddr_, (LCD_FUNCTION_SET | LCD_8BIT_MODE | CONFIG_DISPLAY_LCD_ENABLE_BITMASK));
+  ets_delay_us(1);
+  send_to_lcd(i2cAddr_, (LCD_FUNCTION_SET | LCD_8BIT_MODE));
+  ets_delay_us(237);
+
+  // switch to four bit mode
+  send_to_lcd(i2cAddr_, (LCD_FUNCTION_SET | CONFIG_DISPLAY_LCD_ENABLE_BITMASK));
+  ets_delay_us(1);
+  send_to_lcd(i2cAddr_, LCD_FUNCTION_SET);
+  ets_delay_us(37);
+
+  // send rest of init commands as 4 bit mode
+  send_lcd_byte(i2cAddr_, LCD_FUNCTION_SET | LCD_TWO_LINE_MODE, false);
+  send_lcd_byte(i2cAddr_, LCD_CMD_DISPLAY_CONTROL | LCD_DISPLAY_ON, false);
+  send_lcd_byte(i2cAddr_, LCD_CMD_CLEAR_SCREEN, false);
+  ets_delay_us(1600); // clear takes 1.5ms
+  send_lcd_byte(i2cAddr_, LCD_CMD_ENTRY_MODE | LCD_ENTRY_LEFT_TO_RIGHT, false);
+  send_lcd_byte(i2cAddr_, LCD_CMD_RETURN_HOME, false);
+  ets_delay_us(1600); // home takes 1.5ms
   return call_immediately(STATE(update));
 #else
   return exit();
@@ -511,11 +647,16 @@ StateFlowBase::Action StatusDisplay::initLCD()
 
 StateFlowBase::Action StatusDisplay::update()
 {
+#if CONFIG_LOCONET
+  static uint8_t rotatingLineCount = 7;
+#else
+  static uint8_t rotatingLineCount = 5;
+#endif
   // switch to next status line detail set after 10 iterations
   if(++updateCount_ > 10)
   {
     updateCount_ = 0;
-    ++rotatingIndex_ %= rotatingLineCount_;
+    ++rotatingIndex_ %= rotatingLineCount;
   }
   // update the status line details every other iteration
   if(updateCount_ % 2)
@@ -596,11 +737,14 @@ StateFlowBase::Action StatusDisplay::update()
 #if CONFIG_DISPLAY_TYPE_OLED
   for (uint8_t row = 0; row < TEXT_ROW_COUNT; row++)
   {
+    // if the line has not changed skip it
+    if (!lineChanged_[row])
+    {
+      continue;
+    }
     i2c_cmd_handle_t cmd = i2c_cmd_link_create();
     i2c_master_start(cmd);
-    i2c_master_write_byte(cmd
-                        , (CONFIG_DISPLAY_ADDRESS << 1) | I2C_MASTER_WRITE
-                        , true);
+    i2c_master_write_byte(cmd, (i2cAddr_ << 1) | I2C_MASTER_WRITE, true);
     i2c_master_write_byte(cmd, OLED_COMMAND_STREAM, true);
     i2c_master_write_byte(cmd, OLED_SET_PAGE | row, true);
     if (sh1106_)
@@ -616,41 +760,70 @@ StateFlowBase::Action StatusDisplay::update()
     }
     i2c_master_stop(cmd);
     ESP_ERROR_CHECK_WITHOUT_ABORT(
-      i2c_master_cmd_begin(I2C_NUM_0, cmd, DISPLAY_I2C_TIMEOUT << 1));
+      i2c_master_cmd_begin(I2C_NUM_0, cmd, DISPLAY_I2C_TIMEOUT));
     i2c_cmd_link_delete(cmd);
 
     cmd = i2c_cmd_link_create();
     i2c_master_start(cmd);
-    i2c_master_write_byte(cmd
-                        , (CONFIG_DISPLAY_ADDRESS << 1) | I2C_MASTER_WRITE
-                        , true);
+    i2c_master_write_byte(cmd, (i2cAddr_ << 1) | I2C_MASTER_WRITE, true);
     i2c_master_write_byte(cmd, OLED_DATA_STREAM, true);
     uint8_t col = 0;
-    for (auto ch : screenLines_[row])
+    for (auto ch : lines_[row])
     {
-      i2c_master_write(cmd, (uint8_t *)oled_font[(uint8_t)ch]
-                      , OLED_FONT_WIDTH, true);
+      // Check that the character is a renderable character.
+      if (ch <= 0x7f)
+      {
+        i2c_master_write(cmd, (uint8_t *)oled_font[(uint8_t)ch]
+                        , OLED_FONT_WIDTH, true);
+      }
+      else
+      {
+        // since it is not a renderable character, send the 50% shaded block to
+        // the display instead so the rendering stays consistent
+        i2c_master_write(cmd, (uint8_t *)oled_font[1], OLED_FONT_WIDTH, true);
+      }
       col++;
+      // make sure we haven't rendered past the end of the display
+      if (col >= TEXT_COLUMN_COUNT)
+      {
+        break;
+      }
     }
-    for(; col < TEXT_COLUMN_COUNT; col++)
+    while(col++ < TEXT_COLUMN_COUNT)
     {
       i2c_master_write(cmd, (uint8_t *)oled_font[0], OLED_FONT_WIDTH, true);
     }
     i2c_master_stop(cmd);
     ESP_ERROR_CHECK_WITHOUT_ABORT(
-      i2c_master_cmd_begin(I2C_NUM_0, cmd, DISPLAY_I2C_TIMEOUT << 1));
+      i2c_master_cmd_begin(I2C_NUM_0, cmd, DISPLAY_I2C_TIMEOUT));
     i2c_cmd_link_delete(cmd);
+    lineChanged_[row] = false;
   }
 #elif CONFIG_DISPLAY_TYPE_LCD
-  for (int line = 0; line < CONFIG_DISPLAY_LCD_LINE_COUNT; line++)
+  for (int row = 0; row < TEXT_ROW_COUNT; row++)
   {
-    lcdDisplay.setCursor(0, line);
-    // space pad to the width of the LCD
-    while(screenLines_[line].length() < CONFIG_DISPLAY_LCD_COLUMN_COUNT)
+    if (!lineChanged_[row])
     {
-      screenLines_[line] += ' ';
+      continue;
     }
-    lcdDisplay.print(screenLines_[line].c_str());
+    const int row_offsets[] = { 0x00, 0x40, 0x14, 0x54 };
+    send_lcd_byte(i2cAddr_, LCD_ADDRESS_SET | row_offsets[row], false);
+    uint8_t col = 0;
+    for (auto ch : lines_[row])
+    {
+      send_lcd_byte(i2cAddr_, ch, true);
+      col++;
+      if (col >= TEXT_COLUMN_COUNT)
+      {
+        break;
+      }
+    }
+    // space pad to the width of the LCD
+    while(col++ < TEXT_COLUMN_COUNT)
+    {
+      send_lcd_byte(i2cAddr_, ' ', true);
+    }
+    lineChanged_[row] = false;
   }
 #endif
   return sleep_and_call(&timer_, MSEC_TO_NSEC(450), STATE(update));
