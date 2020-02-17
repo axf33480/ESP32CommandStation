@@ -152,7 +152,7 @@ void WiFiInterface::init()
         tcpip_adapter_ip_info_t ip_info;
         tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_STA, &ip_info);
         Singleton<StatusDisplay>::instance()->wifi(
-#if (CONFIG_DISPLAY_TYPE_LCD && CONFIG_DISPLAY_LCD_COLUMN_COUNT >= 20) || CONFIG_DISPLAY_TYPE_OLED
+#if CONFIG_DISPLAY_COLUMN_COUNT > 16 || CONFIG_DISPLAY_TYPE_OLED
                               "IP: "
 #endif
                               IPSTR, IP2STR(&ip_info.ip)
