@@ -41,14 +41,10 @@ public:
     : StateFlowBase(service), DCCPPProtocolConsumer(), fd_(fd), remoteIP_(remote_ip)
   {
     LOG(INFO, "[JMRI %s] Connected", name().c_str());
-    int clientCount = 0;
     {
       OSMutexLock h(&jmriClientsMux);
       jmriClients.push_back(fd_);
-      clientCount = webSocketClients.size() + jmriClients.size();
     }
-    Singleton<StatusDisplay>::instance()->tcp_clients("TCP Conn: %02d"
-                                                    , clientCount);
     bzero(buf_, BUFFER_SIZE);
 
     struct timeval tm;
@@ -63,15 +59,11 @@ public:
   virtual ~JmriClient()
   {
     LOG(INFO, "[JMRI %s] Disconnected", name().c_str());
-    int clientCount = 0;
     {
       OSMutexLock h(&jmriClientsMux);
       jmriClients.erase(std::remove(jmriClients.begin(), jmriClients.end()
                       , fd_));
-      clientCount = webSocketClients.size() + jmriClients.size();
     }
-    Singleton<StatusDisplay>::instance()->tcp_clients("TCP Conn: %02d"
-                                                    , clientCount);
     ::close(fd_);
   }
 private:
@@ -144,7 +136,6 @@ void WiFiInterface::init()
   nextionTitlePage->setStatusText(0, "Initializing WiFi");
 #endif
   Singleton<StatusDisplay>::instance()->wifi("IP:Pending");
-  Singleton<StatusDisplay>::instance()->tcp_clients("TCP Conn: 0");
 
   Singleton<Esp32WiFiManager>::instance()->add_event_callback([](system_event_t *event) {
 #if NEXTION_ENABLED

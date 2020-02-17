@@ -454,6 +454,10 @@ RMTTrackDevice::RMTTrackDevice(SimpleCanStack *stack
   initRMTDevice(CONFIG_PROG_TRACK_NAME, progRMTChannel_, progSignalPin_
               , progPreambleBits_);
 
+  Singleton<StatusDisplay>::instance()->track_power("%s:OFF %s OFF"
+                                                  , CONFIG_OPS_TRACK_NAME
+                                                  , CONFIG_PROG_TRACK_NAME);
+
   // hook into the RMT ISR to have callbacks when TX completes
   rmt_register_tx_end_callback(rmt_tx_complete_isr_callback, this);
 
@@ -793,6 +797,8 @@ void RMTTrackDevice::enable_ops_output()
 
     opsHBridge_->enable();
 
+    update_status_display();
+
     // send one bit to kickstart the signal, remaining data will come from the
     // packet queue. We intentionally do not wait for the RMT TX complete here.
     rmt_write_items(opsRMTChannel_, &DCC_RMT_ONE_BIT, 1, false);
@@ -810,6 +816,8 @@ void RMTTrackDevice::disable_ops_output()
     LOG(INFO, "[RMT] Shutting down RMT for OPS");
 
     opsHBridge_->disable();
+
+    update_status_display();
   }
 }
 
@@ -827,6 +835,8 @@ void RMTTrackDevice::enable_prog_output()
     progSignalActive_ = true;
 
     progHBridge_->enable();
+
+    update_status_display();
 
     // send one bit to kickstart the signal, remaining data will come from the
     // packet queue. We intentionally do not wait for the RMT TX complete here.
@@ -848,6 +858,8 @@ void RMTTrackDevice::disable_prog_output()
     LOG(INFO, "[RMT] Shutting down RMT for PROG");
 
     progHBridge_->disable();
+    update_status_display();
+
     {
       // if we have any pending packets, consume them now so we do not send
       // them to the track.
@@ -890,6 +902,18 @@ string RMTTrackDevice::get_status_screen_data()
     return opsHBridge_->getStatusData();
   }
   return progHBridge_->getStatusData();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Updates the status display with the current state of the track outputs.
+///////////////////////////////////////////////////////////////////////////////
+void RMTTrackDevice::update_status_display()
+{
+  Singleton<StatusDisplay>::instance()->track_power("%s:%s %s:%s"
+                                                  , CONFIG_OPS_TRACK_NAME
+                                                  , opsHBridge_->isEnabled() ? "On" : "Off"
+                                                  , CONFIG_PROG_TRACK_NAME
+                                                  , opsHBridge_->isEnabled() ? "On" : "Off");
 }
 
 ///////////////////////////////////////////////////////////////////////////////

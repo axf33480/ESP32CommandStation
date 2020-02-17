@@ -551,21 +551,19 @@ menu "ESP32 Command Station"
             range 0 32
             depends on DISPLAY_TYPE_OLED || DISPLAY_TYPE_LCD
 
-        config DISPLAY_LCD_LINE_COUNT
-            int "LCD line count"
-            default 4
-            help
-                This defines how many lines the LCD screen can display,
-                typically either 2 or 4.
+        choice DISPLAY_LCD_TYPE
+            bool "Type of LCD display"
+            default DISPLAY_LCD_20x4
+            config DISPLAY_LCD_20x4
+                bool "20 columns, 4 lines"
+            config DISPLAY_LCD_16x4
+                bool "16 columns, 4 lines"
+            config DISPLAY_LCD_20x2
+                bool "20 columns, 2 lines"
+            config DISPLAY_LCD_16x2
+                bool "16 columns, 2 lines"
             depends on DISPLAY_TYPE_LCD
-
-        config DISPLAY_LCD_COLUMN_COUNT
-            int "LCD column count"
-            default 20
-            help
-                This defines how many columns the LCD screen can display,
-                typically either 16 or 20.
-            depends on DISPLAY_TYPE_LCD
+        endchoice
 
         config DISPLAY_LCD_ENABLE_BITMASK
             hex "LCD Enable bitmask"
@@ -630,13 +628,20 @@ menu "ESP32 Command Station"
             default 128
             range 0 255
 
-        config DISPLAY_OLED_LINE_COUNT
+        config DISPLAY_LINE_COUNT
             int
             default 8 if DISPLAY_OLED_128x64
-            default 4 if DISPLAY_OLED_128x32
-            default 2 if DISPLAY_OLED_96x16
-            depends on DISPLAY_TYPE_OLED
+            default 4 if DISPLAY_OLED_128x32 || DISPLAY_LCD_20x4 || DISPLAY_LCD_16x4
+            default 2 if DISPLAY_OLED_96x16 || DISPLAY_LCD_20x2 || DISPLAY_LCD_16x2
+            default 1
 
+        config DISPLAY_COLUMN_COUNT
+            int
+            default 20 if DISPLAY_LCD_20x4 || DISPLAY_LCD_16x4
+            default 16 if DISPLAY_OLED_128x64 || DISPLAY_OLED_128x32 || DISPLAY_LCD_16x4 || DISPLAY_LCD_16x2
+            default 12 if DISPLAY_OLED_96x16
+            default 1
+    
         config DISPLAY_OLED_WIDTH
             int
             default 96 if DISPLAY_OLED_96x16

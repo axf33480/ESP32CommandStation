@@ -212,6 +212,8 @@ private:
   bool devOpened_{false};
   bool infoDataFirst_{false};
 
+  void update_status_display();
+
   void initRMTDevice(const char *, rmt_channel_t, gpio_num_t, uint8_t);
   void encode_next_ops_packet();
   void encode_next_prog_packet();

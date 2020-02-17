@@ -162,6 +162,13 @@ static constexpr uint8_t oled_font[0x80][OLED_FONT_WIDTH] =
   { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }    // U+007F
 };
 
+/// This is the width of the font used on the OLED display.
+static constexpr uint8_t OLED_FONT_WIDTH = 8;
+
+/// This is the height of the font used on the OLED display.
+static constexpr uint8_t OLED_FONT_HEIGHT = 8;
+
+
 // Control command bytes for the OLED display
 static constexpr uint8_t OLED_COMMAND_STREAM           = 0x00;
 static constexpr uint8_t OLED_COMMAND_SINGLE           = 0x80;
@@ -232,6 +239,8 @@ static constexpr uint8_t LCD_8BIT_MODE                 = 0x10;
 static constexpr uint8_t LCD_4BIT_MODE                 = 0x00;
 static constexpr uint8_t LCD_TWO_LINE_MODE             = 0x08;
 static constexpr uint8_t LCD_ONE_LINE_MODE             = 0x00;
+
+static constexpr int LCD_LINE_OFFSETS[] = { 0x00, 0x40, 0x14, 0x54 };
 
 static inline bool send_to_lcd(uint8_t addr, uint8_t value)
 {
@@ -319,7 +328,7 @@ StatusDisplay::StatusDisplay(openlcb::SimpleCanStack *stack, Service *service)
 void StatusDisplay::clear()
 {
   LOG(VERBOSE, "[StatusDisplay] clear screen");
-  for(int line = 0; line < TEXT_ROW_COUNT; line++)
+  for(int line = 0; line < CONFIG_DISPLAY_LINE_COUNT; line++)
   {
     lines_[line] = "";
     lineChanged_[line] = true;
@@ -347,8 +356,8 @@ void StatusDisplay::status(const std::string &format, ...)
   va_start(args, format);
   vsnprintf(buf, sizeof(buf), format.c_str(), args);
   va_end(args);
-  lines_[TEXT_ROW_COUNT - 1] = buf;
-  lineChanged_[TEXT_ROW_COUNT - 1] = true;
+  lines_[CONFIG_DISPLAY_LINE_COUNT - 1] = buf;
+  lineChanged_[CONFIG_DISPLAY_LINE_COUNT - 1] = true;
 #endif
 }
 
@@ -360,7 +369,7 @@ void StatusDisplay::wifi(const std::string &format, ...)
   va_start(args, format);
   vsnprintf(buf, sizeof(buf), format.c_str(), args);
   va_end(args);
-#if CONFIG_DISPLAY_OLED_LINE_COUNT >= 2 || CONFIG_DISPLAY_LCD_LINE_COUNT > 2
+#if CONFIG_DISPLAY_LINE_COUNT > 2
   lines_[1] = buf;
   lineChanged_[1] = true;
 #else
@@ -370,9 +379,9 @@ void StatusDisplay::wifi(const std::string &format, ...)
 #endif
 }
 
-void StatusDisplay::tcp_clients(const std::string &format, ...)
+void StatusDisplay::track_power(const std::string &format, ...)
 {
-#if CONFIG_DISPLAY_OLED_LINE_COUNT > 2
+#if CONFIG_DISPLAY_LINE_COUNT > 2
   char buf[256] = {0};
   va_list args;
   va_start(args, format);
@@ -380,19 +389,6 @@ void StatusDisplay::tcp_clients(const std::string &format, ...)
   va_end(args);
   lines_[2] = buf;
   lineChanged_[2] = true;
-#endif
-}
-
-void StatusDisplay::track_power(const std::string &format, ...)
-{
-#if CONFIG_DISPLAY_OLED_LINE_COUNT > 2 || CONFIG_DISPLAY_LCD_LINE_COUNT > 2
-  char buf[256] = {0};
-  va_list args;
-  va_start(args, format);
-  vsnprintf(buf, sizeof(buf), format.c_str(), args);
-  va_end(args);
-  lines_[3] = buf;
-  lineChanged_[3] = true;
 #endif
 }
 
@@ -514,8 +510,9 @@ StateFlowBase::Action StatusDisplay::initOLED()
     gpio_set_level((gpio_num_t)CONFIG_DISPLAY_OLED_RESET_PIN, 1);
   }
 #endif // CONFIG_DISPLAY_OLED_RESET_PIN
-  LOG(INFO, "[StatusDisplay] Display size: %dx%d (%d pages)"
-    , CONFIG_DISPLAY_OLED_WIDTH, CONFIG_DISPLAY_OLED_HEIGHT, TEXT_ROW_COUNT);
+  LOG(INFO, "[StatusDisplay] Display size: %dx%d (%d lines)"
+    , CONFIG_DISPLAY_OLED_WIDTH, CONFIG_DISPLAY_OLED_HEIGHT
+    , CONFIG_DISPLAY_LINE_COUNT);
   i2c_cmd_handle_t cmd = i2c_cmd_link_create();
   i2c_master_start(cmd);
 	i2c_master_write_byte(cmd, (i2cAddr_ << 1) | I2C_MASTER_WRITE, true);
@@ -560,7 +557,7 @@ StateFlowBase::Action StatusDisplay::initOLED()
   else
   {
     LOG(WARNING, "[StatusDisplay] Unrecognized OLED Register zero value: %x"
-      , regZero_);
+      , regZero_ & 0x0F);
     // cleanup and abort init process
     i2c_cmd_link_delete(cmd);
     return exit();
@@ -613,7 +610,7 @@ StateFlowBase::Action StatusDisplay::initLCD()
   LOG(INFO,
       "[StatusDisplay] Detected LCD on address 0x%02x, initializing %dx%x "
       "display..."
-    , i2cAddr_, CONFIG_DISPLAY_LCD_COLUMN_COUNT, CONFIG_DISPLAY_LCD_LINE_COUNT);
+    , i2cAddr_, CONFIG_DISPLAY_COLUMN_COUNT, CONFIG_DISPLAY_LINE_COUNT);
 
   // wake up the LCD and init to known state
   send_to_lcd(i2cAddr_, 0x00);
@@ -742,19 +739,20 @@ StateFlowBase::Action StatusDisplay::update()
     }
   }
 
-#if CONFIG_DISPLAY_TYPE_OLED
-  for (uint8_t row = 0; row < TEXT_ROW_COUNT; row++)
+  for (uint8_t line = 0; line < CONFIG_DISPLAY_LINE_COUNT; line++)
   {
     // if the line has not changed skip it
-    if (!lineChanged_[row])
+    if (!lineChanged_[line])
     {
       continue;
     }
+
+#if CONFIG_DISPLAY_TYPE_OLED
     i2c_cmd_handle_t cmd = i2c_cmd_link_create();
     i2c_master_start(cmd);
     i2c_master_write_byte(cmd, (i2cAddr_ << 1) | I2C_MASTER_WRITE, true);
     i2c_master_write_byte(cmd, OLED_COMMAND_STREAM, true);
-    i2c_master_write_byte(cmd, OLED_SET_PAGE | row, true);
+    i2c_master_write_byte(cmd, OLED_SET_PAGE | line, true);
     if (sh1106_)
     {
       i2c_master_write_byte(cmd, 0x02, true);
@@ -776,7 +774,7 @@ StateFlowBase::Action StatusDisplay::update()
     i2c_master_write_byte(cmd, (i2cAddr_ << 1) | I2C_MASTER_WRITE, true);
     i2c_master_write_byte(cmd, OLED_DATA_STREAM, true);
     uint8_t col = 0;
-    for (auto ch : lines_[row])
+    for (auto ch : lines_[line])
     {
       // Check that the character is a renderable character.
       if (ch <= 0x7f)
@@ -792,12 +790,12 @@ StateFlowBase::Action StatusDisplay::update()
       }
       col++;
       // make sure we haven't rendered past the end of the display
-      if (col >= TEXT_COLUMN_COUNT)
+      if (col >= CONFIG_DISPLAY_COLUMN_COUNT)
       {
         break;
       }
     }
-    while(col++ < TEXT_COLUMN_COUNT)
+    while(col++ < CONFIG_DISPLAY_COLUMN_COUNT)
     {
       i2c_master_write(cmd, (uint8_t *)oled_font[0], OLED_FONT_WIDTH, true);
     }
@@ -805,34 +803,25 @@ StateFlowBase::Action StatusDisplay::update()
     ESP_ERROR_CHECK_WITHOUT_ABORT(
       i2c_master_cmd_begin(I2C_NUM_0, cmd, DISPLAY_I2C_TIMEOUT));
     i2c_cmd_link_delete(cmd);
-    lineChanged_[row] = false;
-  }
 #elif CONFIG_DISPLAY_TYPE_LCD
-  for (int row = 0; row < TEXT_ROW_COUNT; row++)
-  {
-    if (!lineChanged_[row])
-    {
-      continue;
-    }
-    const int row_offsets[] = { 0x00, 0x40, 0x14, 0x54 };
-    send_lcd_byte(i2cAddr_, LCD_ADDRESS_SET | row_offsets[row], false);
+    send_lcd_byte(i2cAddr_, LCD_ADDRESS_SET | LCD_LINE_OFFSETS[line], false);
     uint8_t col = 0;
-    for (auto ch : lines_[row])
+    for (auto ch : lines_[line])
     {
       send_lcd_byte(i2cAddr_, ch, true);
       col++;
-      if (col >= TEXT_COLUMN_COUNT)
+      if (col >= CONFIG_DISPLAY_COLUMN_COUNT)
       {
         break;
       }
     }
     // space pad to the width of the LCD
-    while(col++ < TEXT_COLUMN_COUNT)
+    while(col++ < CONFIG_DISPLAY_COLUMN_COUNT)
     {
       send_lcd_byte(i2cAddr_, ' ', true);
     }
-    lineChanged_[row] = false;
-  }
 #endif
+    lineChanged_[line] = false;
+  }
   return sleep_and_call(&timer_, MSEC_TO_NSEC(450), STATE(update));
 }
