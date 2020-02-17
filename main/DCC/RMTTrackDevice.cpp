@@ -454,9 +454,12 @@ RMTTrackDevice::RMTTrackDevice(SimpleCanStack *stack
   initRMTDevice(CONFIG_PROG_TRACK_NAME, progRMTChannel_, progSignalPin_
               , progPreambleBits_);
 
-  Singleton<StatusDisplay>::instance()->track_power("%s:OFF %s OFF"
-                                                  , CONFIG_OPS_TRACK_NAME
-                                                  , CONFIG_PROG_TRACK_NAME);
+  // add a callback to update the initial state of the track output rather than
+  // call it here since the h-bridge code is not fully "up" yet.
+  stack->executor()->add(new CallbackExecutable([this]
+  {
+    update_status_display();
+  }));
 
   // hook into the RMT ISR to have callbacks when TX completes
   rmt_register_tx_end_callback(rmt_tx_complete_isr_callback, this);
