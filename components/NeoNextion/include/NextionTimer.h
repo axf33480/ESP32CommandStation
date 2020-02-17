@@ -3,7 +3,7 @@
 #ifndef __NEONEXTION_NEXTIONTIMER
 #define __NEONEXTION_NEXTIONTIMER
 
-#include "Nextion.h"
+#include "NeoNextion.h"
 #include "INextionTouchable.h"
 
 /*!
@@ -13,7 +13,7 @@
 class NextionTimer : public INextionTouchable
 {
 public:
-  NextionTimer(Nextion &nex, uint8_t page, uint8_t component, const String &name);
+  NextionTimer(Nextion &nex, uint8_t page, uint8_t component, const std::string &name);
 
   uint32_t getCycle();
   bool setCycle(uint32_t cycle);

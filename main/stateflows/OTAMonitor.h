@@ -21,8 +21,8 @@ COPYRIGHT (c) 2019-2020 Mike Dunston
 #include "StatusDisplay.h"
 #include "StatusLED.h"
 
-#if NEXTION_ENABLED
-#include "Interfaces/NextionInterface.h"
+#if CONFIG_NEXTION
+#include "Interfaces/nextion/NextionInterface.h"
 #endif
 
 #include <executor/Service.hxx>

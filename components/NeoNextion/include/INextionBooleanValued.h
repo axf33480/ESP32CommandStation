@@ -3,7 +3,7 @@
 #ifndef __NEONEXTION_INEXTIONBOOLEANVALUED
 #define __NEONEXTION_INEXTIONBOOLEANVALUED
 
-#include "Nextion.h"
+#include "NeoNextion.h"
 #include "INextionNumericalValued.h"
 #include "NextionTypes.h"
 
@@ -20,7 +20,7 @@ public:
    * \copydoc INextionWidget::INextionWidget
    */
   INextionBooleanValued(Nextion &nex, uint8_t page, uint8_t component,
-                        const String &name)
+                        const std::string &name)
       : INextionWidget(nex, page, component, name)
       , INextionNumericalValued(nex, page, component, name)
   {

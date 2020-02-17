@@ -10,7 +10,7 @@
  * \param name Name of this widget
  */
 INextionWidget::INextionWidget(Nextion &nex, uint8_t page, uint8_t component,
-                               const String &name)
+                               const std::string &name)
     : m_nextion(nex)
     , m_pageID(page)
     , m_componentID(component)
@@ -42,7 +42,7 @@ uint8_t INextionWidget::getComponentID()
  * \param value Value
  * \return True if successful
  */
-bool INextionWidget::setNumberProperty(const String &propertyName, uint32_t value)
+bool INextionWidget::setNumberProperty(const std::string &propertyName, uint32_t value)
 {
   return sendCommandWithWait("%s.%s=%d", m_name.c_str(), propertyName.c_str(), value);
 }
@@ -52,7 +52,7 @@ bool INextionWidget::setNumberProperty(const String &propertyName, uint32_t valu
  * \param propertyName Name of the property
  * \return Value (may also return 0 in case of error)
  */
-uint32_t INextionWidget::getNumberProperty(const String &propertyName)
+uint32_t INextionWidget::getNumberProperty(const std::string &propertyName)
 {
   sendCommand("get %s.%s", m_name.c_str(), propertyName.c_str());
   uint32_t id;
@@ -68,7 +68,7 @@ uint32_t INextionWidget::getNumberProperty(const String &propertyName)
  * \param value Value
  * \return True if successful
  */
-bool INextionWidget::setStringProperty(const String &propertyName, const String &value)
+bool INextionWidget::setStringProperty(const std::string &propertyName, const std::string &value)
 {
   return sendCommandWithWait("%s.%s=\"%s\"", m_name.c_str(), propertyName.c_str(), value.c_str());
 }
@@ -80,13 +80,13 @@ bool INextionWidget::setStringProperty(const String &propertyName, const String 
  * \param len Maximum length of value
  * \return Actual length of value
  */
-size_t INextionWidget::getStringProperty(const String &propertyName, String &buffer)
+size_t INextionWidget::getStringProperty(const std::string &propertyName, std::string &buffer)
 {
   sendCommand("get %s.%s", m_name.c_str(), propertyName.c_str());
   return m_nextion.receiveString(buffer);
 }
 
-void INextionWidget::sendCommand(const String &format, ...)
+void INextionWidget::sendCommand(const std::string &format, ...)
 {
   va_list args;
   va_start(args, format);
@@ -94,7 +94,7 @@ void INextionWidget::sendCommand(const String &format, ...)
   va_end(args);
 }
 
-bool INextionWidget::sendCommandWithWait(const String &format, ...)
+bool INextionWidget::sendCommandWithWait(const std::string &format, ...)
 {
   va_list args;
   va_start(args, format);
@@ -104,7 +104,7 @@ bool INextionWidget::sendCommandWithWait(const String &format, ...)
   return m_nextion.checkCommandComplete();
 }
 
-bool INextionWidget::setPropertyCommand(const String &command, uint32_t value)
+bool INextionWidget::setPropertyCommand(const std::string &command, uint32_t value)
 {
   m_nextion.sendCommand("%s %s,%ld", command.c_str(), m_name.c_str(), value);
   return m_nextion.checkCommandComplete();

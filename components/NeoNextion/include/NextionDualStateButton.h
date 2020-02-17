@@ -3,7 +3,7 @@
 #ifndef __NEONEXTION_NEXTIONDUALSTATEBUTTON
 #define __NEONEXTION_NEXTIONDUALSTATEBUTTON
 
-#include "Nextion.h"
+#include "NeoNextion.h"
 #include "INextionTouchable.h"
 #include "INextionColourable.h"
 #include "INextionBooleanValued.h"
@@ -21,7 +21,7 @@ public:
    * \copydoc INextionWidget::INextionWidget
    */
   NextionDualStateButton(Nextion &nex, uint8_t page, uint8_t component,
-                         const String &name)
+                         const std::string &name)
       : INextionWidget(nex, page, component, name)
       , INextionTouchable(nex, page, component, name)
       , INextionColourable(nex, page, component, name)

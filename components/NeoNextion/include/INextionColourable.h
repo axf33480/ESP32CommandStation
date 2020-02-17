@@ -3,7 +3,7 @@
 #ifndef __NEONEXTION_INEXTIONCOLOURABLE
 #define __NEONEXTION_INEXTIONCOLOURABLE
 
-#include "Nextion.h"
+#include "NeoNextion.h"
 #include "INextionWidget.h"
 #include "NextionTypes.h"
 
@@ -15,7 +15,7 @@ class INextionColourable : public virtual INextionWidget
 {
 public:
   INextionColourable(Nextion &nex, uint8_t page, uint8_t component,
-                     const String &name);
+                     const std::string &name);
 
   bool setForegroundColour(uint32_t colour, bool refresh = true);
   uint32_t getForegroundColour();
@@ -29,8 +29,8 @@ public:
   bool setEventBackgroundColour(uint32_t colour, bool refresh = true);
   uint32_t getEventBackgroundColour();
 
-  bool setColour(const String &type, uint32_t colour, bool refresh);
-  uint32_t getColour(const String &type);
+  bool setColour(const std::string &type, uint32_t colour, bool refresh);
+  uint32_t getColour(const std::string &type);
 
   bool afterSet(bool result, bool refresh);
 };

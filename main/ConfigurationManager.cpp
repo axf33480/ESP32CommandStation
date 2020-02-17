@@ -1024,24 +1024,24 @@ void ConfigurationManager::configureEnabledModules()
   LOG(INFO, "[Config] Registering WiFi handlers (JMRI, WebServer)");
   wifiInterface.init();
 
-#if NEXTION_ENABLED
+#if CONFIG_NEXTION
   LOG(INFO, "[Config] Enabling Nextion module");
   nextionInterfaceInit();
 #endif
 
-#if ENABLE_OUTPUTS
+#if CONFIG_OUTPUTS
   LOG(INFO, "[Config] Enabling GPIO Outputs");
   OutputManager::init();
 #endif
 
-#if ENABLE_SENSORS
+#if CONFIG_SENSORS
   LOG(INFO, "[Config] Enabling GPIO Inputs");
   SensorManager::init();
   S88BusManager::init();
   RemoteSensorManager::init();
 #endif
 
-#if LOCONET_ENABLED
+#if CONFIG_LOCONET
   LOG(INFO, "[Config] Enabling LocoNet interface");
   initializeLocoNet();
 #endif

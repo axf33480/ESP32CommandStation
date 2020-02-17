@@ -25,6 +25,13 @@ static constexpr TickType_t DISPLAY_I2C_TIMEOUT =
   pdMS_TO_TICKS(CONFIG_DISPLAY_I2C_TIMEOUT_MSEC);
 
 #if CONFIG_DISPLAY_TYPE_OLED
+
+/// This is the width of the font used on the OLED display.
+static constexpr uint8_t OLED_FONT_WIDTH = 8;
+
+/// This is the height of the font used on the OLED display.
+static constexpr uint8_t OLED_FONT_HEIGHT = 8;
+
 /// This is an 8x8 1bpp font with a 90deg rotation to make it usable on the
 /// OLED display. Adding a new character can be done by simply adding a new
 /// entry to the map using the hex character code and the 8 bytes for the
@@ -161,13 +168,6 @@ static constexpr uint8_t oled_font[0x80][OLED_FONT_WIDTH] =
   { 0x02, 0x03, 0x01, 0x03, 0x02, 0x03, 0x01, 0x00 },   // U+007E (~)
   { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }    // U+007F
 };
-
-/// This is the width of the font used on the OLED display.
-static constexpr uint8_t OLED_FONT_WIDTH = 8;
-
-/// This is the height of the font used on the OLED display.
-static constexpr uint8_t OLED_FONT_HEIGHT = 8;
-
 
 // Control command bytes for the OLED display
 static constexpr uint8_t OLED_COMMAND_STREAM           = 0x00;

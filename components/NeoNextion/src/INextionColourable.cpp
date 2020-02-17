@@ -6,7 +6,7 @@
  * \copydoc INextionWidget::INextionWidget
  */
 INextionColourable::INextionColourable(Nextion &nex, uint8_t page,
-                                       uint8_t component, const String &name)
+                                       uint8_t component, const std::string &name)
     : INextionWidget(nex, page, component, name)
 {
 }
@@ -106,7 +106,7 @@ uint32_t INextionColourable::getEventBackgroundColour()
  * \param refresh If the widget should be refreshed
  * \return True if successful
  */
-bool INextionColourable::setColour(const String &type, uint32_t colour, bool refresh)
+bool INextionColourable::setColour(const std::string &type, uint32_t colour, bool refresh)
 {
   return afterSet(setNumberProperty(type, colour), refresh);
 }
@@ -117,7 +117,7 @@ bool INextionColourable::setColour(const String &type, uint32_t colour, bool ref
  * \return Colour (may also return 0 in case of error)
  * \see INextionColourable::setColour
  */
-uint32_t INextionColourable::getColour(const String &type)
+uint32_t INextionColourable::getColour(const std::string &type)
 {
   return getNumberProperty(type);
 }

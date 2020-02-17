@@ -19,9 +19,13 @@ COPYRIGHT (c) 2018-2020 Mike Dunston
 #ifndef NEXTION_INTERFACE_H_
 #define NEXTION_INTERFACE_H_
 
+#include "sdkconfig.h"
+
+#if CONFIG_NEXTION
+
 #include "DCC/Turnouts.h"
-#if NEXTION_ENABLED
-#include <Nextion.h>
+
+#include <NeoNextion.h>
 #include <NextionPage.h>
 #include <NextionButton.h>
 #include <NextionText.h>
@@ -123,7 +127,7 @@ public:
 protected:
   void init() override
   {
-    _versionText.setText(PROJECT_VER);
+    _versionText.setText(esp_ota_get_app_description()->version);
   }
   void displayPage() override {}
 private:

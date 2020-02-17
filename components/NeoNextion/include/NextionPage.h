@@ -3,7 +3,7 @@
 #ifndef __NEONEXTION_NEXTIONPAGE
 #define __NEONEXTION_NEXTIONPAGE
 
-#include "Nextion.h"
+#include "NeoNextion.h"
 #include "INextionWidget.h"
 
 /*!
@@ -13,7 +13,7 @@
 class NextionPage : public INextionWidget
 {
 public:
-  NextionPage(Nextion &nex, uint8_t page, uint8_t component, const String &name);
+  NextionPage(Nextion &nex, uint8_t page, uint8_t component, const std::string &name);
 
   bool show();
   bool isShown();

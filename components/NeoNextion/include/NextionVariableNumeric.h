@@ -3,7 +3,7 @@
 #ifndef __NEONEXTION_NEXTIONVARIABLENUMERIC
 #define __NEONEXTION_NEXTIONVARIABLENUMERIC
 
-#include "Nextion.h"
+#include "NeoNextion.h"
 #include "INextionNumericalValued.h"
 
 /*!
@@ -17,7 +17,7 @@ public:
    * \copydoc INextionWidget::INextionWidget
    */
   NextionVariableNumeric(Nextion &nex, uint8_t page, uint8_t component,
-                         const String &name)
+                         const std::string &name)
       : INextionWidget(nex, page, component, name)
       , INextionNumericalValued(nex, page, component, name)
   {

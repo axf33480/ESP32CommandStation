@@ -382,7 +382,7 @@ void NextionTurnoutPage::editButtonHandler() {
 void NextionTurnoutPage::refreshPage() {
   int maxTurnoutsPerPage = getTurnoutsPerPageCount();
   // make sure that we only ever display a maximum of TURNOUTS_PER_PAGE turnouts per page
-  uint16_t turnoutsToDisplay = min(turnoutManager->getTurnoutCount() - _turnoutStartIndex, maxTurnoutsPerPage);
+  uint16_t turnoutsToDisplay = std::min(turnoutManager->getTurnoutCount() - _turnoutStartIndex, maxTurnoutsPerPage);
 
   while(turnoutsToDisplay == 0 && _turnoutStartIndex >= maxTurnoutsPerPage) {
     // we have overrun the list of turnouts (possibly from deletion)
@@ -391,7 +391,7 @@ void NextionTurnoutPage::refreshPage() {
       _turnoutStartIndex = 0;
     }
     // recalcuate the number of turnouts to display
-    turnoutsToDisplay = min(turnoutManager->getTurnoutCount() - _turnoutStartIndex, maxTurnoutsPerPage);
+    turnoutsToDisplay = std::min(turnoutManager->getTurnoutCount() - _turnoutStartIndex, maxTurnoutsPerPage);
   }
 
   // update the number of turnouts we can display on the page

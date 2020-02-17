@@ -3,7 +3,7 @@
 #ifndef __NEONEXTION_NEXTIONSLIDINGTEXT
 #define __NEONEXTION_NEXTIONSLIDINGTEXT
 
-#include "Nextion.h"
+#include "NeoNextion.h"
 #include "INextionTouchable.h"
 #include "INextionColourable.h"
 #include "INextionStringValued.h"
@@ -23,7 +23,7 @@ public:
    * \copydoc INextionWidget::INextionWidget
    */
   NextionSlidingText(Nextion &nex, uint8_t page, uint8_t component,
-                     const String &name);
+                     const std::string &name);
 
   bool setScrolling(bool scroll);
   bool isScrolling();

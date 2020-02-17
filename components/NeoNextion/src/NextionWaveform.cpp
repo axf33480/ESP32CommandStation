@@ -7,7 +7,7 @@
  * \copydoc INextionWidget::INextionWidget
  */
 NextionWaveform::NextionWaveform(Nextion &nex, uint8_t page, uint8_t component,
-                                 const String &name)
+                                 const std::string &name)
     : INextionWidget(nex, page, component, name)
     , INextionTouchable(nex, page, component, name)
     , INextionColourable(nex, page, component, name)
@@ -25,11 +25,7 @@ bool NextionWaveform::addValue(uint8_t channel, uint8_t value)
   if (channel > 3)
     return false;
 
-  size_t commandLen = 22;
-  char commandBuffer[commandLen];
-  snprintf(commandBuffer, commandLen, "add %d,%d,%d", m_componentID, channel,
-           value);
-  sendCommand(commandBuffer, false);
+  sendCommand("add %d,%d,%d", m_componentID, channel, value);
 
   /* TODO: this check still fails but the command does actually work */
   /* return m_nextion.checkCommandComplete(); */
@@ -46,9 +42,8 @@ bool NextionWaveform::addValue(uint8_t channel, uint8_t value)
 bool NextionWaveform::setChannelColour(uint8_t channel, uint32_t colour,
                                        bool refresh)
 {
-  char buffer[5];
-  snprintf(buffer, 5, "pco%d", channel);
-  return setColour(buffer, colour, refresh);
+  std::string cmd = "pco" + std::to_string(channel);
+  return setColour(cmd, colour, refresh);
 }
 
 /*!
@@ -58,9 +53,8 @@ bool NextionWaveform::setChannelColour(uint8_t channel, uint32_t colour,
  */
 uint32_t NextionWaveform::getChannelColour(uint8_t channel)
 {
-  char buffer[5];
-  snprintf(buffer, 5, "pco%d", channel);
-  return getColour(buffer);
+  std::string cmd = "pco" + std::to_string(channel);
+  return getColour(cmd);
 }
 
 /*!

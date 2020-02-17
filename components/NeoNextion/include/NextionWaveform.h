@@ -3,7 +3,7 @@
 #ifndef __NEONEXTION_NEXTIONWAVEFORM
 #define __NEONEXTION_NEXTIONWAVEFORM
 
-#include "Nextion.h"
+#include "NeoNextion.h"
 #include "INextionTouchable.h"
 #include "INextionColourable.h"
 
@@ -15,7 +15,7 @@ class NextionWaveform : public INextionTouchable, public INextionColourable
 {
 public:
   NextionWaveform(Nextion &nex, uint8_t page, uint8_t component,
-                  const String &name);
+                  const std::string &name);
 
   bool addValue(uint8_t channel, uint8_t value);
 

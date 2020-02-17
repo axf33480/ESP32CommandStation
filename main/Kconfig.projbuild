@@ -837,6 +837,11 @@ menu "ESP32 Command Station"
                 bool "UART2"
                 depends on !OPS_RAILCOM_UART2 && !HC12_UART_UART2
         endchoice
+        config NEXTION_UART
+            int
+            default 1 if NEXTION_UART_UART1
+            default 2 if NEXTION_UART_UART2
+            depends on NEXTION
     endmenu
 
     menu "LocoNet"

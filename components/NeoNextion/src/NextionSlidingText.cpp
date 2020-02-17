@@ -6,7 +6,7 @@
  * \copydoc INextionWidget::INextionWidget
  */
 NextionSlidingText::NextionSlidingText(Nextion &nex, uint8_t page,
-                                       uint8_t component, const String &name)
+                                       uint8_t component, const std::string &name)
     : INextionWidget(nex, page, component, name)
     , INextionTouchable(nex, page, component, name)
     , INextionColourable(nex, page, component, name)

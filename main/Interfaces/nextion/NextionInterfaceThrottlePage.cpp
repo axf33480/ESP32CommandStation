@@ -308,7 +308,7 @@ uint32_t NextionThrottlePage::getCurrentLocoAddress() {
 
 void NextionThrottlePage::decreaseLocoSpeed() {
   if(_locoNumbers[_activeLoco]) {
-    int8_t speed = max((uint8_t)0, (uint8_t)_speedNumber.getValue());
+    int8_t speed = std::max((uint8_t)0, (uint8_t)_speedNumber.getValue());
     GET_LOCO_VIA_EXECUTOR(loco, _locoNumbers[_activeLoco]);
     auto upd_speed(loco->get_speed());
     upd_speed.set_dcc_128(speed);
@@ -319,7 +319,7 @@ void NextionThrottlePage::decreaseLocoSpeed() {
 
 void NextionThrottlePage::increaseLocoSpeed() {
   if(_locoNumbers[_activeLoco]) {
-    int8_t speed = max((uint8_t)0, (uint8_t)_speedNumber.getValue());
+    int8_t speed = std::max((uint8_t)0, (uint8_t)_speedNumber.getValue());
     GET_LOCO_VIA_EXECUTOR(loco, _locoNumbers[_activeLoco]);
     auto upd_speed(loco->get_speed());
     upd_speed.set_dcc_128(speed);

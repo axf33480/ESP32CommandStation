@@ -17,16 +17,17 @@ COPYRIGHT (c) 2018-2019 NormHal, Mike Dunston
 
 #include "ESP32CommandStation.h"
 
-HardwareSerial nextionSerial(NEXTION_UART_NUM);
-Nextion nextion(nextionSerial);
+#include "sdkconfig.h"
+
+uninitialized<Nextion> nextion;
 
 BaseNextionPage *nextionPages[MAX_PAGES] =
 {
-  new NextionTitlePage(nextion),
-  new NextionAddressPage(nextion),
-  new NextionThrottlePage(nextion),
-  new NextionTurnoutPage(nextion),
-  new NextionSetupPage(nextion),
+  new NextionTitlePage(*nextion),
+  new NextionAddressPage(*nextion),
+  new NextionThrottlePage(*nextion),
+  new NextionTurnoutPage(*nextion),
+  new NextionSetupPage(*nextion),
   /* new NextionRoutesPage(nextion) */ nullptr
 };
 
@@ -64,10 +65,10 @@ NextionHMI::NextionHMI(Service *service)
 StateFlowBase::Action NextionHMI::initialize()
 {
   LOG(INFO, "[Nextion] Initializing UART(%d) at %u baud on RX %d, TX %d"
-    , NEXTION_UART_NUM, CONFIG_NEXTION_UART_BAUD
+    , CONFIG_NEXTION_UART, CONFIG_NEXTION_BAUD_RATE
     , CONFIG_NEXTION_RX_PIN, CONFIG_NEXTION_TX_PIN);
-  nextionSerial.begin(CONFIG_NEXTION_UART_BAUD, SERIAL_8N1
-              , CONFIG_NEXTION_RX_PIN, CONFIG_NEXTION_TX_PIN);
+  nextion.emplace(CONFIG_NEXTION_UART, CONFIG_NEXTION_BAUD_RATE
+                , CONFIG_NEXTION_RX_PIN, CONFIG_NEXTION_TX_PIN);
   return yield_and_call(STATE(detect_display));
 }
 
@@ -84,9 +85,6 @@ StateFlowBase::Action NextionHMI::detect_display()
     "enhanced 5.0\"",
     "Unknown"
   };
-  // flush the serial buffer before detection since it improves reliability
-  // of detection.
-  nextionSerial.flush();
   NextionTitlePage * titlePage =
     static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE]);
 
@@ -100,17 +98,17 @@ StateFlowBase::Action NextionHMI::detect_display()
     LOG(INFO
       , "[Nextion] [%d/%d] Attempting to identify the attached Nextion display"
       , detectAttempts_, maxDetectAttempts_);
-    nextion.sendCommand("DRAKJHSUYDGBNCJHGJKSHBDN");
-    nextion.sendCommand("connect");
-    String screenID = "";
-    size_t res = nextion.receiveString(screenID, false);
-    if(res && screenID.indexOf("comok") >= 0)
+    nextion->sendCommand("DRAKJHSUYDGBNCJHGJKSHBDN");
+    nextion->sendCommand("connect");
+    std::string screenID = "";
+    size_t res = nextion->receiveString(screenID, false);
+    if(res && screenID.find("comok") != std::string::npos)
     {
+      screenID.erase(0, screenID.find(" "));
       // break the returned string into its comma delimited chunks
       // start after the first space
       vector<string> parts;
-      esp32cs::tokenize(screenID.substring(screenID.indexOf(' ') + 1).c_str()
-                      , parts, ",");
+      http::tokenize(screenID, parts, ",");
       // attempt to parse device model
       if(!parts[2].compare(0, 7, "NX4024K"))
       {
@@ -165,14 +163,12 @@ StateFlowBase::Action NextionHMI::detect_display()
     next_state = STATE(update);
   }
 
-  // flush the serial buffer after detection to discard any leftover data.
-  nextionSerial.flush();
   return yield_and_call(next_state);
 }
 
 StateFlowBase::Action NextionHMI::update()
 {
-  nextion.poll();
+  nextion->poll();
   return yield_and_call(STATE(update));
 }
 uninitialized<NextionHMI> nextionHMI;
@@ -182,8 +178,8 @@ void nextionInterfaceInit()
 {
 #if CONFIG_NEXTION
   Singleton<StatusDisplay>::instance()->status("Init Nextion");
-  extern unique_ptr<OpenMRN> openmrn;
-  nextionHMI.emplace(openmrn->stack()->service());
+  extern unique_ptr<SimpleCanStack> lccStack;
+  nextionHMI.emplace(lccStack->service());
 #endif // CONFIG_NEXTION
 }
 

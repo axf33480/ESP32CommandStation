@@ -3,7 +3,7 @@
 #ifndef __NEONEXTION_INEXTIONWIDGET
 #define __NEONEXTION_INEXTIONWIDGET
 
-#include "Nextion.h"
+#include "NeoNextion.h"
 
 /*!
  * \class INextionWidget
@@ -16,16 +16,16 @@ class INextionWidget
 {
 public:
   INextionWidget(Nextion &nex, uint8_t page, uint8_t component,
-                 const String &name);
+                 const std::string &name);
 
   uint8_t getPageID();
   uint8_t getComponentID();
 
-  bool setNumberProperty(const String &propertyName, uint32_t value);
-  uint32_t getNumberProperty(const String &propertyName);
-  bool setPropertyCommand(const String &command, uint32_t value);
-  bool setStringProperty(const String &propertyName, const String &value);
-  size_t getStringProperty(const String &propertyName, String &buffer);
+  bool setNumberProperty(const std::string &propertyName, uint32_t value);
+  uint32_t getNumberProperty(const std::string &propertyName);
+  bool setPropertyCommand(const std::string &command, uint32_t value);
+  bool setStringProperty(const std::string &propertyName, const std::string &value);
+  size_t getStringProperty(const std::string &propertyName, std::string &buffer);
 
   bool show();
   bool hide();
@@ -33,14 +33,14 @@ public:
   bool disable();
 
 protected:
-  void sendCommand(const String &format, ...);
-  bool sendCommandWithWait(const String &format, ...);
+  void sendCommand(const std::string &format, ...);
+  bool sendCommandWithWait(const std::string &format, ...);
 
 protected:
   Nextion &m_nextion;    //!< Reference to the Nextion driver
   uint8_t m_pageID;      //!< ID of page this widget is on
   uint8_t m_componentID; //!< Component ID of this widget
-  const String m_name;  //!< Name of this widget
+  const std::string m_name;  //!< Name of this widget
 };
 
 #endif

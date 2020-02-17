@@ -138,7 +138,7 @@ void WiFiInterface::init()
   Singleton<StatusDisplay>::instance()->wifi("IP:Pending");
 
   Singleton<Esp32WiFiManager>::instance()->add_event_callback([](system_event_t *event) {
-#if NEXTION_ENABLED
+#if CONFIG_NEXTION
     auto nextionTitlePage =
       static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE]);
 #endif

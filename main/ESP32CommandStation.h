@@ -148,8 +148,11 @@ using commandstation::TrainDbEntry;
 #include "DCC/Turnouts.h"
 
 #include "Interfaces/DCCppProtocol.h"
-#include "Interfaces/NextionInterface.h"
 #include "Interfaces/WiFiInterface.h"
+
+#if CONFIG_NEXTION
+#include "Interfaces/nextion/NextionInterface.h"
+#endif
 
 #include "stateflows/FreeRTOSTaskMonitor.h"
 #include "stateflows/StatusDisplay.h"

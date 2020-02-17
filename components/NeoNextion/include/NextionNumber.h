@@ -3,7 +3,7 @@
 #ifndef __NEONEXTION_NEXTIONNUMBER
 #define __NEONEXTION_NEXTIONNUMBER
 
-#include "Nextion.h"
+#include "NeoNextion.h"
 #include "INextionTouchable.h"
 #include "INextionColourable.h"
 #include "INextionNumericalValued.h"
@@ -22,7 +22,7 @@ public:
   /*!
    * \copydoc INextionWidget::INextionWidget
    */
-  NextionNumber(Nextion &nex, uint8_t page, uint8_t component, const String &name)
+  NextionNumber(Nextion &nex, uint8_t page, uint8_t component, const std::string &name)
       : INextionWidget(nex, page, component, name)
       , INextionTouchable(nex, page, component, name)
       , INextionColourable(nex, page, component, name)

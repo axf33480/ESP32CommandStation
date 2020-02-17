@@ -1,6 +1,6 @@
 /*! \file */
 
-#include "Nextion.h"
+#include "NeoNextion.h"
 #include "INextionTouchable.h"
 
 /*!
@@ -9,22 +9,11 @@
  * \param flushSerialBeforeTx If the serial port should be flushed before
  *                            transmission
  */
-#if CONFIG_ENABLE_ARDUINO_DEPENDS
-Nextion::Nextion(Stream &stream, bool flushSerialBeforeTx)
-    : m_serialPort(stream)
-    , m_timeout(500)
-    , m_flushSerialBeforeTx(flushSerialBeforeTx)
-    , m_touchableList(NULL)
-{
-  m_serialPort.setTimeout(100);
-}
-#else
 Nextion::Nextion(uint8_t uartNum, long baud, uint8_t rx_pin, uint8_t tx_pin, bool flushSerialBeforeTx)
     : m_timeout(500)
     , m_flushSerialBeforeTx(flushSerialBeforeTx)
     , m_touchableList(NULL)
 {
-#if defined(ESP_IDF_VERSION_MAJOR)
   m_serialPort = (uart_port_t)(UART_NUM_0 + uartNum);
   uart_config_t uart_config =
   {
@@ -32,16 +21,14 @@ Nextion::Nextion(uint8_t uartNum, long baud, uint8_t rx_pin, uint8_t tx_pin, boo
       .data_bits = UART_DATA_8_BITS,
       .parity    = UART_PARITY_DISABLE,
       .stop_bits = UART_STOP_BITS_1,
-      .flow_ctrl = UART_HW_FLOWCTRL_DISABLE
+      .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+      .rx_flow_ctrl_thresh = 0,
+      .use_ref_tick = false
   };
   uart_param_config(m_serialPort, &uart_config);
   uart_set_pin(m_serialPort, tx_pin, rx_pin, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
   uart_driver_install(m_serialPort, 2*1024, 0, 0, NULL, 0);
-#else
-  #error unsupported platform
-#endif
 }
-#endif
 
 /*!
  * \brief Initialises the device.
@@ -65,13 +52,12 @@ bool Nextion::init()
  */
 void Nextion::poll()
 {
-#if defined(ESP_IDF_VERSION_MAJOR)
   size_t ready{0};
   uart_get_buffered_data_len(m_serialPort, &ready);
   while (ready >= 7)
   {
     uint8_t buffer[7] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-    if (uart_read_bytes(m_serialPort, &buffer, 7, 0) == 7)
+    if (uart_read_bytes(m_serialPort, buffer, 7, 0) == 7)
     {
       if (buffer[0] == NEX_RET_EVENT_TOUCH_HEAD &&
           buffer[4] == 0xFF &&
@@ -96,50 +82,6 @@ void Nextion::poll()
       printf("Nextion: short read\n");
     }
   }
-#else
-  while (m_serialPort.available())
-  {
-    char c = m_serialPort.peek();
-
-    if (c == NEX_RET_EVENT_TOUCH_HEAD)
-    {
-      if (m_serialPort.available() >= 7)
-      {
-        uint8_t buffer[7] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-
-        if (m_serialPort.readBytes(buffer, 7) == 7 &&
-            buffer[4] == 0xFF && buffer[5] == 0xFF && buffer[6] == 0xFF)
-        {
-          ITouchableListItem *item = m_touchableList;
-          while (item != NULL &&
-                !item->item->processEvent(buffer[1], buffer[2], buffer[3]))
-          {
-            item = item->next;
-          }
-        }
-#if NEXTION_DEBUG
-        else
-        {
-          printf("Nextion: %02x %02x %02x %02x %02x %02x %02x\n", buffer[0]
-               , buffer[1], buffer[2], buffer[3], buffer[4], buffer[5], buffer[6]);
-        }
-#endif // NEXTION_DEBUG
-      }
-      else
-      {
-        return;
-      }
-    }
-    else
-    {
-#if NEXTION_DEBUG
-      printf("Nextion: %02x", c);
-#endif
-      // discard input
-      m_serialPort.read();
-    }
-  }
-#endif // IDF v4+
 }
 
 /*!
@@ -157,7 +99,7 @@ bool Nextion::refresh()
  * \param objectName Name of the object to refresh
  * \return True if successful
  */
-bool Nextion::refresh(const STRING_TYPE &objectName)
+bool Nextion::refresh(const std::string &objectName)
 {
   sendCommand("ref %s", objectName.c_str());
   return checkCommandComplete();
@@ -226,17 +168,10 @@ uint8_t Nextion::getCurrentPage()
 
   uint8_t temp[5] = {0};
 
-#if defined(ESP_IDF_VERSION_MAJOR)
-  if (sizeof(temp) != uart_read_bytes(m_serialPort, &temp, sizeof(temp)))
+  if (sizeof(temp) != uart_read_bytes(m_serialPort, temp, sizeof(temp), pdMS_TO_TICKS(10)))
   {
     return 0;
   }
-#else
-  if (sizeof(temp) != m_serialPort.readBytes((char *)temp, sizeof(temp)))
-  {
-    return 0;
-  }
-#endif
 
   if (temp[0] == NEX_RET_CURRENT_PAGE_ID_HEAD && temp[2] == 0xFF &&
       temp[3] == 0xFF && temp[4] == 0xFF)
@@ -303,7 +238,7 @@ bool Nextion::drawPicture(uint16_t x, uint16_t y, uint16_t w, uint16_t h,
  * \return True if successful
  */
 bool Nextion::drawStr(uint16_t x, uint16_t y, uint16_t w, uint16_t h,
-                      uint8_t fontID, const STRING_TYPE &str, uint32_t bgColour,
+                      uint8_t fontID, const std::string &str, uint32_t bgColour,
                       uint32_t fgColour, uint8_t bgType,
                       NextionFontAlignment xCentre,
                       NextionFontAlignment yCentre)
@@ -396,35 +331,19 @@ void Nextion::registerTouchable(INextionTouchable *touchable)
  * \brief Sends a command to the device.
  * \param command Command to send
  */
-void Nextion::sendCommand(const STRING_TYPE &command)
+void Nextion::sendCommand(const std::string &command)
 {
-#if defined(ESP_IDF_VERSION_MAJOR)
   char end_bytes[3] = {0xFF, 0xFF, 0xFF};
-#endif
   if (m_flushSerialBeforeTx)
   {
-#if defined(ESP_IDF_VERSION_MAJOR)
     uart_flush_input(m_serialPort);
-#else
-    while (m_serialPort.available())
-    {
-      m_serialPort.read();
-    }
-#endif
   }
 
 #if NEXTION_DEBUG
   printf("Nextion: TX: %s\n", command.c_str());
 #endif
-#if defined(ESP_IDF_VERSION_MAJOR)
   uart_tx_chars(m_serialPort, command.c_str(), command.length());
   uart_write_bytes(m_serialPort, end_bytes, 3);
-#else
-  m_serialPort.print(command);
-  m_serialPort.write(0xFF);
-  m_serialPort.write(0xFF);
-  m_serialPort.write(0xFF);
-#endif
 }
 
 void Nextion::sendCommand(const char *format, ...) {
@@ -437,7 +356,7 @@ void Nextion::sendCommand(const char *format, ...) {
 void Nextion::sendCommand(const char *format, va_list args) {
   char buf[512] = {0};
   vsnprintf(buf, sizeof(buf), format, args);
-  sendCommand(STRING_TYPE(buf));
+  sendCommand(buf);
 }
 
 /*!
@@ -448,11 +367,7 @@ bool Nextion::checkCommandComplete()
 {
   bool ret = false;
   uint8_t temp[4] = {0};
-#if defined(ESP_IDF_VERSION_MAJOR)
-  size_t bytesRead = uart_read_bytes(m_serialPort, &temp, sizeof(temp));
-#else
-  uint8_t bytesRead = m_serialPort.readBytes((char *)temp, sizeof(temp));
-#endif
+  size_t bytesRead = uart_read_bytes(m_serialPort, temp, sizeof(temp), pdMS_TO_TICKS(10));
 
   if (bytesRead != sizeof(temp))
   {
@@ -480,11 +395,7 @@ bool Nextion::receiveNumber(uint32_t *number)
 
   if (!number)
     return false;
-#if defined(ESP_IDF_VERSION_MAJOR)
-  size_t bytesRead = uart_read_bytes(m_serialPort, &temp, sizeof(temp));
-#else
-  uint8_t bytesRead = m_serialPort.readBytes((char *)temp, sizeof(temp));
-#endif
+  size_t bytesRead = uart_read_bytes(m_serialPort, temp, sizeof(temp), pdMS_TO_TICKS(10));
 
   if (bytesRead != sizeof(temp))
   {
@@ -506,47 +417,58 @@ bool Nextion::receiveNumber(uint32_t *number)
  * \param buffer Pointer to buffer to store string in
  * \return Actual length of string received
  */
-size_t Nextion::receiveString(STRING_TYPE &buffer, bool stringHeader) {
+size_t Nextion::receiveString(std::string &buffer, bool stringHeader) {
   bool have_header_flag = !stringHeader;
   uint8_t flag_count = 0;
-#if defined(ESP_IDF_VERSION_MAJOR)
   uint32_t start = esp_timer_get_time() / 1000ULL;
-#else
-  uint64_t start = millis();
-#endif
   buffer.reserve(128);
-  while (millis() - start <= m_timeout)
+  while (esp_timer_get_time() - start <= m_timeout)
   {
-    while (m_serialPort.available())
+    size_t ready = 0;
+    uart_get_buffered_data_len(m_serialPort, &ready);
+    while (ready > 0)
     {
-      uint8_t c = m_serialPort.read();
-      if (!have_header_flag && c == NEX_RET_STRING_HEAD) {
+      uint8_t ch;
+      uart_read_bytes(m_serialPort, &ch, 1, pdMS_TO_TICKS(10));
+      if (!have_header_flag && ch == NEX_RET_STRING_HEAD)
+      {
         have_header_flag = true;
-      } else if (have_header_flag) {
-        if (c == NEX_RET_CMD_FINISHED) {
+      }
+      else if (have_header_flag)
+      {
+        if (ch == NEX_RET_CMD_FINISHED)
+        {
           // it appears that we received a "previous command completed successfully"
           // response. Discard the next three bytes which will be 0xFF so we can
-          // advance to the actual response we are wanting.
-          m_serialPort.read();
-          m_serialPort.read();
-          m_serialPort.read();
-        } else if (c == 0xFF) {
+          // advance toh the actual response we are wanting.
+          uint8_t temp[3];
+          uart_read_bytes(m_serialPort, temp, sizeof(temp), pdMS_TO_TICKS(10));
+        }
+        else if (ch == 0xFF)
+        {
           flag_count++;
-        } else if (c == 0x05 && !stringHeader) {
+        }
+        else if (ch == 0x05 && !stringHeader)
+        {
           // this is a special case for the "connect" command
           flag_count = 3;
-        } else if (c < 0x20 || c > 0x7F) {
+        }
+        else if (ch < 0x20 || ch > 0x7F)
+        {
           // discard non-printable character
-        } else {
-          buffer.concat((char)c);
+        }
+        else
+        {
+          buffer += (char)ch;
         }
       }
+      uart_get_buffered_data_len(m_serialPort, &ready);
     }
 
-    if (flag_count >= 3) {
+    if (flag_count >= 3)
+    {
       break;
     }
   }
-  buffer.trim();
   return buffer.length();
 }

@@ -3,7 +3,7 @@
 #ifndef __NEONEXTION_INEXTIONFONTSTYLEABLE
 #define __NEONEXTION_INEXTIONFONTSTYLEABLE
 
-#include "Nextion.h"
+#include "NeoNextion.h"
 #include "INextionWidget.h"
 #include "NextionTypes.h"
 
@@ -15,7 +15,7 @@ class INextionFontStyleable : public virtual INextionWidget
 {
 public:
   INextionFontStyleable(Nextion &nex, uint8_t page, uint8_t component,
-                        const String &name);
+                        const std::string &name);
 
   bool setFont(uint8_t id, bool refresh = true);
   uint8_t getFont();
