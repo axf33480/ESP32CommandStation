@@ -59,7 +59,7 @@ private:
 #elif CONFIG_DISPLAY_TYPE_LCD
   /// Maximum number of characters that can be displayed in a single row on the
   /// LCD display.
-  static constexpr uint8_t TEXT_COLUMN_COUNT = 16;
+  static constexpr uint8_t TEXT_COLUMN_COUNT = CONFIG_DISPLAY_LCD_COLUMN_COUNT;
 
   /// Maximum number of rows that can be displayed on the LCD screen.
   static constexpr uint8_t TEXT_ROW_COUNT = CONFIG_DISPLAY_LCD_LINE_COUNT;

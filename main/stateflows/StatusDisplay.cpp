@@ -528,8 +528,11 @@ StateFlowBase::Action StatusDisplay::initOLED()
   i2c_master_write_byte(cmd, OLED_DISPLAY_START_LINE, true);
   i2c_master_write_byte(cmd, OLED_SET_CHARGEPUMP, true);
   i2c_master_write_byte(cmd, OLED_CHARGEPUMP_ON, true);
-  regZero_ &= 0xBF;
-  if (regZero_ == 0x03 || regZero_ == 0x06)
+
+  // Test the register zero data with power/state masked to identify the
+  // connected chipset since SSD1306 and SH1106 require slightly different
+  // initialization parameters.
+  if (((regZero_ & 0x0F) == 0x03) || ((regZero_ & 0x0F) == 0x06))
   {
     LOG(INFO, "[StatusDisplay] OLED Driver IC: SSD1306");
     i2c_master_write_byte(cmd, OLED_CLOCK_DIVIDER, true);
@@ -541,7 +544,7 @@ StateFlowBase::Action StatusDisplay::initOLED()
     i2c_master_write_byte(cmd, OLED_SET_VCOMH, true);
     i2c_master_write_byte(cmd, 0x40, true);
   }
-  else if (regZero_ == 0x08)
+  else if (((regZero_ & 0x0F) == 0x08))
   {
     LOG(INFO, "[StatusDisplay] OLED Driver IC: SH1106");
     sh1106_ = true;
@@ -562,6 +565,7 @@ StateFlowBase::Action StatusDisplay::initOLED()
     i2c_cmd_link_delete(cmd);
     return exit();
   }
+
 #if CONFIG_DISPLAY_OLED_VFLIP
   i2c_master_write_byte(cmd, OLED_SET_SEGMENT_MAP_INVERTED, true);
   i2c_master_write_byte(cmd, OLED_SET_SCAN_MODE_INVERTED, true);
@@ -569,12 +573,14 @@ StateFlowBase::Action StatusDisplay::initOLED()
   i2c_master_write_byte(cmd, OLED_SET_SEGMENT_MAP_NORMAL, true);
   i2c_master_write_byte(cmd, OLED_SET_SCAN_MODE_NORMAL, true);
 #endif
+
   i2c_master_write_byte(cmd, OLED_COM_PIN_MAP, true);
 #if CONFIG_DISPLAY_OLED_128x64
   i2c_master_write_byte(cmd, 0x12, true);
 #elif CONFIG_DISPLAY_OLED_128x32 || CONFIG_DISPLAY_OLED_96x16
   i2c_master_write_byte(cmd, 0x02, true);
 #endif
+
   i2c_master_write_byte(cmd, OLED_SET_CONTRAST, true);
   i2c_master_write_byte(cmd, CONFIG_DISPLAY_OLED_CONTRAST, true);
   i2c_master_write_byte(cmd, OLED_DISPLAY_RAM, true);
