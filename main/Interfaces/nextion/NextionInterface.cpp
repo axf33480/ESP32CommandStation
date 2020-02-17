@@ -19,6 +19,8 @@ COPYRIGHT (c) 2018-2019 NormHal, Mike Dunston
 
 #include "sdkconfig.h"
 
+#if CONFIG_NEXTION
+
 uninitialized<Nextion> nextion;
 
 BaseNextionPage *nextionPages[MAX_PAGES] =
@@ -32,8 +34,6 @@ BaseNextionPage *nextionPages[MAX_PAGES] =
 };
 
 NEXTION_DEVICE_TYPE nextionDeviceType{NEXTION_DEVICE_TYPE::UNKOWN_DISPLAY};
-
-#if CONFIG_NEXTION
 
 class NextionHMI : private StateFlowBase
 {
