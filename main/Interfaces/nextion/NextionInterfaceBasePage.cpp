@@ -17,6 +17,8 @@ COPYRIGHT (c) 2018-2019 NormHal, Mike Dunston
 
 #include "ESP32CommandStation.h"
 
+#if CONFIG_NEXTION
+
 constexpr uint8_t ON_PIC_OFF=54;
 constexpr uint8_t ON_PIC_ON=55;
 constexpr uint8_t OFF_PIC_OFF=56;
@@ -96,3 +98,5 @@ void BaseNextionPage::refreshPowerButtons() {
     _offButton.setPictureID(OFF_PIC_ON);
   }
 }
+
+#endif // CONFIG_NEXTION

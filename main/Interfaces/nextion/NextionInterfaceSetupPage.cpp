@@ -18,6 +18,8 @@ COPYRIGHT (c) 2018-2019 Mike Dunston
 
 #include "ESP32CommandStation.h"
 
+#if CONFIG_NEXTION
+
 //
 /************************************************************************************************************/
 // Setup Page
@@ -64,3 +66,5 @@ void NextionSetupPage::displayPage()
   tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_STA, &ip);
   _ipAddrText.setText(ipv4_to_string(ntohl(ip.ip.addr)));
 }
+
+#endif // CONFIG_NEXTION

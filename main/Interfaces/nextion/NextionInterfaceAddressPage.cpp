@@ -16,6 +16,7 @@ COPYRIGHT (c) 2018-2019 NormHal, Mike Dunston
 **********************************************************************/
 
 #include "ESP32CommandStation.h"
+#if CONFIG_NEXTION
 
 constexpr uint8_t oldaddr=7; //OldAddr
 constexpr uint8_t newaddr=8; //NewAddr
@@ -184,3 +185,5 @@ void NextionAddressPage::refreshTurnoutTypeButton() {
   }
   _turnoutTypeButton.show();
 }
+
+#endif // CONFIG_NEXTION
