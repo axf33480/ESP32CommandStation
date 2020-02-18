@@ -9,7 +9,7 @@ jobs:
     strategy:
       max-parallel: 2
       matrix:
-        target: [ESP32CommandStation]
+        target: [ESP32CommandStation, ESP32CommandStation.pcb]
     steps:
     - uses: actions/checkout@v1
     - name: Install dependencies
@@ -21,7 +21,7 @@ jobs:
       with:
         python-version: 3.5
     - name: build
-      run: bash .github/build.sh
+      run: bash .github/build.sh ${{ matrix.target }}
     - name: Set up Python 2.7
       uses: actions/setup-python@v1
       with:
@@ -32,12 +32,12 @@ jobs:
       uses: actions/upload-artifact@v1
       with:
         name: ${{ matrix.target }}
-        path: build/${{ matrix.target }}.bin
+        path: build/ESP32CommandStation.bin
       if: success() && (github.event_name != 'pull_request') && (matrix.target != 'ESP32CommandStation')
     - name: Upload Binaries
       uses: docker://softprops/action-gh-release
       if: success() && startsWith(github.ref, 'refs/tags/') && (matrix.target != 'ESP32CommandStation')
       with:
-        files: build/${{ matrix.target }}.bin
+        files: build/ESP32CommandStation.bin
       env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

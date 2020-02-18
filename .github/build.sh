@@ -1,5 +1,7 @@
 #!bin/bash
 
+ESP32CS_TARGET=$1
+
 RUN_DIR=$PWD
 export IDF_PATH=${RUN_DIR}/esp-idf
 TOOLCHAIN_DIR=${RUN_DIR}/toolchain
@@ -37,7 +39,6 @@ if [ ! -f ${TOOLCHAIN_DIR}/bin/xtensa-esp32-elf-gcc ]; then
     export PATH=${TOOLCHAIN_DIR}/xtensa-esp32-elf/bin:${PATH}
 fi
 
-
 # clone ESP-IDF
 if [ ! -d ${IDF_PATH} ]; then
     echo "ESP-IDF not available, cloning..."
@@ -64,12 +65,16 @@ CONFIG_ENV_EOF
 
 # create default sdkconfig
 export IDF_TARGET=esp32
+SDKCONFIG_DEFAULTS = "--defaults ${RUN_DIR}/sdkconfig.defaults"
+if [ "${ESP32CS_TARGET}" == "ESP32CommandStation.pcb" ]; then
+    SDKCONFIG_DEFAULTS = "--defaults ${RUN_DIR}/sdkconfig.defaults.pcb"
+fi
 echo "Generating default sdkconfig"
 python ${IDF_PATH}/tools/kconfig_new/confgen.py \
     --kconfig ${IDF_PATH}/Kconfig \
     --config ${RUN_DIR}/sdkconfig \
     --sdkconfig-rename ${IDF_PATH}/sdkconfig.rename \
-    --defaults ${RUN_DIR}/sdkconfig.defaults \
+    ${SDKCONFIG_DEFAULTS} \
     --env-file ${BUILD_DIR}/config.env \
     --output header ${BUILD_DIR}/config/sdkconfig.h \
     --output cmake ${BUILD_DIR}/config/sdkconfig.cmake \
