@@ -510,9 +510,6 @@ StateFlowBase::Action StatusDisplay::initOLED()
     gpio_set_level((gpio_num_t)CONFIG_DISPLAY_OLED_RESET_PIN, 1);
   }
 #endif // CONFIG_DISPLAY_OLED_RESET_PIN
-  LOG(INFO, "[StatusDisplay] Display size: %dx%d (%d lines)"
-    , CONFIG_DISPLAY_OLED_WIDTH, CONFIG_DISPLAY_OLED_HEIGHT
-    , CONFIG_DISPLAY_LINE_COUNT);
   i2c_cmd_handle_t cmd = i2c_cmd_link_create();
   i2c_master_start(cmd);
 	i2c_master_write_byte(cmd, (i2cAddr_ << 1) | I2C_MASTER_WRITE, true);
@@ -531,7 +528,7 @@ StateFlowBase::Action StatusDisplay::initOLED()
   // initialization parameters.
   if (((regZero_ & 0x0F) == 0x03) || ((regZero_ & 0x0F) == 0x06))
   {
-    LOG(INFO, "[StatusDisplay] OLED Driver IC: SSD1306");
+    LOG(INFO, "[StatusDisplay] OLED driver IC: SSD1306");
     i2c_master_write_byte(cmd, OLED_CLOCK_DIVIDER, true);
     i2c_master_write_byte(cmd, 0x80, true);
     i2c_master_write_byte(cmd, OLED_MEMORY_MODE, true);
@@ -543,7 +540,7 @@ StateFlowBase::Action StatusDisplay::initOLED()
   }
   else if (((regZero_ & 0x0F) == 0x08))
   {
-    LOG(INFO, "[StatusDisplay] OLED Driver IC: SH1106");
+    LOG(INFO, "[StatusDisplay] OLED driver IC: SH1106");
     sh1106_ = true;
     i2c_master_write_byte(cmd, OLED_CLOCK_DIVIDER, true);
     i2c_master_write_byte(cmd, 0xF0, true);
@@ -562,6 +559,9 @@ StateFlowBase::Action StatusDisplay::initOLED()
     i2c_cmd_link_delete(cmd);
     return exit();
   }
+  LOG(INFO, "[StatusDisplay] OLED display size: %dx%d (%d lines)"
+    , CONFIG_DISPLAY_OLED_WIDTH, CONFIG_DISPLAY_OLED_HEIGHT
+    , CONFIG_DISPLAY_LINE_COUNT);
 
 #if CONFIG_DISPLAY_OLED_VFLIP
   i2c_master_write_byte(cmd, OLED_SET_SEGMENT_MAP_INVERTED, true);
@@ -586,7 +586,7 @@ StateFlowBase::Action StatusDisplay::initOLED()
   i2c_master_write_byte(cmd, OLED_DISPLAY_ON, true);
 	i2c_master_stop(cmd);
 
-  LOG(INFO, "[StatusDisplay] Sending init parameters to OLED display");
+  LOG(INFO, "[StatusDisplay] Initializing OLED display");
   esp_err_t ret =
     ESP_ERROR_CHECK_WITHOUT_ABORT(i2c_master_cmd_begin(I2C_NUM_0, cmd
                                                      , DISPLAY_I2C_TIMEOUT));
@@ -596,7 +596,7 @@ StateFlowBase::Action StatusDisplay::initOLED()
     LOG_ERROR("[StatusDisplay] Failed to initialize the OLED display");
     return exit();
   }
-  LOG(INFO, "[StatusDisplay] Initialized OLED");
+  LOG(INFO, "[StatusDisplay] OLED successfully initialized");
 
   return call_immediately(STATE(update));
 #else
