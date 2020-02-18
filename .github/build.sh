@@ -65,16 +65,16 @@ CONFIG_ENV_EOF
 
 # create default sdkconfig
 export IDF_TARGET=esp32
-SDKCONFIG_DEFAULTS="--defaults ${RUN_DIR}/sdkconfig.defaults"
+SDKCONFIG_DEFAULTS="${RUN_DIR}/sdkconfig.defaults"
 if [ "${ESP32CS_TARGET}" == "ESP32CommandStation.pcb" ]; then
-    SDKCONFIG_DEFAULTS="--defaults ${RUN_DIR}/sdkconfig.defaults.pcb"
+    SDKCONFIG_DEFAULTS="${RUN_DIR}/sdkconfig.defaults.pcb"
 fi
 echo "Generating default sdkconfig"
 python ${IDF_PATH}/tools/kconfig_new/confgen.py \
     --kconfig ${IDF_PATH}/Kconfig \
     --config ${RUN_DIR}/sdkconfig \
     --sdkconfig-rename ${IDF_PATH}/sdkconfig.rename \
-    "${SDKCONFIG_DEFAULTS}" \
+    --defaults "${SDKCONFIG_DEFAULTS}" \
     --env-file ${BUILD_DIR}/config.env \
     --output header ${BUILD_DIR}/config/sdkconfig.h \
     --output cmake ${BUILD_DIR}/config/sdkconfig.cmake \
