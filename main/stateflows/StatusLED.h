@@ -29,26 +29,26 @@ COPYRIGHT (c) 2019-2020 Mike Dunston
 #define CONFIG_STATUS_LED_UPDATE_INTERVAL_MSEC 450
 #endif
 
-#if !defined(CONFIG_STATUS_LED) || defined(STATUS_LED_COLOR_RGB)
+#if !defined(CONFIG_STATUS_LED) || defined(CONFIG_STATUS_LED_COLOR_RGB)
 #define NEO_COLOR_TYPE RgbColor
 #define NEO_COLOR_MODE NeoRgbFeature
 #define NEO_COLOR_MODE_NAME "RGB"
-#elif defined(STATUS_LED_COLOR_GRB)
+#elif defined(CONFIG_STATUS_LED_COLOR_GRB)
 #define NEO_COLOR_MODE NeoGrbFeature
 #define NEO_COLOR_MODE_NAME "GRB"
-#elif defined(STATUS_LED_COLOR_RGBW)
+#elif defined(CONFIG_STATUS_LED_COLOR_RGBW)
 #define NEO_COLOR_MODE NeoRgbwFeature
 #define NEO_COLOR_TYPE RgbwColor
 #define NEO_COLOR_MODE_NAME "RGBW"
-#elif defined(STATUS_LED_COLOR_GRBW)
+#elif defined(CONFIG_STATUS_LED_COLOR_GRBW)
 #define NEO_COLOR_MODE NeoGrbwFeature
 #define NEO_COLOR_TYPE RgbwColor
 #define NEO_COLOR_MODE_NAME "GRBW"
-#elif defined(STATUS_LED_COLOR_BRG)
+#elif defined(CONFIG_STATUS_LED_COLOR_BRG)
 #define NEO_COLOR_TYPE RgbColor
 #define NEO_COLOR_MODE NeoBrgFeature
 #define NEO_COLOR_MODE_NAME "BRG"
-#elif defined(STATUS_LED_COLOR_RBG)
+#elif defined(CONFIG_STATUS_LED_COLOR_RBG)
 #define NEO_COLOR_TYPE RgbColor
 #define NEO_COLOR_MODE NeoRbgFeature
 #define NEO_COLOR_MODE_NAME "RBG"

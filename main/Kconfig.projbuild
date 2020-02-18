@@ -222,9 +222,15 @@ menu "ESP32 Command Station"
                     bool "UART2"
             endchoice
 
+            config OPS_RAILCOM_UART
+                int
+                default 1 if OPS_RAILCOM_UART1
+                default 2 if OPS_RAILCOM_UART2
+                depends on OPS_RAILCOM
+
             config OPS_RAILCOM_UART_RX_PIN
                 int "H-Bridge enable/pwm pin"
-                range 0 32
+                range 0 39
                 depends on OPS_RAILCOM
                 help
                     This pin should be connected to the RailCom detector data
@@ -742,21 +748,26 @@ menu "ESP32 Command Station"
         config S88
             bool "Enable S88 Sensor functionality"
             default n
+
         config S88_CLOCK_PIN
             int "S88 Clock pin"
             range 0 32
             depends on S88
+
         config S88_RESET_PIN
             int "S88 Reset pin"
             range 0 32
             depends on S88
+
         config S88_LOAD_PIN
             int "S88 Load pin"
             range 0 32
             depends on S88
+
         config S88_FIRST_SENSOR
             int "First sensor ID"
             default 255
+
         config S88_MAX_SENSORS_PER_BUS
             int
             default 255
@@ -770,14 +781,17 @@ menu "ESP32 Command Station"
                 The HC12 is a radio receiver that was previously used by some
                 throttles to wirelessly send packet data to the ESP32 Command
                 Station.
+
         config HC12_RX_PIN
             int "RX pin"
             range 0 39
             depends on HC12
+
         config HC12_TX_PIN
             int "TX pin"
             range 0 32
             depends on HC12
+
         choice HC12_UART
             bool "UART"
             default HC12_UART_UART1
@@ -789,10 +803,18 @@ menu "ESP32 Command Station"
                 bool "UART2"
                 depends on !OPS_RAILCOM_UART2
         endchoice
+
+        config HC12_UART
+            int
+            default 1 if HC12_UART_UART1
+            default 2 if HC12_UART_UART2
+            depends on HC12
+
         config HC12_BAUD_RATE
             int "BAUD rate for HC12 Radio"
             depends on HC12
             default 19200
+
         config HC12_BUFFER_SIZE
             int
             depends on HC12
@@ -806,6 +828,7 @@ menu "ESP32 Command Station"
             help
                 The Nextion HMI interface provides a throttle interface
                 directly connected to the ESP32 Command Station.
+
         config NEXTION_RX_PIN
             int "RX Pin"
             range 0 39
@@ -813,6 +836,7 @@ menu "ESP32 Command Station"
                 This should be connected to the TX pin on the Nextion HMI,
                 typically the blue wire.
             depends on NEXTION
+
         config NEXTION_TX_PIN
             int "TX Pin"
             range 0 32
@@ -820,6 +844,7 @@ menu "ESP32 Command Station"
                 This should be connected to the RX pin on the Nextion HMI,
                 typically the yellow wire.
             depends on NEXTION
+
         config NEXTION_BAUD_RATE
             int "BAUD rate"
             default 115200
@@ -827,6 +852,7 @@ menu "ESP32 Command Station"
                 This must match the "bauds=XXX" value set in the Nextion
                 HMI initialization event.
             depends on NEXTION
+
         choice NEXTION_UART
             bool "Hardware UART to use for the Nextion HMI"
             default NEXTION_UART_UART1
@@ -838,6 +864,7 @@ menu "ESP32 Command Station"
                 bool "UART2"
                 depends on !OPS_RAILCOM_UART2 && !HC12_UART_UART2
         endchoice
+
         config NEXTION_UART
             int
             default 1 if NEXTION_UART_UART1
@@ -854,14 +881,17 @@ menu "ESP32 Command Station"
                 LocoNet sensors, throttles, accessories, etc with the ESP32
                 Command Station. It is still under active development, if you
                 find a device that does not work please let us know.
+
         config LOCONET_RX_PIN
             int "Pin connected to the LocoNet RX pin"
             range 0 39
             depends on LOCONET
+
         config LOCONET_TX_PIN
             int "Pin connected to the LocoNet TX pin"
             range 0 32
             depends on LOCONET
+            
         choice LOCONET_UART
             bool "Hardware UART to use for LocoNet"
             default HC12_UART_UART1
@@ -873,6 +903,7 @@ menu "ESP32 Command Station"
                 bool "UART2"
                 depends on !OPS_RAILCOM_UART2 && !HC12_UART_UART2 && !NEXTION_UART_UART2
         endchoice
+
         config LOCONET_INVERTED_LOGIC
             bool "Use inverted logic"
             default y
@@ -881,6 +912,7 @@ menu "ESP32 Command Station"
                 Command Station website it is necessary to invert the logic.
                 If you are using a different circuit you might be able to
                 disable this option.
+                
         config LOCONET_RX_PULLUP
             bool "Use pull-up resistor on RX pin"
             default y

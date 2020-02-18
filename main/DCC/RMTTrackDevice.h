@@ -124,10 +124,12 @@ public:
   {
     return opsSignalActive_ || progSignalActive_;
   }
-#if OPS_RAILCOM_ENABLED
+
+#if CONFIG_OPS_RAILCOM
   // ISR callback for data received
   void railcom_data_received();
-#endif
+#endif // CONFIG_OPS_RAILCOM
+
 private:
   // maximum number of RMT memory blocks (256 bytes each, 4 bytes per data bit)
   // this will result in a max payload of 192 bits which is larger than any
@@ -137,7 +139,7 @@ private:
   // maximum number of bits that can be transmitted as one packet.
   static constexpr uint8_t MAX_DCC_PACKET_BITS = (RMT_MEM_ITEM_NUM * MAX_RMT_MEMORY_BLOCKS);
 
-#if OPS_RAILCOM_ENABLED
+#if CONFIG_OPS_RAILCOM
   // number of microseconds to wait after the end of packet to start the RailCom
   // processing.
   static constexpr uint32_t RAILCOM_PACKET_END_DELAY_USEC = 1;
@@ -164,7 +166,7 @@ private:
   // before returning to normal operations. The h-bridge output will be ENABLED
   // prior to the BRAKE pin being disabled.
   static constexpr uint8_t RAILCOM_BRAKE_DISABLE_DELAY_USEC = 10;
-#endif
+#endif // CONFIG_OPS_RAILCOM
 
   openlcb::SimpleCanStack *stack_{nullptr};
 
@@ -192,11 +194,11 @@ private:
   bool progSignalActive_{false};
   std::unique_ptr<MonitoredHBridge> progHBridge_;
 
-#if OPS_RAILCOM_ENABLED
-  const gpio_num_t railComBrakeEnablePin_{(gpio_num_t)CONFIG_OPS_RAILCOM_BRAKE_ENABLE_PIN};
+#if CONFIG_OPS_RAILCOM
+  const gpio_num_t railComBrakeEnablePin_{(gpio_num_t)CONFIG_OPS_RAILCOM_BRAKE_PIN};
   const gpio_num_t railComEnablePin_{(gpio_num_t)CONFIG_OPS_RAILCOM_ENABLE_PIN};
   const gpio_num_t railComShortPin_{(gpio_num_t)CONFIG_OPS_RAILCOM_SHORT_PIN};
-  const uart_port_t railComUartPort_{(gpio_num_t)CONFIG_OPS_RAILCOM_UART};
+  const uart_port_t railComUartPort_{(uart_port_t)CONFIG_OPS_RAILCOM_UART};
 
   RailcomHubFlow *railComHub_;
   Buffer<dcc::RailcomHubData> *railComFeedback_{nullptr};
@@ -205,7 +207,7 @@ private:
   uintptr_t railcomFeedbackKey_{0};
   bool railcomReaderCh1_{false};
   bool railcomReaderCh2_{false};
-#endif
+#endif // CONFIG_OPS_RAILCOM
 
   Atomic opsPacketQueueLock_;
   Atomic progPacketQueueLock_;
@@ -220,12 +222,12 @@ private:
 
   void noop_alloc_railcom_response_buffer(uintptr_t key) {}
 
-#if OPS_RAILCOM_ENABLED
+#if CONFIG_OPS_RAILCOM
   void send_railcom_response_buffer(bool=false);
   void alloc_railcom_response_buffer(uintptr_t);
   void read_railcom_response();
   void read_railcom_response_noop();
-#endif
+#endif // CONFIG_OPS_RAILCOM
 
   DISALLOW_COPY_AND_ASSIGN(RMTTrackDevice);
 };
