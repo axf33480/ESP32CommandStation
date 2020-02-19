@@ -54,9 +54,9 @@
 #include <sys/select.h>
 #endif
 
-#if ESP32 && defined(ESP_IDF_VERSION_MAJOR)
+#if ESP32
 #include <esp_vfs.h>
-#endif // IDF v4
+#endif // ESP32
 
 /// Signal handler that does nothing. @param sig ignored.
 void empty_signal_handler(int sig);

@@ -10,6 +10,7 @@ void empty_signal_handler(int)
 #include <sys/stat.h>
 #include <fcntl.h>
 
+#include <esp_system.h>
 #include <esp_vfs.h>
 
 /// Protects the initialization of vfs_id.
