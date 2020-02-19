@@ -24,6 +24,7 @@ void EStopHandler::set_state(bool new_value)
 {
   if (new_value)
   {
+    LOG(INFO, "[eStop] Received eStop request, sending eStop packets to all trains.");
     // TODO: add helper method on AllTrainNodes for this.
     auto  trains = Singleton<AllTrainNodes>::instance();
     for (size_t id = 0; id < trains->size(); id++)
@@ -42,6 +43,7 @@ void EStopHandler::set_state(bool new_value)
   }
   else
   {
+    LOG(INFO, "[eStop] Received eStop clear request.");
     OSMutexLock l(&lock_);
     remaining_ = 0;
     packet_processor_remove_refresh_source(this);

@@ -435,6 +435,7 @@ RMTTrackDevice::RMTTrackDevice(SimpleCanStack *stack
                              , stack_(stack)
                              , opsPacketQueue_(DeviceBuffer<Packet>::create(CONFIG_OPS_PACKET_QUEUE_SIZE))
                              , progPacketQueue_(DeviceBuffer<Packet>::create(CONFIG_PROG_PACKET_QUEUE_SIZE))
+                             , powerConsumer_(this)
 #if CONFIG_OPS_RAILCOM
                              , railComHub_(railComHub)
 #endif // CONFIG_OPS_RAILCOM
@@ -912,11 +913,14 @@ string RMTTrackDevice::get_status_screen_data()
 ///////////////////////////////////////////////////////////////////////////////
 void RMTTrackDevice::update_status_display()
 {
-  Singleton<StatusDisplay>::instance()->track_power("%s:%s %s:%s"
-                                                  , CONFIG_OPS_TRACK_NAME
-                                                  , opsHBridge_->isEnabled() ? "On" : "Off"
-                                                  , CONFIG_PROG_TRACK_NAME
-                                                  , opsHBridge_->isEnabled() ? "On" : "Off");
+  stack_->executor()->add(new CallbackExecutable([&]()
+  {
+    auto status = Singleton<StatusDisplay>::instance();
+    status->track_power("%s:%s %s:%s", CONFIG_OPS_TRACK_NAME
+                      , opsHBridge_->isEnabled() ? "On" : "Off"
+                      , CONFIG_PROG_TRACK_NAME
+                      , progHBridge_->isEnabled() ? "On" : "Off");
+  }));
 }
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -194,6 +194,8 @@ private:
   bool progSignalActive_{false};
   std::unique_ptr<MonitoredHBridge> progHBridge_;
 
+  openlcb::BitEventConsumer powerConsumer_;
+
 #if CONFIG_OPS_RAILCOM
   const gpio_num_t railComBrakeEnablePin_{(gpio_num_t)CONFIG_OPS_RAILCOM_BRAKE_PIN};
   const gpio_num_t railComEnablePin_{(gpio_num_t)CONFIG_OPS_RAILCOM_ENABLE_PIN};

@@ -22,6 +22,7 @@ COPYRIGHT (c) 2019 Mike Dunston
 #include <dcc/SimpleUpdateLoop.hxx>
 #include <openlcb/Defs.hxx>
 #include <openlcb/EventHandlerTemplates.hxx>
+#include <utils/logging.h>
 #include <utils/Singleton.hxx>
 
 namespace esp32cs
@@ -36,11 +37,13 @@ class EStopHandler : public openlcb::BitEventInterface
 {
 public:
   EStopHandler(openlcb::Node *node)
-    : BitEventInterface(openlcb::Defs::CLEAR_EMERGENCY_STOP_EVENT
-                      , openlcb::Defs::EMERGENCY_STOP_EVENT)
+    : BitEventInterface(openlcb::Defs::EMERGENCY_STOP_EVENT
+                      , openlcb::Defs::CLEAR_EMERGENCY_STOP_EVENT)
     , node_(node)
     , remaining_(0)
+    , consumer_(this)
   {
+    LOG(INFO, "[eStop] Registered for event handling...");
   }
 
   EventState get_current_state() override
@@ -61,6 +64,7 @@ private:
   Node *node_;
   OSMutex lock_;
   int16_t remaining_;
+  openlcb::BitEventConsumer consumer_;
 };
 
 } // namespace esp32cs
