@@ -294,7 +294,7 @@ std::shared_ptr<TrainDbEntry> Esp32TrainDatabase::create_if_not_found(unsigned a
                                                                     , DccMode mode)
 {
   OSMutexLock l(&knownTrainsLock_);
-  LOG(INFO, "[TrainDB] Searching for roster entry for address: %u", address);
+  LOG(VERBOSE, "[TrainDB] Searching for roster entry for address: %u", address);
   auto entry = std::find_if(knownTrains_.begin(), knownTrains_.end(),
     [address](const shared_ptr<Esp32TrainDbEntry> &train)
     {
@@ -302,14 +302,14 @@ std::shared_ptr<TrainDbEntry> Esp32TrainDatabase::create_if_not_found(unsigned a
     });
   if (entry != knownTrains_.end())
   {
-    LOG(INFO, "[TrainDB] Found existing entry:%s."
+    LOG(VERBOSE, "[TrainDB] Found existing entry:%s."
       , (*entry)->identifier().c_str());
     return *entry;
   }
   auto index = knownTrains_.size();
   knownTrains_.emplace_back(
     new Esp32TrainDbEntry(Esp32PersistentTrainData(address, mode)));
-  LOG(INFO, "[TrainDB] No entry was found, created new entry:%s."
+  LOG(VERBOSE, "[TrainDB] No entry was found, created new entry:%s."
     , knownTrains_[index]->identifier().c_str());
   return knownTrains_[index];
 }
@@ -334,7 +334,7 @@ shared_ptr<TrainDbEntry> Esp32TrainDatabase::find_entry(NodeID node_id
                                                       , unsigned hint)
 {
   OSMutexLock l(&knownTrainsLock_);
-  LOG(INFO, "[TrainDB] Searching for Train Node:%s, Hint:%u"
+  LOG(VERBOSE, "[TrainDB] Searching for Train Node:%s, Hint:%u"
     , uint64_to_string(node_id).c_str(), hint);
   auto entry = std::find_if(knownTrains_.begin(), knownTrains_.end(),
     [node_id, hint](const shared_ptr<Esp32TrainDbEntry> &train)
@@ -344,11 +344,11 @@ shared_ptr<TrainDbEntry> Esp32TrainDatabase::find_entry(NodeID node_id
     });
   if (entry != knownTrains_.end())
   {
-    LOG(INFO, "[TrainDB] Found existing entry: %s."
+    LOG(VERBOSE, "[TrainDB] Found existing entry: %s."
       , (*entry)->identifier().c_str());
     return *entry;
   }
-  LOG(INFO, "[TrainDB] No entry found!");
+  LOG(VERBOSE, "[TrainDB] No entry found!");
   return nullptr;
 }
 
@@ -358,8 +358,6 @@ unsigned Esp32TrainDatabase::add_dynamic_entry(TrainDbEntry* temp_entry)
 {
   uint16_t address = temp_entry->get_legacy_address();
   DccMode mode = temp_entry->get_legacy_drive_mode();
-  LOG(INFO, "[TrainDB] Creating roster entry for locomotive %u (mode:%d)."
-    , address, mode);
   OSMutexLock l(&knownTrainsLock_);
   delete temp_entry;
 
@@ -373,6 +371,8 @@ unsigned Esp32TrainDatabase::add_dynamic_entry(TrainDbEntry* temp_entry)
   {
     return std::distance(knownTrains_.begin(), ent);
   }
+  LOG(INFO, "[TrainDB] Creating roster entry for locomotive %u (mode:%d)."
+    , address, mode);
 
   // track the index for the new train entry
   size_t index = knownTrains_.size();
@@ -414,7 +414,7 @@ set<uint16_t> Esp32TrainDatabase::get_default_train_addresses(uint16_t limit)
 void Esp32TrainDatabase::set_train_name(unsigned address, std::string &name)
 {
   OSMutexLock l(&knownTrainsLock_);
-  LOG(INFO, "[TrainDB] Searching for train with address %u", address);
+  LOG(VERBOSE, "[TrainDB] Searching for train with address %u", address);
   auto entry = std::find_if(knownTrains_.begin(), knownTrains_.end(),
     [address](const shared_ptr<Esp32TrainDbEntry> &train)
     {
@@ -422,19 +422,19 @@ void Esp32TrainDatabase::set_train_name(unsigned address, std::string &name)
     });
   if (entry != knownTrains_.end())
   {
-    LOG(INFO, "[TrainDB] Setting train name: %s", name.c_str());
+    LOG(VERBOSE, "[TrainDB] Setting train(%u) name: %s", address, name.c_str());
     (*entry)->set_train_name(name);
   }
   else
   {
-    LOG(INFO, "[TrainDB] no train found!");
+    LOG_ERROR("[TrainDB] train %u not found, unable to set the name!", address);
   }
 }
 
 void Esp32TrainDatabase::set_train_auto_idle(unsigned address, bool idle)
 {
   OSMutexLock l(&knownTrainsLock_);
-  LOG(INFO, "[TrainDB] Searching for train with address %u", address);
+  LOG(VERBOSE, "[TrainDB] Searching for train with address %u", address);
   auto entry = std::find_if(knownTrains_.begin(), knownTrains_.end(),
     [address](const shared_ptr<Esp32TrainDbEntry> &train)
     {
@@ -442,13 +442,14 @@ void Esp32TrainDatabase::set_train_auto_idle(unsigned address, bool idle)
     });
   if (entry != knownTrains_.end())
   {
-    LOG(INFO, "[TrainDB] Setting auto-idle: %s"
+    LOG(VERBOSE, "[TrainDB] Setting auto-idle: %s"
       , idle ? JSON_VALUE_ON : JSON_VALUE_OFF);
     (*entry)->set_auto_idle(idle);
   }
   else
   {
-    LOG(INFO, "[TrainDB] no train found!");
+    LOG_ERROR("[TrainDB] train %u not found, unable to set idle state!"
+            , address);
   }
 }
 
@@ -456,7 +457,7 @@ void Esp32TrainDatabase::set_train_show_on_limited_throttle(unsigned address
                                                           , bool show)
 {
   OSMutexLock l(&knownTrainsLock_);
-  LOG(INFO, "[TrainDB] Searching for train with address %u", address);
+  LOG(VERBOSE, "[TrainDB] Searching for train with address %u", address);
   auto entry = std::find_if(knownTrains_.begin(), knownTrains_.end(),
     [address](const shared_ptr<Esp32TrainDbEntry> &train)
     {
@@ -464,13 +465,14 @@ void Esp32TrainDatabase::set_train_show_on_limited_throttle(unsigned address
     });
   if (entry != knownTrains_.end())
   {
-    LOG(INFO, "[TrainDB] Setting visible on limited throttes: %s"
+    LOG(VERBOSE, "[TrainDB] Setting visible on limited throttes: %s"
       , show ? JSON_VALUE_ON : JSON_VALUE_OFF);
     (*entry)->set_show_on_limited_throttles(show);
   }
   else
   {
-    LOG(INFO, "[TrainDB] no train found!");
+    LOG_ERROR("[TrainDB] train %u not found, unable to set limited throttle!"
+            , address);
   }
 }
 
