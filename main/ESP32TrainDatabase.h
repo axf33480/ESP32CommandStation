@@ -18,6 +18,8 @@ COPYRIGHT (c) 2019-2020 Mike Dunston
 #ifndef _ESP32_TRAIN_DB_H_
 #define _ESP32_TRAIN_DB_H_
 
+#include <vector>
+
 #include <openlcb/Defs.hxx>
 #include <openlcb/MemoryConfig.hxx>
 #include <openlcb/SimpleInfoProtocol.hxx>
@@ -83,7 +85,7 @@ namespace esp32cs
   class Esp32TrainDbEntry : public TrainDbEntry
   {
   public:
-    Esp32TrainDbEntry(Esp32PersistentTrainData);
+    Esp32TrainDbEntry(Esp32PersistentTrainData, bool persist=true);
 
     std::string identifier() override;
 
@@ -124,7 +126,12 @@ namespace esp32cs
 
     unsigned get_function_label(unsigned fn_id) override;
 
-    void set_function_label(unsigned fn_id, Symbols label);
+    void set_function_label(unsigned fn_id, Symbols label)
+    {
+      data_.functions[fn_id] = label;
+      dirty_ = true;
+      recalcuate_max_fn();
+    }
 
     int get_max_fn() override
     {
@@ -157,9 +164,19 @@ namespace esp32cs
       return dirty_;
     }
 
-    void reset_dirty()
+    void reset_dirty(bool dirty=false)
     {
-      dirty_ = false;
+      dirty_ = dirty;
+    }
+
+    bool is_persisted()
+    {
+      return persist_;
+    }
+
+    bool is_auto_idle()
+    {
+      return data_.automatic_idle;
     }
 
   private:
@@ -167,6 +184,7 @@ namespace esp32cs
     Esp32PersistentTrainData data_;
     uint8_t maxFn_;
     bool dirty_;
+    bool persist_;
   };
 
   class Esp32TrainDatabase : public TrainDb
@@ -230,12 +248,13 @@ namespace esp32cs
 
     void persist();
 
+    void load_idle_trains();
+
   private:
     openlcb::SimpleStackBase *stack_;
     bool legacyEntriesFound_{false};
     OSMutex knownTrainsLock_;
-    std::set<shared_ptr<Esp32TrainDbEntry>> knownTrains_;
-    std::set<shared_ptr<TrainDbEntry>> temporaryTrains_;
+    std::vector<shared_ptr<Esp32TrainDbEntry>> knownTrains_;
     std::unique_ptr<openlcb::MemorySpace> trainCdiFile_;
     std::unique_ptr<openlcb::MemorySpace> tempTrainCdiFile_;
     uninitialized<AutoPersistFlow> persistFlow_;

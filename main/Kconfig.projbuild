@@ -961,7 +961,7 @@ menu "ESP32 Command Station"
             default 300
             depends on TASK_LIST_REPORT
         
-        config CREATE_TRAIN_ROSTER_ENTRY_ON_FIRST_USE
+        config AUTO_CREATE_ROSTER_ENTRIES
             bool "Create a roster entry for new trains on first use"
             default y
 
