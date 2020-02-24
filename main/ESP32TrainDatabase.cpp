@@ -18,6 +18,9 @@ COPYRIGHT (c) 2019-2020 Mike Dunston
 #include "ESP32CommandStation.h"
 #include "ESP32TrainDatabase.h"
 
+#include <CDIHelper.h>
+
+#include <json.hpp>
 #include <utils/FileUtils.hxx>
 
 #include "TrainDbCdi.hxx"
@@ -149,15 +152,15 @@ string Esp32TrainDbEntry::identifier()
   return StringPrintf("unknown/%d", data_.address);
 }
 
-NodeID Esp32TrainDbEntry::get_traction_node()
+openlcb::NodeID Esp32TrainDbEntry::get_traction_node()
 {
   if (data_.mode == DCCMODE_OLCBUSER)
   {
-    return OLCB_NODE_ID_USER | static_cast<NodeID>(data_.address);
+    return OLCB_NODE_ID_USER | static_cast<openlcb::NodeID>(data_.address);
   }
   else
   {
-    return TractionDefs::train_node_id_from_legacy(
+    return openlcb::TractionDefs::train_node_id_from_legacy(
         dcc_mode_to_address_type(data_.mode, data_.address), data_.address);
   }
 }
@@ -202,8 +205,8 @@ Esp32TrainDatabase::Esp32TrainDatabase(openlcb::SimpleStackBase *stack)
   TrainTmpConfigDef tmpTrainCfg(0);
   CDIHelper::create_config_descriptor_xml(trainCfg, TRAIN_CDI_FILE, false);
   CDIHelper::create_config_descriptor_xml(tmpTrainCfg, TEMP_TRAIN_CDI_FILE, false);
-  trainCdiFile_.reset(new ROFileMemorySpace(TRAIN_CDI_FILE));
-  tempTrainCdiFile_.reset(new ROFileMemorySpace(TEMP_TRAIN_CDI_FILE));
+  trainCdiFile_.reset(new openlcb::ROFileMemorySpace(TRAIN_CDI_FILE));
+  tempTrainCdiFile_.reset(new openlcb::ROFileMemorySpace(TEMP_TRAIN_CDI_FILE));
   persistFlow_.emplace(stack->service()
                      , SEC_TO_NSEC(CONFIG_ROSTER_PERSISTENCE_INTERVAL_SEC)
                      , std::bind(&Esp32TrainDatabase::persist, this));
@@ -330,7 +333,7 @@ shared_ptr<TrainDbEntry> Esp32TrainDatabase::get_entry(unsigned train_id)
   return nullptr;
 }
 
-shared_ptr<TrainDbEntry> Esp32TrainDatabase::find_entry(NodeID node_id
+shared_ptr<TrainDbEntry> Esp32TrainDatabase::find_entry(openlcb::NodeID node_id
                                                       , unsigned hint)
 {
   OSMutexLock l(&knownTrainsLock_);

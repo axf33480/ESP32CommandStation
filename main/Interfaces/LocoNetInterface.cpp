@@ -18,19 +18,23 @@ COPYRIGHT (c) 2019-2020 Mike Dunston
 #include "ESP32CommandStation.h"
 
 #if LOCONET_ENABLED
+
+#include <AllTrainNodes.hxx>
+
 LocoNetESP32Uart locoNet(LOCONET_RX_PIN, LOCONET_TX_PIN, LOCONET_UART, LOCONET_INVERTED_LOGIC, LOCONET_ENABLE_RX_PIN_PULLUP);
 
 // TODO: consider bridge code to wake up an executable already executing inside
 // the stack rather than create on the fly.
 #define GET_LOCO_VIA_EXECUTOR(NAME, address)                                          \
-  TrainImpl *NAME = nullptr;                                                          \
+  openlcb::TrainImpl *NAME = nullptr;                                                 \
   {                                                                                   \
     SyncNotifiable n;                                                                 \
     extern unique_ptr<OpenMRN> openmrn;                                               \
     openmrn->stack()->executor()->add(new CallbackExecutable(                         \
     [&]()                                                                             \
     {                                                                                 \
-      NAME = Singleton<AllTrainNodes>::instance()->get_train_impl(commandstation::DccMode::DCC_128_LONG_ADDRESS \
+      NAME = Singleton<commandstation::AllTrainNodes>::instance()->get_train_impl(    \
+                                        commandstation::DccMode::DCC_128_LONG_ADDRESS \
                                       , address);                                     \
       n.notify();                                                                     \
     }));                                                                              \
@@ -50,12 +54,12 @@ void initializeLocoNet()
   locoNet.onPacket(OPC_GPON, [](lnMsg *msg)
   {
     LOG(INFO, "[LocoNet] Requesting Track Power ON");
-    trackSignal->enable_ops_output();
+    Singleton<RMTTrackDevice>::instance()->enable_ops_output();
   });
   locoNet.onPacket(OPC_GPOFF, [](lnMsg *msg)
   {
     LOG(INFO, "[LocoNet] Requesting Track Power OFF");
-    trackSignal->disable_ops_output();
+    Singleton<RMTTrackDevice>::instance()->disable_ops_output();
   });
   locoNet.onPacket(OPC_IDLE, [](lnMsg *msg)
   {
@@ -78,7 +82,7 @@ void initializeLocoNet()
     response.sd.adr2 = msg->la.adr_hi;
     response.sd.dirf = DIRF_F0;
     response.sd.trk = GTRK_MLOK1;
-    if(trackSignal->is_enabled())
+    if(Singleton<RMTTrackDevice>::instance()->is_enabled())
     {
       response.sd.trk |= GTRK_POWER;
     }
@@ -219,7 +223,7 @@ void initializeLocoNet()
     {
       uint16_t address = (msg->srq.sw1 | ((msg->srq.sw2 & 0x0F) << 7)) + 1;
       bool state = (msg->srq.sw2 & OPC_SW_REQ_DIR) == OPC_SW_REQ_DIR;
-      turnoutManager->setByAddress(address, state);
+      Singleton<TurnoutManager>::instance()->setByAddress(address, state);
     }
   });
   locoNet.onPacket(OPC_INPUT_REP, [](lnMsg *msg)
@@ -243,7 +247,7 @@ void initializeLocoNet()
     {
       bool state = (msg->srq.sw2 & OPC_SW_REP_THROWN) == OPC_SW_REP_THROWN;
       // update the current state of the turnout but do not send a DCC packet
-      turnoutManager->setByAddress(address, state, false);
+      Singleton<TurnoutManager>::instance()->setByAddress(address, state, false);
     }
   });
 }

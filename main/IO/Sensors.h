@@ -18,7 +18,7 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 #ifndef SENSORS_H_
 #define SENSORS_H_
 
-#include "Interfaces/DCCppProtocol.h"
+#include <DCCppProtocol.h>
 
 const int8_t NON_STORED_SENSOR_PIN=-1;
 

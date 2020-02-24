@@ -18,42 +18,6 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 #ifndef WIFI_INTERFACE_H_
 #define WIFI_INTERFACE_H_
 
-class WiFiInterface
-{
-public:
-  WiFiInterface();
-  void init();
-};
-
-extern WiFiInterface wifiInterface;
-void init_webserver(MDNS *mdns);
-
-class WebSocketClient : public DCCPPProtocolConsumer
-{
-public:
-  WebSocketClient(int clientID, uint32_t remoteIP)
-    : DCCPPProtocolConsumer(), _id(clientID), _remoteIP(remoteIP)
-  {
-    LOG(INFO, "[WS %s] Connected", name().c_str());
-  }
-  virtual ~WebSocketClient()
-  {
-    LOG(INFO, "[WS %s] Disconnected", name().c_str());
-  }
-  int id()
-  {
-    return _id;
-  }
-  std::string name()
-  {
-    return StringPrintf("%s/%d", ipv4_to_string(_remoteIP).c_str(), _id);
-  }
-private:
-  uint32_t _id;
-  uint32_t _remoteIP;
-};
-
-extern vector<unique_ptr<WebSocketClient>> webSocketClients;
-extern std::vector<int> jmriClients;
+void init_wifi_endpoints();
 
 #endif // WIFI_INTERFACE_H_

@@ -17,10 +17,15 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 
 #include "ESP32CommandStation.h"
 
+#include <AllTrainNodes.hxx>
 #include <Dnsd.h>
 #include <esp_log.h>
+#include <EStopHandler.h>
 #include <Httpd.h>
+#include <json.hpp>
+#include <RMTTrackDevice.h>
 #include <utils/FileUtils.hxx>
+#include "OTAMonitor.h"
 
 using http::Httpd;
 using http::HttpMethod;
@@ -39,6 +44,31 @@ using http::MIME_TYPE_IMAGE_GIF;
 using http::MIME_TYPE_APPLICATION_JSON;
 using http::HTTP_ENCODING_GZIP;
 using http::WebSocketEvent;
+
+class WebSocketClient : public DCCPPProtocolConsumer
+{
+public:
+  WebSocketClient(int clientID, uint32_t remoteIP)
+    : DCCPPProtocolConsumer(), _id(clientID), _remoteIP(remoteIP)
+  {
+    LOG(INFO, "[WS %s] Connected", name().c_str());
+  }
+  virtual ~WebSocketClient()
+  {
+    LOG(INFO, "[WS %s] Disconnected", name().c_str());
+  }
+  int id()
+  {
+    return _id;
+  }
+  std::string name()
+  {
+    return StringPrintf("%s/%d", ipv4_to_string(_remoteIP).c_str(), _id);
+  }
+private:
+  uint32_t _id;
+  uint32_t _remoteIP;
+};
 
 // Captive Portal landing page
 static constexpr const char * const CAPTIVE_PORTAL_HTML = R"!^!(
@@ -201,7 +231,7 @@ WEBSOCKET_STREAM_HANDLER_IMPL(process_websocket_event, client, event, data
   if (event == WebSocketEvent::WS_EVENT_CONNECT)
   {
     webSocketClients.push_back(
-      esp32cs::make_unique<WebSocketClient>(client->id(), client->ip()));
+      std::make_unique<WebSocketClient>(client->id(), client->ip()));
   }
   else if (event == WebSocketEvent::WS_EVENT_DISCONNECT)
   {
@@ -254,8 +284,8 @@ HTTP_STREAM_HANDLER_IMPL(process_ota, request, filename, size, data, length
     }
     LOG(INFO, "[WebSrv] OTA Update starting (%zu bytes, target:%s)...", size
       , ota_partition->label);
-    trackSignal->disable_ops_output();
-    trackSignal->disable_prog_output();
+    Singleton<RMTTrackDevice>::instance()->disable_ops_output();
+    Singleton<RMTTrackDevice>::instance()->disable_prog_output();
     Singleton<OTAMonitorFlow>::instance()->report_start();
   }
   HASSERT(ota_partition);
@@ -298,18 +328,18 @@ HTTP_HANDLER_IMPL(process_power, request)
   request->set_status(HttpStatusCode::STATUS_OK);
   if (request->method() == HttpMethod::GET)
   {
-    response.assign(trackSignal->generate_status_json());
+    response.assign(Singleton<RMTTrackDevice>::instance()->generate_status_json());
   }
   else if (request->method() == HttpMethod::PUT)
   {
     if (request->param(JSON_STATE_NODE, false))
     {
-      trackSignal->enable_ops_output();
+      Singleton<RMTTrackDevice>::instance()->enable_ops_output();
     }
     else
     {
-      trackSignal->disable_ops_output();
-      trackSignal->disable_prog_output();
+      Singleton<RMTTrackDevice>::instance()->disable_ops_output();
+      Singleton<RMTTrackDevice>::instance()->disable_prog_output();
     }
   }
   return new StringResponse(response, MIME_TYPE_APPLICATION_JSON);
@@ -624,7 +654,7 @@ HTTP_HANDLER_IMPL(process_turnouts, request)
     {
       readable = request->param(JSON_TURNOUTS_READABLE_STRINGS_NODE, 0);
     }
-    return new StringResponse(turnoutManager->getStateAsJson(readable)
+    return new StringResponse(Singleton<TurnoutManager>::instance()->getStateAsJson(readable)
                             , MIME_TYPE_APPLICATION_JSON);
   }
 
@@ -635,7 +665,7 @@ HTTP_HANDLER_IMPL(process_turnouts, request)
   {
     if (request->has_param(JSON_ID_NODE))
     {
-      auto turnout = turnoutManager->getTurnoutByID(id);
+      auto turnout = Singleton<TurnoutManager>::instance()->getTurnoutByID(id);
       if (turnout)
       {
         return new StringResponse(turnout->toJson()
@@ -645,7 +675,7 @@ HTTP_HANDLER_IMPL(process_turnouts, request)
     }
     else
     {
-      auto turnout = turnoutManager->getTurnoutByID(address);
+      auto turnout = Singleton<TurnoutManager>::instance()->getTurnoutByID(address);
       if (turnout)
       {
         return new StringResponse(turnout->toJson()
@@ -661,9 +691,9 @@ HTTP_HANDLER_IMPL(process_turnouts, request)
     // auto generate ID
     if (id == -1)
     {
-      id = turnoutManager->getTurnoutCount() + 1;
+      id = Singleton<TurnoutManager>::instance()->getTurnoutCount() + 1;
     }
-    auto turnout = turnoutManager->createOrUpdate((uint16_t)id, address
+    auto turnout = Singleton<TurnoutManager>::instance()->createOrUpdate((uint16_t)id, address
                                                 , subaddress, type);
     if (turnout)
     {
@@ -673,11 +703,11 @@ HTTP_HANDLER_IMPL(process_turnouts, request)
   }
   else if (request->method() == HttpMethod::DELETE)
   {
-    if (request->has_param(JSON_ID_NODE) && turnoutManager->removeByID(id))
+    if (request->has_param(JSON_ID_NODE) && Singleton<TurnoutManager>::instance()->removeByID(id))
     {
       request->set_status(HttpStatusCode::STATUS_OK);
     }
-    else if (turnoutManager->removeByAddress(address))
+    else if (Singleton<TurnoutManager>::instance()->removeByAddress(address))
     {
       request->set_status(HttpStatusCode::STATUS_OK);
     }
@@ -686,18 +716,18 @@ HTTP_HANDLER_IMPL(process_turnouts, request)
   {
     if (request->has_param(JSON_ID_NODE))
     {
-      turnoutManager->toggleByID(id);
+      Singleton<TurnoutManager>::instance()->toggleByID(id);
     }
     else
     {
-      turnoutManager->toggleByAddress(address);
+      Singleton<TurnoutManager>::instance()->toggleByAddress(address);
     }
     request->set_status(HttpStatusCode::STATUS_OK);
   }
   return nullptr;
 }
 
-string convert_loco_to_json(TrainImpl *t)
+string convert_loco_to_json(openlcb::TrainImpl *t)
 {
   if (!t)
   {
@@ -719,15 +749,15 @@ string convert_loco_to_json(TrainImpl *t)
   return j.dump();
 }
 
-extern unique_ptr<SimpleCanStack> lccStack;
 #define GET_LOCO_VIA_EXECUTOR(NAME, address)                                          \
-  TrainImpl *NAME = nullptr;                                                          \
+  openlcb::TrainImpl *NAME = nullptr;                                                 \
   {                                                                                   \
     SyncNotifiable n;                                                                 \
     lccStack->executor()->add(new CallbackExecutable(                                 \
     [&]()                                                                             \
     {                                                                                 \
-      NAME = Singleton<AllTrainNodes>::instance()->get_train_impl(commandstation::DccMode::DCC_128_LONG_ADDRESS \
+      NAME = Singleton<commandstation::AllTrainNodes>::instance()->get_train_impl(    \
+                                        commandstation::DccMode::DCC_128_LONG_ADDRESS \
                                       , address);                                     \
       n.notify();                                                                     \
     }));                                                                              \
@@ -814,7 +844,7 @@ HTTP_HANDLER_IMPL(process_loco, request)
     {
       // get all active locomotives
       string res = "[";
-      auto trains = Singleton<AllTrainNodes>::instance();
+      auto trains = Singleton<commandstation::AllTrainNodes>::instance();
       for (size_t id = 0; id < trains->size(); id++)
       {
         auto nodeid = trains->get_train_node_id(id);
@@ -870,7 +900,7 @@ HTTP_HANDLER_IMPL(process_loco, request)
       else if(request->method() == HttpMethod::DELETE)
       {
         // we don't need to queue it up on the executor as it is done internally.
-        Singleton<AllTrainNodes>::instance()->remove_train_impl(address);
+        Singleton<commandstation::AllTrainNodes>::instance()->remove_train_impl(address);
 #if NEXTION_ENABLED
         static_cast<NextionThrottlePage *>(nextionPages[THROTTLE_PAGE])->invalidateLocomotive(address);
 #endif

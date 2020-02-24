@@ -21,6 +21,7 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 #include <freertos_drivers/arduino/WifiDefs.hxx>
 #include <Httpd.h>
 #include <os/MDNS.hxx>
+#include <StatusDisplay.h>
 #include <utils/socket_listener.hxx>
 
 void *jmriClientHandler(void *arg);
@@ -29,8 +30,6 @@ MDNS mDNS;
 OSMutex jmriClientsMux;
 vector<int> jmriClients;
 unique_ptr<SocketListener> JMRIListener;
-
-WiFiInterface wifiInterface;
 
 constexpr uint16_t JMRI_LISTENER_PORT = 2560;
 
@@ -124,11 +123,9 @@ StateFlowBase::Action JmriClient::send_data()
                       , STATE(read_data));
 }
 
-WiFiInterface::WiFiInterface()
-{
-}
+void init_webserver(MDNS *dns);
 
-void WiFiInterface::init()
+void init_wifi_endpoints()
 {
   init_webserver(&mDNS);
 #if CONFIG_NEXTION

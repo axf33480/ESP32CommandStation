@@ -19,6 +19,8 @@ COPYRIGHT (c) 2018-2019 NormHal, Mike Dunston
 
 #if CONFIG_NEXTION
 
+#include <AllTrainNodes.hxx>
+
 const uint8_t dec=4;            //Dec
 const uint8_t throttlenum=5;    //ThrottleNum
 const uint8_t inc=6;            //Inc
@@ -88,14 +90,15 @@ const uint8_t FG3_PIC_ON=76;
 // impl runs outside the executor which manages the train instances.
 #if 0
 #define GET_LOCO_VIA_EXECUTOR(NAME, address)                                          \
-  TrainImpl *NAME = nullptr;                                                          \
+  openlcb::TrainImpl *NAME = nullptr;                                                 \
   {                                                                                   \
     SyncNotifiable n;                                                                 \
     extern unique_ptr<OpenMRN> openmrn;                                               \
     openmrn->stack()->executor()->add(new CallbackExecutable(                         \
     [&]()                                                                             \
     {                                                                                 \
-      NAME = Singleton<AllTrainNodes>::instance()->get_train_impl(commandstation::DccMode::DCC_128_LONG_ADDRESS \
+      NAME = Singleton<commandstation::AllTrainNodes>::instance()->get_train_impl(    \
+                                        commandstation::DccMode::DCC_128_LONG_ADDRESS \
                                       , address);                                     \
       n.notify();                                                                     \
     }));                                                                              \
@@ -103,7 +106,9 @@ const uint8_t FG3_PIC_ON=76;
   }
 #else
 #define GET_LOCO_VIA_EXECUTOR(NAME, address)                                          \
-  TrainImpl *NAME = Singleton<AllTrainNodes>::instance()->get_train_impl(commandstation::DccMode::DCC_128_LONG_ADDRESS \
+  openlcb::TrainImpl *NAME =
+    Singleton<commandstation::AllTrainNodes>::instance()->get_train_impl(             \
+                                        commandstation::DccMode::DCC_128_LONG_ADDRESS \
                                       , address);
 #endif
 //

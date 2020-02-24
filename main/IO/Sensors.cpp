@@ -77,6 +77,8 @@ Depending on whether the physical sensor is acting as an "event-trigger" or a
 #if CONFIG_ENABLE_SENSORS
 vector<unique_ptr<Sensor>> sensors;
 
+#include <json.hpp>
+
 TaskHandle_t SensorManager::_taskHandle;
 OSMutex SensorManager::_lock;
 static constexpr UBaseType_t SENSOR_TASK_PRIORITY = 1;
@@ -95,7 +97,7 @@ void SensorManager::init()
     for(auto sensor : root[JSON_SENSORS_NODE])
     {
       string data = sensor.dump();
-      sensors.push_back(esp32cs::make_unique<Sensor>(data));
+      sensors.push_back(std::make_unique<Sensor>(data));
     }
   }
   LOG(INFO, "[Sensors] Loaded %d sensors", sensors.size());
@@ -180,7 +182,7 @@ bool SensorManager::createOrUpdate(const uint16_t id, const uint8_t pin, const b
   // add the new sensor
   {
     OSMutexLock l(&_lock);
-    sensors.push_back(esp32cs::make_unique<Sensor>(id, pin, pullUp));
+    sensors.push_back(std::make_unique<Sensor>(id, pin, pullUp));
   }
   return true;
 }

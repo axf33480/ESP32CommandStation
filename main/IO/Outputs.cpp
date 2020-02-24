@@ -95,6 +95,7 @@ or GUI program.
 **********************************************************************/
 #if CONFIG_ENABLE_OUTPUTS
 vector<unique_ptr<Output>> outputs;
+#include <json.hpp>
 
 static constexpr const char * OUTPUTS_JSON_FILE = "outputs.json";
 
@@ -110,7 +111,7 @@ void OutputManager::init()
     for(auto output : root[JSON_OUTPUTS_NODE])
     {
       string data = output.dump();
-      outputs.push_back(esp32cs::make_unique<Output>(data));
+      outputs.push_back(std::make_unique<Output>(data));
     }
   }
   LOG(INFO, "[Output] Loaded %d outputs", outputs.size());
@@ -208,7 +209,7 @@ bool OutputManager::createOrUpdate(const uint16_t id, const uint8_t pin, const u
   {
     return false;
   }
-  outputs.push_back(esp32cs::make_unique<Output>(id, pin, flags));
+  outputs.push_back(std::make_unique<Output>(id, pin, flags));
   return true;
 }
 

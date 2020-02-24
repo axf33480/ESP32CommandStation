@@ -17,6 +17,8 @@ COPYRIGHT (c) 2018-2019 Mike Dunston
 
 #include "ESP32CommandStation.h"
 
+#include <json.hpp>
+
 using nlohmann::json;
 
 /**********************************************************************
@@ -104,7 +106,7 @@ string LocomotiveConsist::toJson(bool includeFunctions) {
   return object.dump();
 }
 
-LocomotiveConsist *LocomotiveConsist::fromJson(string &content, TrainService *trainService)
+LocomotiveConsist *LocomotiveConsist::fromJson(string &content, openlcb::TrainService *trainService)
 {
   json object = json::parse(content);
   LocomotiveConsist * consist =

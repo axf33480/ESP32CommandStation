@@ -60,8 +60,8 @@ public:
   }
 
   // hook point for the callback invocation.
-  void report(const EventRegistryEntry &entry
-            , EventReport *report
+  void report(const openlcb::EventRegistryEntry &entry
+            , openlcb::EventReport *report
             , BarrierNotifiable *done)
   {
     callback_();

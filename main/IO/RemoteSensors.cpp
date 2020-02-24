@@ -21,13 +21,8 @@ COPYRIGHT (c) 2018-2020 Mike Dunston
 /**********************************************************************
 
 The ESP32 Command Station supports remote sensor inputs that are connected via a
-WiFi connection. Remote Sensors are dynamically created during startup or by a
-remote sensor reporting its state.
-
-During startup, the command station scans for Access Points that have a name
-starting with REMOTE_SENSORS_PREFIX defined in Config.h, ie: "sensor01". If no
-Access Points are found matching this prefix during startup they will be created
-automatically when the sensor reports its state to the command station.
+WiFi connection. Remote Sensors are dynamically created by a remote sensor
+reporting its state.
 
 Note: Remote Sensors should not maintain a persistent connection. Instead they
 should connect when a change occurs that should be reported. It is not necessary
@@ -53,51 +48,10 @@ where
 #if CONFIG_ENABLE_SENSORS
 // TODO: merge this into the base SensorManager code.
 
-// sanity check to ensure configuration has been setup correctly, default
-// any missing parameters
-#ifndef REMOTE_SENSORS_PREFIX
-#define REMOTE_SENSORS_PREFIX "sensor"
-#endif
-#ifndef REMOTE_SENSORS_DECAY
-#define REMOTE_SENSORS_DECAY 60000
-#endif
-#ifndef REMOTE_SENSORS_FIRST_SENSOR
-#define REMOTE_SENSORS_FIRST_SENSOR 100
-#endif
-#ifndef SCAN_REMOTE_SENSORS_ON_STARTUP
-#define SCAN_REMOTE_SENSORS_ON_STARTUP false
-#endif
-
 vector<unique_ptr<RemoteSensor>> remoteSensors;
 
 void RemoteSensorManager::init()
 {
-#if SCAN_REMOTE_SENSORS_ON_STARTUP
-  Singleton<StatusDisplay>::instance()->status("WiFiScan started");
-  int8_t networksFound;
-
-  LOG(VERBOSE, "[RemoteSensors] Scanning for RemoteSensors");
-  WiFi.scanNetworks(true);
-  while((networksFound = WiFi.scanComplete()) < 0)
-  {
-    delay(100);
-    LOG(INFO, ".");
-    Singleton<StatusDisplay>::instance()->status("WiFiScan pending");
-  }
-  const uint8_t REMOTE_SENSOR_PREFIX_LEN = String(REMOTE_SENSORS_PREFIX).length();
-  for (int8_t i = 0; i < networksFound; i++)
-  {
-    if(WiFi.SSID(i).startsWith(REMOTE_SENSORS_PREFIX))
-    {
-      const uint16_t sensorID = String(WiFi.SSID(i)).substring(REMOTE_SENSOR_PREFIX_LEN).toInt();
-      LOG(VERBOSE, "[RemoteSensors] Found %s, assigning as sensor %d", WiFi.SSID(i).c_str(), sensorID);
-      Singleton<StatusDisplay>::instance()->status("RS %d: %s", sensorID, WiFi.SSID(i).c_str());
-      createOrUpdate(sensorID);
-    }
-  }
-#else
-  LOG(VERBOSE, "[RemoteSensors] Scanning for RemoteSensors DISABLED, remote sensors will only be created after reporting state");
-#endif
 }
 
 void RemoteSensorManager::createOrUpdate(const uint16_t id, const uint16_t value) {
@@ -110,7 +64,7 @@ void RemoteSensorManager::createOrUpdate(const uint16_t id, const uint16_t value
       return;
     }
   }
-  remoteSensors.push_back(esp32cs::make_unique<RemoteSensor>(id, value));
+  remoteSensors.push_back(std::make_unique<RemoteSensor>(id, value));
 }
 
 bool RemoteSensorManager::remove(const uint16_t id)
@@ -155,7 +109,7 @@ string RemoteSensorManager::get_state_for_dccpp()
 }
 
 RemoteSensor::RemoteSensor(uint16_t id, uint16_t value) :
-  Sensor(id + REMOTE_SENSORS_FIRST_SENSOR, NON_STORED_SENSOR_PIN, false, false), _rawID(id)
+  Sensor(id + CONFIG_REMOTE_SENSORS_FIRST_SENSOR, NON_STORED_SENSOR_PIN, false, false), _rawID(id)
 {
   setSensorValue(value);
   LOG(VERBOSE, "[RemoteSensors] RemoteSensor(%d) created with Sensor(%d), active: %s, value: %d",
@@ -164,7 +118,7 @@ RemoteSensor::RemoteSensor(uint16_t id, uint16_t value) :
 
 void RemoteSensor::check()
 {
-  if(isActive() && (esp_timer_get_time() / 1000ULL) > _lastUpdate + REMOTE_SENSORS_DECAY)
+  if(isActive() && (esp_timer_get_time() / 1000ULL) > _lastUpdate + CONFIG_REMOTE_SENSORS_DECAY)
   {
     LOG(INFO, "[RemoteSensors] RemoteSensor(%d) expired, deactivating", getRawID());
     setSensorValue(0);

@@ -18,7 +18,7 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 #ifndef OUTPUTS_H_
 #define OUTPUTS_H_
 
-#include "Interfaces/DCCppProtocol.h"
+#include <DCCppProtocol.h>
 
 const uint8_t OUTPUT_IFLAG_INVERT = BIT0;
 const uint8_t OUTPUT_IFLAG_RESTORE_STATE = BIT1;

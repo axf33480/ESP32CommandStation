@@ -28,7 +28,7 @@ COPYRIGHT (c) 2019-2020 Mike Dunston
 
 #include <TrainDb.hxx>
 
-#include "stateflows/AutoPersistCallbackFlow.h"
+#include <AutoPersistCallbackFlow.h>
 
 namespace esp32cs
 {
@@ -82,7 +82,7 @@ namespace esp32cs
     }
   };
 
-  class Esp32TrainDbEntry : public TrainDbEntry
+  class Esp32TrainDbEntry : public commandstation::TrainDbEntry
   {
   public:
     Esp32TrainDbEntry(Esp32PersistentTrainData, bool persist=true);
@@ -187,7 +187,7 @@ namespace esp32cs
     bool persist_;
   };
 
-  class Esp32TrainDatabase : public TrainDb
+  class Esp32TrainDatabase : public commandstation::TrainDb
                            , public Singleton<Esp32TrainDatabase>
   {
   public:
@@ -216,16 +216,17 @@ namespace esp32cs
       return get_entry(train_id) != nullptr;
     }
 
-    std::shared_ptr<TrainDbEntry> create_if_not_found(unsigned address, DccMode mode=DccMode::DCC_128);
+    std::shared_ptr<commandstation::TrainDbEntry> create_if_not_found(
+      unsigned address, DccMode mode=DccMode::DCC_128);
 
     void delete_entry(unsigned address);
 
-    std::shared_ptr<TrainDbEntry> get_entry(unsigned train_id) override;
+    std::shared_ptr<commandstation::TrainDbEntry> get_entry(unsigned train_id) override;
 
-    std::shared_ptr<TrainDbEntry> find_entry(
+    std::shared_ptr<commandstation::TrainDbEntry> find_entry(
       openlcb::NodeID traction_node_id, unsigned hint = 0) override;
 
-    unsigned add_dynamic_entry(TrainDbEntry* entry) override;
+    unsigned add_dynamic_entry(commandstation::TrainDbEntry* entry) override;
 
     std::set<uint16_t> get_default_train_addresses(uint16_t limit);
 

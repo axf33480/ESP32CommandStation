@@ -744,7 +744,20 @@ menu "ESP32 Command Station"
             depends on STATUS_LED
     endmenu
     
+    menu "Sensors"
+        depends on ENABLE_SENSORS
+
+        config REMOTE_SENSORS_DECAY
+            int "Number of milliseconds until a remote sensor will automatically clear"
+            default 60000
+        config REMOTE_SENSORS_FIRST_SENSOR
+            int "First ID to assign remote sensors"
+            default 100
+    endmenu
+
     menu "S88 Sensors"
+        depends on ENABLE_SENSORS
+
         config S88
             bool "Enable S88 Sensor functionality"
             default n

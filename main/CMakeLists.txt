@@ -1,23 +1,30 @@
 set(deps
     "driver"
-    "esp_adc_cal"
     "efuse"
     "soc"
     "nvs_flash"
     "spi_flash"
     "vfs"
     "esp_common"
+    "esp_adc_cal"
     "bootloader_support"
     "app_update"
-    "spiffs"
-    "fatfs"
     "esp_wifi"
     "nlohmann_json"
     "OpenMRNLite"
     "LCCTrainSearchProtocol"
-    "NeoPixelBus"
     "Esp32HttpServer"
     "NeoNextion"
+    "EStopGenerator"
+    "HBridge"
+    "StatusLED"
+    "StatusDisplay"
+    "TaskMonitor"
+    "DCCSignalGenerator"
+    "DCCppProtocol"
+    "Configuration"
+    "DCCTurnoutManager"
+    "HC12"
 )
 
 # it would be really nice to not have NeoNextion in the default dependencies
@@ -26,11 +33,9 @@ set(deps
 
 set(srcs
     "."
-    "DCC"
     "Interfaces"
     "Interfaces/nextion"
     "IO"
-    "stateflows"
 )
 
 set(COMPONENT_REQUIRES "${deps}")
@@ -43,5 +48,4 @@ set(COMPONENT_ADD_INCLUDEDIRS ".")
 register_component()
 
 set_source_files_properties(ESP32CommandStation.cpp PROPERTIES COMPILE_FLAGS -Wno-implicit-fallthrough)
-set_source_files_properties(ConfigurationManager.cpp PROPERTIES COMPILE_FLAGS -Wno-implicit-fallthrough)
 set_source_files_properties(Interfaces/WiFiInterface.cpp PROPERTIES COMPILE_FLAGS -Wno-implicit-fallthrough)

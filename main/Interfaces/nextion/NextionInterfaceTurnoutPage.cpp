@@ -357,7 +357,7 @@ void NextionTurnoutPage::deleteButtonHandler() {
   if(_pageMode == PAGE_MODE::DELETION) {
     for(uint8_t slot = 0; slot < getTurnoutsPerPageCount(); slot++) {
       if(_turnoutButtons[slot].getPictureID() == TURNOUT_IMAGE_IDS::TURNOUT_DELETED) {
-        turnoutManager->removeByAddress(_toAddress[slot].getTextAsNumber());
+        Singleton<TurnoutManager>::instance()->removeByAddress(_toAddress[slot].getTextAsNumber());
         LOG(INFO, "[Nextion] Turnout(%d) deleted from slot(%d)", _toAddress[slot].getTextAsNumber(), slot);
       }
     }
@@ -384,7 +384,7 @@ void NextionTurnoutPage::editButtonHandler() {
 void NextionTurnoutPage::refreshPage() {
   int maxTurnoutsPerPage = getTurnoutsPerPageCount();
   // make sure that we only ever display a maximum of TURNOUTS_PER_PAGE turnouts per page
-  uint16_t turnoutsToDisplay = std::min(turnoutManager->getTurnoutCount() - _turnoutStartIndex, maxTurnoutsPerPage);
+  uint16_t turnoutsToDisplay = std::min(Singleton<TurnoutManager>::instance()->getTurnoutCount() - _turnoutStartIndex, maxTurnoutsPerPage);
 
   while(turnoutsToDisplay == 0 && _turnoutStartIndex >= maxTurnoutsPerPage) {
     // we have overrun the list of turnouts (possibly from deletion)
@@ -393,12 +393,12 @@ void NextionTurnoutPage::refreshPage() {
       _turnoutStartIndex = 0;
     }
     // recalcuate the number of turnouts to display
-    turnoutsToDisplay = std::min(turnoutManager->getTurnoutCount() - _turnoutStartIndex, maxTurnoutsPerPage);
+    turnoutsToDisplay = std::min(Singleton<TurnoutManager>::instance()->getTurnoutCount() - _turnoutStartIndex, maxTurnoutsPerPage);
   }
 
   // update the number of turnouts we can display on the page
   for(uint8_t componentIndex = 0; componentIndex < turnoutsToDisplay; componentIndex++) {
-    auto turnout = turnoutManager->getTurnoutByIndex(_turnoutStartIndex + componentIndex);
+    auto turnout = Singleton<TurnoutManager>::instance()->getTurnoutByIndex(_turnoutStartIndex + componentIndex);
     if(turnout) {
       _turnoutButtons[componentIndex].setPictureID(getDefaultTurnoutPictureID(turnout));
       _turnoutButtons[componentIndex].show();
@@ -421,7 +421,7 @@ void NextionTurnoutPage::refreshPage() {
     _nextButton.setPictureID(NEXT_BUTTON_DISABLED);
     _nextButton.disable();
   } else if(turnoutsToDisplay == maxTurnoutsPerPage &&
-     turnoutManager->getTurnoutCount() > (turnoutsToDisplay + _turnoutStartIndex)) {
+     Singleton<TurnoutManager>::instance()->getTurnoutCount() > (turnoutsToDisplay + _turnoutStartIndex)) {
     // we are displaying a full page of turnouts and there is at least one
     // additional turnout to display so show the next page button
     _nextButton.setPictureID(NEXT_BUTTON_ENABLED);
@@ -442,14 +442,14 @@ void NextionTurnoutPage::refreshPage() {
 void NextionTurnoutPage::previousPageCallback(BaseNextionPage *previousPage) {
   NextionAddressPage *addressPage = static_cast<NextionAddressPage *>(previousPage);
   if(_pageMode == PAGE_MODE::EDIT) {
-    auto turnout = turnoutManager->getTurnoutByAddress(addressPage->getCurrentAddress());
+    auto turnout = Singleton<TurnoutManager>::instance()->getTurnoutByAddress(addressPage->getCurrentAddress());
     if(turnout) {
       turnout->update(addressPage->getNewAddress(), -1, addressPage->getTurnoutType());
     } else {
       LOG(WARNING, "[Nextion] Turnout with address %d no longer exists", addressPage->getCurrentAddress());
     }
   } else {
-    turnoutManager->createOrUpdate(turnoutManager->getTurnoutCount() + 1,
+    Singleton<TurnoutManager>::instance()->createOrUpdate(Singleton<TurnoutManager>::instance()->getTurnoutCount() + 1,
       addressPage->getNewAddress(), -1, addressPage->getTurnoutType());
   }
   // reset page mode for normal operations
@@ -461,7 +461,7 @@ void NextionTurnoutPage::toggleTurnout(const NextionButton *button) {
   for(uint8_t slot = 0; slot < getTurnoutsPerPageCount(); slot++) {
     if(&_turnoutButtons[slot] == button) {
       auto turnoutAddress = _toAddress[slot].getTextAsNumber();
-      auto turnout = turnoutManager->getTurnoutByAddress(turnoutAddress);
+      auto turnout = Singleton<TurnoutManager>::instance()->getTurnoutByAddress(turnoutAddress);
       if(turnout) {
         if(_pageMode == PAGE_MODE::DELETION) {
           if(_turnoutButtons[slot].getPictureID() == TURNOUT_IMAGE_IDS::TURNOUT_DELETED) {

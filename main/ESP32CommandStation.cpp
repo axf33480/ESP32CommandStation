@@ -18,9 +18,23 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 #include "ESP32CommandStation.h"
 #include "sdkconfig.h"
 #include "CSConfigDescriptor.h"
+#include "OTAMonitor.h"
 
+#include <AllTrainNodes.hxx>
+
+#include <dcc/ProgrammingTrackBackend.hxx>
+#include <dcc/RailcomHub.hxx>
+#include <esp_adc_cal.h>
+#include <EStopHandler.h>
+#include <executor/PoolToQueueFlow.hxx>
+#include <FreeRTOSTaskMonitor.h>
 #include <nvs.h>
 #include <nvs_flash.h>
+#include <openlcb/SimpleInfoProtocol.hxx>
+#include <RMTTrackDevice.h>
+#include <StatusDisplay.h>
+#include <StatusLED.h>
+#include <HC12Radio.h>
 
 const char * buildTime = __DATE__ " " __TIME__;
 
@@ -75,9 +89,7 @@ OVERRIDE_CONST_EXPAND_VALUE(local_nodes_count, CONFIG_LCC_LOCAL_NODE_COUNT);
 OVERRIDE_CONST_EXPAND_VALUE(local_alias_cache_size
                           , CONFIG_LCC_LOCAL_NODE_COUNT);
 
-unique_ptr<SimpleCanStack> lccStack;
-
-//unique_ptr<OpenMRN> openmrn;
+unique_ptr<openlcb::SimpleCanStack> lccStack;
 
 // Esp32ConfigDef comes from CSConfigDescriptor.h and is specific to this
 // particular device and target. It defines the layout of the configuration
@@ -117,10 +129,7 @@ namespace openlcb
   const char *const SNIP_DYNAMIC_FILENAME = LCC_CONFIG_FILE;
 }
 
-uninitialized<RMTTrackDevice> trackSignal;
-uninitialized<LocalTrackIf> trackInterface;
-uninitialized<RailcomHubFlow> railComHub;
-uninitialized<RailcomPrintfFlow> railComDataDumper;
+uninitialized<dcc::LocalTrackIf> trackInterface;
 
 // when the command station starts up the first time the config is blank
 // and needs to be reset to factory settings. This class being declared here
@@ -142,17 +151,6 @@ public:
         cfg.userinfo().description().write(fd, "");
     }
 };
-
-#if 0
-void openmrn_loop_task(void *unused)
-{
-  while(true) {
-    openmrn->loop();
-    // yield to other tasks by going to sleep for 1ms
-    vTaskDelay(pdMS_TO_TICKS(1));
-  }
-}
-#endif
 
 extern "C" void app_main()
 {
@@ -210,34 +208,86 @@ extern "C" void app_main()
   ConfigurationManager *config = new ConfigurationManager(cfg);
 
   LOG(INFO, "[LCC] Initializing Stack");
-  // Initialize the OpenMRN stack.
-  lccStack.reset(new SimpleCanStack(config->getNodeId()));
+  lccStack.reset(new openlcb::SimpleCanStack(config->getNodeId()));
 
   // Initialize the enabled modules.
-  config->configureEnabledModules();
+  config->configureWiFi();
+
+  // Initialize the status display module (dependency of WiFi)
+  StatusDisplay statusDisplay(lccStack.get(), lccStack->service());
+
+#if CONFIG_NEXTION
+  // Initialize the Nextion module (dependency of WiFi)
+  LOG(INFO, "[Config] Enabling Nextion module");
+  nextionInterfaceInit();
+#endif
+
+  init_wifi_endpoints();
+
+  // Initialize the turnout manager and register it with the LCC stack to
+  // process accessories packets.
+  TurnoutManager turnoutManager(lccStack->node(), lccStack->service());
+
+#if CONFIG_OUTPUTS
+  LOG(INFO, "[Config] Enabling GPIO Outputs");
+  OutputManager::init();
+#endif
+
+#if CONFIG_SENSORS
+  LOG(INFO, "[Config] Enabling GPIO Inputs");
+  SensorManager::init();
+  S88BusManager::init();
+  RemoteSensorManager::init();
+#endif
+
+#if CONFIG_LOCONET
+  LOG(INFO, "[Config] Enabling LocoNet interface");
+  initializeLocoNet();
+#endif
+
+#if CONFIG_HC12
+  esp32cs::HC12Radio hc12(lccStack->service()
+#if CONFIG_HC12_UART_UART1
+                        , UART_NUM_1
+#else
+                        , UART_NUM_2
+#endif
+                        , (gpio_num_t)CONFIG_HC12_RX_PIN
+                        , (gpio_num_t)CONFIG_HC12_TX_PIN));
+#endif // CONFIG_HC12
+
+  StatusLED statusLED(lccStack->service());
+
+  OTAMonitorFlow ota(lccStack->service());
 
   // Initialize the factory reset helper for the CS.
   FactoryResetHelper resetHelper;
 
+#if CONFIG_OPS_RAILCOM
   // Initialize the RailCom Hub
-  railComHub.emplace(lccStack->service());
+  dcc::RailcomHubFlow railComHub(lccStack->service());
+
+#if CONFIG_OPS_RAILCOM_DUMP_PACKETS
+  // Add a data dumper for the RailCom Hub
+  dcc::RailcomPrintfFlow railComDataDumper(&railComHub);
+#endif // CONFIG_OPS_RAILCOM_DUMP_PACKETS
 
   // Initialize Track Signal Device (both OPS and PROG)
-  trackSignal.emplace(lccStack.get(), &railComHub.value()
-                    , cfg.seg().hbridge().entry(OPS_CDI_TRACK_OUTPUT_INDEX)
-                    , cfg.seg().hbridge().entry(PROG_CDI_TRACK_OUTPUT_INDEX));
+  RMTTrackDevice trackSignal(lccStack.get()
+                           , cfg.seg().hbridge().entry(OPS_CDI_TRACK_OUTPUT_INDEX)
+                           , cfg.seg().hbridge().entry(PROG_CDI_TRACK_OUTPUT_INDEX)
+                           , &railComHub);
+
+#else // NO RAILCOM
+  // Initialize Track Signal Device (both OPS and PROG)
+  RMTTrackDevice trackSignal(lccStack.get()
+                           , cfg.seg().hbridge().entry(OPS_CDI_TRACK_OUTPUT_INDEX)
+                           , cfg.seg().hbridge().entry(PROG_CDI_TRACK_OUTPUT_INDEX));
+#endif // CONFIG_OPS_RAILCOM
 
   // Initialize Local Track inteface.
   trackInterface.emplace(lccStack->service()
                        , CONFIG_DCC_PACKET_POOL_SIZE);
-
-#if 0
-  // Initialize the MemorySpace handler for CV read/write.
-  TractionCvSpace cvMemorySpace(openmrn->stack()->memory_config_handler()
-                              , trackInterface.get()
-                              , railComHub.get()
-                              , MemoryConfigDefs::SPACE_DCC_CV);
-#endif
 
   // Open a handle to the track device driver
   int track = ::open("/dev/track", O_RDWR);
@@ -246,29 +296,24 @@ extern "C" void app_main()
   trackInterface->set_fd(track);
 
   // Initialize the DCC Update Loop.
-  SimpleUpdateLoop dccUpdateLoop(lccStack->service()
-                               , &trackInterface.value());
+  dcc::SimpleUpdateLoop dccUpdateLoop(lccStack->service()
+                                    , &trackInterface.value());
 
   // Attach the DCC update loop to the track interface
-  PoolToQueueFlow<Buffer<Packet>> dccPacketFlow(lccStack->service()
-                                              , trackInterface->pool()
-                                              , &dccUpdateLoop);
+  PoolToQueueFlow<Buffer<dcc::Packet>> dccPacketFlow(lccStack->service()
+                                                   , trackInterface->pool()
+                                                   , &dccUpdateLoop);
 
   // Initialize the e-stop event handler
   esp32cs::EStopHandler eStop(lccStack->node());
-
-#if CONFIG_OPS_RAILCOM_DUMP_PACKETS
-  // Add a data dumper for the RailCom Hub
-  railComDataDumper.emplace(&railComHub.value());
-#endif
 
   // Initialize the Programming Track backend handler
   ProgrammingTrackBackend
     progTrackBackend(lccStack->service()
                    , std::bind(&RMTTrackDevice::enable_prog_output
-                             , &trackSignal.value())
+                             , &trackSignal)
                    , std::bind(&RMTTrackDevice::disable_prog_output
-                             , &trackSignal.value()));
+                             , &trackSignal));
 
   // Initialize the OpenMRN stack, this needs to be done *AFTER* all other LCC
   // dependent components as it will initiate configuration load and factory
@@ -279,16 +324,23 @@ extern "C" void app_main()
   DCCPPProtocolHandler::init();
 
   // Initialize the Traction Protocol support
-  TrainService trainService(lccStack->iface());
+  openlcb::TrainService trainService(lccStack->iface());
 
   // Initialize the train database
   esp32cs::Esp32TrainDatabase trainDb(lccStack.get());
 
   // Initialize the Train Search and Train Manager.
-  AllTrainNodes trainNodes(&trainDb, &trainService, lccStack->info_flow()
-                         , lccStack->memory_config_handler()
-                         , trainDb.get_readonly_train_cdi()
-                         , trainDb.get_readonly_temp_train_cdi());
+  commandstation::AllTrainNodes trainNodes(&trainDb
+                                         , &trainService
+                                         , lccStack->info_flow()
+                                         , lccStack->memory_config_handler()
+                                         , trainDb.get_readonly_train_cdi()
+                                         , trainDb.get_readonly_temp_train_cdi());
+
+
+  // Task Monitor, periodically dumps runtime state to STDOUT.
+  LOG(VERBOSE, "Starting FreeRTOS Task Monitor");
+  FreeRTOSTaskMonitor taskMon(lccStack->service());
 
   LOG(INFO, "\n\nESP32 Command Station Startup complete!\n");
   Singleton<StatusDisplay>::instance()->status("ESP32-CS Started");
@@ -297,11 +349,12 @@ extern "C" void app_main()
   lccStack->loop_executor();
 }
 
+#if CONFIG_ENABLE_OUTPUTS || CONFIG_ENABLE_SENSORS
 bool is_restricted_pin(int8_t pin)
 {
   vector<uint8_t> restrictedPins
   {
-#if CONFIG_ALLOW_USAGE_OF_RESTRICTED_GPIO_PINS
+#if !CONFIG_ALLOW_USAGE_OF_RESTRICTED_GPIO_PINS
     0,                        // Bootstrap / Firmware Flash Download
     1,                        // UART0 TX
     2,                        // Bootstrap / Firmware Flash Download
@@ -309,7 +362,7 @@ bool is_restricted_pin(int8_t pin)
     5,                        // Bootstrap
     6, 7, 8, 9, 10, 11,       // on-chip flash pins
     12, 15,                   // Bootstrap / SD pins
-#endif
+#endif // ! CONFIG_ALLOW_USAGE_OF_RESTRICTED_GPIO_PINS
     CONFIG_OPS_ENABLE_PIN
   , CONFIG_OPS_SIGNAL_PIN
 #if defined(CONFIG_OPS_THERMAL_PIN)
@@ -325,34 +378,34 @@ bool is_restricted_pin(int8_t pin)
   , CONFIG_OPS_RAILCOM_ENABLE_PIN
   , CONFIG_OPS_RAILCOM_SHORT_PIN
   , CONFIG_OPS_RAILCOM_UART_RX_PIN
-#endif
+#endif // CONFIG_OPS_RAILCOM
 
 #if CONFIG_LCC_CAN_ENABLED
   , CONFIG_LCC_CAN_RX_PIN
   , CONFIG_LCC_CAN_TX_PIN
 #endif
 
-#if HC12_RADIO_ENABLED
-  , HC12_RX_PIN
-  , HC12_TX_PIN
+#if CONFIG_HC12
+  , CONFIG_HC12_RX_PIN
+  , CONFIG_HC12_TX_PIN
 #endif
 
-#if NEXTION_ENABLED
-  , NEXTION_UART_RX_PIN
-  , NEXTION_UART_TX_PIN
+#if CONFIG_NEXTION
+  , CONFIG_NEXTION_RX_PIN
+  , CONFIG_NEXTION_TX_PIN
 #endif
 
-#if INFO_SCREEN_ENABLED
+#if CONFIG_DISPLAY_TYPE_OLED || CONFIG_DISPLAY_TYPE_LCD
   , CONFIG_DISPLAY_SCL
   , CONFIG_DISPLAY_SDA
-#if defined(CONFIG_DISPLAY_OLED_RESET_PIN)
+#if CONFIG_DISPLAY_OLED_RESET_PIN
   , CONFIG_DISPLAY_OLED_RESET_PIN
 #endif
 #endif
 
-#if LOCONET_ENABLED
-  , LOCONET_RX_PIN
-  , LOCONET_TX_PIN
+#if CONFIG_LOCONET
+  , CONFIG_LOCONET_RX_PIN
+  , CONFIG_LOCONET_TX_PIN
 #endif
 
 #if CONFIG_S88
@@ -370,3 +423,4 @@ bool is_restricted_pin(int8_t pin)
                  , restrictedPins.end()
                  , pin) != restrictedPins.end();
 }
+#endif // CONFIG_ENABLE_OUTPUTS || CONFIG_ENABLE_SENSORS

@@ -342,7 +342,7 @@ void Nextion::sendCommand(const std::string &command)
 #if NEXTION_DEBUG
   printf("Nextion: TX: %s\n", command.c_str());
 #endif
-  uart_tx_chars(m_serialPort, command.c_str(), command.length());
+  uart_write_bytes(m_serialPort, command.c_str(), command.length());
   uart_write_bytes(m_serialPort, end_bytes, 3);
 }
 
