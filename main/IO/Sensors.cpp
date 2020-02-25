@@ -16,6 +16,8 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 **********************************************************************/
 
 #include "ESP32CommandStation.h"
+#include <DCCppProtocol.h>
+#include <StatusDisplay.h>
 
 /**********************************************************************
 
@@ -301,5 +303,37 @@ string Sensor::set(bool state)
   }
   return COMMAND_NO_RESPONSE;
 }
+
+DCC_PROTOCOL_COMMAND_HANDLER(SensorCommandAdapter,
+[](const vector<string> arguments)
+{
+  if(arguments.empty())
+  {
+    // list all sensors
+    string status = SensorManager::get_state_for_dccpp();
+#if CONFIG_S88
+    status += S88BusManager::get_state_for_dccpp();
+#endif
+    status += RemoteSensorManager::get_state_for_dccpp();
+    return status;
+  }
+  else
+  {
+    uint16_t sensorID = std::stoi(arguments[0]);
+    if (arguments.size() == 1 && SensorManager::remove(sensorID))
+    {
+      // delete turnout
+      return COMMAND_SUCCESSFUL_RESPONSE;
+    }
+    else if (arguments.size() == 3)
+    {
+      // create sensor
+      SensorManager::createOrUpdate(sensorID, std::stoi(arguments[1])
+                                  , arguments[2][0] == '1');
+      return COMMAND_SUCCESSFUL_RESPONSE;
+    }
+  }
+  return COMMAND_FAILED_RESPONSE;
+})
 
 #endif // CONFIG_ENABLE_SENSORS

@@ -17,6 +17,8 @@ COPYRIGHT (c) 2018-2020 Mike Dunston
 **********************************************************************/
 
 #include "ESP32CommandStation.h"
+#include <json.hpp>
+#include <DCCppProtocol.h>
 
 /**********************************************************************
 
@@ -143,5 +145,31 @@ string RemoteSensor::toJson(bool includeState)
   };
   return object.dump();
 }
+
+DCC_PROTOCOL_COMMAND_HANDLER(RemoteSensorsCommandAdapter,
+[](const vector<string> arguments)
+{
+  if(arguments.empty())
+  {
+    // list all sensors
+    return RemoteSensorManager::get_state_for_dccpp();
+  }
+  else
+  {
+    uint16_t sensorID = std::stoi(arguments[0]);
+    if (arguments.size() == 1 && RemoteSensorManager::remove(sensorID))
+    {
+      // delete remote sensor
+      return COMMAND_SUCCESSFUL_RESPONSE;
+    }
+    else if (arguments.size() == 2)
+    {
+      // create/update remote sensor
+      RemoteSensorManager::createOrUpdate(sensorID, std::stoi(arguments[1]));
+      return COMMAND_SUCCESSFUL_RESPONSE;
+    }
+  }
+  return COMMAND_FAILED_RESPONSE;
+})
 
 #endif // CONFIG_ENABLE_SENSORS

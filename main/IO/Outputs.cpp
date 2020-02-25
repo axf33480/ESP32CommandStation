@@ -16,6 +16,8 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 **********************************************************************/
 
 #include "ESP32CommandStation.h"
+#include <DCCppProtocol.h>
+#include <StatusDisplay.h>
 
 /**********************************************************************
 
@@ -326,4 +328,55 @@ string Output::getStateAsJson()
 {
   return StringPrintf("<Y %d %d %d %d>", _id, _pin, _flags, !_active);
 }
+
+DCC_PROTOCOL_COMMAND_HANDLER(OutputCommandAdapter,
+[](const vector<string> arguments)
+{
+  if(arguments.empty())
+  {
+    // list all outputs
+    return OutputManager::get_state_for_dccpp();
+  }
+  else
+  {
+    uint16_t outputID = std::stoi(arguments[0]);
+    if (arguments.size() == 1 && OutputManager::remove(outputID))
+    {
+      // delete output
+      return COMMAND_SUCCESSFUL_RESPONSE;
+    }
+    else if (arguments.size() == 2)
+    {
+      // set output state
+      return OutputManager::set(outputID, arguments[1][0] == 1);
+    }
+    else if (arguments.size() == 3)
+    {
+      // create output
+      OutputManager::createOrUpdate(outputID, std::stoi(arguments[1])
+                                  , std::stoi(arguments[2]));
+      return COMMAND_SUCCESSFUL_RESPONSE;
+    }
+  }
+  return COMMAND_FAILED_RESPONSE;
+})
+
+DCC_PROTOCOL_COMMAND_HANDLER(OutputExCommandAdapter,
+[](const vector<string> arguments)
+{
+  if(arguments.empty())
+  {
+    return COMMAND_FAILED_RESPONSE;
+  }
+  else
+  {
+    uint16_t outputID = std::stoi(arguments[0]);
+    auto output = OutputManager::getOutput(outputID);
+    if (output)
+    {
+      return output->set(!output->isActive());
+    }
+  }
+  return COMMAND_FAILED_RESPONSE;
+})
 #endif // CONFIG_ENABLE_OUTPUTS

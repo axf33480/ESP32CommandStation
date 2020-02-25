@@ -42,7 +42,8 @@ S88 Sensors are reported in the same manner as generic Sensors:
 
 **********************************************************************/
 #if CONFIG_ENABLE_SENSORS && CONFIG_S88
-
+#include <DCCppProtocol.h>
+#include <StatusDisplay.h>
 #include <json.hpp>
 
 /////////////////////////////////////////////////////////////////////////////////////
@@ -359,5 +360,33 @@ S88Sensor::S88Sensor(uint16_t id, uint16_t index) : Sensor(id, NON_STORED_SENSOR
 {
   LOG(VERBOSE, "[S88] Sensor(%d) created with index %d", id, _index);
 }
+
+DCC_PROTOCOL_COMMAND_HANDLER(S88BusCommandAdapter,
+[](const vector<string> arguments)
+{
+  if(arguments.empty())
+  {
+    // list all sensor groups
+    return S88BusManager::get_state_for_dccpp();
+  }
+  else
+  {
+    if (arguments.size() == 1 &&
+        S88BusManager::removeBus(std::stoi(arguments[0])))
+    {
+      // delete sensor bus
+      return COMMAND_SUCCESSFUL_RESPONSE;
+    }
+    else if (arguments.size() == 3 &&
+             S88BusManager::createOrUpdateBus(std::stoi(arguments[0])
+                                            , std::stoi(arguments[1])
+                                            , std::stoi(arguments[2])))
+    {
+      // create sensor bus
+      return COMMAND_SUCCESSFUL_RESPONSE;
+    }
+  }
+  return COMMAND_FAILED_RESPONSE;
+})
 
 #endif // CONFIG_ENABLE_SENSORS

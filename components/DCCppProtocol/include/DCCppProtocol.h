@@ -20,6 +20,7 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 
 #include <vector>
 #include <string>
+#include <openlcb/TractionTrain.hxx>
 
 // Class definition for a single protocol command
 class DCCPPProtocolCommand
@@ -70,4 +71,38 @@ private:
 const std::string COMMAND_FAILED_RESPONSE = "<X>";
 const std::string COMMAND_SUCCESSFUL_RESPONSE = "<O>";
 const std::string COMMAND_NO_RESPONSE = "";
+
+std::string convert_loco_to_dccpp_state(openlcb::TrainImpl *impl, size_t id);
+
+// <s> command handler, this command sends the current status for all parts of
+// the ESP32 Command Station. JMRI uses this command as a keep-alive heartbeat
+// command.
+DECLARE_DCC_PROTOCOL_COMMAND_CLASS(StatusCommand, "s")
+
+// <e> command handler, this command will clear all stored Turnouts, Outputs,
+// Sensors and S88 Sensors (if enabled) after sending this command. Note, when
+// running with the PCB configuration only turnouts will be cleared.
+DECLARE_DCC_PROTOCOL_COMMAND_CLASS(ConfigErase, "e")
+
+// <E> command handler, this command stores all currently defined Turnouts,
+// Sensors, S88 Sensors (if enabled) and Outputs to persistent storage for use
+// by the Command Station in subsequent startups. Note, when running with the
+// PCB configuration only turnouts will be stored.
+DECLARE_DCC_PROTOCOL_COMMAND_CLASS(ConfigStore, "E")
+
+#include "sdkconfig.h"
+
+#if CONFIG_ENABLE_OUTPUTS
+DECLARE_DCC_PROTOCOL_COMMAND_CLASS(OutputCommandAdapter, "Z")
+DECLARE_DCC_PROTOCOL_COMMAND_CLASS(OutputExCommandAdapter, "Zex")
+#endif // CONFIG_OUTPUTS_ENABLED
+
+#if CONFIG_ENABLE_SENSORS
+DECLARE_DCC_PROTOCOL_COMMAND_CLASS(SensorCommandAdapter, "S")
+DECLARE_DCC_PROTOCOL_COMMAND_CLASS(RemoteSensorsCommandAdapter, "RS")
+#if CONFIG_S88
+DECLARE_DCC_PROTOCOL_COMMAND_CLASS(S88BusCommandAdapter, "S88")
+#endif
+#endif // CONFIG_ENABLE_SENSORS
+
 #endif // DCC_PROTOCOL_H_
