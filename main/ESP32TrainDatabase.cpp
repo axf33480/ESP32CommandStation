@@ -231,7 +231,9 @@ Esp32TrainDatabase::Esp32TrainDatabase(openlcb::SimpleStackBase *stack)
           , data.address, data.name.c_str()
           , data.automatic_idle ? JSON_VALUE_ON : JSON_VALUE_OFF
           , data.show_on_limited_throttles ? JSON_VALUE_ON : JSON_VALUE_OFF);
-        knownTrains_.emplace_back(new Esp32TrainDbEntry(data));
+        auto train = new Esp32TrainDbEntry(data);
+        train->reset_dirty();
+        knownTrains_.emplace_back(train);
       }
       else
       {
