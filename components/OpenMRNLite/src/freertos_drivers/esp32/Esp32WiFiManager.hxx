@@ -216,12 +216,12 @@ public:
     ///
     /// Note: This will schedule a @ref CallbackExecutable on the @ref Executor
     /// used by the @ref SimpleCanStack.
-    void mdns_publish(string service, uint16_t port);
+    void mdns_publish(std::string service, uint16_t port);
 
     /// Removes the advertisement of a service via mDNS.
     ///
     /// @param service is the service name to remove from advertising.
-    void mdns_unpublish(string service);
+    void mdns_unpublish(std::string service);
 
 private:
     /// Default constructor.
@@ -374,7 +374,7 @@ private:
 
     /// Internal holder for mDNS entries which could not be published due to
     /// mDNS not being initialized yet.
-    std::map<std::string, uint16_t> mdnsDeferred_;
+    std::map<std::string, uint16_t> mdnsDeferredPublish_;
 
     DISALLOW_COPY_AND_ASSIGN(Esp32WiFiManager);
 };
