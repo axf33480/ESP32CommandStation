@@ -917,14 +917,11 @@ string RMTTrackDevice::get_status_screen_data()
 ///////////////////////////////////////////////////////////////////////////////
 void RMTTrackDevice::update_status_display()
 {
-  stack_->executor()->add(new CallbackExecutable([&]()
-  {
-    auto status = Singleton<StatusDisplay>::instance();
-    status->track_power("%s:%s %s:%s", CONFIG_OPS_TRACK_NAME
-                      , opsHBridge_->isEnabled() ? "On" : "Off"
-                      , CONFIG_PROG_TRACK_NAME
-                      , progHBridge_->isEnabled() ? "On" : "Off");
-  }));
+  auto status = Singleton<StatusDisplay>::instance();
+  status->track_power("%s:%s %s:%s", CONFIG_OPS_TRACK_NAME
+                    , opsHBridge_->isEnabled() ? "On" : "Off"
+                    , CONFIG_PROG_TRACK_NAME
+                    , progHBridge_->isEnabled() ? "On" : "Off");
 }
 
 ///////////////////////////////////////////////////////////////////////////////
