@@ -42,7 +42,7 @@ public:
     , node_(node)
     , remaining_(0)
   {
-    LOG(INFO, "[eStop] Registered for event handling...");
+    LOG(VERBOSE, "[eStop] Registered for event handling...");
   }
 
   openlcb::EventState get_current_state() override
