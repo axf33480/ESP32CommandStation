@@ -267,13 +267,12 @@ esp_partition_t *ota_partition = nullptr;
 HTTP_STREAM_HANDLER_IMPL(process_ota, request, filename, size, data, length
                        , offset, final, abort_req)
 {
-  esp_err_t err = ESP_OK;
   if (!offset)
   {
     esp_log_level_set("esp_image", ESP_LOG_VERBOSE);
     ota_partition = (esp_partition_t *)esp_ota_get_next_update_partition(NULL);
-    err = ESP_ERROR_CHECK_WITHOUT_ABORT(esp_ota_begin(ota_partition, size
-                                                    , &otaHandle));
+    esp_err_t err = ESP_ERROR_CHECK_WITHOUT_ABORT(
+      esp_ota_begin(ota_partition, size, &otaHandle));
     if (err != ESP_OK)
     {
       LOG_ERROR("[WebSrv] OTA start failed, aborting!");
@@ -293,7 +292,7 @@ HTTP_STREAM_HANDLER_IMPL(process_ota, request, filename, size, data, length
   Singleton<OTAMonitorFlow>::instance()->report_progress(length);
   if (final)
   {
-    err = ESP_ERROR_CHECK_WITHOUT_ABORT(esp_ota_end(otaHandle));
+    esp_err_t err = ESP_ERROR_CHECK_WITHOUT_ABORT(esp_ota_end(otaHandle));
     if (err != ESP_OK)
     {
       LOG_ERROR("[WebSrv] OTA end failed, aborting!");
