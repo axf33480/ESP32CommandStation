@@ -229,7 +229,7 @@ void initializeLocoNet()
   locoNet.onPacket(OPC_INPUT_REP, [](lnMsg *msg)
   {
     uint16_t address = ((msg->ir.in1 | ((msg->ir.in2 & 0x0F) << 7)) << 1) +
-      msg->ir.in2 & OPC_INPUT_REP_SW ? 2 : 1;
+      (msg->ir.in2 & OPC_INPUT_REP_SW) ? 2 : 1;
     LOG(INFO, "[LocoNet] Sensor (%d): %d", address
       , msg->ir.in2 & OPC_INPUT_REP_HI);
     // TODO: add a LocoNet sensor type to record this state transition
