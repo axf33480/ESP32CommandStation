@@ -15,8 +15,6 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
   along with this program.  If not, see http://www.gnu.org/licenses
 **********************************************************************/
 
-#include "ESP32CommandStation.h"
-
 /**********************************************************************
 
 The ESP32 Command Station supports multiple S88 Sensor busses.
@@ -45,6 +43,8 @@ S88 Sensors are reported in the same manner as generic Sensors:
 #include <DCCppProtocol.h>
 #include <StatusDisplay.h>
 #include <json.hpp>
+#include <JsonConstants.h>
+#include "S88Sensors.h"
 
 /////////////////////////////////////////////////////////////////////////////////////
 // S88 Timing values (in microseconds)
@@ -66,7 +66,7 @@ OSMutex S88BusManager::_s88SensorLock;
 static constexpr UBaseType_t S88_SENSOR_TASK_PRIORITY = 1;
 static constexpr uint32_t S88_SENSOR_TASK_STACK_SIZE = 2048;
 
-vector<unique_ptr<S88SensorBus>> s88SensorBus;
+std::vector<std::unique_ptr<S88SensorBus>> s88SensorBus;
 
 void S88BusManager::init()
 {
@@ -191,7 +191,7 @@ bool S88BusManager::removeBus(const uint8_t id)
 {
   OSMutexLock l(&_s88SensorLock);
   const auto & ent = std::find_if(s88SensorBus.begin(), s88SensorBus.end(),
-  [id](unique_ptr<S88SensorBus> & bus) -> bool
+  [id](std::unique_ptr<S88SensorBus> & bus) -> bool
   {
     return bus->getID() == id;
   });

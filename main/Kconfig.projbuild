@@ -139,48 +139,6 @@ menu "ESP32 Command Station"
             default 10
     endmenu
 
-    menu "Sensors"
-        depends on ENABLE_SENSORS
-
-        config REMOTE_SENSORS_DECAY
-            int "Number of milliseconds until a remote sensor will automatically clear"
-            default 60000
-        config REMOTE_SENSORS_FIRST_SENSOR
-            int "First ID to assign remote sensors"
-            default 100
-    endmenu
-
-    menu "S88 Sensors"
-        depends on ENABLE_SENSORS
-
-        config S88
-            bool "Enable S88 Sensor functionality"
-            default n
-
-        config S88_CLOCK_PIN
-            int "S88 Clock pin"
-            range 0 32
-            depends on S88
-
-        config S88_RESET_PIN
-            int "S88 Reset pin"
-            range 0 32
-            depends on S88
-
-        config S88_LOAD_PIN
-            int "S88 Load pin"
-            range 0 32
-            depends on S88
-
-        config S88_FIRST_SENSOR
-            int "First sensor ID"
-            default 255
-
-        config S88_MAX_SENSORS_PER_BUS
-            int
-            default 255
-    endmenu
-
     menu "Nextion"
         config NEXTION
             bool "Enable Nextion HMI interface"
@@ -284,64 +242,6 @@ menu "ESP32 Command Station"
                 logic. If you have an external pull-up resistor this option can
                 be disabled.
     endmenu
-
-    menu "Advanced"
-        config ENABLE_OUTPUTS
-            bool "Enable GPIO pins to be used as outputs"
-            default y
-
-        config ENABLE_SENSORS
-            bool "Enable GPIO pins to be used as sensors"
-            default y
-
-        config ALLOW_USAGE_OF_RESTRICTED_GPIO_PINS
-            bool "Allow usage of restricted GPIO pins"
-            help
-                Enables usage of the following pins for sensors and outputs
-                0 - Bootstrap / Firmware Flash Download
-                1 - UART0 TX
-                2 - Bootstrap / Firmware Flash Download
-                3 - UART0 RX
-                5 - Bootstrap
-                6, 7, 8, 9, 10, 11 - flash pins
-                12, 15 - Bootstrap / SD pins
-            default n
-            depends on ENABLE_OUTPUTS || ENABLE_SENSORS
-
-        config TASK_MONITOR_INTERVAL_SEC
-            int "Seconds between task monitoring printing"
-            default 45
-    
-        config TASK_LIST_REPORT
-            bool "Print FreeRTOS task list periodically"
-            default n
-
-        config TASK_LIST_INTERVAL_SEC
-            int "Seconds between FreeRTOS task list printing"
-            default 300
-            depends on TASK_LIST_REPORT
-        
-        config AUTO_CREATE_ROSTER_ENTRIES
-            bool "Create a roster entry for new trains on first use"
-            default y
-
-        config ROSTER_PERSISTENCE_INTERVAL_SEC
-            int "Number of seconds between automatic persistence of train roster"
-            default 30
-
-        config TURNOUTS_PERSISTENCE_INTERVAL_SEC
-            int "Number of seconds between automatic persistence of turnout list"
-            default 30
-
-        endmenu
-
-    config ESP32CS_FORCE_FACTORY_RESET
-        bool "Clear *ALL* configuration settings on startup"
-        default n
-        help
-            Enabling this option will force clear all persistent configuration
-            settings upon startup. This generally should not be required to be
-            used.
 
     config ESP32CS_CDI_VERSION
         hex

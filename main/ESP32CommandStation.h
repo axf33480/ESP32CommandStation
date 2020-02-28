@@ -76,11 +76,6 @@ using std::set;
 #include "Interfaces/nextion/NextionInterface.h"
 #endif
 
-#include "IO/Outputs.h"
-#include "IO/Sensors.h"
-#include "IO/S88Sensors.h"
-#include "IO/RemoteSensors.h"
-
 extern uninitialized<dcc::LocalTrackIf> trackInterface;
 extern std::unique_ptr<openlcb::SimpleCanStack> lccStack;
 
@@ -90,11 +85,6 @@ extern LocoNetESP32Uart locoNet;
 #endif
 
 void initializeLocoNet();
-
-// Returns true if the provided pin is one of the ESP32 pins that has usage
-// restrictions. This will always return false if the configuration flag
-// ALLOW_USAGE_OF_RESTRICTED_GPIO_PINS is enabled.
-bool is_restricted_pin(int8_t);
 
 /// Utility macro for StateFlow early abort
 #define LOG_ESP_ERROR_AND_EXIT_FLOW(name, text, cmd)  \

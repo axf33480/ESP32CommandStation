@@ -36,6 +36,10 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 #include <StatusLED.h>
 #include <HC12Radio.h>
 
+#include <Sensors.h>
+#include <RemoteSensors.h>
+#include <Outputs.h>
+
 const char * buildTime = __DATE__ " " __TIME__;
 
 // GCC pre-compiler trick to expand the value from a #define constant
@@ -348,82 +352,6 @@ extern "C" void app_main()
   // donate our task thread to OpenMRN executor.
   lccStack->loop_executor();
 }
-
-#if CONFIG_ENABLE_OUTPUTS || CONFIG_ENABLE_SENSORS
-bool is_restricted_pin(int8_t pin)
-{
-  vector<uint8_t> restrictedPins
-  {
-#if !CONFIG_ALLOW_USAGE_OF_RESTRICTED_GPIO_PINS
-    0,                        // Bootstrap / Firmware Flash Download
-    1,                        // UART0 TX
-    2,                        // Bootstrap / Firmware Flash Download
-    3,                        // UART0 RX
-    5,                        // Bootstrap
-    6, 7, 8, 9, 10, 11,       // on-chip flash pins
-    12, 15,                   // Bootstrap / SD pins
-#endif // ! CONFIG_ALLOW_USAGE_OF_RESTRICTED_GPIO_PINS
-    CONFIG_OPS_ENABLE_PIN
-  , CONFIG_OPS_SIGNAL_PIN
-#if defined(CONFIG_OPS_THERMAL_PIN)
-  , CONFIG_OPS_THERMAL_PIN
-#endif
-  , CONFIG_PROG_ENABLE_PIN
-  , CONFIG_PROG_SIGNAL_PIN
-
-#if CONFIG_OPS_RAILCOM
-#if CONFIG_OPS_HBRIDGE_LMD18200
-  , CONFIG_OPS_RAILCOM_BRAKE_PIN
-#endif
-  , CONFIG_OPS_RAILCOM_ENABLE_PIN
-  , CONFIG_OPS_RAILCOM_SHORT_PIN
-  , CONFIG_OPS_RAILCOM_UART_RX_PIN
-#endif // CONFIG_OPS_RAILCOM
-
-#if CONFIG_LCC_CAN_ENABLED
-  , CONFIG_LCC_CAN_RX_PIN
-  , CONFIG_LCC_CAN_TX_PIN
-#endif
-
-#if CONFIG_HC12
-  , CONFIG_HC12_RX_PIN
-  , CONFIG_HC12_TX_PIN
-#endif
-
-#if CONFIG_NEXTION
-  , CONFIG_NEXTION_RX_PIN
-  , CONFIG_NEXTION_TX_PIN
-#endif
-
-#if CONFIG_DISPLAY_TYPE_OLED || CONFIG_DISPLAY_TYPE_LCD
-  , CONFIG_DISPLAY_SCL
-  , CONFIG_DISPLAY_SDA
-#if CONFIG_DISPLAY_OLED_RESET_PIN && CONFIG_DISPLAY_OLED_RESET_PIN != -1
-  , CONFIG_DISPLAY_OLED_RESET_PIN
-#endif
-#endif
-
-#if CONFIG_LOCONET
-  , CONFIG_LOCONET_RX_PIN
-  , CONFIG_LOCONET_TX_PIN
-#endif
-
-#if CONFIG_S88
-  , CONFIG_S88_CLOCK_PIN
-  , CONFIG_S88_RESET_PIN
-  , CONFIG_S88_LOAD_PIN
-#endif
-
-#if CONFIG_STATUS_LED
-  , CONFIG_STATUS_LED_DATA_PIN
-#endif
-  };
-
-  return std::find(restrictedPins.begin()
-                 , restrictedPins.end()
-                 , pin) != restrictedPins.end();
-}
-#endif // CONFIG_ENABLE_OUTPUTS || CONFIG_ENABLE_SENSORS
 
 // TODO: move these back to DCCppProtocol after moving sensors and outputs to
 // components tree

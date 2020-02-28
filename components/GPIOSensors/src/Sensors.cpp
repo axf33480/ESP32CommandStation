@@ -15,71 +15,20 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
   along with this program.  If not, see http://www.gnu.org/licenses
 **********************************************************************/
 
-#include "ESP32CommandStation.h"
-#include <DCCppProtocol.h>
+#include <ConfigurationManager.h>
 #include <StatusDisplay.h>
+#include <driver/gpio.h>
 
-/**********************************************************************
-
-The ESP32 Command Station supports Sensor inputs that can be connected to any
-unused ESP32 pin. Sensors can be of any type (infrared, magentic, mechanical...).
-The only requirement is that when "activated" the Sensor must force the
-specified pin LOW (i.e. to ground), and when not activated, this pin should
-remain HIGH (e.g. 3.3V), or be allowed to float HIGH if use of the pin's
-internal pull-up resistor is specified.  In addition to this type of sensor
-the command station also supports S88-n connected sensors.
-
-To ensure proper voltage levels, some part of the Sensor circuitry
-MUST be tied back to the same ground as used by the ESP32.
-
-To have the command station monitor one or more GPIO pins for sensor triggers, first
-define/edit/delete sensor definitions using the following variation of the "S"
-command:
-
-  <S ID PIN PULLUP>:    creates a new sensor ID, with specified PIN and PULLUP
-                        if sensor ID already exists, it is updated with
-                        specificed PIN and PULLUP.
-        returns: <O> if successful and <X> if unsuccessful (e.g. out of memory)
-
-  <S ID>:               deletes definition of sensor ID.
-        returns: <O> if successful and <X> if unsuccessful (e.g. ID does not exist)
-
-  <S>:                  lists all defined sensors.
-        returns: <Q ID PIN PULLUP> for each defined sensor or <X> if no sensors
-        defined
-
-where
-
-  ID:     the numeric ID (0-32767) of the sensor
-  PIN:    the pin number the sensor is connected to
-  PULLUP: 1=use internal pull-up resistor for PIN, 0=don't use internal pull-up
-          resistor for PIN
-
-Once all sensors have been properly defined, use the <E> command to store their
-definitions to the ESP32. If you later make edits/additions/deletions to the
-sensor definitions, you must invoke the <E> command if you want those new
-definitions updated on the ESP32. You can also clear everything stored on the
-ESP32 by invoking the <e> command.
-
-All sensors defined as per above are repeatedly and sequentially checked within
-the main loop of this sketch. If a Sensor Pin is found to have transitioned from
-one state to another, one of the following serial messages are generated:
-
-  <Q ID>     - for transition of Sensor ID from HIGH state to LOW state
-               (i.e. the sensor is triggered)
-  <q ID>     - for transition of Sensor ID from LOW state to HIGH state
-               (i.e. the sensor is no longer triggered)
-
-Depending on whether the physical sensor is acting as an "event-trigger" or a
-"detection-sensor," you may decide to ignore the <q ID> return and only react to
-<Q ID> triggers.
-
-**********************************************************************/
+#include "Sensors.h"
+#include "RemoteSensors.h"
+#include "sdkconfig.h"
 
 #if CONFIG_ENABLE_SENSORS
-vector<unique_ptr<Sensor>> sensors;
+
+std::vector<std::unique_ptr<Sensor>> sensors;
 
 #include <json.hpp>
+#include <JsonConstants.h>
 
 TaskHandle_t SensorManager::_taskHandle;
 OSMutex SensorManager::_lock;
@@ -157,7 +106,7 @@ Sensor *SensorManager::getSensor(uint16_t id)
 {
   OSMutexLock l(&_lock);
   const auto & ent = std::find_if(sensors.begin(), sensors.end(),
-  [id](unique_ptr<Sensor> & sensor) -> bool
+  [id](std::unique_ptr<Sensor> & sensor) -> bool
   {
     return sensor->getID() == id;
   });
@@ -193,7 +142,7 @@ bool SensorManager::remove(const uint16_t id)
 {
   OSMutexLock l(&_lock);
   const auto & ent = std::find_if(sensors.begin(), sensors.end(),
-  [id](unique_ptr<Sensor> & sensor) -> bool
+  [id](std::unique_ptr<Sensor> & sensor) -> bool
   {
     return sensor->getID() == id;
   });
@@ -304,6 +253,33 @@ string Sensor::set(bool state)
   return COMMAND_NO_RESPONSE;
 }
 
+
+/**********************************************************************
+  <S ID PIN PULLUP>:    creates a new sensor ID, with specified PIN and PULLUP
+                        if sensor ID already exists, it is updated with
+                        specificed PIN and PULLUP.
+        returns: <O> if successful and <X> if unsuccessful (e.g. out of memory)
+
+  <S ID>:               deletes definition of sensor ID.
+        returns: <O> if successful and <X> if unsuccessful (e.g. ID does not exist)
+
+  <S>:                  lists all defined sensors.
+        returns: <Q ID PIN PULLUP> for each defined sensor or <X> if no sensors
+        defined
+
+where
+
+  ID:     the numeric ID (0-32767) of the sensor
+  PIN:    the pin number the sensor is connected to
+  PULLUP: 1=use internal pull-up resistor for PIN, 0=don't use internal pull-up
+          resistor for PIN
+
+  <Q ID>     - for transition of Sensor ID from HIGH state to LOW state
+               (i.e. the sensor is triggered)
+  <q ID>     - for transition of Sensor ID from LOW state to HIGH state
+               (i.e. the sensor is no longer triggered)
+**********************************************************************/
+
 DCC_PROTOCOL_COMMAND_HANDLER(SensorCommandAdapter,
 [](const vector<string> arguments)
 {
@@ -311,9 +287,6 @@ DCC_PROTOCOL_COMMAND_HANDLER(SensorCommandAdapter,
   {
     // list all sensors
     string status = SensorManager::get_state_for_dccpp();
-#if CONFIG_S88
-    status += S88BusManager::get_state_for_dccpp();
-#endif
     status += RemoteSensorManager::get_state_for_dccpp();
     return status;
   }
@@ -335,5 +308,4 @@ DCC_PROTOCOL_COMMAND_HANDLER(SensorCommandAdapter,
   }
   return COMMAND_FAILED_RESPONSE;
 })
-
 #endif // CONFIG_ENABLE_SENSORS

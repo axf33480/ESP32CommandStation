@@ -1,0 +1,7 @@
+menu "DCC Turnout Manager"
+
+    config TURNOUTS_PERSISTENCE_INTERVAL_SEC
+        int "Number of seconds between automatic persistence of turnout list"
+        default 30
+
+endmenu

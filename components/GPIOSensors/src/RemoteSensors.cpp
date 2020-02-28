@@ -16,9 +16,12 @@ COPYRIGHT (c) 2018-2020 Mike Dunston
   along with this program.  If not, see http://www.gnu.org/licenses
 **********************************************************************/
 
-#include "ESP32CommandStation.h"
 #include <json.hpp>
 #include <DCCppProtocol.h>
+#include <JsonConstants.h>
+#include <utils/StringPrintf.hxx>
+
+#include "RemoteSensors.h"
 
 /**********************************************************************
 
@@ -50,7 +53,7 @@ where
 #if CONFIG_ENABLE_SENSORS
 // TODO: merge this into the base SensorManager code.
 
-vector<unique_ptr<RemoteSensor>> remoteSensors;
+std::vector<std::unique_ptr<RemoteSensor>> remoteSensors;
 
 void RemoteSensorManager::init()
 {
@@ -72,7 +75,7 @@ void RemoteSensorManager::createOrUpdate(const uint16_t id, const uint16_t value
 bool RemoteSensorManager::remove(const uint16_t id)
 {
   auto ent = std::find_if(remoteSensors.begin(), remoteSensors.end(),
-  [id](unique_ptr<RemoteSensor> & sensor) -> bool
+  [id](std::unique_ptr<RemoteSensor> & sensor) -> bool
   {
     return sensor->getID() == id;
   });
