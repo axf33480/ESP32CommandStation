@@ -262,6 +262,7 @@ extern "C" void app_main()
 
   StatusLED statusLED(lccStack->service());
 
+  // cppcheck-suppress UnusedVar
   OTAMonitorFlow ota(lccStack->service());
 
   // Initialize the factory reset helper for the CS.
