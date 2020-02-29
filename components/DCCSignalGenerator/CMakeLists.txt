@@ -10,6 +10,7 @@ set(COMPONENT_REQUIRES
     "nlohmann_json"
     "StatusDisplay"
     "StatusLED"
+    "LCCTrainSearchProtocol"
 )
 
 register_component()
