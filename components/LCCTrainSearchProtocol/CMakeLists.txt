@@ -1,9 +1,12 @@
-set(COMPONENT_SRCDIRS
-    "src"
+set(COMPONENT_SRCS
+    "AllTrainNodes.cpp"
+    "FdiXmlGenerator.cpp"
+    "FindProtocolDefs.cpp"
+    "XmlGenerator.cpp"
 )
 
 set(COMPONENT_ADD_INCLUDEDIRS
-    "src"
+    "include"
 )
 
 set(COMPONENT_REQUIRES
@@ -12,4 +15,4 @@ set(COMPONENT_REQUIRES
 
 register_component()
 
-set_source_files_properties(src/FindProtocolDefs.cpp PROPERTIES COMPILE_FLAGS -Wno-type-limits)
+set_source_files_properties(FindProtocolDefs.cpp PROPERTIES COMPILE_FLAGS -Wno-type-limits)

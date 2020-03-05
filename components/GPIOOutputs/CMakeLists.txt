@@ -1,5 +1,5 @@
 set(COMPONENT_SRCS
-    "src/Outputs.cpp"
+    "Outputs.cpp"
 )
 
 set(COMPONENT_ADD_INCLUDEDIRS "include" )

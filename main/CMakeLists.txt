@@ -18,7 +18,6 @@ set(required_deps
     "DCCSignalGenerator"
     "DCCTurnoutManager"
     "Esp32HttpServer"
-    "HBridge"
     "LCCTrainSearchProtocol"
     "nlohmann_json"
     "OpenMRNLite"

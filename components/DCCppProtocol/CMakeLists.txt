@@ -1,4 +1,8 @@
-set(COMPONENT_SRCDIRS "src" )
+
+set(COMPONENT_SRCS
+    "DCCppProtocol.cpp"
+    "DCCProgrammer.cpp"
+)
 
 set(COMPONENT_ADD_INCLUDEDIRS "include" )
 

@@ -1,7 +1,7 @@
 set(COMPONENT_SRCS
-    "src/Sensors.cpp"
-    "src/RemoteSensors.cpp"
-    "src/S88Sensors.cpp"
+    "Sensors.cpp"
+    "RemoteSensors.cpp"
+    "S88Sensors.cpp"
 )
 
 set(COMPONENT_ADD_INCLUDEDIRS "include" )
