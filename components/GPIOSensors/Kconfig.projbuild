@@ -25,16 +25,19 @@ menu "GPIO Sensors"
         config S88_CLOCK_PIN
             int "S88 Clock pin"
             range 0 32
+            default 17
             depends on S88
 
         config S88_RESET_PIN
             int "S88 Reset pin"
             range 0 32
+            default 16
             depends on S88
 
         config S88_LOAD_PIN
             int "S88 Load pin"
             range 0 32
+            default 27
             depends on S88
 
         config S88_FIRST_SENSOR
