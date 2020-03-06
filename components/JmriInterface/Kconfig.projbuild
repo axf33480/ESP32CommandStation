@@ -1,0 +1,11 @@
+menu "JMRI Interface"
+    config JMRI
+        bool "Enable JMRI listener"
+        default y
+    config JMRI_LISTENER_PORT
+        int "JMRI Listener port"
+        default 2560
+    config JMRI_MDNS_SERVICE_NAME
+        string "mDNS service name to advertise"
+        default "_esp32cs._tcp"
+endmenu

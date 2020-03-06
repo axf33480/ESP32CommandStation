@@ -24,21 +24,21 @@ set(required_deps
     "TaskMonitor"
 )
 
+# These are all optional dependencies but due to the way that idf.py operates
+# they must be specified here in full otherwise they will not be present in the
+# include path when enabled.
+
 set(optional_deps
+    "GPIOOutputs"
+    "GPIOSensors"
     "HC12"
+    "JmriInterface"
     "NeoNextion"
     "StatusLED"
     "StatusDisplay"
-    "GPIOOutputs"
-    "GPIOSensors"
 )
 
-# it would be really nice to not have NeoNextion in the default dependencies
-# but it appears that by the time cmake evaluates the CONFIG_NEXTION boolean
-# flag the include args have already been set and can not be modified easily.
-
 set(COMPONENT_REQUIRES "${esp_idf_deps} ${required_deps} ${optional_deps}")
-set(COMPONENT_PRIV_REQUIRES )
 
 set(COMPONENT_SRCS
     "ESP32CommandStation.cpp"

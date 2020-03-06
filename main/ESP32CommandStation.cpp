@@ -40,6 +40,10 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 #include <RemoteSensors.h>
 #include <Outputs.h>
 
+#if CONFIG_JMRI
+#include <JmriInterface.h>
+#endif
+
 const char * buildTime = __DATE__ " " __TIME__;
 
 // GCC pre-compiler trick to expand the value from a #define constant
@@ -227,6 +231,10 @@ extern "C" void app_main()
 #endif
 
   init_wifi_endpoints();
+
+#if CONFIG_JMRI
+  init_jmri_interface();
+#endif
 
   // Initialize the turnout manager and register it with the LCC stack to
   // process accessories packets.
