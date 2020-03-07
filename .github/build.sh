@@ -94,7 +94,7 @@ cd ${BUILD_DIR} && cmake ${RUN_DIR} -G Ninja && ninja
 python ${IDF_PATH}/tools/idf_size.py ${BUILD_DIR}/ESP32CommandStation.map
 
 mkdir -p "${BINARIES_DIR}"
-echo > "${BINARIES_DIR}"/readme.txt << README_EOF
+cat > "${BINARIES_DIR}"/readme.txt << README_EOF
 The binaries can be sent to the ESP32 via esptool.py similar to the following:
 python esptool.py -p (PORT) -b 460800 --before default_reset --after hard_reset write_flash 
     --flash_mode dio --flash_size detect --flash_freq 40m
