@@ -91,3 +91,20 @@ cd ${BUILD_DIR} && cmake ${RUN_DIR} -G Ninja && ninja
 
 # print size information
 python ${IDF_PATH}/tools/idf_size.py ${BUILD_DIR}/ESP32CommandStation.map
+
+echo > ${BUILD_DIR}/readme.txt << README_EOF
+The binaries can be sent to the ESP32 via esptool.py similar to the following:
+python esptool.py -p (PORT) -b 460800 --before default_reset --after hard_reset write_flash 
+    --flash_mode dio --flash_size detect --flash_freq 40m
+    0x1000 bootloader/bootloader.bin
+    0x8000 partition_table/partition-table.bin
+    0xe000 ota_data_initial.bin
+    0x10000 ESP32CommandStation.bin
+README_EOF
+
+cd ${BUILD_DIR} && zip -9 binaries.zip \
+    readme.txt \
+    partition_table/partition-table.bin \
+    ota_data_initial.bin \
+    bootloader/bootloader.bin \
+    ESP32CommandStation.bin
