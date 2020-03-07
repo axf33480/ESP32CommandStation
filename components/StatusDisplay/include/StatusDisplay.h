@@ -19,6 +19,7 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 #define STATUS_DISPLAY_H_
 
 #include <string>
+#include <esp_event.h>
 #include <executor/StateFlow.hxx>
 #include <openlcb/SimpleStack.hxx>
 #include <utils/Uninitialized.hxx>
@@ -34,6 +35,7 @@ public:
   void status(const std::string&, ...);
   void wifi(const std::string&, ...);
   void track_power(const std::string&, ...);
+  void wifi_event(system_event_t *);
 private:
   STATE_FLOW_STATE(init);
   STATE_FLOW_STATE(initOLED);
@@ -49,7 +51,7 @@ private:
   bool sh1106_{false};
   StateFlowTimer timer_{this};
   uint8_t regZero_{0};
-  uninitialized<LCCStatCollector> lccStatCollector_;
+  LCCStatCollector lccStatCollector_;
   uint8_t rotatingIndex_{0};
   uint8_t updateCount_{0};
 };

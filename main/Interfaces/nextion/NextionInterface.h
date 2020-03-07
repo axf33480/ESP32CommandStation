@@ -32,7 +32,7 @@ COPYRIGHT (c) 2018-2020 Mike Dunston
 #include <NextionSlider.h>
 #include <NextionNumber.h>
 
-void nextionInterfaceInit();
+void nextionInterfaceInit(Service *service);
 
 enum NEXTION_PAGES
 {

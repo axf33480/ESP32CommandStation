@@ -44,9 +44,8 @@ set(COMPONENT_SRCS
     "ESP32CommandStation.cpp"
     "ESP32TrainDatabase.cpp"
     "OpenMRNEsp32Overrides.cpp"
+    "WebServer.cpp"
     "Interfaces/LocoNetInterface.cpp"
-    "Interfaces/WebServer.cpp"
-    "Interfaces/WiFiInterface.cpp"
     "Interfaces/nextion/NextionInterface.cpp"
     "Interfaces/nextion/NextionInterfaceAddressPage.cpp"
     "Interfaces/nextion/NextionInterfaceBasePage.cpp"
@@ -60,4 +59,3 @@ set(COMPONENT_ADD_INCLUDEDIRS ".")
 register_component()
 
 set_source_files_properties(ESP32CommandStation.cpp PROPERTIES COMPILE_FLAGS -Wno-implicit-fallthrough)
-set_source_files_properties(Interfaces/WiFiInterface.cpp PROPERTIES COMPILE_FLAGS -Wno-implicit-fallthrough)

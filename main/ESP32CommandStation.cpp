@@ -160,6 +160,8 @@ public:
     }
 };
 
+void init_webserver();
+
 extern "C" void app_main()
 {
   // Setup UART0 115200 8N1 TX: 1, RX: 3, 2k buffer (1k rx, 1k tx)
@@ -227,10 +229,10 @@ extern "C" void app_main()
 #if CONFIG_NEXTION
   // Initialize the Nextion module (dependency of WiFi)
   LOG(INFO, "[Config] Enabling Nextion module");
-  nextionInterfaceInit();
+  nextionInterfaceInit(lccStack->service());
 #endif
 
-  init_wifi_endpoints();
+  init_webserver();
 
 #if CONFIG_JMRI
   init_jmri_interface();

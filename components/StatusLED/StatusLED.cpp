@@ -16,6 +16,7 @@ COPYRIGHT (c) 2019-2020 Mike Dunston
 **********************************************************************/
 
 #include "StatusLED.h"
+#include <freertos_drivers/esp32/Esp32WiFiManager.hxx>
 
 StateFlowBase::Action StatusLED::init()
 {
@@ -34,6 +35,8 @@ StateFlowBase::Action StatusLED::init()
   bus_->SetBrightness(CONFIG_STATUS_LED_BRIGHTNESS);
   bus_->ClearTo(RGB_OFF_);
   bus_->Show();
+  Singleton<Esp32WiFiManager>::instance()->add_event_callback(
+    std::bind(&StatusLED::wifi_event, this, std::placeholders::_1));
   return sleep_and_call(&timer_, updateInterval_, STATE(update));
 #endif
 }
@@ -95,3 +98,27 @@ void StatusLED::setStatusLED(const LED led, const COLOR color, const bool on)
   state_[led] = on;
 }
 
+void StatusLED::wifi_event(system_event_t *event)
+{
+  if(event->event_id == SYSTEM_EVENT_STA_GOT_IP ||
+      event->event_id == SYSTEM_EVENT_AP_START)
+  {
+    if (event->event_id == SYSTEM_EVENT_STA_GOT_IP)
+    {
+      setStatusLED(StatusLED::LED::WIFI, StatusLED::COLOR::GREEN);
+    }
+    else
+    {
+      setStatusLED(StatusLED::LED::WIFI, StatusLED::COLOR::BLUE);
+    }
+  } else if (event->event_id == SYSTEM_EVENT_STA_LOST_IP ||
+              event->event_id == SYSTEM_EVENT_AP_STOP)
+  {
+    setStatusLED(StatusLED::LED::WIFI, StatusLED::COLOR::RED);
+  }
+  else if (event->event_id == SYSTEM_EVENT_STA_DISCONNECTED ||
+            event->event_id == SYSTEM_EVENT_STA_START)
+  {
+    setStatusLED(StatusLED::LED::WIFI, StatusLED::COLOR::GREEN_BLINK);
+  }
+}

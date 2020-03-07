@@ -123,9 +123,11 @@ extern const size_t jqClockGz_size asm("jqClock_lite_min_js_gz_length");
 extern const uint8_t ajaxLoader[] asm("_binary_ajax_loader_gif_start");
 extern const size_t ajaxLoader_size asm("ajax_loader_gif_length");
 
-void init_webserver(MDNS *dns)
+MDNS mDNS;
+
+void init_webserver()
 {
-  httpd.emplace(dns);
+  httpd.emplace(&mDNS);
   httpd->redirect_uri("/", "/index.html");
   // if the soft AP interface is enabled, setup the captive portal
   if (Singleton<ConfigurationManager>::instance()->isAPEnabled())

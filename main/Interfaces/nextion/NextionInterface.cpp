@@ -174,12 +174,32 @@ StateFlowBase::Action NextionHMI::update()
 uninitialized<NextionHMI> nextionHMI;
 #endif // CONFIG_NEXTION
 
-void nextionInterfaceInit()
+void nextionInterfaceInit(Service *service)
 {
 #if CONFIG_NEXTION
   Singleton<StatusDisplay>::instance()->status("Init Nextion");
-  extern unique_ptr<SimpleCanStack> lccStack;
-  nextionHMI.emplace(lccStack->service());
+  nextionHMI.emplace(service);
+  auto nextionTitlePage = static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE]);
+  nextionTitlePage->setStatusText(0, "Starting up...");
+
+  Singleton<Esp32WiFiManager>::instance()->add_event_callback(
+  [](system_event_t *event)
+  {
+    auto nextionTitlePage =
+      static_cast<NextionTitlePage *>(nextionPages[TITLE_PAGE]);
+    if(event->event_id == SYSTEM_EVENT_STA_GOT_IP ||
+       event->event_id == SYSTEM_EVENT_AP_START)
+    {
+      nextionTitlePage->clearStatusText();
+      // transition to next screen since WiFi connection is complete
+      nextionPages[THROTTLE_PAGE]->display();
+    }
+    else if (event->event_id == SYSTEM_EVENT_STA_DISCONNECTED ||
+             event->event_id == SYSTEM_EVENT_STA_START)
+    {
+      nextionTitlePage->setStatusText(0, "Connecting to WiFi");
+    }
+  });
 #endif // CONFIG_NEXTION
 }
 

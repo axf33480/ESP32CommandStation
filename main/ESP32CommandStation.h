@@ -70,7 +70,6 @@ using std::set;
 #include <Turnouts.h>
 
 #include <DCCppProtocol.h>
-#include "Interfaces/WiFiInterface.h"
 
 #if CONFIG_NEXTION
 #include "Interfaces/nextion/NextionInterface.h"

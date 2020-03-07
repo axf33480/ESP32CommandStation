@@ -18,6 +18,7 @@ COPYRIGHT (c) 2019-2020 Mike Dunston
 #ifndef STATUS_LED_H_
 #define STATUS_LED_H_
 
+#include <esp_event.h>
 #include <executor/Service.hxx>
 #include <executor/StateFlow.hxx>
 #include <NeoPixelBrightnessBus.h>
@@ -121,6 +122,8 @@ public:
   }
 
   void setStatusLED(const LED, const COLOR, const bool=false);
+
+  void wifi_event(system_event_t *);
 private:
   StateFlowTimer timer_{this};
   std::unique_ptr<NeoPixelBrightnessBus<NEO_COLOR_MODE, NEO_METHOD>> bus_;

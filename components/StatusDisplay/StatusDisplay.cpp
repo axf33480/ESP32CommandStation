@@ -19,8 +19,10 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 #include "StatusDisplay.h"
 
 #include <AllTrainNodes.hxx>
+#include <ConfigurationManager.h>
 #include <driver/i2c.h>
 #include <esp_ota_ops.h>
+#include <freertos_drivers/esp32/Esp32WiFiManager.hxx>
 #include <RMTTrackDevice.h>
 
 static constexpr uint8_t STATUS_DISPLAY_LINE_COUNT = 5;
@@ -320,11 +322,14 @@ static inline bool send_lcd_byte(uint8_t addr, uint8_t value, bool data)
   }
 
 StatusDisplay::StatusDisplay(openlcb::SimpleCanStack *stack, Service *service)
-  : StateFlowBase(service)
+  : StateFlowBase(service), lccStatCollector_(stack)
 {
 #if !CONFIG_DISPLAY_TYPE_NONE
   clear();
-  lccStatCollector_.emplace(stack);
+  info("ESP32-CS: v%s", esp_ota_get_app_description()->version);
+  wifi("IP:Pending");
+  Singleton<Esp32WiFiManager>::instance()->add_event_callback(
+    std::bind(&StatusDisplay::wifi_event, this, std::placeholders::_1));
   start_flow(STATE(init));
 #endif
 }
@@ -396,10 +401,36 @@ void StatusDisplay::track_power(const std::string &format, ...)
 #endif
 }
 
+void StatusDisplay::wifi_event(system_event_t *event)
+{
+  if(event->event_id == SYSTEM_EVENT_STA_GOT_IP ||
+       event->event_id == SYSTEM_EVENT_AP_START)
+  {
+    if (event->event_id == SYSTEM_EVENT_STA_GOT_IP)
+    {
+      tcpip_adapter_ip_info_t ip_info;
+      tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_STA, &ip_info);
+#if CONFIG_DISPLAY_COLUMN_COUNT > 16 || CONFIG_DISPLAY_TYPE_OLED
+      wifi("IP: " IPSTR, IP2STR(&ip_info.ip));
+#else
+      wifi(IPSTR, IP2STR(&ip_info.ip));
+#endif
+    }
+    else
+    {
+      wifi("SSID: %s"
+         , Singleton<ConfigurationManager>::instance()->getSSID().c_str());
+    }
+  } else if (event->event_id == SYSTEM_EVENT_STA_LOST_IP ||
+              event->event_id == SYSTEM_EVENT_AP_STOP)
+  {
+    wifi("Disconnected");
+  }
+}
+
 StateFlowBase::Action StatusDisplay::init()
 {
 #if !CONFIG_DISPLAY_TYPE_NONE
-  info("ESP32-CS: v%s", esp_ota_get_app_description()->version);
   LOG(INFO, "[StatusDisplay] Initializing I2C driver...");
   i2c_config_t i2c_config =
   {
@@ -701,28 +732,28 @@ StateFlowBase::Action StatusDisplay::update()
       if(_lccStatusIndex == 0)
       {
         status("LCC Nodes: %d"
-                  , lccStatCollector_->getRemoteNodeCount()
+                  , lccStatCollector_.getRemoteNodeCount()
         );
       }
       else if (_lccStatusIndex == 1)
       {
-        status("LCC Lcl: %d", lccStatCollector_->getLocalNodeCount()
+        status("LCC Lcl: %d", lccStatCollector_.getLocalNodeCount()
         );
       }
       else if (_lccStatusIndex == 2)
       {
-        status("LCC dg_svc: %d", lccStatCollector_->getDatagramCount()
+        status("LCC dg_svc: %d", lccStatCollector_.getDatagramCount()
         );
       }
       else if (_lccStatusIndex == 3)
       {
-        status("LCC Ex: %d", lccStatCollector_->getExecutorCount()
+        status("LCC Ex: %d", lccStatCollector_.getExecutorCount()
         );
       }
       else if (_lccStatusIndex == 4)
       {
-        status("LCC Pool: %d/%d", lccStatCollector_->getPoolFreeCount()
-                  , lccStatCollector_->getPoolSize()
+        status("LCC Pool: %d/%d", lccStatCollector_.getPoolFreeCount()
+                  , lccStatCollector_.getPoolSize()
         );
       }
 #if CONFIG_LOCONET
