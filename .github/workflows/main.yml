@@ -32,6 +32,6 @@ jobs:
       uses: actions/upload-artifact@v1
       with:
         name: ${{ matrix.target }}
-        path: build/binaries.zip
+        path: binaries
       env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
