@@ -32,12 +32,6 @@ jobs:
       uses: actions/upload-artifact@v1
       with:
         name: ${{ matrix.target }}
-        path: build/ESP32CommandStation.bin
-      if: success() && (github.event_name != 'pull_request') && (matrix.target != 'ESP32CommandStation')
-    - name: Upload Binaries
-      uses: docker://softprops/action-gh-release
-      if: success() && startsWith(github.ref, 'refs/tags/') && (matrix.target != 'ESP32CommandStation')
-      with:
-        files: build/ESP32CommandStation.bin
+        path: build/binaries.zip
       env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

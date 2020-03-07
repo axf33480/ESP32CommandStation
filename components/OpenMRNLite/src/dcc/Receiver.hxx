@@ -38,6 +38,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 
+#include "can_ioctl.h"
+#include "freertos_includes.h"
 #include "executor/StateFlow.hxx"
 
 namespace dcc
@@ -387,7 +389,9 @@ private:
             {
                 return call_immediately(STATE(register_and_sleep));
             }
+#if 0
             MAP_GPIOPinWrite(GPIO_PORTA_BASE, GPIO_PIN_0, 0xff);
+#endif
             debug_data(value);
             decoder_.process_data(value);
             if (decoder_.state() == DccDecoder::DCC_PACKET_FINISHED)
