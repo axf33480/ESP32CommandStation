@@ -100,6 +100,16 @@ menu "Status Display"
         default 128
         range 0 255
 
+    choice DISPLAY_OLED_FONT
+        bool "OLED Font"
+        depends on DISPLAY_TYPE_OLED
+        default DISPLAY_OLED_FONT_BOLD
+        config DISPLAY_OLED_FONT_THIN
+            bool "Thin"
+        config DISPLAY_OLED_FONT_BOLD
+            bool "Bold"
+    endchoice
+
     config DISPLAY_LINE_COUNT
         int
         default 8 if DISPLAY_OLED_128x64
