@@ -187,7 +187,7 @@ private:
   uint32_t opsEncodedLength_{0};
   int8_t opsPacketRepeatCount_{0};
   bool opsSignalActive_{false};
-  std::unique_ptr<MonitoredHBridge> opsHBridge_;
+  MonitoredHBridge opsHBridge_;
 
   const gpio_num_t progSignalPin_{(gpio_num_t)CONFIG_PROG_SIGNAL_PIN};
   const rmt_channel_t progRMTChannel_{RMT_CHANNEL_3};
@@ -199,7 +199,7 @@ private:
   int8_t progPacketRepeatCount_{0};
   Notifiable* progWritableNotifiable_{nullptr};
   bool progSignalActive_{false};
-  std::unique_ptr<MonitoredHBridge> progHBridge_;
+  MonitoredHBridge progHBridge_;
 
   openlcb::BitEventConsumer powerConsumer_{this};
 

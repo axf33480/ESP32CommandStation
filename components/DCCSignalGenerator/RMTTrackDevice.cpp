@@ -434,16 +434,36 @@ RMTTrackDevice::RMTTrackDevice(openlcb::SimpleCanStack *stack
                              , dcc::RailcomHubFlow *railComHub
 #endif // CONFIG_OPS_RAILCOM
                              )
-                             
                              : BitEventInterface(openlcb::Defs::CLEAR_EMERGENCY_OFF_EVENT
                                                , openlcb::Defs::EMERGENCY_OFF_EVENT)
                              , stack_(stack)
                              , opsPacketQueue_(DeviceBuffer<dcc::Packet>::create(CONFIG_OPS_PACKET_QUEUE_SIZE))
+                             , opsHBridge_(stack
+                                         , stack->service()
+                                         , (adc1_channel_t)CONFIG_OPS_ADC
+                                         , opsOutputEnablePin_
+#if defined(CONFIG_OPS_THERMAL_PIN)
+                                         , (gpio_num_t)CONFIG_OPS_THERMAL_PIN
+#endif // CONFIG_OPS_THERMAL_PIN
+                                         , CONFIG_OPS_HBRIDGE_LIMIT_MILLIAMPS
+                                         , CONFIG_OPS_HBRIDGE_MAX_MILLIAMPS
+                                         , CONFIG_OPS_TRACK_NAME, CONFIG_OPS_HBRIDGE_TYPE_NAME
+                                         , opsCfg)
                              , progPacketQueue_(DeviceBuffer<dcc::Packet>::create(CONFIG_PROG_PACKET_QUEUE_SIZE))
+                             , progHBridge_(stack
+                                          , stack->service()
+                                          , (adc1_channel_t)CONFIG_PROG_ADC
+                                          , progOutputEnablePin_
+                                          , CONFIG_PROG_HBRIDGE_MAX_MILLIAMPS
+                                          , CONFIG_PROG_TRACK_NAME
+                                          , CONFIG_PROG_HBRIDGE_TYPE_NAME
+                                          , progCfg)
 #if CONFIG_OPS_RAILCOM
                              , railComHub_(railComHub)
 #endif // CONFIG_OPS_RAILCOM
 {
+  // register the VFS handler as the LocalTrackIf uses this to route DCC
+  // packets to the track.
   esp_vfs_t vfs;
   memset(&vfs, 0, sizeof(vfs));
   vfs.flags = ESP_VFS_FLAG_CONTEXT_PTR;
@@ -453,18 +473,16 @@ RMTTrackDevice::RMTTrackDevice(openlcb::SimpleCanStack *stack
   vfs.write_p = &rmt_track_write;
   ESP_ERROR_CHECK(esp_vfs_register("/dev/track", &vfs, this));
 
+  // TODO: move the RMT init and RailCom UART init to be called from dedicated
+  // task and block here until it completes.
+
   Singleton<StatusDisplay>::instance()->status("RMT Init");
+  //xTaskCreatePinnedToCore(rmt_init, CONFIG_OPS_TRACK_NAME, 2048, this, 5, nullptr, APP_CPU_NUM);
+  //xTaskCreatePinnedToCore(rmt_init, CONFIG_PROG_TRACK_NAME, 2048, this, 5, nullptr, APP_CPU_NUM);
   initRMTDevice(CONFIG_OPS_TRACK_NAME, opsRMTChannel_, opsSignalPin_
               , opsPreambleBits_);
   initRMTDevice(CONFIG_PROG_TRACK_NAME, progRMTChannel_, progSignalPin_
               , progPreambleBits_);
-
-  // add a callback to update the initial state of the track output rather than
-  // call it here since the h-bridge code is not fully "up" yet.
-  stack->executor()->add(new CallbackExecutable([this]
-  {
-    update_status_display();
-  }));
 
   // hook into the RMT ISR to have callbacks when TX completes
   rmt_register_tx_end_callback(rmt_tx_complete_isr_callback, this);
@@ -522,24 +540,13 @@ RMTTrackDevice::RMTTrackDevice(openlcb::SimpleCanStack *stack
   railcomEnabled_ = true;
 #endif // CONFIG_OPS_RAILCOM
 
-  opsHBridge_.reset(
-    new MonitoredHBridge(stack, stack->service(), (adc1_channel_t)CONFIG_OPS_ADC
-                       , opsOutputEnablePin_
-#if defined(CONFIG_OPS_THERMAL_PIN)
-                       , (gpio_num_t)CONFIG_OPS_THERMAL_PIN
-#endif // CONFIG_OPS_THERMAL_PIN
-                       , CONFIG_OPS_HBRIDGE_LIMIT_MILLIAMPS
-                       , CONFIG_OPS_HBRIDGE_MAX_MILLIAMPS
-                       , CONFIG_OPS_TRACK_NAME, CONFIG_OPS_HBRIDGE_TYPE_NAME
-                       , opsCfg)
-  );
+  // add a callback to update the initial state of the track output rather than
+  // call it here since the h-bridge code is not fully "up" yet.
+  stack->executor()->add(new CallbackExecutable([this]
+  {
+    update_status_display();
+  }));
 
-  progHBridge_.reset(
-    new MonitoredHBridge(stack, stack->service(), (adc1_channel_t)CONFIG_PROG_ADC
-                       , progOutputEnablePin_, CONFIG_PROG_HBRIDGE_MAX_MILLIAMPS
-                       , CONFIG_PROG_TRACK_NAME, CONFIG_PROG_HBRIDGE_TYPE_NAME
-                       , progCfg)
-  );
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -803,7 +810,7 @@ void RMTTrackDevice::enable_ops_output()
     opsSignalActive_ = true;
     LOG(INFO, "[RMT] Starting RMT for OPS");
 
-    opsHBridge_->enable();
+    opsHBridge_.enable();
 
     update_status_display();
 
@@ -823,7 +830,7 @@ void RMTTrackDevice::disable_ops_output()
     opsSignalActive_ = false;
     LOG(INFO, "[RMT] Shutting down RMT for OPS");
 
-    opsHBridge_->disable();
+    opsHBridge_.disable();
 
     update_status_display();
   }
@@ -842,7 +849,7 @@ void RMTTrackDevice::enable_prog_output()
     LOG(INFO, "[RMT] Starting RMT for PROG");
     progSignalActive_ = true;
 
-    progHBridge_->enable();
+    progHBridge_.enable();
 
     update_status_display();
 
@@ -865,7 +872,7 @@ void RMTTrackDevice::disable_prog_output()
     progSignalActive_ = false;
     LOG(INFO, "[RMT] Shutting down RMT for PROG");
 
-    progHBridge_->disable();
+    progHBridge_.disable();
     update_status_display();
 
     {
@@ -887,8 +894,8 @@ void RMTTrackDevice::disable_prog_output()
 ///////////////////////////////////////////////////////////////////////////////
 string RMTTrackDevice::generate_status_json()
 {
-  return StringPrintf("[%s,%s]", opsHBridge_->getStateAsJson().c_str()
-                    , progHBridge_->getStateAsJson().c_str());
+  return StringPrintf("[%s,%s]", opsHBridge_.getStateAsJson().c_str()
+                    , progHBridge_.getStateAsJson().c_str());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -896,7 +903,7 @@ string RMTTrackDevice::generate_status_json()
 ///////////////////////////////////////////////////////////////////////////////
 string RMTTrackDevice::get_state_for_dccpp()
 {
-  return opsHBridge_->get_state_for_dccpp();
+  return opsHBridge_.get_state_for_dccpp();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -907,9 +914,9 @@ string RMTTrackDevice::get_status_screen_data()
   infoDataFirst_ = !infoDataFirst_;
   if (infoDataFirst_)
   {
-    return opsHBridge_->getStatusData();
+    return opsHBridge_.getStatusData();
   }
-  return progHBridge_->getStatusData();
+  return progHBridge_.getStatusData();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -919,9 +926,9 @@ void RMTTrackDevice::update_status_display()
 {
   auto status = Singleton<StatusDisplay>::instance();
   status->track_power("%s:%s %s:%s", CONFIG_OPS_TRACK_NAME
-                    , opsHBridge_->isEnabled() ? "On" : "Off"
+                    , opsHBridge_.isEnabled() ? "On" : "Off"
                     , CONFIG_PROG_TRACK_NAME
-                    , progHBridge_->isEnabled() ? "On" : "Off");
+                    , progHBridge_.isEnabled() ? "On" : "Off");
 }
 
 ///////////////////////////////////////////////////////////////////////////////
