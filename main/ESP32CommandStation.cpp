@@ -36,9 +36,16 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 #include <StatusLED.h>
 #include <HC12Radio.h>
 
+#if CONFIG_ENABLE_SENSORS
 #include <Sensors.h>
 #include <RemoteSensors.h>
+#if CONFIG_S88
+#include <S88Sensors.h>
+#endif // CONFIG_S88
+#endif // CONFIG_ENABLE_SENSORS
+#if CONFIG_ENABLE_OUTPUTS
 #include <Outputs.h>
+#endif // CONFIG_ENABLE_OUTPUTS
 
 #if CONFIG_JMRI
 #include <JmriInterface.h>
