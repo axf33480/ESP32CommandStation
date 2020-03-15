@@ -36,16 +36,16 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 #include <StatusLED.h>
 #include <HC12Radio.h>
 
-#if CONFIG_ENABLE_SENSORS
+#if CONFIG_GPIO_SENSORS
 #include <Sensors.h>
 #include <RemoteSensors.h>
-#if CONFIG_S88
+#if CONFIG_GPIO_S88
 #include <S88Sensors.h>
-#endif // CONFIG_S88
-#endif // CONFIG_ENABLE_SENSORS
-#if CONFIG_ENABLE_OUTPUTS
+#endif // CONFIG_GPIO_S88
+#endif // CONFIG_GPIO_SENSORS
+#if CONFIG_GPIO_OUTPUTS
 #include <Outputs.h>
-#endif // CONFIG_ENABLE_OUTPUTS
+#endif // CONFIG_GPIO_OUTPUTS
 
 #if CONFIG_JMRI
 #include <JmriInterface.h>
@@ -378,15 +378,15 @@ DCC_PROTOCOL_COMMAND_HANDLER(ConfigErase,
 [](const vector<string> arguments)
 {
   Singleton<TurnoutManager>::instance()->clear();
-#if CONFIG_ENABLE_SENSORS
+#if CONFIG_GPIO_SENSORS
   SensorManager::clear();
   SensorManager::store();
-#if CONFIG_S88
+#if CONFIG_GPIO_S88
   S88BusManager::clear();
   S88BusManager::store();
 #endif
 #endif
-#if CONFIG_ENABLE_OUTPUTS
+#if CONFIG_GPIO_OUTPUTS
   OutputManager::clear();
   OutputManager::store();
 #endif
@@ -398,15 +398,15 @@ DCC_PROTOCOL_COMMAND_HANDLER(ConfigStore,
 {
   return StringPrintf("<e %d %d %d>"
                     , Singleton<TurnoutManager>::instance()->getTurnoutCount()
-#if CONFIG_ENABLE_SENSORS
+#if CONFIG_GPIO_SENSORS
                     , SensorManager::store()
-#if CONFIG_S88
+#if CONFIG_GPIO_S88
                     + S88BusManager::store()
 #endif
 #else
                     , 0
 #endif
-#if CONFIG_ENABLE_OUTPUTS
+#if CONFIG_GPIO_OUTPUTS
                     , OutputManager::store()
 #else
                     , 0
@@ -433,9 +433,9 @@ DCC_PROTOCOL_COMMAND_HANDLER(StatusCommand,
     }
   }
   status += Singleton<TurnoutManager>::instance()->get_state_for_dccpp();
-#if CONFIG_ENABLE_OUTPUTS
+#if CONFIG_GPIO_OUTPUTS
   status += OutputManager::get_state_for_dccpp();
-#endif
+#endif // CONFIG_GPIO_OUTPUTS
   if (esp_wifi_get_mode(&mode) == ESP_OK)
   {
     tcpip_adapter_ip_info_t ip_info;

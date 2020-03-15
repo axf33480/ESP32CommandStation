@@ -29,8 +29,7 @@ set(required_deps
 # include path when enabled.
 
 set(optional_deps
-    "GPIOOutputs"
-    "GPIOSensors"
+    "GPIO"
     "HC12"
     "JmriInterface"
     "NeoNextion"

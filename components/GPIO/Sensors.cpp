@@ -23,7 +23,7 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 #include "RemoteSensors.h"
 #include "sdkconfig.h"
 
-#if CONFIG_ENABLE_SENSORS
+#if CONFIG_GPIO_SENSORS
 
 std::vector<std::unique_ptr<Sensor>> sensors;
 
@@ -308,4 +308,4 @@ DCC_PROTOCOL_COMMAND_HANDLER(SensorCommandAdapter,
   }
   return COMMAND_FAILED_RESPONSE;
 })
-#endif // CONFIG_ENABLE_SENSORS
+#endif // CONFIG_GPIO_SENSORS

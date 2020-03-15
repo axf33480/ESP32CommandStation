@@ -27,6 +27,18 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 #include <utils/FileUtils.hxx>
 #include "OTAMonitor.h"
 
+#if CONFIG_GPIO_OUTPUTS
+#include <Outputs.h>
+#endif // CONFIG_GPIO_OUTPUTS
+
+#if CONFIG_GPIO_SENSORS
+#include <Sensors.h>
+#include <RemoteSensors.h>
+#if CONFIG_GPIO_S88
+#include <S88Sensors.h>
+#endif // CONFIG_GPIO_S88
+#endif // CONFIG_GPIO_SENSORS
+
 using http::Httpd;
 using http::HttpMethod;
 using http::HttpRequest;
@@ -196,25 +208,25 @@ void init_webserver()
            , HttpMethod::GET | HttpMethod::POST |
              HttpMethod::PUT | HttpMethod::DELETE
            , process_loco);
-#if ENABLE_OUTPUTS
+#if CONFIG_GPIO_OUTPUTS
   httpd->uri("/outputs"
            , HttpMethod::GET | HttpMethod::POST |
              HttpMethod::PUT | HttpMethod::DELETE
            , process_outputs);
-#endif // ENABLE_OUTPUTS
-#if ENABLE_SENSORS
+#endif // CONFIG_GPIO_OUTPUTS
+#if CONFIG_GPIO_SENSORS
   httpd->uri("/sensors"
           , HttpMethod::GET | HttpMethod::POST | HttpMethod::DELETE
           , process_sensors);
   httpd->uri("/remoteSensors"
           , HttpMethod::GET | HttpMethod::POST | HttpMethod::DELETE
           , process_remote_sensors);
-#if S88_ENABLED
+#if CONFIG_GPIO_S88
   httpd->uri("/s88sensors"
           , HttpMethod::GET | HttpMethod::POST | HttpMethod::DELETE
           , process_s88);
-#endif // S88_ENABLED
-#endif // ENABLE_SENSORS
+#endif // CONFIG_GPIO_S88
+#endif // CONFIG_GPIO_SENSORS
 }
 
 void to_json(nlohmann::json& j, const wifi_ap_record_t& t)
@@ -902,7 +914,7 @@ HTTP_HANDLER_IMPL(process_loco, request)
       {
         // we don't need to queue it up on the executor as it is done internally.
         Singleton<commandstation::AllTrainNodes>::instance()->remove_train_impl(address);
-#if NEXTION_ENABLED
+#if CONFIG_NEXTION
         static_cast<NextionThrottlePage *>(nextionPages[THROTTLE_PAGE])->invalidateLocomotive(address);
 #endif
         request->set_status(HttpStatusCode::STATUS_NO_CONTENT);
@@ -918,7 +930,7 @@ HTTP_HANDLER_IMPL(process_loco, request)
   return nullptr;
 }
 
-#if ENABLE_OUTPUTS
+#if CONFIG_GPIO_OUTPUTS
 HTTP_HANDLER_IMPL(process_outputs, request)
 {
   if (request->method() == HttpMethod::GET && !request->params())
@@ -950,14 +962,14 @@ HTTP_HANDLER_IMPL(process_outputs, request)
     uint8_t outputFlags = 0;
     if (inverted)
     {
-      bitSet(outputFlags, OUTPUT_IFLAG_INVERT);
+      outputFlags &= OUTPUT_IFLAG_INVERT;
     }
     if (forceState)
     {
-      bitSet(outputFlags, OUTPUT_IFLAG_RESTORE_STATE);
+      outputFlags &= OUTPUT_IFLAG_RESTORE_STATE;
       if (defaultState)
       {
-        bitSet(outputFlags, OUTPUT_IFLAG_FORCE_STATE);
+        outputFlags &= OUTPUT_IFLAG_FORCE_STATE;
       }
     }
     if (pin < 0)
@@ -980,9 +992,9 @@ HTTP_HANDLER_IMPL(process_outputs, request)
   }
   return nullptr;
 }
-#endif // ENABLE_OUTPUTS
+#endif // CONFIG_GPIO_OUTPUTS
 
-#if ENABLE_SENSORS
+#if CONFIG_GPIO_SENSORS
 HTTP_HANDLER_IMPL(process_sensors, request)
 {
   request->set_status(HttpStatusCode::STATUS_SERVER_ERROR);
@@ -1071,7 +1083,7 @@ HTTP_HANDLER_IMPL(process_remote_sensors, request)
   return nullptr;
 }
 
-#if S88_ENABLED
+#if CONFIG_GPIO_S88
 HTTP_HANDLER_IMPL(process_s88, request)
 {
   request->set_status(HttpStatusCode::STATUS_OK);
@@ -1097,6 +1109,6 @@ HTTP_HANDLER_IMPL(process_s88, request)
   }
   return nullptr;
 }
-#endif // S88_ENABLED
+#endif // CONFIG_GPIO_S88
 
-#endif // ENABLE_SENSORS
+#endif // CONFIG_GPIO_SENSORS

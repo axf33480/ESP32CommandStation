@@ -98,6 +98,4 @@ private:
   static OSMutex _s88SensorLock;
 };
 
-DECLARE_DCC_PROTOCOL_COMMAND_CLASS(S88BusCommandAdapter, "S88")
-
 #endif // S88_SENSORS_H_

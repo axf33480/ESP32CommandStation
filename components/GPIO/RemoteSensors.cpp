@@ -50,7 +50,7 @@ where
           Usage is remote sensor dependent.
 **********************************************************************/
 
-#if CONFIG_ENABLE_SENSORS
+#if CONFIG_GPIO_SENSORS
 // TODO: merge this into the base SensorManager code.
 
 std::vector<std::unique_ptr<RemoteSensor>> remoteSensors;
@@ -175,4 +175,4 @@ DCC_PROTOCOL_COMMAND_HANDLER(RemoteSensorsCommandAdapter,
   return COMMAND_FAILED_RESPONSE;
 })
 
-#endif // CONFIG_ENABLE_SENSORS
+#endif // CONFIG_GPIO_SENSORS

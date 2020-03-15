@@ -952,19 +952,19 @@ string ConfigurationManager::getCSFeatures()
 {
   json features = 
   {
-#if CONFIG_S88 && CONFIG_ENABLE_SENSORS
-    { JSON_S88_SENSOR_BASE_NODE, CONFIG_S88_FIRST_SENSOR }
+#if CONFIG_GPIO_S88
+    { JSON_S88_SENSOR_BASE_NODE, CONFIG_GPIO_S88_FIRST_SENSOR }
   , { JSON_S88_NODE, JSON_VALUE_TRUE }
 #else
     { JSON_S88_SENSOR_BASE_NODE, 0 }
   , { JSON_S88_NODE, JSON_VALUE_FALSE }
 #endif
-#if CONFIG_ENABLE_OUTPUTS
+#if CONFIG_GPIO_OUTPUTS
   , { JSON_OUTPUTS_NODE, JSON_VALUE_TRUE }
 #else
   , { JSON_OUTPUTS_NODE, JSON_VALUE_FALSE }
 #endif
-#if CONFIG_ENABLE_SENSORS
+#if CONFIG_GPIO_SENSORS
   , { JSON_SENSORS_NODE, JSON_VALUE_TRUE }
 #else
   , { JSON_SENSORS_NODE, JSON_VALUE_FALSE }
@@ -977,7 +977,7 @@ string ConfigurationManager::getCSFeatures()
 
 
 
-#if CONFIG_ENABLE_OUTPUTS || CONFIG_ENABLE_SENSORS
+#if CONFIG_GPIO_OUTPUTS || CONFIG_GPIO_SENSORS
 bool is_restricted_pin(int8_t pin)
 {
   vector<uint8_t> restrictedPins
@@ -1036,10 +1036,10 @@ bool is_restricted_pin(int8_t pin)
   , CONFIG_LOCONET_TX_PIN
 #endif
 
-#if CONFIG_S88
-  , CONFIG_S88_CLOCK_PIN
-  , CONFIG_S88_RESET_PIN
-  , CONFIG_S88_LOAD_PIN
+#if CONFIG_GPIO_S88
+  , CONFIG_GPIO_S88_CLOCK_PIN
+  , CONFIG_GPIO_S88_RESET_PIN
+  , CONFIG_GPIO_S88_LOAD_PIN
 #endif
 
 #if CONFIG_STATUS_LED
@@ -1051,4 +1051,4 @@ bool is_restricted_pin(int8_t pin)
                  , restrictedPins.end()
                  , pin) != restrictedPins.end();
 }
-#endif // CONFIG_ENABLE_OUTPUTS || CONFIG_ENABLE_SENSORS
+#endif // CONFIG_GPIO_OUTPUTS || CONFIG_GPIO_SENSORS

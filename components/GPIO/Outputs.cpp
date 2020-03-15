@@ -23,7 +23,7 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 
 #include "Outputs.h"
 
-#if CONFIG_ENABLE_OUTPUTS
+#if CONFIG_GPIO_OUTPUTS
 std::vector<std::unique_ptr<Output>> outputs;
 #include <json.hpp>
 
@@ -355,4 +355,4 @@ DCC_PROTOCOL_COMMAND_HANDLER(OutputExCommandAdapter,
   }
   return COMMAND_FAILED_RESPONSE;
 })
-#endif // CONFIG_ENABLE_OUTPUTS
+#endif // CONFIG_GPIO_OUTPUTS

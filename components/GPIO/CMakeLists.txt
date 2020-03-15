@@ -1,5 +1,8 @@
 set(COMPONENT_SRCS
     "Outputs.cpp"
+    "Sensors.cpp"
+    "RemoteSensors.cpp"
+    "S88Sensors.cpp"
 )
 
 set(COMPONENT_ADD_INCLUDEDIRS "include" )

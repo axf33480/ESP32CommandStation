@@ -1,11 +1,15 @@
-menu "GPIO Sensors"
+menu "GPIO"
 
-    config ENABLE_SENSORS
+    config GPIO_OUTPUTS
+        bool "Enable GPIO pins to be used as outputs"
+        default y
+
+    config GPIO_SENSORS
         bool "Enable GPIO pins to be used as sensors"
         default y
 
     menu "Remote Sensors"
-        depends on ENABLE_SENSORS
+        depends on GPIO_SENSORS
 
         config REMOTE_SENSORS_DECAY
             int "Number of milliseconds until a remote sensor will automatically clear"
@@ -16,35 +20,35 @@ menu "GPIO Sensors"
     endmenu
 
     menu "S88 Sensors"
-        depends on ENABLE_SENSORS
+        depends on GPIO_SENSORS
 
-        config S88
+        config GPIO_S88
             bool "Enable S88 Sensor functionality"
             default n
 
-        config S88_CLOCK_PIN
+        config GPIO_S88_CLOCK_PIN
             int "S88 Clock pin"
             range 0 32
             default 17
-            depends on S88
+            depends on GPIO_S88
 
-        config S88_RESET_PIN
+        config GPIO_S88_RESET_PIN
             int "S88 Reset pin"
             range 0 32
             default 16
-            depends on S88
+            depends on GPIO_S88
 
-        config S88_LOAD_PIN
+        config GPIO_S88_LOAD_PIN
             int "S88 Load pin"
             range 0 32
             default 27
-            depends on S88
+            depends on GPIO_S88
 
-        config S88_FIRST_SENSOR
+        config GPIO_S88_FIRST_SENSOR
             int "First sensor ID"
             default 255
 
-        config S88_MAX_SENSORS_PER_BUS
+        config GPIO_S88_SENSORS_PER_BUS
             int
             default 255
     endmenu

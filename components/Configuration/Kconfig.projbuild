@@ -28,6 +28,6 @@ menu "Advanced Configuration Options"
             6, 7, 8, 9, 10, 11 - flash pins
             12, 15 - Bootstrap / SD pins
         default n
-        depends on ENABLE_OUTPUTS || ENABLE_SENSORS
+        depends on GPIO_OUTPUTS || GPIO_SENSORS || GPIO_S88
 
 endmenu

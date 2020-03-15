@@ -1,7 +1,0 @@
-menu "GPIO Outputs"
-
-    config ENABLE_OUTPUTS
-        bool "Enable GPIO pins to be used as outputs"
-        default y
-
-endmenu
