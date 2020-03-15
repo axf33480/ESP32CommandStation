@@ -18,7 +18,7 @@ menu "Status Display"
 
     config DISPLAY_SDA
         int "I2C SDA pin"
-        default 23
+        default 22
         range 0 32
         depends on DISPLAY_TYPE_OLED || DISPLAY_TYPE_LCD
 
