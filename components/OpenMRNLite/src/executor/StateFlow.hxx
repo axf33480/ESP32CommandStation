@@ -179,7 +179,7 @@ public:
      * priority. */
     void notify() override;
 
-#ifdef OPENMRN_FEATURE_RTOS_FROM_ISR
+#if OPENMRN_FEATURE_RTOS_FROM_ISR
     /** Wakeup call arrived. Schedules *this on the executor. Does not know the
      * priority. */
     virtual void notify_from_isr() OVERRIDE;
@@ -549,6 +549,7 @@ protected:
         Buffer<T> *b;
         mainBufferPool->alloc(&b);
         b->data()->reset(std::forward<Args>(args)...);
+        b->data()->done.reset(EmptyNotifiable::DefaultInstance());
         target_flow->send(b);
     }
     
@@ -965,7 +966,7 @@ public:
     /// Wakeup call arrived. Schedules *this on the executor.
     void notify() override;
 
-#ifdef OPENMRN_FEATURE_RTOS_FROM_ISR
+#if OPENMRN_FEATURE_RTOS_FROM_ISR
     /** Wakeup call arrived. Schedules *this on the executor. */
     void notify_from_isr() OVERRIDE;
 #endif // OPENMRN_FEATURE_RTOS_FROM_ISR

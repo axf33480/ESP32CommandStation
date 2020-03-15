@@ -52,15 +52,13 @@ TrainNode::TrainNode(TrainService *service, TrainImpl *train)
 
 TrainNode::~TrainNode()
 {
-    while (!consistSlaves_.empty())
-    {
+    while (!consistSlaves_.empty()) {
         delete consistSlaves_.pop_front();
     }
 }
 
 TrainNodeForProxy::TrainNodeForProxy(TrainService *service, TrainImpl *train)
-    : TrainNode(service, train)
-{
+    : TrainNode(service, train) {
     service_->register_train(this);
 }
 
@@ -621,14 +619,13 @@ TrainService::~TrainService()
 
 void TrainService::register_train(TrainNode *node)
 {
-    iface_->executor()->assert_current();
     iface_->add_local_node(node);
     extern void StartInitializationFlow(Node * node);
     StartInitializationFlow(node);
     AtomicHolder h(this);
     nodes_.insert(node);
-    HASSERT(nodes_.count(node));
     LOG(VERBOSE, "Registered node %p for traction.", node);
+    HASSERT(nodes_.find(node) != nodes_.end());
 }
 
 } // namespace openlcb

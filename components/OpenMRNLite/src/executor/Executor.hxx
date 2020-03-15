@@ -37,6 +37,7 @@
 #define _EXECUTOR_EXECUTOR_HXX_
 
 #include <functional>
+#include <atomic>
 
 #include "executor/Executable.hxx"
 #include "executor/Notifiable.hxx"
@@ -87,7 +88,7 @@ public:
      * the execution is completed. @param fn is the closure to run. */
     void sync_run(std::function<void()> fn);
 
-#ifdef OPENMRN_FEATURE_RTOS_FROM_ISR
+#if OPENMRN_FEATURE_RTOS_FROM_ISR
     /** Send a message to this Executor's queue. Callable from interrupt
      * context.
      * @param action Executable instance to insert into the input queue
@@ -164,7 +165,7 @@ public:
 
     /// Helper function for debugging and tracing.
     /// @return currently running executable or nullptr if none active.
-    Executable* current() { return current_; }
+    Executable* volatile current() { return current_; }
     
 protected:
     /** Thread entry point.
@@ -231,9 +232,9 @@ private:
 
     /** Set to 1 when the executor thread has exited and it is safe to delete
      * *this. */
-    unsigned done_ : 1;
+    std::atomic_uint_least8_t done_;
     /// 1 if the executor is already running
-    unsigned started_ : 1;
+    std::atomic_uint_least8_t started_;
     /// How many executables we schedule blindly before calling a select() in
     /// order to find more data to read/write in the FDs being waited upon.
     unsigned selectPrescaler_ : 5;
@@ -314,7 +315,7 @@ public:
 #endif
     }
 
-#ifdef OPENMRN_FEATURE_RTOS_FROM_ISR
+#if OPENMRN_FEATURE_RTOS_FROM_ISR
     /** Send a message to this Executor's queue. Callable from interrupt
      * context.
      * @param msg Executable instance to insert into the input queue
@@ -324,7 +325,7 @@ public:
     {
 #ifdef ESP32
         // On the ESP32 we need to call insert instead of insert_locked to
-        // ensure that all code paths lock the queue for consistency  since
+        // ensure that all code paths lock the queue for consistency since
         // this code path is not guaranteed to be protected by a critical
         // section.
         queue_.insert(

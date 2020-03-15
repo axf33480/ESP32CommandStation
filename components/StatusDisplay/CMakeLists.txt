@@ -13,3 +13,5 @@ set(COMPONENT_REQUIRES
 )
 
 register_component()
+
+set_source_files_properties(StatusDisplay.cpp PROPERTIES COMPILE_FLAGS -Wno-ignored-qualifiers)

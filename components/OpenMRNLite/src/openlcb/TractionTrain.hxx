@@ -245,19 +245,17 @@ public:
         return iface_;
     }
 
-    /// Registers a new train with the train service.
-    /// 
-    /// Will initiate a node initialization flow for the train.
+    /** Registers a new train with the train service. Will initiate a node
+        initialization flow for the train. */
     void register_train(TrainNode *node);
 
 private:
     struct Impl;
-    /// Implementation flows.
+    /** Implementation flows. */
     Impl *impl_;
 
-    /// Interface used for transmitting/receiving Traction data.
     If *iface_;
-    /// List of train nodes managed by this Service.
+    /** List of train nodes managed by this Service. */
     std::set<TrainNode *> nodes_;
 };
 

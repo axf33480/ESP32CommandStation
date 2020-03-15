@@ -18,3 +18,8 @@ set(COMPONENT_REQUIRES
 )
 
 register_component()
+
+set_source_files_properties(EStopHandler.cpp PROPERTIES COMPILE_FLAGS -Wno-ignored-qualifiers)
+set_source_files_properties(LocalTrackIf.cpp PROPERTIES COMPILE_FLAGS -Wno-ignored-qualifiers)
+set_source_files_properties(MonitoredHBridge.cpp PROPERTIES COMPILE_FLAGS -Wno-ignored-qualifiers)
+set_source_files_properties(RMTTrackDevice.cpp PROPERTIES COMPILE_FLAGS -Wno-ignored-qualifiers)

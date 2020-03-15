@@ -67,12 +67,12 @@ public:
     /// @param n is the @ref Notifiable to call when this flow exits.
     void shutdown(Notifiable *n)
     {
-        std::swap(done_, n);
+        shutdown_ = true;
+        std::swap(shutdownDone_, n);
         if (n)
         {
             n->notify();
         }
-        shutdown_ = true;
         timer_.ensure_triggered();
     }
 
@@ -82,7 +82,7 @@ private:
     const std::string name_;
     StateFlowTimer timer_{this};
     bool shutdown_{false};
-    Notifiable *done_{nullptr};
+    Notifiable *shutdownDone_{nullptr};
 
     Action sleep_and_call_sync()
     {
@@ -93,7 +93,7 @@ private:
     {
         if (shutdown_)
         {
-            AutoNotify n(done_);
+            AutoNotify n(shutdownDone_);
             return exit();
         }
         ERRNOCHECK(name_.c_str(), fsync(fd_));

@@ -37,6 +37,7 @@
 #ifndef _INCLUDE_OPENMRN_FEATURES_
 #define _INCLUDE_OPENMRN_FEATURES_
 
+
 #ifdef __FreeRTOS__
 /// Compiles the FreeRTOS event group based ::select() implementation.
 #define OPENMRN_FEATURE_DEVICE_SELECT 1
@@ -143,6 +144,11 @@
 
 #endif
 
+#if !defined(__MACH__)
+/// Compiles support for calling reboot() in ConfigUpdateFlow.hxx and
+/// MemoryConfig.cxx.
+#define OPENMRN_FEATURE_REBOOT 1
+#endif
 
 
 #endif // _INCLUDE_OPENMRN_FEATURES_

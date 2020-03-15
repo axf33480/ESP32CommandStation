@@ -13,3 +13,6 @@ set(COMPONENT_REQUIRES
 )
 
 register_component()
+
+set_source_files_properties(DCCppProtocol.cpp PROPERTIES COMPILE_FLAGS -Wno-ignored-qualifiers)
+set_source_files_properties(DCCProgrammer.cpp PROPERTIES COMPILE_FLAGS -Wno-ignored-qualifiers)

@@ -17,3 +17,7 @@ set(COMPONENT_REQUIRES
 )
 
 register_component()
+
+set_source_files_properties(Outputs.cpp PROPERTIES COMPILE_FLAGS -Wno-ignored-qualifiers)
+set_source_files_properties(RemoteSensors.cpp PROPERTIES COMPILE_FLAGS -Wno-ignored-qualifiers)
+set_source_files_properties(Sensors.cpp PROPERTIES COMPILE_FLAGS -Wno-ignored-qualifiers)

@@ -29,6 +29,7 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 #include <Httpd.h>
 #include <json.hpp>
 #include <sdmmc_cmd.h>
+#include <openlcb/MemoryConfig.hxx>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <utils/FileUtils.hxx>

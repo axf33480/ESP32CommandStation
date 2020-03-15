@@ -4,4 +4,4 @@ idf_component_register(
     PRIV_REQUIRES OpenMRNLite Esp32HttpServer DCCppProtocol
 )
 
-set_source_files_properties(JmriInterface.cpp PROPERTIES COMPILE_FLAGS -Wno-implicit-fallthrough)
+set_source_files_properties(JmriInterface.cpp PROPERTIES COMPILE_FLAGS "-Wno-implicit-fallthrough -Wno-ignored-qualifiers")
