@@ -3,10 +3,16 @@ menu "GPIO"
     config GPIO_OUTPUTS
         bool "Enable GPIO pins to be used as outputs"
         default y
+        help
+            Enabling this option will allow usage of any free GPIO pin to be
+            used as a controlled output.
 
     config GPIO_SENSORS
         bool "Enable GPIO pins to be used as sensors"
         default y
+        help
+            Enabling this option will allow usage of any free GPIO pin to be
+            used as a polled input.
 
     menu "Remote Sensors"
         depends on GPIO_SENSORS
@@ -14,9 +20,17 @@ menu "GPIO"
         config REMOTE_SENSORS_DECAY
             int "Number of milliseconds until a remote sensor will automatically clear"
             default 60000
+            help
+                If a remote sensor does not report it's state within this
+                number of milliseconds it will automatically be deactivated.
+
         config REMOTE_SENSORS_FIRST_SENSOR
             int "First ID to assign remote sensors"
             default 100
+            help
+                All sensors must have a unique ID number assigned to them, this
+                value allows configuring what the first sensor ID will be for
+                any remote sensors that report to the command station.
     endmenu
 
     menu "S88 Sensors"
@@ -25,6 +39,10 @@ menu "GPIO"
         config GPIO_S88
             bool "Enable S88 Sensor functionality"
             default n
+            help
+                S88 (S88-n) is a feedback bus used primarily for occupancy
+                detection but can be used for any digital input purposes. This
+                module follows the S88-n timing as documented on http://www.s88-n.eu/
 
         config GPIO_S88_CLOCK_PIN
             int "S88 Clock pin"
@@ -46,11 +64,22 @@ menu "GPIO"
 
         config GPIO_S88_FIRST_SENSOR
             int "First sensor ID"
-            default 255
+            range 0 512
+            default 512
+            help
+                This will be used for the first sensor bus and subsequent buses
+                will start at the next sequential block of IDs. The block size
+                is defined by the sensors per bus count below.
 
         config GPIO_S88_SENSORS_PER_BUS
-            int
-            default 255
+            int "Maximum number of sensors per bus"
+            range 8 512
+            default 512
+            help
+                This is the maximum number of inputs that are supported per
+                bus. In most cases the default of 512 is sufficient but if
+                you have smaller buses and want to have sensor IDs more
+                closely indexed this value can be adjusted to a lower value.
     endmenu
 
 endmenu
