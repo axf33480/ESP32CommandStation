@@ -675,11 +675,6 @@ bool ConfigurationManager::validateConfiguration()
     LOG_ERROR("[Config] LCC configuration not found.");
     return false;
   }
-  else if (!csConfig.contains(JSON_HBRIDGES_NODE))
-  {
-    LOG_ERROR("[Config] H-Bridge configuration not found.");
-    return false;
-  }
 
   auto wifiNode = csConfig[JSON_WIFI_NODE];
   LOG(VERBOSE, "[Config] WiFi config: %s", wifiNode.dump().c_str());
@@ -730,19 +725,6 @@ bool ConfigurationManager::validateConfiguration()
       !lccNode[JSON_LCC_CAN_NODE].contains(JSON_LCC_CAN_ENABLED_NODE))
   {
     LOG_ERROR("[Config] LCC CAN configuration invalid.");
-    return false;
-  }
-
-  // verify h-bridge configuration
-  auto hbridges = csConfig[JSON_HBRIDGES_NODE];
-  if (!hbridges.contains(CONFIG_OPS_TRACK_NAME))
-  {
-    LOG_ERROR("[Config] H-Bridge configuration invalid (missing OPS).");
-    return false;
-  }
-  else if (!hbridges.contains(CONFIG_PROG_TRACK_NAME))
-  {
-    LOG_ERROR("[Config] H-Bridge configuration invalid (missing PROG).");
     return false;
   }
 
@@ -970,8 +952,6 @@ string ConfigurationManager::getCSFeatures()
 #else
   , { JSON_SENSORS_NODE, JSON_VALUE_FALSE }
 #endif
-  , { JSON_HC12_NODE
-    , csConfig[JSON_HC12_NODE][JSON_HC12_ENABLED_NODE].get<bool>() }
   };
   return features.dump();
 }
