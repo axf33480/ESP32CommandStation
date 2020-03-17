@@ -1,250 +1,279 @@
-menu "ESP32 Command Station"
-    menu "WiFi"
-        config HOSTNAME_PREFIX
-            string "Hostname prefix"
-            default "esp32cs_"
-            help
-                The LCC node id will be appended to this value, ie: esp32cs_050101013F00.
-        choice WIFI_MODE
-            bool "WiFi mode"
-            default WIFI_MODE_SOFTAP
-            config WIFI_MODE_STATION
-                bool "Connect to SSID"
-            config WIFI_MODE_SOFTAP
-                bool "Create SoftAP"
-            config WIFI_MODE_SOFTAP_STATION
-                bool "Connect to SSID and create SoftAP"
-        endchoice
+menu "WiFi Configuration"
+    config HOSTNAME_PREFIX
+        string "Hostname prefix"
+        default "esp32cs_"
+        help
+            The LCC node id will be appended to this value, ie: esp32cs_050101013F00.
 
-        config WIFI_SOFTAP_SSID
-            string "SoftAP SSID"
-            depends on WIFI_MODE_SOFTAP
-        config WIFI_SSID
-            string "SSID"
-            depends on WIFI_MODE_STATION || WIFI_MODE_SOFTAP_STATION
-        config WIFI_PASSWORD
-            string "Password"
-            depends on WIFI_MODE_STATION || WIFI_MODE_SOFTAP_STATION
-        choice WIFI_IP_TYPE
-            bool "WiFi IP"
-            default WIFI_IP_DHCP
-            config WIFI_IP_DHCP
-                bool "DHCP"
-            config WIFI_IP_STATIC
-                bool "Static"
-        endchoice
-        config WIFI_STATIC_IP_ADDRESS
-            string "IP address"
-            default "10.0.0.155"
-            depends on WIFI_IP_STATIC
-        config WIFI_STATIC_IP_GATEWAY
-            string "Gateway IP address"
-            default "10.0.0.1"
-            depends on WIFI_IP_STATIC
-        config WIFI_STATIC_IP_SUBNET
-            string "Subnet mask"
-            default "255.255.255.0"
-            depends on WIFI_IP_STATIC
-        config WIFI_STATIC_IP_DNS
-            string "Primary DNS address"
-            default "8.8.8.8"
-            depends on WIFI_IP_STATIC
-        config WIFI_SOFT_AP_CHANNEL
-            int
-            default 6
-    endmenu
+    choice WIFI_MODE
+        bool "WiFi mode"
+        default WIFI_MODE_SOFTAP
+        config WIFI_MODE_STATION
+            bool "Connect to SSID"
+        config WIFI_MODE_SOFTAP
+            bool "Create SoftAP"
+        config WIFI_MODE_SOFTAP_STATION
+            bool "Connect to SSID and create SoftAP"
+    endchoice
 
-    menu "LCC"
-        config LCC_NODE_ID
-            hex "Node ID"
-            default 0x050101013F00
-            help 
-                This is the LCC node identifier for the ESP32 Command Station.
-                It is recommended, but not required, to request your own ID
-                range via:
-                https://registry.openlcb.org/requestuniqueidrange
+    config WIFI_SOFTAP_SSID
+        string "SoftAP SSID"
+        depends on WIFI_MODE_SOFTAP
 
-        config LCC_CAN_ENABLED
-            bool "CAN interface"
-            default n
-            help
-                Enabling this option will require an externally connected
-                SN6565HVD23x or MCP2551 IC.
+    config WIFI_SSID
+        string "SSID"
+        depends on WIFI_MODE_STATION || WIFI_MODE_SOFTAP_STATION
 
-        config LCC_CAN_RX_PIN
-            int "CAN RX Pin"
-            range 0 39
-            depends on LCC_CAN_ENABLED
-            help
-                This is the ESP32 pin connected to the SN6565HVD23x/MCP2551 R (RX) pin.
+    config WIFI_PASSWORD
+        string "Password"
+        depends on WIFI_MODE_STATION || WIFI_MODE_SOFTAP_STATION
 
-        config LCC_CAN_TX_PIN
-            int "CAN TX Pin"
-            range 0 32
-            depends on LCC_CAN_ENABLED
-            help
-                This is the ESP32 pin connected to the SN6565HVD23x/MCP2551 D (TX) pin.
+    choice WIFI_IP_TYPE
+        bool "WiFi IP"
+        default WIFI_IP_DHCP
+        config WIFI_IP_DHCP
+            bool "DHCP"
+        config WIFI_IP_STATIC
+            bool "Static"
+    endchoice
 
-        config LCC_FACTORY_RESET
-            bool "Force factory reset on every startup"
-            default n
-            help
-                Enabling this option will force the removal of the cached CDI
-                and node configuration files on every startup of the node. This
-                is generally not required or recommended.
+    config WIFI_STATIC_IP_ADDRESS
+        string "IP address"
+        default "10.0.0.155"
+        depends on WIFI_IP_STATIC
 
-        config LCC_GC_NEWLINES
-            bool "Generate newlines at the end of every GridConnect packet"
-            help
-                Enabling this option will generate a newline character after
-                every GridConnect packet that is sent out. This is generally
-                only needed for debug purposes.
-            default n
+    config WIFI_STATIC_IP_GATEWAY
+        string "Gateway IP address"
+        default "10.0.0.1"
+        depends on WIFI_IP_STATIC
 
-        config LCC_PRINT_ALL_PACKETS
-            bool "Generate newlines at the end of every GridConnect packet"
-            help
-                Enabling this option will generate a newline character after
-                every GridConnect packet that is sent out. This is generally
-                only needed for debug purposes.
-            default n
+    config WIFI_STATIC_IP_SUBNET
+        string "Subnet mask"
+        default "255.255.255.0"
+        depends on WIFI_IP_STATIC
 
-        config LCC_MEMORY_SPACES
-            int "Number of memory spaces to allocate in the OpenMRN stack"
-            default 10
+    config WIFI_STATIC_IP_DNS
+        string "Primary DNS address"
+        default "8.8.8.8"
+        depends on WIFI_IP_STATIC
 
-        config LCC_GC_DELAY_USEC
-            int "Number of memory spaces to allocate in the OpenMRN stack"
-            default 500
+    config WIFI_SOFT_AP_CHANNEL
+        int
+        default 6
+endmenu
 
-        config LCC_GC_OUTBOUND_PACKET_LIMIT
-            int "Maximum number of outbound GridConnect packets"
-            default 2
+menu "LCC Configuration"
+    config LCC_NODE_ID
+        hex "Node ID"
+        default 0x050101013F00
+        help 
+            This is the LCC node identifier for the ESP32 Command Station.
+            It is recommended, but not required, to request your own ID
+            range via:
+            https://registry.openlcb.org/requestuniqueidrange
 
-        config LCC_EXECUTOR_SELECT_PRESCALER
-            int "Number of StateFlows to execute before issuing a select() call"
-            default 60
+    config LCC_CAN_ENABLED
+        bool "CAN interface"
+        default n
+        help
+            Enabling this option will require an externally connected
+            SN6565HVD23x or MCP2551 IC.
 
-        config LCC_LOCAL_NODE_COUNT
-            int "Maximum number of 'local' LCC nodes to allow"
-            help
-                This controls how many trains will be supported concurrently by
-                the command station.
-            default 30
+    config LCC_CAN_RX_PIN
+        int "CAN RX Pin"
+        range 0 39
+        depends on LCC_CAN_ENABLED
+        help
+            This is the ESP32 pin connected to the SN6565HVD23x/MCP2551 R (RX) pin.
 
-        config LCC_SD_FSYNC_SEC
-            int "Seconds between automatic calls to fsync() for the LCC config file"
-            help
-                This is only used when an SD card is detected.
-            default 10
-    endmenu
+    config LCC_CAN_TX_PIN
+        int "CAN TX Pin"
+        range 0 32
+        depends on LCC_CAN_ENABLED
+        help
+            This is the ESP32 pin connected to the SN6565HVD23x/MCP2551 D (TX) pin.
 
-    menu "Nextion"
-        config NEXTION
-            bool "Enable Nextion HMI interface"
-            default n
-            help
-                The Nextion HMI interface provides a throttle interface
-                directly connected to the ESP32 Command Station.
+    config LCC_FACTORY_RESET
+        bool "Perform LCC Factory reset on startup"
+        default n
+        help
+            Enabling this option will force the removal of the cached CDI
+            and node configuration files on every startup of the node. This
+            is generally not required or recommended.
 
-        config NEXTION_RX_PIN
-            int "RX Pin"
-            range 0 39
-            help
-                This should be connected to the TX pin on the Nextion HMI,
-                typically the blue wire.
-            depends on NEXTION
+    config LCC_MEMORY_SPACES
+        int "MemoryConfig space limit"
+        default 10
+        help
+            Maximum number of memory spaces that can be registered for the
+            MemoryConfig datagram handler.
 
-        config NEXTION_TX_PIN
-            int "TX Pin"
-            range 0 32
-            help
-                This should be connected to the RX pin on the Nextion HMI,
-                typically the yellow wire.
-            depends on NEXTION
+    config LCC_PRINT_ALL_PACKETS
+        bool "Print all packets"
+        default n
+        help
+            Enabling this option will cause all LCC packets to be printed to
+            the serial console.
 
-        config NEXTION_BAUD_RATE
-            int "BAUD rate"
-            default 115200
-            help
-                This must match the "bauds=XXX" value set in the Nextion
-                HMI initialization event.
-            depends on NEXTION
+    config LCC_EXECUTOR_SELECT_PRESCALER
+        int "StateFlows to execute between select() calls"
+        range 5 300
+        default 60
+        help
+            Executors will run this many Executables (if there is anything
+            scheduled) before two calls to select. This helps in reducing the
+            overhead of the select calls.
 
-        choice NEXTION_UART
-            bool "Hardware UART to use for the Nextion HMI"
-            default NEXTION_UART_UART1
-            depends on NEXTION
-            config NEXTION_UART_UART1
-                bool "UART1"
-                depends on !OPS_RAILCOM_UART1 && !HC12_UART_UART1
-            config NEXTION_UART_UART2
-                bool "UART2"
-                depends on !OPS_RAILCOM_UART2 && !HC12_UART_UART2
-        endchoice
+    config LCC_LOCAL_NODE_COUNT
+        int "Number of 'local' LCC nodes"
+        default 30
+        help
+            This controls how many trains will be supported concurrently by
+            the command station.
 
-        config NEXTION_UART
-            int
-            default 1 if NEXTION_UART_UART1
-            default 2 if NEXTION_UART_UART2
-            depends on NEXTION
-    endmenu
+    config LCC_SD_FSYNC_SEC
+        int "Automatic fsync() interval (seconds)"
+        default 10
+        help
+            For some file systems (SD only currently) it is required to call
+            fsync() to force synchronize file changes to the file system due to
+            small file size. In the case of the SD file system any file
+            modification smaller than 512 bytes will remain in the in-memory
+            cache and not be persisted to the SD card without a call to fsync()
+            or close(). In the case of the LCC CDI file, the CDI file remains
+            open for the lifetime of the application.
 
-    menu "LocoNet"
-        config LOCONET
-            bool "Enable LocoNet interface"
-            default n
-            help
-                The LocoNet interface allows using many of the available
-                LocoNet sensors, throttles, accessories, etc with the ESP32
-                Command Station. It is still under active development, if you
-                find a device that does not work please let us know.
+    config LCC_GC_NEWLINES
+        bool "Add newline to GridConnect packets"
+        default n
+        help
+            Enabling this option will generate a newline character after
+            every GridConnect packet that is sent out. This is generally
+            only needed for debug purposes.
 
-        config LOCONET_RX_PIN
-            int "Pin connected to the LocoNet RX pin"
-            range 0 39
-            depends on LOCONET
+    config LCC_GC_DELAY_USEC
+        int "GridConnect packet delay (microseconds)"
+        default 500
+        help
+            How long (in microseconds) to buffer generated gridconnect data
+            before sending off to the lowlevel system (such as a TCP socket).
 
-        config LOCONET_TX_PIN
-            int "Pin connected to the LocoNet TX pin"
-            range 0 32
-            depends on LOCONET
-            
-        choice LOCONET_UART
-            bool "Hardware UART to use for LocoNet"
-            default HC12_UART_UART1
-            depends on LOCONET
-            config LOCONET_UART_UART1
-                bool "UART1"
-                depends on !OPS_RAILCOM_UART1 && !HC12_UART_UART1 && !NEXTION_UART_UART1
-            config LOCONET_UART_UART2
-                bool "UART2"
-                depends on !OPS_RAILCOM_UART2 && !HC12_UART_UART2 && !NEXTION_UART_UART2
-        endchoice
-
-        config LOCONET_INVERTED_LOGIC
-            bool "Use inverted logic"
-            default y
-            help
-                If you are using the LM311 circuit as defined on the ESP32
-                Command Station website it is necessary to invert the logic.
-                If you are using a different circuit you might be able to
-                disable this option.
-                
-        config LOCONET_RX_PULLUP
-            bool "Use pull-up resistor on RX pin"
-            default y
-            help
-                If you are using the LM311 circuit as defined in the ESP32
-                Command Station website and do not have a resistor connected
-                between 3v3 (VCC) and the LOCONET_RX_PIN it is necessary to
-                enable the internal pull up for the RX pin to ensure proper
-                logic. If you have an external pull-up resistor this option can
-                be disabled.
-    endmenu
+    config LCC_GC_OUTBOUND_PACKET_LIMIT
+        int "GridConnect packet count limit"
+        default 2
+        help
+            Number of pending buffers (of type string) in the outgoing hub on a
+            per-connection basis. This limit ensures that we don't leak memory
+            if the output socket cannot send the data fast enough.
 
     config ESP32CS_CDI_VERSION
         hex
         default 0x0150
-
 endmenu
+
+menu "Nextion HMI Configuration"
+    config NEXTION
+        bool "Enable Nextion HMI interface"
+        default n
+        help
+            The Nextion HMI interface provides a throttle interface
+            directly connected to the ESP32 Command Station.
+
+    config NEXTION_RX_PIN
+        int "RX Pin"
+        range 0 39
+        help
+            This should be connected to the TX pin on the Nextion HMI,
+            typically the blue wire.
+        depends on NEXTION
+
+    config NEXTION_TX_PIN
+        int "TX Pin"
+        range 0 32
+        help
+            This should be connected to the RX pin on the Nextion HMI,
+            typically the yellow wire.
+        depends on NEXTION
+
+    config NEXTION_BAUD_RATE
+        int "BAUD rate"
+        default 115200
+        help
+            This must match the "bauds=XXX" value set in the Nextion
+            HMI initialization event.
+        depends on NEXTION
+
+    choice NEXTION_UART
+        bool "Hardware UART to use for the Nextion HMI"
+        default NEXTION_UART_UART1
+        depends on NEXTION
+        config NEXTION_UART_UART1
+            bool "UART1"
+            depends on !OPS_RAILCOM_UART1 && !HC12_UART_UART1
+        config NEXTION_UART_UART2
+            bool "UART2"
+            depends on !OPS_RAILCOM_UART2 && !HC12_UART_UART2
+    endchoice
+
+    config NEXTION_UART
+        int
+        default 1 if NEXTION_UART_UART1
+        default 2 if NEXTION_UART_UART2
+        depends on NEXTION
+endmenu
+
+# LocoNet will not be supported in v1.5.0 so it must remain disabled.
+if 0
+menu "LocoNet"
+    config LOCONET
+        bool "Enable LocoNet interface"
+        default n
+        help
+            The LocoNet interface allows using many of the available
+            LocoNet sensors, throttles, accessories, etc with the ESP32
+            Command Station. It is still under active development, if you
+            find a device that does not work please let us know.
+
+    config LOCONET_RX_PIN
+        int "Pin connected to the LocoNet RX pin"
+        range 0 39
+        depends on LOCONET
+
+    config LOCONET_TX_PIN
+        int "Pin connected to the LocoNet TX pin"
+        range 0 32
+        depends on LOCONET
+        
+    choice LOCONET_UART
+        bool "Hardware UART to use for LocoNet"
+        default HC12_UART_UART1
+        depends on LOCONET
+        config LOCONET_UART_UART1
+            bool "UART1"
+            depends on !OPS_RAILCOM_UART1 && !HC12_UART_UART1 && !NEXTION_UART_UART1
+        config LOCONET_UART_UART2
+            bool "UART2"
+            depends on !OPS_RAILCOM_UART2 && !HC12_UART_UART2 && !NEXTION_UART_UART2
+    endchoice
+
+    config LOCONET_INVERTED_LOGIC
+        bool "Use inverted logic"
+        default y
+        help
+            If you are using the LM311 circuit as defined on the ESP32
+            Command Station website it is necessary to invert the logic.
+            If you are using a different circuit you might be able to
+            disable this option.
+            
+    config LOCONET_RX_PULLUP
+        bool "Use pull-up resistor on RX pin"
+        default y
+        help
+            If you are using the LM311 circuit as defined in the ESP32
+            Command Station website and do not have a resistor connected
+            between 3v3 (VCC) and the LOCONET_RX_PIN it is necessary to
+            enable the internal pull up for the RX pin to ensure proper
+            logic. If you have an external pull-up resistor this option can
+            be disabled.
+endmenu
+endif
