@@ -14,6 +14,15 @@ menu "GPIO"
             Enabling this option will allow usage of any free GPIO pin to be
             used as a polled input.
 
+    config GPIO_S88
+        bool "Enable S88 Sensor functionality"
+        default n
+        depends on GPIO_SENSORS
+        help
+            S88 (S88-n) is a feedback bus used primarily for occupancy
+            detection but can be used for any digital input purposes. This
+            module follows the S88-n timing as documented on http://www.s88-n.eu/
+
     menu "Remote Sensors"
         depends on GPIO_SENSORS
 
@@ -34,33 +43,22 @@ menu "GPIO"
     endmenu
 
     menu "S88 Sensors"
-        depends on GPIO_SENSORS
-
-        config GPIO_S88
-            bool "Enable S88 Sensor functionality"
-            default n
-            help
-                S88 (S88-n) is a feedback bus used primarily for occupancy
-                detection but can be used for any digital input purposes. This
-                module follows the S88-n timing as documented on http://www.s88-n.eu/
+        depends on GPIO_S88
 
         config GPIO_S88_CLOCK_PIN
             int "S88 Clock pin"
             range 0 32
             default 17
-            depends on GPIO_S88
 
         config GPIO_S88_RESET_PIN
             int "S88 Reset pin"
             range 0 32
             default 16
-            depends on GPIO_S88
 
         config GPIO_S88_LOAD_PIN
             int "S88 Load pin"
             range 0 32
             default 27
-            depends on GPIO_S88
 
         config GPIO_S88_FIRST_SENSOR
             int "First sensor ID"
@@ -81,5 +79,19 @@ menu "GPIO"
                 you have smaller buses and want to have sensor IDs more
                 closely indexed this value can be adjusted to a lower value.
     endmenu
+
+    config ALLOW_USAGE_OF_RESTRICTED_GPIO_PINS
+        bool "Allow usage of restricted GPIO pins"
+        default n
+        depends on GPIO_OUTPUTS || GPIO_SENSORS || GPIO_S88
+        help
+            Enables usage of the following pins for sensors and outputs
+            0 - Bootstrap / Firmware Flash Download
+            1 - UART0 TX
+            2 - Bootstrap / Firmware Flash Download
+            3 - UART0 RX
+            5 - Bootstrap
+            6, 7, 8, 9, 10, 11 - flash pins
+            12, 15 - Bootstrap / SD pins
 
 endmenu
