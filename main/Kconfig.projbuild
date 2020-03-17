@@ -182,6 +182,7 @@ menu "Nextion HMI Configuration"
     config NEXTION_RX_PIN
         int "RX Pin"
         range 0 39
+        default 14
         help
             This should be connected to the TX pin on the Nextion HMI,
             typically the blue wire.
@@ -190,6 +191,7 @@ menu "Nextion HMI Configuration"
     config NEXTION_TX_PIN
         int "TX Pin"
         range 0 32
+        default 27
         help
             This should be connected to the RX pin on the Nextion HMI,
             typically the yellow wire.
