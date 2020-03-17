@@ -15,6 +15,10 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
   along with this program.  If not, see http://www.gnu.org/licenses
 **********************************************************************/
 
+#include "sdkconfig.h"
+
+#if CONFIG_GPIO_OUTPUTS
+
 #include <ConfigurationManager.h>
 #include <DCCppProtocol.h>
 #include <StatusDisplay.h>
@@ -23,7 +27,6 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 
 #include "Outputs.h"
 
-#if CONFIG_GPIO_OUTPUTS
 std::vector<std::unique_ptr<Output>> outputs;
 #include <json.hpp>
 
@@ -125,7 +128,7 @@ string OutputManager::get_state_for_dccpp()
   return status;
 }
 
-bool OutputManager::createOrUpdate(const uint16_t id, const uint8_t pin, const uint8_t flags)
+bool OutputManager::createOrUpdate(const uint16_t id, const gpio_num_t pin, const uint8_t flags)
 {
   for (const auto& output : outputs)
   {
@@ -159,10 +162,10 @@ bool OutputManager::remove(const uint16_t id)
   return false;
 }
 
-Output::Output(uint16_t id, uint8_t pin, uint8_t flags) : _id(id), _pin(pin), _flags(flags), _active(false)
+Output::Output(uint16_t id, gpio_num_t pin, uint8_t flags) : _id(id), _pin(pin), _flags(flags), _active(false)
 {
-  gpio_pad_select_gpio((gpio_num_t)_pin);
-  ESP_ERROR_CHECK(gpio_set_direction((gpio_num_t)_pin, GPIO_MODE_OUTPUT));
+  gpio_pad_select_gpio(_pin);
+  ESP_ERROR_CHECK(gpio_set_direction(_pin, GPIO_MODE_OUTPUT));
 
   if((_flags & OUTPUT_IFLAG_RESTORE_STATE) == OUTPUT_IFLAG_RESTORE_STATE)
   {
@@ -186,7 +189,7 @@ Output::Output(string &data)
 {
   nlohmann::json object = nlohmann::json::parse(data);
   _id = object[JSON_ID_NODE].get<uint16_t>();
-  _pin = object[JSON_PIN_NODE].get<uint8_t>();
+  _pin = (gpio_num_t)object[JSON_PIN_NODE].get<uint8_t>();
   _flags = object[JSON_FLAGS_NODE].get<uint8_t>();
   gpio_pad_select_gpio((gpio_num_t)_pin);
   ESP_ERROR_CHECK(gpio_set_direction((gpio_num_t)_pin, GPIO_MODE_OUTPUT));
@@ -214,12 +217,15 @@ string Output::set(bool active, bool announce)
   return COMMAND_NO_RESPONSE;
 }
 
-void Output::update(uint8_t pin, uint8_t flags)
+void Output::update(gpio_num_t pin, uint8_t flags)
 {
+  // reset the current pin
+  ESP_ERROR_CHECK(gpio_reset_pin(_pin));
   _pin = pin;
   _flags = flags;
-  gpio_pad_select_gpio((gpio_num_t)_pin);
-  ESP_ERROR_CHECK(gpio_set_direction((gpio_num_t)_pin, GPIO_MODE_OUTPUT));
+  // setup the new pin
+  gpio_pad_select_gpio(_pin);
+  ESP_ERROR_CHECK(gpio_set_direction(_pin, GPIO_MODE_OUTPUT));
   if((_flags & OUTPUT_IFLAG_RESTORE_STATE) != OUTPUT_IFLAG_RESTORE_STATE)
   {
     set(false, false);
@@ -237,7 +243,7 @@ string Output::toJson(bool readableStrings)
   nlohmann::json object =
   {
     { JSON_ID_NODE, _id },
-    { JSON_PIN_NODE, _pin },
+    { JSON_PIN_NODE, (uint8_t)_pin },
   };
   if(readableStrings)
   {
@@ -329,7 +335,8 @@ DCC_PROTOCOL_COMMAND_HANDLER(OutputCommandAdapter,
     else if (arguments.size() == 3)
     {
       // create output
-      OutputManager::createOrUpdate(outputID, std::stoi(arguments[1])
+      OutputManager::createOrUpdate(outputID
+                                  , (gpio_num_t)std::stoi(arguments[1])
                                   , std::stoi(arguments[2]));
       return COMMAND_SUCCESSFUL_RESPONSE;
     }

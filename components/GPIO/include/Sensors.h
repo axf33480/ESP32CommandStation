@@ -19,22 +19,23 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 #define SENSORS_H_
 
 #include <DCCppProtocol.h>
+#include <driver/gpio.h>
 
-const int8_t NON_STORED_SENSOR_PIN=-1;
+static constexpr gpio_num_t NON_STORED_SENSOR_PIN = (gpio_num_t)-1;
 
 class Sensor
 {
 public:
-  Sensor(uint16_t, int8_t, bool=false, bool=true);
+  Sensor(uint16_t, gpio_num_t, bool=false, bool=true);
   Sensor(std::string &);
   virtual ~Sensor() {}
-  void update(uint8_t, bool=false);
+  void update(gpio_num_t, bool=false);
   virtual std::string toJson(bool=false);
   uint16_t getID()
   {
     return _sensorID;
   }
-  int8_t getPin()
+  gpio_num_t getPin()
   {
     return _pin;
   }
@@ -56,7 +57,7 @@ protected:
   }
 private:
   uint16_t _sensorID;
-  int8_t _pin;
+  gpio_num_t _pin;
   bool _pullUp;
   bool _lastState;
 };
@@ -70,9 +71,9 @@ public:
   static void sensorTask(void *param);
   static std::string getStateAsJson();
   static Sensor *getSensor(uint16_t);
-  static bool createOrUpdate(const uint16_t, const uint8_t, const bool);
+  static bool createOrUpdate(const uint16_t, const gpio_num_t, const bool);
   static bool remove(const uint16_t);
-  static int8_t getSensorPin(const uint16_t);
+  static gpio_num_t getSensorPin(const uint16_t);
   static std::string get_state_for_dccpp();
 private:
   static TaskHandle_t _taskHandle;

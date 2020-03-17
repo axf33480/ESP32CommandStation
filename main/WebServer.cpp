@@ -955,6 +955,7 @@ HTTP_HANDLER_IMPL(process_outputs, request)
   }
   else if (request->method() == HttpMethod::POST)
   {
+    // TODO: add constant for the -1
     int8_t pin = request->param(JSON_PIN_NODE, -1);
     bool inverted = request->param(JSON_INVERTED_NODE, false);
     bool forceState = request->param(JSON_FORCE_STATE_NODE, false);
@@ -976,7 +977,7 @@ HTTP_HANDLER_IMPL(process_outputs, request)
     {
       request->set_status(HttpStatusCode::STATUS_BAD_REQUEST);
     }
-    else if (!OutputManager::createOrUpdate(output_id, pin, outputFlags))
+    else if (!OutputManager::createOrUpdate(output_id, (gpio_num_t)pin, outputFlags))
     {
       request->set_status(HttpStatusCode::STATUS_NOT_ALLOWED);
     }
@@ -1027,13 +1028,13 @@ HTTP_HANDLER_IMPL(process_sensors, request)
     }
     else if (request->method() == HttpMethod::POST)
     {
-      int8_t pin = request->param(JSON_PIN_NODE, -1);
+      int8_t pin = request->param(JSON_PIN_NODE, NON_STORED_SENSOR_PIN);
       bool pull = request->param(JSON_PULLUP_NODE, false);
       if (pin < 0)
       {
         request->set_status(HttpStatusCode::STATUS_BAD_REQUEST);
       }
-      else if (!SensorManager::createOrUpdate(id, pin, pull))
+      else if (!SensorManager::createOrUpdate(id, (gpio_num_t)pin, pull))
       {
         request->set_status(HttpStatusCode::STATUS_NOT_ALLOWED);
       }
@@ -1096,7 +1097,7 @@ HTTP_HANDLER_IMPL(process_s88, request)
   {
     if(!S88BusManager::createOrUpdateBus(
       request->param(JSON_ID_NODE, 0),
-      request->param(JSON_PIN_NODE, 0),
+      (gpio_num_t)request->param(JSON_PIN_NODE, 0),
       request->param(JSON_COUNT_NODE, 0)))
     {
       // duplicate pin/id

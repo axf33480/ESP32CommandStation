@@ -16,6 +16,10 @@ COPYRIGHT (c) 2018-2020 Mike Dunston
   along with this program.  If not, see http://www.gnu.org/licenses
 **********************************************************************/
 
+#include "sdkconfig.h"
+
+#if CONFIG_GPIO_SENSORS
+
 #include <json.hpp>
 #include <DCCppProtocol.h>
 #include <JsonConstants.h>
@@ -50,7 +54,6 @@ where
           Usage is remote sensor dependent.
 **********************************************************************/
 
-#if CONFIG_GPIO_SENSORS
 // TODO: merge this into the base SensorManager code.
 
 std::vector<std::unique_ptr<RemoteSensor>> remoteSensors;

@@ -19,6 +19,7 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 #define OUTPUTS_H_
 
 #include <DCCppProtocol.h>
+#include <driver/gpio.h>
 
 const uint8_t OUTPUT_IFLAG_INVERT = BIT0;
 const uint8_t OUTPUT_IFLAG_RESTORE_STATE = BIT1;
@@ -27,16 +28,16 @@ const uint8_t OUTPUT_IFLAG_FORCE_STATE = BIT2;
 class Output
 {
 public:
-  Output(uint16_t, uint8_t, uint8_t);
+  Output(uint16_t, gpio_num_t, uint8_t);
   Output(std::string &);
   std::string set(bool=false, bool=true);
-  void update(uint8_t, uint8_t);
+  void update(gpio_num_t, uint8_t);
   std::string toJson(bool=false);
   uint16_t getID()
   {
     return _id;
   }
-  uint8_t getPin()
+  gpio_num_t getPin()
   {
     return _pin;
   }
@@ -83,7 +84,7 @@ public:
   }
 private:
   uint16_t _id;
-  uint8_t _pin;
+  gpio_num_t _pin;
   uint8_t _flags;
   bool _active;
 };
@@ -99,7 +100,7 @@ class OutputManager
     static bool toggle(uint16_t);
     static std::string getStateAsJson();
     static std::string get_state_for_dccpp();
-    static bool createOrUpdate(const uint16_t, const uint8_t, const uint8_t);
+    static bool createOrUpdate(const uint16_t, const gpio_num_t, const uint8_t);
     static bool remove(const uint16_t);
 };
 

@@ -39,11 +39,16 @@ S88 Sensors are reported in the same manner as generic Sensors:
   <q ID>     - for deactivation of S88 Sensor ID.
 
 **********************************************************************/
+#include "sdkconfig.h"
+
 #if CONFIG_GPIO_S88
+#include <ConfigurationManager.h>
 #include <DCCppProtocol.h>
-#include <StatusDisplay.h>
+#include <driver/gpio.h>
 #include <json.hpp>
 #include <JsonConstants.h>
+#include <StatusDisplay.h>
+
 #include "S88Sensors.h"
 
 /////////////////////////////////////////////////////////////////////////////////////
@@ -123,18 +128,18 @@ void S88BusManager::s88SensorTask(void *param)
       sensorBus->prepForRead();
     }
     ESP_ERROR_CHECK(gpio_set_level((gpio_num_t)CONFIG_GPIO_S88_LOAD_PIN, 1));
-    delayMicroseconds(S88_SENSOR_LOAD_PRE_CLOCK_TIME);
+    ets_delay_us(S88_SENSOR_LOAD_PRE_CLOCK_TIME);
     ESP_ERROR_CHECK(gpio_set_level((gpio_num_t)CONFIG_GPIO_S88_CLOCK_PIN, 1));
-    delayMicroseconds(S88_SENSOR_CLOCK_PULSE_TIME);
+    ets_delay_us(S88_SENSOR_CLOCK_PULSE_TIME);
     ESP_ERROR_CHECK(gpio_set_level((gpio_num_t)CONFIG_GPIO_S88_CLOCK_PIN, 0));
-    delayMicroseconds(S88_SENSOR_CLOCK_PRE_RESET_TIME);
+    ets_delay_us(S88_SENSOR_CLOCK_PRE_RESET_TIME);
     ESP_ERROR_CHECK(gpio_set_level((gpio_num_t)CONFIG_GPIO_S88_RESET_PIN, 1));
-    delayMicroseconds(S88_SENSOR_RESET_PULSE_TIME);
+    ets_delay_us(S88_SENSOR_RESET_PULSE_TIME);
     ESP_ERROR_CHECK(gpio_set_level((gpio_num_t)CONFIG_GPIO_S88_RESET_PIN, 0));
-    delayMicroseconds(S88_SENSOR_LOAD_POST_RESET_TIME);
+    ets_delay_us(S88_SENSOR_LOAD_POST_RESET_TIME);
     ESP_ERROR_CHECK(gpio_set_level((gpio_num_t)CONFIG_GPIO_S88_LOAD_PIN, 0));
 
-    delayMicroseconds(S88_SENSOR_READ_TIME);
+    ets_delay_us(S88_SENSOR_READ_TIME);
     bool keepReading = true;
     while(keepReading)
     {
@@ -148,15 +153,15 @@ void S88BusManager::s88SensorTask(void *param)
         }
       }
       ESP_ERROR_CHECK(gpio_set_level((gpio_num_t)CONFIG_GPIO_S88_CLOCK_PIN, 1));
-      delayMicroseconds(S88_SENSOR_CLOCK_PULSE_TIME);
+      ets_delay_us(S88_SENSOR_CLOCK_PULSE_TIME);
       ESP_ERROR_CHECK(gpio_set_level((gpio_num_t)CONFIG_GPIO_S88_CLOCK_PIN, 0));
-      delayMicroseconds(S88_SENSOR_READ_TIME);
+      ets_delay_us(S88_SENSOR_READ_TIME);
     }
     vTaskDelay(S88_SENSOR_CHECK_DELAY);
   }
 }
 
-bool S88BusManager::createOrUpdateBus(const uint8_t id, const uint8_t dataPin, const uint16_t sensorCount)
+bool S88BusManager::createOrUpdateBus(const uint8_t id, const gpio_num_t dataPin, const uint16_t sensorCount)
 {
   // check for duplicate data pin
   for (const auto& sensorBus : s88SensorBus)
@@ -225,7 +230,7 @@ string S88BusManager::get_state_for_dccpp()
   return res;
 }
 
-S88SensorBus::S88SensorBus(const uint8_t id, const uint8_t dataPin, const uint16_t sensorCount) :
+S88SensorBus::S88SensorBus(const uint8_t id, const gpio_num_t dataPin, const uint16_t sensorCount) :
   _id(id), _dataPin(dataPin), _sensorIDBase((id * CONFIG_GPIO_S88_SENSORS_PER_BUS) + CONFIG_GPIO_S88_FIRST_SENSOR),
   _lastSensorID((id * CONFIG_GPIO_S88_SENSORS_PER_BUS) + CONFIG_GPIO_S88_FIRST_SENSOR)
 {
@@ -254,12 +259,12 @@ S88SensorBus::S88SensorBus(string &data)
   }
 }
 
-void S88SensorBus::update(const uint8_t dataPin, const uint16_t sensorCount)
+void S88SensorBus::update(const gpio_num_t dataPin, const uint16_t sensorCount)
 {
   _dataPin = dataPin;
   _lastSensorID = _sensorIDBase;
-  gpio_pad_select_gpio((gpio_num_t)_dataPin);
-  ESP_ERROR_CHECK(gpio_set_direction((gpio_num_t)_dataPin, GPIO_MODE_INPUT));  
+  gpio_pad_select_gpio(_dataPin);
+  ESP_ERROR_CHECK(gpio_set_direction(_dataPin, GPIO_MODE_INPUT));  
   for (const auto& sensor : _sensors)
   {
     sensor->updateID(_lastSensorID++);
@@ -341,7 +346,7 @@ string S88SensorBus::getStateString()
 void S88SensorBus::readNext()
 {
   // sensors need to pull pin LOW for ACTIVE
-  _sensors[_nextSensorToRead++]->setState(digitalRead(_dataPin) == HIGH);
+  _sensors[_nextSensorToRead++]->setState(gpio_get_level(_dataPin));
 }
 
 string S88SensorBus::get_state_for_dccpp()
@@ -379,7 +384,7 @@ DCC_PROTOCOL_COMMAND_HANDLER(S88BusCommandAdapter,
     }
     else if (arguments.size() == 3 &&
              S88BusManager::createOrUpdateBus(std::stoi(arguments[0])
-                                            , std::stoi(arguments[1])
+                                            , (gpio_num_t)std::stoi(arguments[1])
                                             , std::stoi(arguments[2])))
     {
       // create sensor bus

@@ -15,15 +15,16 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
   along with this program.  If not, see http://www.gnu.org/licenses
 **********************************************************************/
 
+#include "sdkconfig.h"
+
+#if CONFIG_GPIO_SENSORS
+
 #include <ConfigurationManager.h>
 #include <StatusDisplay.h>
 #include <driver/gpio.h>
 
 #include "Sensors.h"
 #include "RemoteSensors.h"
-#include "sdkconfig.h"
-
-#if CONFIG_GPIO_SENSORS
 
 std::vector<std::unique_ptr<Sensor>> sensors;
 
@@ -117,24 +118,21 @@ Sensor *SensorManager::getSensor(uint16_t id)
   return nullptr;
 }
 
-bool SensorManager::createOrUpdate(const uint16_t id, const uint8_t pin, const bool pullUp)
+bool SensorManager::createOrUpdate(const uint16_t id, const gpio_num_t pin, const bool pullUp)
 {
   if(is_restricted_pin(pin))
   {
     return false;
   }
+  OSMutexLock l(&_lock);
   auto sens = getSensor(id);
   if (sens)
   {
-    OSMutexLock l(&_lock);
     sens->update(pin, pullUp);
     return true;
   }
   // add the new sensor
-  {
-    OSMutexLock l(&_lock);
-    sensors.push_back(std::make_unique<Sensor>(id, pin, pullUp));
-  }
+  sensors.push_back(std::make_unique<Sensor>(id, pin, pullUp));
   return true;
 }
 
@@ -155,14 +153,14 @@ bool SensorManager::remove(const uint16_t id)
   return false;
 }
 
-int8_t SensorManager::getSensorPin(const uint16_t id)
+gpio_num_t SensorManager::getSensorPin(const uint16_t id)
 {
   auto sens = getSensor(id);
   if (sens)
   {
     return sens->getPin();
   }
-  return -1;
+  return NON_STORED_SENSOR_PIN;
 }
 
 string SensorManager::get_state_for_dccpp()
@@ -175,16 +173,16 @@ string SensorManager::get_state_for_dccpp()
   return res;
 }
 
-Sensor::Sensor(uint16_t sensorID, int8_t pin, bool pullUp, bool announce) : _sensorID(sensorID), _pin(pin), _pullUp(pullUp), _lastState(false)
+Sensor::Sensor(uint16_t sensorID, gpio_num_t pin, bool pullUp, bool announce) : _sensorID(sensorID), _pin(pin), _pullUp(pullUp), _lastState(false)
 {
   if(announce)
   {
     LOG(VERBOSE, "[Sensors] Sensor(%d) on pin %d created, pullup %s", _sensorID, _pin, _pullUp ? "Enabled" : "Disabled");
-    gpio_pad_select_gpio((gpio_num_t)_pin);
-    ESP_ERROR_CHECK(gpio_set_direction((gpio_num_t)_pin, GPIO_MODE_INPUT));
+    gpio_pad_select_gpio(_pin);
+    ESP_ERROR_CHECK(gpio_set_direction(_pin, GPIO_MODE_INPUT));
     if (pullUp)
     {
-      ESP_ERROR_CHECK(gpio_pullup_en((gpio_num_t)_pin));
+      ESP_ERROR_CHECK(gpio_pullup_en(_pin));
     }
   }
 }
@@ -193,14 +191,14 @@ Sensor::Sensor(string &data) : _lastState(false)
 {
   nlohmann::json object = nlohmann::json::parse(data);
   _sensorID = object[JSON_ID_NODE];
-  _pin = object[JSON_PIN_NODE];
+  _pin = (gpio_num_t)object[JSON_PIN_NODE];
   _pullUp = object[JSON_PULLUP_NODE];
   LOG(VERBOSE, "[Sensors] Sensor(%d) on pin %d loaded, pullup %s", _sensorID, _pin, _pullUp ? "Enabled" : "Disabled");
-  gpio_pad_select_gpio((gpio_num_t)_pin);
-  ESP_ERROR_CHECK(gpio_set_direction((gpio_num_t)_pin, GPIO_MODE_INPUT));
+  gpio_pad_select_gpio(_pin);
+  ESP_ERROR_CHECK(gpio_set_direction(_pin, GPIO_MODE_INPUT));
   if (_pullUp)
   {
-    ESP_ERROR_CHECK(gpio_pullup_en((gpio_num_t)_pin));
+    ESP_ERROR_CHECK(gpio_pullup_en(_pin));
   }
 }
 
@@ -209,7 +207,7 @@ string Sensor::toJson(bool includeState)
   nlohmann::json object =
   {
     { JSON_ID_NODE, _sensorID },
-    { JSON_PIN_NODE, _pin },
+    { JSON_PIN_NODE, (uint8_t)_pin },
     { JSON_PULLUP_NODE, _pullUp },
   };
   if(includeState)
@@ -219,22 +217,23 @@ string Sensor::toJson(bool includeState)
   return object.dump();
 }
 
-void Sensor::update(uint8_t pin, bool pullUp)
+void Sensor::update(gpio_num_t pin, bool pullUp)
 {
+  ESP_ERROR_CHECK(gpio_reset_pin(_pin));
   _pin = pin;
   _pullUp = pullUp;
   LOG(VERBOSE, "[Sensors] Sensor(%d) on pin %d updated, pullup %s", _sensorID, _pin, _pullUp ? "Enabled" : "Disabled");
-  gpio_pad_select_gpio((gpio_num_t)_pin);
-  ESP_ERROR_CHECK(gpio_set_direction((gpio_num_t)_pin, GPIO_MODE_INPUT));
+  gpio_pad_select_gpio(_pin);
+  ESP_ERROR_CHECK(gpio_set_direction(_pin, GPIO_MODE_INPUT));
   if (_pullUp)
   {
-    ESP_ERROR_CHECK(gpio_pullup_en((gpio_num_t)_pin));
+    ESP_ERROR_CHECK(gpio_pullup_en(_pin));
   }
 }
 
 void Sensor::check()
 {
-  set(gpio_get_level((gpio_num_t)_pin) == 1);
+  set(gpio_get_level(_pin));
 }
 
 string Sensor::get_state_for_dccpp()
@@ -301,7 +300,8 @@ DCC_PROTOCOL_COMMAND_HANDLER(SensorCommandAdapter,
     else if (arguments.size() == 3)
     {
       // create sensor
-      SensorManager::createOrUpdate(sensorID, std::stoi(arguments[1])
+      SensorManager::createOrUpdate(sensorID
+                                  , (gpio_num_t)std::stoi(arguments[1])
                                   , arguments[2][0] == '1');
       return COMMAND_SUCCESSFUL_RESPONSE;
     }

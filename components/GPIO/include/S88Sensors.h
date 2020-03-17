@@ -18,6 +18,8 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 #ifndef S88_SENSORS_H_
 #define S88_SENSORS_H_
 
+#include <driver/gpio.h>
+
 #include "Sensors.h"
 
 class S88Sensor : public Sensor {
@@ -41,9 +43,9 @@ private:
 class S88SensorBus
 {
 public:
-  S88SensorBus(const uint8_t, const uint8_t, const uint16_t);
+  S88SensorBus(const uint8_t, const gpio_num_t, const uint16_t);
   S88SensorBus(std::string &);
-  void update(const uint8_t, const uint16_t);
+  void update(const gpio_num_t, const uint16_t);
   std::string toJson(bool=false);
   void addSensors(int16_t);
   void removeSensors(int16_t);
@@ -52,7 +54,7 @@ public:
   {
     return _id;
   }
-  uint8_t getDataPin()
+  gpio_num_t getDataPin()
   {
     return _dataPin;
   }
@@ -76,7 +78,7 @@ public:
   std::string get_state_for_dccpp();
 private:
   uint8_t _id;
-  uint8_t _dataPin;
+  gpio_num_t _dataPin;
   uint16_t _sensorIDBase;
   uint8_t _nextSensorToRead;
   uint16_t _lastSensorID;
@@ -90,7 +92,7 @@ public:
   static void clear();
   static uint8_t store();
   static void s88SensorTask(void *param);
-  static bool createOrUpdateBus(const uint8_t, const uint8_t, const uint16_t);
+  static bool createOrUpdateBus(const uint8_t, const gpio_num_t, const uint16_t);
   static bool removeBus(const uint8_t);
   static std::string getStateAsJson();
   static std::string get_state_for_dccpp();
