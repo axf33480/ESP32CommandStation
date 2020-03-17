@@ -20,16 +20,16 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 #if CONFIG_GPIO_SENSORS
 
 #include <ConfigurationManager.h>
-#include <StatusDisplay.h>
+#include <DCCppProtocol.h>
 #include <driver/gpio.h>
+#include <json.hpp>
+#include <JsonConstants.h>
+#include <StatusDisplay.h>
 
 #include "Sensors.h"
 #include "RemoteSensors.h"
 
 std::vector<std::unique_ptr<Sensor>> sensors;
-
-#include <json.hpp>
-#include <JsonConstants.h>
 
 TaskHandle_t SensorManager::_taskHandle;
 OSMutex SensorManager::_lock;

@@ -18,7 +18,6 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 #ifndef SENSORS_H_
 #define SENSORS_H_
 
-#include <DCCppProtocol.h>
 #include <driver/gpio.h>
 
 static constexpr gpio_num_t NON_STORED_SENSOR_PIN = (gpio_num_t)-1;
