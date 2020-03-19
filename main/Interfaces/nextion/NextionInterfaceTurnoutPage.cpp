@@ -19,6 +19,8 @@ COPYRIGHT (c) 2018-2019 NormHal, Mike Dunston
 
 #if CONFIG_NEXTION
 
+#include <Turnouts.h>
+
 constexpr uint8_t LH=106;
 constexpr uint8_t RH=108;
 
