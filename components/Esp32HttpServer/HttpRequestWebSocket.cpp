@@ -54,7 +54,8 @@ WebSocketFlow::WebSocketFlow(Httpd *server, int fd, uint32_t remote_ip
   string key_data = ws_key + WEBSOCKET_UUID;
   unsigned char key_sha1[20];
 
-  LOG(VERBOSE, "[WebSocket fd:%d] Connected, starting handshake", fd_);
+  LOG(CONFIG_HTTP_WS_LOG_LEVEL
+    , "[WebSocket fd:%d] Connected, starting handshake", fd_);
   // SHA1 encode the ws_key plus the websocket UUID, if this fails close the
   // socket immediately.
   if (!mbedtls_sha1_ret((unsigned char *)key_data.c_str(), key_data.length()
@@ -122,7 +123,8 @@ StateFlowBase::Action WebSocketFlow::read_fully_with_timeout(void *buf
                                                            , StateFlowBase::Callback success
                                                            , StateFlowBase::Callback timeout)
 {
-  LOG(VERBOSE, "[WebSocket fd:%d] requesting %zu bytes", fd_, size);
+  LOG(CONFIG_HTTP_WS_LOG_LEVEL
+    , "[WebSocket fd:%d] requesting %zu bytes", fd_, size);
   buf_ = (uint8_t *)buf;
   buf_offs_ = 0;
   buf_remain_ = size;
@@ -137,7 +139,7 @@ StateFlowBase::Action WebSocketFlow::data_received()
 {
   HASSERT(buf_next_);
   size_t received = (buf_remain_ - helper_.remaining_);
-  LOG(VERBOSE
+  LOG(CONFIG_HTTP_WS_LOG_LEVEL
     , "[WebSocket fd:%d] hasError:%d, readFully:%d, readNonblocking:%d, "
       "readWithTimeout: %d, remaining:%d, received:%zu"
     , fd_, helper_.hasError_, helper_.readFully_, helper_.readNonblocking_
@@ -149,7 +151,8 @@ StateFlowBase::Action WebSocketFlow::data_received()
   }
   buf_remain_ -= received;
   buf_offs_ += received;
-  LOG(VERBOSE, "[WebSocket fd:%d] Received %zu bytes, %zu bytes remain", fd_
+  LOG(CONFIG_HTTP_WS_LOG_LEVEL
+    , "[WebSocket fd:%d] Received %zu bytes, %zu bytes remain", fd_
     , received, buf_remain_);
   if (buf_remain_ && buf_attempts_ > 0)
   {
@@ -166,8 +169,8 @@ StateFlowBase::Action WebSocketFlow::data_received()
 
 StateFlowBase::Action WebSocketFlow::send_handshake()
 {
-  LOG(VERBOSE, "[WebSocket fd:%d] Sending handshake:\n%s", fd_
-    , handshake_.c_str());
+  LOG(CONFIG_HTTP_WS_LOG_LEVEL
+    , "[WebSocket fd:%d] Sending handshake:\n%s", fd_, handshake_.c_str());
   return write_repeated(&helper_, fd_, handshake_.c_str(), handshake_.length()
                       , STATE(handshake_sent));
 }
@@ -198,7 +201,7 @@ StateFlowBase::Action WebSocketFlow::read_frame_header()
   frameLength_ = 0;
   maskingKey_ = 0;
   bzero(data_, max_frame_size_);
-  LOG(VERBOSE, "[WebSocket fd:%d] Reading WS packet", fd_);
+  LOG(CONFIG_HTTP_WS_LOG_LEVEL, "[WebSocket fd:%d] Reading WS packet", fd_);
   return read_fully_with_timeout(&header_, sizeof(uint16_t)
                                , config_httpd_websocket_max_read_attempts()
                                , STATE(frame_header_received)
@@ -210,8 +213,9 @@ StateFlowBase::Action WebSocketFlow::frame_header_received()
   opcode_ = static_cast<WebSocketOpcode>(header_ & 0x0F);
   masked_ = ((header_ >> 8) & WEBSOCKET_FRAME_IS_MASKED);
   uint8_t len = ((header_ >> 8) & 0x7F);
-  LOG(VERBOSE, "[WebSocket fd:%d] opc: %d, masked: %d, len: %d", fd_, opcode_
-    , masked_, len);
+  LOG(CONFIG_HTTP_WS_LOG_LEVEL
+    , "[WebSocket fd:%d] opc: %d, masked: %d, len: %d", fd_, opcode_, masked_
+    , len);
   if (len < WEBSOCKET_FRAME_LEN_SINGLE)
   {
     frameLenType_ = 0;
@@ -275,8 +279,8 @@ StateFlowBase::Action WebSocketFlow::frame_data_len_received()
 
 StateFlowBase::Action WebSocketFlow::start_recv_frame_data()
 {
-  LOG(VERBOSE, "[WebSocket fd:%d] Reading WS packet (%d len)", fd_
-    , (int)frameLength_);
+  LOG(CONFIG_HTTP_WS_LOG_LEVEL, "[WebSocket fd:%d] Reading WS packet (%d len)"
+    , fd_, (int)frameLength_);
   // restrict the size of the fame buffer so we don't use all of the ram for
   // one frame.
   data_size_ = std::min(frameLength_, max_frame_size_);
@@ -291,13 +295,15 @@ StateFlowBase::Action WebSocketFlow::recv_frame_data()
   size_t received_len = data_size_ - helper_.remaining_;
   if (received_len)
   {
-    LOG(VERBOSE, "[WebSocket fd:%d] Received %zu bytes", fd_, received_len);
+    LOG(CONFIG_HTTP_WS_LOG_LEVEL
+      , "[WebSocket fd:%d] Received %zu bytes", fd_, received_len);
     if (masked_)
     {
       uint8_t *mask = reinterpret_cast<uint8_t *>(&maskingKey_);
       char buf[10];
-      LOG(VERBOSE, "[WebSocket fd:%d] Demasking %zu bytes (mask: %s)", fd_
-        , received_len, unsigned_integer_to_buffer_hex(maskingKey_, buf));
+      LOG(CONFIG_HTTP_WS_LOG_LEVEL
+        , "[WebSocket fd:%d] Demasking %zu bytes (mask: %s)", fd_, received_len
+        , unsigned_integer_to_buffer_hex(maskingKey_, buf));
       for (size_t idx = 0; idx < received_len; idx++)
       {
         data_[idx] ^= mask[idx % 4];
@@ -377,7 +383,9 @@ StateFlowBase::Action WebSocketFlow::send_frame_header()
     memcpy(data_+ 4, textToSend_.data(), data_size_);
     send_size = data_size_ + 4;
   }
-  LOG(VERBOSE, "[WebSocket fd:%d] send:%zu, text:%zu", fd_, send_size, textToSend_.length());
+  LOG(CONFIG_HTTP_WS_LOG_LEVEL
+    , "[WebSocket fd:%d] send:%zu, text:%zu", fd_, send_size
+    , textToSend_.length());
   return write_repeated(&helper_, fd_, data_, send_size, STATE(frame_sent));
 }
 
@@ -385,7 +393,7 @@ StateFlowBase::Action WebSocketFlow::frame_sent()
 {
   if (helper_.hasError_)
   {
-    LOG(INFO, "[WebSocket fd:%d] write error, disconnecting", fd_);
+    LOG(WARNING, "[WebSocket fd:%d] write error, disconnecting", fd_);
     return yield_and_call(STATE(shutdown_connection));
   }
   OSMutexLock l(&textLock_);

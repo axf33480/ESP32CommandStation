@@ -113,8 +113,8 @@ void Dnsd::dns_process_thread()
         // no domain name to look up, discard the request and get another.
         continue;
       }
-      LOG(VERBOSE
-        , "[%s <-%s] id: %d, rd:%d, tc:%d, aa:%d, opc:%d, qr:%d, rc:%d, z:%d "
+      LOG(CONFIG_HTTP_DNS_LOG_LEVEL
+        , "[%s <- %s] id: %d, rd:%d, tc:%d, aa:%d, opc:%d, qr:%d, rc:%d, z:%d "
           "ra:%d, q:%d, a:%d, au:%d, res:%d, len:%d, domain:%s"
         , name_.c_str(), inet_ntoa(source.sin_addr), header->id, header->rd
         , header->tc, header->aa, header->opc, header->qr, header->rc
@@ -142,7 +142,7 @@ void Dnsd::dns_process_thread()
         responseBuffer.resize(len + sizeof(DNSResponse));
         memcpy(responseBuffer.data(), receiveBuffer.data(), len);
         memcpy(responseBuffer.data() + len, &response, sizeof(DNSResponse));
-        LOG(VERBOSE, "[%s ->%s] %s -> %s", name_.c_str()
+        LOG(CONFIG_HTTP_DNS_LOG_LEVEL, "[%s -> %s] %s -> %s", name_.c_str()
           , inet_ntoa(source.sin_addr), parsed_domain_name.c_str()
           , ipv4_to_string(local_ip_).c_str());
         ERRNOCHECK("sendto", sendto(fd, responseBuffer.data()

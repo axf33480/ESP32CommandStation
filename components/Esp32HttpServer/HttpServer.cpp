@@ -173,8 +173,8 @@ void Httpd::new_connection(int fd)
   {
     source.sin_addr.s_addr = 0;
   }
-  LOG(VERBOSE, "[%s fd:%d/%s] Connected", name_.c_str(), fd
-    , ipv4_to_string(ntohl(source.sin_addr.s_addr)).c_str());
+  LOG(CONFIG_HTTP_SERVER_LOG_LEVEL, "[%s fd:%d/%s] Connected", name_.c_str()
+    , fd, ipv4_to_string(ntohl(source.sin_addr.s_addr)).c_str());
   // Set socket receive timeout
   ERRNOCHECK("setsockopt_recv_timeout",
     setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &socket_timeout_
@@ -310,11 +310,14 @@ bool Httpd::is_request_too_large(HttpRequest *req)
       return true;
     }
   }
+#if CONFIG_HTTP_SERVER_LOG_LEVEL == VERBOSE
   else
   {
-    LOG(VERBOSE, "[Httpd] Request does not have Content-Length header:\n%s"
+    LOG(CONFIG_HTTP_SERVER_LOG_LEVEL
+      , "[Httpd] Request does not have Content-Length header:\n%s"
       , req->to_string().c_str());
   }
+#endif
 
   return false;
 }
@@ -327,6 +330,8 @@ bool Httpd::is_servicable_uri(HttpRequest *req)
   if ((req->method() == HttpMethod::GET && have_known_response(req->uri())) ||
       websocket_uris_.count(req->uri()))
   {
+    LOG(CONFIG_HTTP_SERVER_LOG_LEVEL, "[Httpd uri:%s] Known GET URI"
+      , req->uri().c_str());
     return true;
   }
 
@@ -337,16 +342,24 @@ bool Httpd::is_servicable_uri(HttpRequest *req)
       req->method() == HttpMethod::PUT) &&
       req->content_type() == ContentType::MULTIPART_FORMDATA)
   {
-    return stream_handler(req->uri()) != nullptr;
+    auto processor = stream_handler(req->uri());
+    LOG(CONFIG_HTTP_SERVER_LOG_LEVEL
+      , "[Httpd uri:%s] POST/PUT request, streamproc: %p"
+      , req->uri().c_str(), processor);
+    return processor != nullptr;
   }
 
   // Check if we have a handler for the provided URI
-  return handler(req->method(), req->uri()) != nullptr;
+  auto processor = handler(req->method(), req->uri())
+  LOG(CONFIG_HTTP_SERVER_LOG_LEVEL, "[Httpd uri:%s] method: %s, proc: %p"
+    , req->raw_method().c_str(), req->uri().c_str(), processor);
+  return processor != nullptr;
 }
 
 RequestProcessor Httpd::handler(HttpMethod method, const std::string &uri)
 {
-  LOG(VERBOSE, "[Httpd uri:%s] Searching for URI handler", uri.c_str());
+  LOG(CONFIG_HTTP_SERVER_LOG_LEVEL, "[Httpd uri:%s] Searching for URI handler"
+    , uri.c_str());
   if (handlers_.count(uri))
   {
     auto handler = handlers_[uri];
@@ -355,18 +368,21 @@ RequestProcessor Httpd::handler(HttpMethod method, const std::string &uri)
       return handler.second;
     }
   }
-  LOG(VERBOSE, "[Httpd uri:%s] No suitable handler found", uri.c_str());
+  LOG(CONFIG_HTTP_SERVER_LOG_LEVEL, "[Httpd uri:%s] No suitable handler found"
+    , uri.c_str());
   return nullptr;
 }
 
 StreamProcessor Httpd::stream_handler(const std::string &uri)
 {
-  LOG(VERBOSE, "[Httpd uri:%s] Searching for URI stream handler", uri.c_str());
+  LOG(CONFIG_HTTP_SERVER_LOG_LEVEL
+    , "[Httpd uri:%s] Searching for URI stream handler", uri.c_str());
   if (stream_handlers_.count(uri))
   {
     return stream_handlers_[uri];
   }
-  LOG(VERBOSE, "[Httpd uri:%s] No suitable stream handler found", uri.c_str());
+  LOG(CONFIG_HTTP_SERVER_LOG_LEVEL
+    , "[Httpd uri:%s] No suitable stream handler found", uri.c_str());
   return nullptr;
 }
 

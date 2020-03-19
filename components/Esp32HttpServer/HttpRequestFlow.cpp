@@ -21,8 +21,6 @@ COPYRIGHT (c) 2019-2020 Mike Dunston
 namespace http
 {
 
-#define REQ_DEBUG_LOG_LEVEL VERBOSE
-
 static vector<string> captive_portal_uris =
 {
   "/generate_204",                  // Android
@@ -45,21 +43,21 @@ HttpRequestFlow::HttpRequestFlow(Httpd *server, int fd
                                , remote_ip_(remote_ip)
 {
   start_flow(STATE(start_request));
-  LOG(REQ_DEBUG_LOG_LEVEL, "[Httpd fd:%d] Connected.", fd_);
+  LOG(CONFIG_HTTP_REQ_FLOW_LOG_LEVEL, "[Httpd fd:%d] Connected.", fd_);
 }
 
 HttpRequestFlow::~HttpRequestFlow()
 {
   if (close_)
   {
-    LOG(REQ_DEBUG_LOG_LEVEL, "[Httpd fd:%d] Closed", fd_);
+    LOG(CONFIG_HTTP_REQ_FLOW_LOG_LEVEL, "[Httpd fd:%d] Closed", fd_);
     ::close(fd_);
   }
 }
 
 StateFlowBase::Action HttpRequestFlow::start_request()
 {
-  LOG(REQ_DEBUG_LOG_LEVEL, "[Httpd fd:%d] reading header", fd_);
+  LOG(CONFIG_HTTP_REQ_FLOW_LOG_LEVEL, "[Httpd fd:%d] reading header", fd_);
   req_.reset();
   part_boundary_.assign("");
   part_filename_.assign("");
@@ -135,8 +133,9 @@ StateFlowBase::Action HttpRequestFlow::parse_header_data()
   for (auto &line : lines)
   {
     processed_lines++;
-    LOG(REQ_DEBUG_LOG_LEVEL, "[Httpd fd:%d,uri:%s] line(%zu/%zu): ||%s||"
-      , fd_, req_.uri().c_str(), processed_lines, lines.size(), line.c_str());
+    LOG(CONFIG_HTTP_REQ_FLOW_LOG_LEVEL
+      , "[Httpd fd:%d,uri:%s] line(%zu/%zu): ||%s||", fd_, req_.uri().c_str()
+      , processed_lines, lines.size(), line.c_str());
     // check if we have reached a blank line, this is immediately after the
     // last header in the request.
     if (line.empty())
@@ -224,7 +223,7 @@ StateFlowBase::Action HttpRequestFlow::parse_header_data()
       // the buffer for deferred processing.
       if (processed_lines != lines.size())
       {
-        LOG(REQ_DEBUG_LOG_LEVEL
+        LOG(CONFIG_HTTP_REQ_FLOW_LOG_LEVEL
           , "[Httpd fd:%d,uri:%s] Processed %zu/%zu lines, adding remaining "
             "lines to body payload"
           , fd_, req_.uri().c_str(), processed_lines, lines.size());
@@ -247,7 +246,8 @@ StateFlowBase::Action HttpRequestFlow::parse_header_data()
 
 StateFlowBase::Action HttpRequestFlow::process_request()
 {
-  LOG(REQ_DEBUG_LOG_LEVEL, "[Httpd fd:%d] %s", fd_, req_.to_string().c_str());
+  LOG(CONFIG_HTTP_REQ_FLOW_LOG_LEVEL, "[Httpd fd:%d] %s", fd_
+    , req_.to_string().c_str());
 
   if (!req_.header(HttpHeader::UPGRADE).compare(HTTP_UPGRADE_HEADER_WEBSOCKET))
   {
@@ -291,8 +291,9 @@ StateFlowBase::Action HttpRequestFlow::process_request()
 
     // extract the body length from the content length header
     body_len_ = std::stoul(req_.header(HttpHeader::CONTENT_LENGTH));
-    LOG(REQ_DEBUG_LOG_LEVEL, "[Httpd fd:%d,uri:%s] body (header): %zu", fd_
-      , req_.uri().c_str(), body_len_);
+    LOG(CONFIG_HTTP_REQ_FLOW_LOG_LEVEL
+      , "[Httpd fd:%d,uri:%s] body (header): %zu", fd_, req_.uri().c_str()
+      , body_len_);
 
     if (req_.content_type() == ContentType::MULTIPART_FORMDATA)
     {
@@ -310,14 +311,15 @@ StateFlowBase::Action HttpRequestFlow::process_request()
       // force request to be concluded at end of processing
       req_.header(HttpHeader::CONNECTION, HTTP_CONNECTION_CLOSE);
 
-      LOG(REQ_DEBUG_LOG_LEVEL, "Converting to multipart/form-data req");
+      LOG(CONFIG_HTTP_REQ_FLOW_LOG_LEVEL
+        , "Converting to multipart/form-data req");
       return call_immediately(STATE(start_multipart_processing));
     }
     else if (req_.content_type() == ContentType::FORM_URLENCODED)
     {
       // convert the request body from form url-encoded to parameters and send
       // it for processing
-      LOG(REQ_DEBUG_LOG_LEVEL
+      LOG(CONFIG_HTTP_REQ_FLOW_LOG_LEVEL
         , "Converting to application/x-www-form-urlencoded req");
       return call_immediately(STATE(read_form_data));
     }
@@ -378,7 +380,7 @@ StateFlowBase::Action HttpRequestFlow::process_request_handler()
 StateFlowBase::Action HttpRequestFlow::read_more_data()
 {
   // we need more data to parse the request
-  LOG(REQ_DEBUG_LOG_LEVEL
+  LOG(CONFIG_HTTP_REQ_FLOW_LOG_LEVEL
     , "[Httpd fd:%d] Requesting more data to process request", fd_);
   return read_repeated_with_timeout(&helper_, timeout_, fd_, buf_.data()
                               , header_read_size_, STATE(parse_header_data));
@@ -424,7 +426,7 @@ StateFlowBase::Action HttpRequestFlow::start_multipart_processing()
   // send the 100/continue line so the client starts streaming data.
   if (!req_.header(HttpHeader::EXPECT).compare("100-continue"))
   {
-    LOG(REQ_DEBUG_LOG_LEVEL, "[Httpd fd:%d,uri:%s] Sending:%s", fd_
+    LOG(CONFIG_HTTP_REQ_FLOW_LOG_LEVEL, "[Httpd fd:%d,uri:%s] Sending:%s", fd_
       , req_.uri().c_str(), multipart_res_.c_str());
     return write_repeated(&helper_, fd_, multipart_res_.c_str()
                         , multipart_res_.length()
@@ -459,7 +461,7 @@ StateFlowBase::Action HttpRequestFlow::parse_multipart_headers()
       return call_immediately(STATE(abort_request_with_response));
     }
     part_boundary_.assign(type.substr(type.find_last_of('=') + 1));
-    LOG(REQ_DEBUG_LOG_LEVEL
+    LOG(CONFIG_HTTP_REQ_FLOW_LOG_LEVEL
       , "[Httpd fd:%d] multipart/form-data boundary: %s (%zu)"
       , fd_, part_boundary_.c_str(), part_boundary_.length());
     part_count_ = 0;
@@ -475,7 +477,7 @@ StateFlowBase::Action HttpRequestFlow::parse_multipart_headers()
   {
     if (raw_header_.length() < config_httpd_max_header_size())
     {
-      LOG(REQ_DEBUG_LOG_LEVEL
+      LOG(CONFIG_HTTP_REQ_FLOW_LOG_LEVEL
         , "[Httpd fd:%d] no EOL character yet, reading more data: %zu\n%s"
         , fd_, raw_header_.size(), raw_header_.c_str());
       return yield_and_call(STATE(read_multipart_headers));
@@ -494,7 +496,7 @@ StateFlowBase::Action HttpRequestFlow::parse_multipart_headers()
   vector<string> lines;
   size_t parsed = tokenize(raw_header_, lines, HTML_EOL, false);
   // drop whatever has been tokenized so we don't process it again
-  LOG(REQ_DEBUG_LOG_LEVEL
+  LOG(CONFIG_HTTP_REQ_FLOW_LOG_LEVEL
     , "[Httpd fd:%d,uri:%s] body: %zu, parsed: %zu, header: %zu"
     , fd_, req_.uri().c_str(), body_len_, parsed, raw_header_.length());
   raw_header_.erase(0, parsed);
@@ -510,13 +512,14 @@ StateFlowBase::Action HttpRequestFlow::parse_multipart_headers()
   for (auto &line : lines)
   {
     processed_lines++;
-    LOG(REQ_DEBUG_LOG_LEVEL, "[Httpd fd:%d,uri:%s] line(%zu/%zu): ||%s||"
+    LOG(CONFIG_HTTP_REQ_FLOW_LOG_LEVEL
+      , "[Httpd fd:%d,uri:%s] line(%zu/%zu): ||%s||"
       , fd_, req_.uri().c_str(), processed_lines, lines.size(), line.c_str());
     if (line.empty())
     {
       if (found_part_boundary_)
       {
-        LOG(REQ_DEBUG_LOG_LEVEL
+        LOG(CONFIG_HTTP_REQ_FLOW_LOG_LEVEL
           , "[Httpd fd:%d,uri:%s] found blank line, starting body stream"
           , fd_, req_.uri().c_str());
         process_part_body_ = true;
@@ -524,7 +527,7 @@ StateFlowBase::Action HttpRequestFlow::parse_multipart_headers()
         // the buffer for deferred processing.
         if (processed_lines != lines.size())
         {
-          LOG(REQ_DEBUG_LOG_LEVEL
+          LOG(CONFIG_HTTP_REQ_FLOW_LOG_LEVEL
             , "[Httpd fd:%d,uri:%s] Processed %zu/%zu lines, adding remaining "
               "lines to body payload"
             , fd_, req_.uri().c_str(), processed_lines, lines.size());
@@ -547,20 +550,21 @@ StateFlowBase::Action HttpRequestFlow::parse_multipart_headers()
       // skip the first two bytes as the line will be: --<boundary>
       if (found_part_boundary_)
       {
-        LOG(REQ_DEBUG_LOG_LEVEL
+        LOG(CONFIG_HTTP_REQ_FLOW_LOG_LEVEL
           , "[Httpd fd:%d,uri:%s] End of multipart/form-data segment(%d)"
           , fd_, req_.uri().c_str(), part_count_);
         found_part_boundary_ = false;
         if (line.find_last_of("--") == line.length() - 2)
         {
-          LOG(REQ_DEBUG_LOG_LEVEL, "[Httpd fd:%d,uri:%s] End of last segment reached"
+          LOG(CONFIG_HTTP_REQ_FLOW_LOG_LEVEL
+            , "[Httpd fd:%d,uri:%s] End of last segment reached"
             , fd_, req_.uri().c_str());
           return yield_and_call(STATE(send_response_headers));
         }
       }
       else
       {
-        LOG(REQ_DEBUG_LOG_LEVEL
+        LOG(CONFIG_HTTP_REQ_FLOW_LOG_LEVEL
           , "[Httpd fd:%d,uri:%s] Start of multipart/form-data segment(%d)"
           , fd_, req_.uri().c_str(), part_count_);
         found_part_boundary_ = true;
@@ -579,7 +583,7 @@ StateFlowBase::Action HttpRequestFlow::parse_multipart_headers()
             well_known_http_headers[HttpHeader::CONTENT_TYPE]))
       {
         part_type_.assign(parts.second);
-        LOG(REQ_DEBUG_LOG_LEVEL
+        LOG(CONFIG_HTTP_REQ_FLOW_LOG_LEVEL
           , "[Httpd fd:%d,uri:%s] multipart/form-data segment(%d) uses %s:%s"
           , fd_, req_.uri().c_str(), part_count_
           , well_known_http_headers[HttpHeader::CONTENT_TYPE].c_str()
@@ -598,7 +602,7 @@ StateFlowBase::Action HttpRequestFlow::parse_multipart_headers()
             vector<string> file_parts;
             tokenize(part, file_parts, "\"");
             part_filename_.assign(file_parts[1]);
-            LOG(REQ_DEBUG_LOG_LEVEL
+            LOG(CONFIG_HTTP_REQ_FLOW_LOG_LEVEL
               , "[Httpd fd:%d,uri:%s] multipart/form-data segment(%d) "
                 "filename detected as '%s'"
               , fd_, req_.uri().c_str(), part_count_, part_filename_.c_str());
@@ -636,7 +640,8 @@ StateFlowBase::Action HttpRequestFlow::parse_multipart_headers()
     {
       buf_.clear();
       std::move(raw_header_.begin(), raw_header_.end(), std::back_inserter(buf_));
-      LOG(REQ_DEBUG_LOG_LEVEL, "[Httpd fd:%d,uri:%s] segment(%d) size %zu/%zu"
+      LOG(CONFIG_HTTP_REQ_FLOW_LOG_LEVEL
+        , "[Httpd fd:%d,uri:%s] segment(%d) size %zu/%zu"
         , fd_, req_.uri().c_str(), part_count_, buf_.size(), body_len_);
       body_len_ += buf_.size();
       raw_header_.assign("");
@@ -646,11 +651,12 @@ StateFlowBase::Action HttpRequestFlow::parse_multipart_headers()
     // single part. If there is leftover body_len_ after we process this chunk
     // we will return to this state to get the next part.
     part_len_ = body_len_ - (part_boundary_.size() + 4);
-    LOG(REQ_DEBUG_LOG_LEVEL, "[Httpd fd:%d,uri:%s] segment(%d) size %zu/%zu"
+    LOG(CONFIG_HTTP_REQ_FLOW_LOG_LEVEL
+      , "[Httpd fd:%d,uri:%s] segment(%d) size %zu/%zu"
       , fd_, req_.uri().c_str(), part_count_, part_len_, body_len_);
     size_t data_req = std::min(part_len_, body_read_size_ - buf_.size());
     
-    LOG(REQ_DEBUG_LOG_LEVEL
+    LOG(CONFIG_HTTP_REQ_FLOW_LOG_LEVEL
       , "[Httpd fd:%d,uri:%s] Requesting %zu/%zu bytes for segment(%d)"
       , fd_, req_.uri().c_str(), data_req, part_len_, part_count_);
     // read the payload and process it in chunks
@@ -673,7 +679,7 @@ StateFlowBase::Action HttpRequestFlow::read_multipart_headers()
 
   // We either have no data or less bytes of data than header_read_size_.
   // Request enough data for at least header_read_size_ number of bytes.
-  LOG(REQ_DEBUG_LOG_LEVEL
+  LOG(CONFIG_HTTP_REQ_FLOW_LOG_LEVEL
     , "[Httpd fd:%d,uri:%s] requesting %zu bytes for multipart/form-data "
       "processing", fd_, req_.uri().c_str(), header_read_size_ - buf_.size());
   return read_repeated_with_timeout(&helper_, timeout_, fd_
@@ -700,8 +706,9 @@ StateFlowBase::Action HttpRequestFlow::stream_multipart_body()
     {
       body_len_ = 0;
     }
-    LOG(REQ_DEBUG_LOG_LEVEL, "[Httpd fd:%d,uri:%s] Received %zu/%zu bytes", fd_
-      , req_.uri().c_str(), part_offs_, part_len_);
+    LOG(CONFIG_HTTP_REQ_FLOW_LOG_LEVEL
+      , "[Httpd fd:%d,uri:%s] Received %zu/%zu bytes", fd_, req_.uri().c_str()
+      , part_offs_, part_len_);
     bool abort_req = false;
     auto res = part_stream_(&req_, part_filename_, part_len_, buf_.data()
                           , data_len, part_offs_
@@ -721,8 +728,9 @@ StateFlowBase::Action HttpRequestFlow::stream_multipart_body()
   if (part_offs_ < part_len_)
   {
     size_t data_req = std::min(part_len_ - part_offs_, body_read_size_);
-    LOG(REQ_DEBUG_LOG_LEVEL, "[Httpd fd:%d,uri:%s] Requesting %zu bytes", fd_
-      , req_.uri().c_str(), data_req);
+    LOG(CONFIG_HTTP_REQ_FLOW_LOG_LEVEL
+      , "[Httpd fd:%d,uri:%s] Requesting %zu bytes", fd_, req_.uri().c_str()
+      , data_req);
     return read_repeated_with_timeout(&helper_, timeout_, fd_, buf_.data()
                                     , data_req, STATE(stream_multipart_body));
   }
@@ -737,7 +745,7 @@ StateFlowBase::Action HttpRequestFlow::stream_multipart_body()
 StateFlowBase::Action HttpRequestFlow::read_form_data()
 {
   // Request enough data for at least header_read_size_ number of bytes.
-  LOG(REQ_DEBUG_LOG_LEVEL
+  LOG(CONFIG_HTTP_REQ_FLOW_LOG_LEVEL
     , "[Httpd fd:%d,uri:%s] requesting %zu bytes for form-data processing", fd_
     , req_.uri().c_str(), header_read_size_ - buf_.size());
   return read_repeated_with_timeout(&helper_, timeout_, fd_
@@ -761,8 +769,7 @@ StateFlowBase::Action HttpRequestFlow::parse_form_data()
                    , header_read_size_ - helper_.remaining_);
   buf_.clear();
 
-  LOG(REQ_DEBUG_LOG_LEVEL
-    , "body: %zu, received: %zu", body_len_
+  LOG(CONFIG_HTTP_REQ_FLOW_LOG_LEVEL, "body: %zu, received: %zu", body_len_
     , (header_read_size_ - helper_.remaining_));
 
   // track how much we have read in of the body payload
@@ -785,7 +792,7 @@ StateFlowBase::Action HttpRequestFlow::parse_form_data()
   {
     auto p = break_string(param, "=");
 
-    LOG(REQ_DEBUG_LOG_LEVEL
+    LOG(CONFIG_HTTP_REQ_FLOW_LOG_LEVEL
       , "param: %s, value: %s", p.first.c_str(), p.second.c_str());
 
     // replace + with space
@@ -816,8 +823,9 @@ StateFlowBase::Action HttpRequestFlow::parse_form_data()
   if (body_len_)
   {
     size_t data_req = std::min(body_len_, header_read_size_);
-    LOG(REQ_DEBUG_LOG_LEVEL, "[Httpd fd:%d,uri:%s] Requesting %zu bytes", fd_
-      , req_.uri().c_str(), data_req);
+    LOG(CONFIG_HTTP_REQ_FLOW_LOG_LEVEL
+      , "[Httpd fd:%d,uri:%s] Requesting %zu bytes", fd_, req_.uri().c_str()
+      , data_req);
     return read_repeated_with_timeout(&helper_, timeout_, fd_, buf_.data()
                                     , data_req, STATE(parse_form_data));
   }
@@ -831,7 +839,7 @@ StateFlowBase::Action HttpRequestFlow::send_response_headers()
   // the request.
   if (!res_)
   {
-    LOG(INFO
+    LOG(CONFIG_HTTP_REQ_FLOW_LOG_LEVEL
       , "[Httpd fd:%d,uri:%s] no response body, creating one with status:%d"
       , fd_, req_.uri().c_str(), req_.status_);
     res_.reset(new AbstractHttpResponse(req_.status_));
@@ -840,7 +848,7 @@ StateFlowBase::Action HttpRequestFlow::send_response_headers()
   bool keep_alive = req_.keep_alive() &&
                     req_count_ < config_httpd_max_req_per_connection();
   uint8_t *payload = res_->get_headers(&len, keep_alive);
-  LOG(REQ_DEBUG_LOG_LEVEL
+  LOG(CONFIG_HTTP_REQ_FLOW_LOG_LEVEL
     , "[Httpd fd:%d,uri:%s] Sending headers using %zu bytes (%d)."
     , fd_, req_.uri().c_str(), len, res_->code_);
   return write_repeated(&helper_, fd_, payload, len, STATE(send_response_body));
@@ -850,23 +858,23 @@ StateFlowBase::Action HttpRequestFlow::send_response_body()
 {
   if (req_.method() == HttpMethod::HEAD)
   {
-    LOG(REQ_DEBUG_LOG_LEVEL
+    LOG(CONFIG_HTTP_REQ_FLOW_LOG_LEVEL
       , "[Httpd fd:%d,uri:%s] HEAD request, no body required.", fd_
       , req_.uri().c_str());
   }
   else if (res_->get_body_length())
   {
-    LOG(REQ_DEBUG_LOG_LEVEL
+    LOG(CONFIG_HTTP_REQ_FLOW_LOG_LEVEL
       , "[Httpd fd:%d,uri:%s] Sending body of %d bytes.", fd_
       , req_.uri().c_str(), res_->get_body_length());
     // check if we can send the entire response in one call or not.
     if (res_->get_body_length() > config_httpd_response_chunk_size())
     {
-      LOG(REQ_DEBUG_LOG_LEVEL
+      LOG(CONFIG_HTTP_REQ_FLOW_LOG_LEVEL
         , "[Httpd fd:%d,uri:%s] Converting to streamed response.", fd_
         , req_.uri().c_str());
       response_body_offs_ = 0;
-      LOG(REQ_DEBUG_LOG_LEVEL
+      LOG(CONFIG_HTTP_REQ_FLOW_LOG_LEVEL
         , "[Httpd fd:%d,uri:%s] Sending [%d-%d/%d]", fd_
         , req_.uri().c_str(), response_body_offs_
         , config_httpd_response_chunk_size(), res_->get_body_length());
@@ -899,9 +907,10 @@ StateFlowBase::Action HttpRequestFlow::send_response_body_split()
   {
     remaining = config_httpd_response_chunk_size();
   }
-  LOG(REQ_DEBUG_LOG_LEVEL, "[Httpd fd:%d,uri:%s] Sending [%d-%d/%d]", fd_
-    , req_.uri().c_str(), response_body_offs_
-    , response_body_offs_ + remaining, res_->get_body_length());
+  LOG(CONFIG_HTTP_REQ_FLOW_LOG_LEVEL
+    , "[Httpd fd:%d,uri:%s] Sending [%d-%d/%d]", fd_, req_.uri().c_str()
+    , response_body_offs_, response_body_offs_ + remaining
+    , res_->get_body_length());
   return write_repeated(&helper_, fd_, res_->get_body() + response_body_offs_
                       , remaining, STATE(send_response_body_split));
 }
@@ -937,6 +946,8 @@ StateFlowBase::Action HttpRequestFlow::upgrade_to_websocket()
 {
   // keep the socket open since we will reuse it as the websocket
   close_ = false;
+  LOG(CONFIG_HTTP_REQ_FLOW_LOG_LEVEL
+    , "[Httpd fd:%d,uri:%s] Upgrading to WebSocket", fd_, req_.uri().c_str());
   new WebSocketFlow(server_, fd_, remote_ip_, req_.header(HttpHeader::WS_KEY)
                   , req_.header(HttpHeader::WS_VERSION)
                   , server_->ws_handler(req_.uri()));

@@ -103,7 +103,7 @@ string AbstractHttpResponse::to_string(bool include_body, bool keep_alive
                                       , HTML_EOL));
   for (auto &ent : headers_)
   {
-    LOG(VERBOSE, "[resp-header] %s -> %s", ent.first.c_str()
+    LOG(CONFIG_HTTP_RESP_LOG_LEVEL, "[resp-header] %s -> %s", ent.first.c_str()
       , ent.second.c_str());
     encoded_headers_.append(
       StringPrintf("%s: %s%s", ent.first.c_str(), ent.second.c_str()
@@ -112,14 +112,14 @@ string AbstractHttpResponse::to_string(bool include_body, bool keep_alive
 
   if (get_body_length())
   {
-    LOG(VERBOSE, "[resp-header] %s -> %zu"
+    LOG(CONFIG_HTTP_RESP_LOG_LEVEL, "[resp-header] %s -> %zu"
       , well_known_http_headers[HttpHeader::CONTENT_LENGTH].c_str()
       , get_body_length());
     encoded_headers_.append(
       StringPrintf("%s: %zu%s"
                  , well_known_http_headers[HttpHeader::CONTENT_LENGTH].c_str()
                  , get_body_length(), HTML_EOL));
-    LOG(VERBOSE, "[resp-header] %s -> %s"
+    LOG(CONFIG_HTTP_RESP_LOG_LEVEL, "[resp-header] %s -> %s"
       , well_known_http_headers[HttpHeader::CONTENT_TYPE].c_str()
       , get_body_mime_type().c_str());
     encoded_headers_.append(
@@ -132,7 +132,7 @@ string AbstractHttpResponse::to_string(bool include_body, bool keep_alive
   {
     string connection = keep_alive ? HTTP_CONNECTION_CLOSE
                                   : HTTP_CONNECTION_KEEP_ALIVE;
-    LOG(VERBOSE, "[resp-header] %s -> %s"
+    LOG(CONFIG_HTTP_RESP_LOG_LEVEL, "[resp-header] %s -> %s"
       , well_known_http_headers[HttpHeader::CONNECTION].c_str()
       , connection.c_str());
     encoded_headers_.append(

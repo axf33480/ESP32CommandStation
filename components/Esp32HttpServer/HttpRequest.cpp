@@ -50,7 +50,8 @@ std::map<HttpHeader, string> well_known_http_headers =
 
 void HttpRequest::method(const string &value)
 {
-  LOG(VERBOSE, "[HttpReq %p] Setting Method: %s", this, value.c_str());
+  LOG(CONFIG_HTTP_REQ_LOG_LEVEL
+    , "[HttpReq %p] Setting Method: %s", this, value.c_str());
   raw_method_.assign(std::move(value));
   if (!raw_method_.compare(HTTP_METHOD_DELETE))
   {
@@ -95,20 +96,23 @@ const string &HttpRequest::uri()
 
 void HttpRequest::uri(const string &value)
 {
-  LOG(VERBOSE, "[HttpReq %p] Setting URI: %s", this, value.c_str());
+  LOG(CONFIG_HTTP_REQ_LOG_LEVEL
+    , "[HttpReq %p] Setting URI: %s", this, value.c_str());
   uri_.assign(std::move(value));
 }
 
 void HttpRequest::param(const std::pair<string, string> &value)
 {
-  LOG(VERBOSE, "[HttpReq %p] Adding param: %s: %s", this, value.first.c_str()
+  LOG(CONFIG_HTTP_REQ_LOG_LEVEL
+    , "[HttpReq %p] Adding param: %s: %s", this, value.first.c_str()
     , value.second.c_str());
   params_.insert(std::move(value));
 }
 
 void HttpRequest::header(const std::pair<std::string, std::string> &value)
 {
-  LOG(VERBOSE, "[HttpReq %p] Adding header: %s: %s", this, value.first.c_str()
+  LOG(CONFIG_HTTP_REQ_LOG_LEVEL
+    , "[HttpReq %p] Adding header: %s: %s", this, value.first.c_str()
     , value.second.c_str());
   headers_.insert(value);
 }
@@ -117,13 +121,15 @@ void HttpRequest::header(HttpHeader header, std::string value)
 {
   if (has_header(header))
   {
-    LOG(VERBOSE, "[HttpReq %p] Replacing header: %s: %s (old: %s)", this
+    LOG(CONFIG_HTTP_REQ_LOG_LEVEL
+      , "[HttpReq %p] Replacing header: %s: %s (old: %s)", this
       , well_known_http_headers[header].c_str(), value.c_str()
       , headers_[well_known_http_headers[header]].c_str());
   }
   else
   {
-    LOG(VERBOSE, "[HttpReq %p] Adding header: %s: %s", this
+    LOG(CONFIG_HTTP_REQ_LOG_LEVEL
+      , "[HttpReq %p] Adding header: %s: %s", this
       , well_known_http_headers[header].c_str(), value.c_str());
   }
   headers_[well_known_http_headers[header]] = value;
@@ -155,7 +161,8 @@ const string &HttpRequest::header(const HttpHeader name)
 
 void HttpRequest::reset()
 {
-  LOG(VERBOSE, "[HttpReq %p] Resetting to blank request", this);
+  LOG(CONFIG_HTTP_REQ_LOG_LEVEL
+    , "[HttpReq %p] Resetting to blank request", this);
   headers_.clear();
   params_.clear();
   raw_method_.clear();
@@ -175,7 +182,8 @@ bool HttpRequest::keep_alive()
 
 void HttpRequest::error(bool value)
 {
-  LOG(VERBOSE, "[HttpReq %p] Setting error flag to %d", this, value);
+  LOG(CONFIG_HTTP_REQ_LOG_LEVEL
+    , "[HttpReq %p] Setting error flag to %d", this, value);
   error_ = value;
 }
 
@@ -217,11 +225,12 @@ string HttpRequest::param(string name)
 {
   if (params_.count(name))
   {
-    LOG(VERBOSE
+    LOG(CONFIG_HTTP_REQ_LOG_LEVEL
       , "[Req %p] Param %s -> %s", this, name.c_str(), params_[name].c_str());
     return params_[name];
   }
-  LOG(VERBOSE, "[Req %p] Param %s doesn't exist", this, name.c_str());
+  LOG(CONFIG_HTTP_REQ_LOG_LEVEL
+    , "[Req %p] Param %s doesn't exist", this, name.c_str());
   return no_value_;
 }
 
@@ -229,7 +238,7 @@ bool HttpRequest::param(string name, bool def)
 {
   if (params_.count(name))
   {
-    LOG(VERBOSE
+    LOG(CONFIG_HTTP_REQ_LOG_LEVEL
       , "[Req %p] Param %s -> %s", this, name.c_str(), params_[name].c_str());
     auto value = params_[name];
     std::transform(value.begin(), value.end(), value.begin(), ::tolower);
@@ -242,7 +251,7 @@ int HttpRequest::param(string name, int def)
 {
   if (params_.count(name))
   {
-    LOG(VERBOSE
+    LOG(CONFIG_HTTP_REQ_LOG_LEVEL
       , "[Req %p] Param %s -> %s", this, name.c_str(), params_[name].c_str());
     return std::stoi(params_[name]);
   }
