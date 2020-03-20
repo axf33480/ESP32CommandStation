@@ -602,13 +602,12 @@ ssize_t RMTTrackDevice::write(int fd, const void * data, size_t size)
   }
   else
   {
-    if (LOGLEVEL >= VERBOSE)
-    {
-      dcc::Packet pkt;
-      memcpy(&pkt, data, size);
-      LOG(VERBOSE, "[RMT] Discarding packet as track is not ENABLED:\n%s",
-          dcc::packet_to_string(pkt).c_str());
-    }
+#if CONFIG_DCC_RMT_LOG_LEVEL == VERBOSE
+    dcc::Packet pkt;
+    memcpy(&pkt, data, size);
+    LOG(CONFIG_DCC_RMT_LOG_LEVEL, "[RMT] Discarding packet as track is not ENABLED:\n%s",
+        dcc::packet_to_string(pkt).c_str());
+#endif // CONFIG_DCC_RMT_LOG_LEVEL == VERBOSE
     // discard packet
     return 1;
   }
