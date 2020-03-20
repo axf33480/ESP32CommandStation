@@ -5,7 +5,7 @@ menu "DCC Turnout Manager"
         default 30
 
     choice TURNOUT_LOGGING
-        bool "DNS logging"
+        bool "Turnout Manager logging"
         default TURNOUT_LOGGING_MINIMAL
         config TURNOUT_LOGGING_VERBOSE
             bool "Verbose"
