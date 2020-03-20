@@ -941,7 +941,7 @@ function setupBSTurnout() {
   $('#cs-turnout-id').val($('#cs-table-turnouts tbody tr').length + 1);
   $('#cs-turnout-address').val(1);
   $('#cs-turnout-index').val(-1);
-  $('#cs-turnout-type').val(0);
+  $('#cs-turnout-type').val(0).change();
   $('#cs-turnout-address-mode').val('dcc').change();
   $('#cs-turnout-editor').popup('open', {positionTo:'window'});
  });
