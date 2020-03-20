@@ -39,21 +39,22 @@ static constexpr const char *TURNOUT_TYPE_STRINGS[] =
 
 TurnoutManager::TurnoutManager(openlcb::Node *node, Service *service)
   : turnoutEventConsumer_(node, this)
-  , persistFlow_(service, SEC_TO_NSEC(CONFIG_TURNOUTS_PERSISTENCE_INTERVAL_SEC)
+  , persistFlow_(service, SEC_TO_NSEC(CONFIG_TURNOUT_PERSISTENCE_INTERVAL_SEC)
               , std::bind(&TurnoutManager::persist, this))
   , dirty_(false)
 {
   OSMutexLock h(&mux_);
   LOG(INFO, "[Turnout] Initializing DCC Turnout database");
-  json root = json::parse(Singleton<ConfigurationManager>::instance()->load(TURNOUTS_JSON_FILE));
+  json root = json::parse(
+    Singleton<ConfigurationManager>::instance()->load(TURNOUTS_JSON_FILE));
   for (auto turnout : root)
   {
     turnouts_.push_back(
       std::make_unique<Turnout>(turnout[JSON_ID_NODE].get<int>()
-                                  , turnout[JSON_ADDRESS_NODE].get<int>()
-                                  , turnout[JSON_SUB_ADDRESS_NODE].get<int>()
-                                  , turnout[JSON_STATE_NODE].get<int>()
-                                  , (TurnoutType)turnout[JSON_TYPE_NODE].get<int>()));
+                              , turnout[JSON_ADDRESS_NODE].get<int>()
+                              , turnout[JSON_SUB_ADDRESS_NODE].get<int>()
+                              , turnout[JSON_STATE_NODE].get<int>()
+                              , (TurnoutType)turnout[JSON_TYPE_NODE].get<int>()));
   }
   LOG(INFO, "[Turnout] Loaded %d DCC turnout(s)", turnouts_.size());
 }
@@ -97,7 +98,8 @@ string TurnoutManager::setByAddress(uint16_t address, bool thrown
   }
 
   // we didn't find it, create it and set it
-  turnouts_.push_back(std::make_unique<Turnout>(turnouts_.size() + 1, address, -1));
+  turnouts_.push_back(std::make_unique<Turnout>(turnouts_.size() + 1, address
+                                              , -1));
   dirty_ = true;
   return setByAddress(address, thrown, sendDCC);
 }
@@ -132,7 +134,8 @@ string TurnoutManager::toggleByAddress(uint16_t address)
   }
 
   // we didn't find it, create it and throw it
-  turnouts_.push_back(std::make_unique<Turnout>(turnouts_.size() + 1, address, -1));
+  turnouts_.push_back(std::make_unique<Turnout>(turnouts_.size() + 1, address
+                                              , -1));
   dirty_ = true;
   return toggleByAddress(address);
 }
@@ -176,7 +179,8 @@ Turnout *TurnoutManager::createOrUpdate(const uint16_t id
     return elem->get();
   }
   // we didn't find it, create it!
-  turnouts_.push_back(std::make_unique<Turnout>(id, address, index, false, type));
+  turnouts_.push_back(std::make_unique<Turnout>(id, address, index, false
+                                              , type));
   dirty_ = true;
   return turnouts_.back().get();
 }
@@ -192,7 +196,7 @@ bool TurnoutManager::removeByID(const uint16_t id)
   );
   if (elem != turnouts_.end())
   {
-    LOG(VERBOSE, "[Turnout %d] Deleted", elem->get()->getID());
+    LOG(CONFIG_TURNOUT_LOG_LEVEL, "[Turnout %d] Deleted", elem->get()->getID());
     turnouts_.erase(elem);
     dirty_ = true;
     return true;
@@ -211,8 +215,9 @@ bool TurnoutManager::removeByAddress(const uint16_t address)
   );
   if (elem != turnouts_.end())
   {
-    LOG(VERBOSE, "[Turnout %d] Deleted as it used address %d"
-      , elem->get()->getID(), address);
+    LOG(CONFIG_TURNOUT_LOG_LEVEL
+      , "[Turnout %d] Deleted as it used address %d", elem->get()->getID()
+      , address);
     turnouts_.erase(elem);
     dirty_ = true;
     return true;
@@ -381,21 +386,23 @@ void Turnout::update(uint16_t address, int8_t index, TurnoutType type)
     // convert the provided decoder address to a board address and accessory
     // index
     encodeDCCAccessoryAddress(&_boardAddress, &_index, _address);
-    LOG(VERBOSE
+    LOG(CONFIG_TURNOUT_LOG_LEVEL
       , "[Turnout %d] Updated to use DCC address %d and type %s"
       , _turnoutID
       , _address
       , TURNOUT_TYPE_STRINGS[_type]);
   }
+#if CONFIG_TURNOUT_LOG_LEVEL == VERBOSE
   else
   {
-    LOG(VERBOSE
+    LOG(CONFIG_TURNOUT_LOG_LEVEL
       , "[Turnout %d] Updated to address %d:%d and type %s"
       , _turnoutID
       , _address
       , _index
       , TURNOUT_TYPE_STRINGS[_type]);
   }
+#endif // CONFIG_TURNOUT_LOG_LEVEL == VERBOSE
 }
 
 string Turnout::toJson(bool readableStrings)
@@ -427,7 +434,7 @@ void Turnout::set(bool thrown, bool sendDCCPacket)
   {
     packet_processor_add_refresh_source(this);
   }
-  LOG(VERBOSE
+  LOG(CONFIG_TURNOUT_LOG_LEVEL
     , "[Turnout %d] Set to %s"
     , _turnoutID
     , _thrown ? JSON_VALUE_THROWN : JSON_VALUE_CLOSED);

@@ -1,7 +1,20 @@
 menu "DCC Turnout Manager"
 
-    config TURNOUTS_PERSISTENCE_INTERVAL_SEC
+    config TURNOUT_PERSISTENCE_INTERVAL_SEC
         int "Number of seconds between automatic persistence of turnout list"
         default 30
 
+    choice TURNOUT_LOGGING
+        bool "DNS logging"
+        default TURNOUT_LOGGING_MINIMAL
+        config TURNOUT_LOGGING_VERBOSE
+            bool "Verbose"
+        config TURNOUT_LOGGING_MINIMAL
+            bool "Minimal"
+    endchoice
+    config TURNOUT_LOG_LEVEL
+        int
+        default 4 if TURNOUT_LOGGING_MINIMAL
+        default 3 if TURNOUT_LOGGING_VERBOSE
+        default 5
 endmenu
