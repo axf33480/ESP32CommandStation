@@ -94,4 +94,60 @@ menu "GPIO"
             6, 7, 8, 9, 10, 11 - flash pins
             12, 15 - Bootstrap / SD pins
 
+# Log level constants from from components/OpenMRNLite/src/utils/logging.h
+#
+# ALWAYS      : -1
+# FATAL       :  0
+# LEVEL_ERROR :  1
+# WARNING     :  2
+# INFO        :  3
+# VERBOSE     :  4
+#
+# Note that FATAL will cause the MCU to reboot!
+
+    choice GPIO_OUTPUT_LOGGING
+        bool "GPIO Outputs logging"
+        default GPIO_OUTPUT_LOGGING_MINIMAL
+        depends on GPIO_OUTPUTS
+        config GPIO_OUTPUT_LOGGING_VERBOSE
+            bool "Verbose"
+        config GPIO_OUTPUT_LOGGING_MINIMAL
+            bool "Minimal"
+    endchoice
+    config GPIO_OUTPUT_LOG_LEVEL
+        int
+        default 4 if GPIO_OUTPUT_LOGGING_MINIMAL
+        default 3 if GPIO_OUTPUT_LOGGING_VERBOSE
+        default 5
+
+    choice GPIO_SENSOR_LOGGING
+        bool "GPIO Sensors logging"
+        default GPIO_SENSOR_LOGGING_MINIMAL
+        depends on GPIO_SENSORS
+        config GPIO_SENSOR_LOGGING_VERBOSE
+            bool "Verbose"
+        config GPIO_SENSOR_LOGGING_MINIMAL
+            bool "Minimal"
+    endchoice
+    config GPIO_SENSOR_LOG_LEVEL
+        int
+        default 4 if GPIO_SENSOR_LOGGING_MINIMAL
+        default 3 if GPIO_SENSOR_LOGGING_VERBOSE
+        default 5
+
+    choice GPIO_S88_SENSOR_LOGGING
+        bool "S88 Sensors logging"
+        default GPIO_S88_SENSOR_LOGGING_MINIMAL
+        depends on GPIO_S88
+        config GPIO_S88_SENSOR_LOGGING_VERBOSE
+            bool "Verbose"
+        config GPIO_S88_SENSOR_LOGGING_MINIMAL
+            bool "Minimal"
+    endchoice
+    config GPIO_S88_SENSOR_LOG_LEVEL
+        int
+        default 4 if GPIO_S88_SENSOR_LOGGING_MINIMAL
+        default 3 if GPIO_S88_SENSOR_LOGGING_VERBOSE
+        default 5
+
 endmenu

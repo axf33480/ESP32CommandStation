@@ -312,7 +312,8 @@ void S88SensorBus::removeSensors(int16_t sensorCount)
   {
     for (const auto& sensor : _sensors)
     {
-      LOG(VERBOSE, "[S88] Sensor(%d) removed", sensor->getID());
+      LOG(CONFIG_GPIO_S88_SENSOR_LOG_LEVEL, "[S88] Sensor(%d) removed"
+        , sensor->getID());
     }
     _sensors.clear();
   }
@@ -320,7 +321,8 @@ void S88SensorBus::removeSensors(int16_t sensorCount)
   {
     for(uint8_t id = 0; id < sensorCount; id++)
     {
-      LOG(VERBOSE, "[S88] Sensor(%d) removed", _sensors.back()->getID());
+      LOG(CONFIG_GPIO_S88_SENSOR_LOG_LEVEL, "[S88] Sensor(%d) removed"
+        , _sensors.back()->getID());
       _sensors.pop_back();
     }
   }
@@ -352,18 +354,23 @@ void S88SensorBus::readNext()
 string S88SensorBus::get_state_for_dccpp()
 {
   string status = StringPrintf("<S88 %d %d %d>", _id, _dataPin, _sensors.size());
-  LOG(VERBOSE, "[S88 Bus-%d] Data:%d, Base:%d, Count:%d:", _id, _dataPin, _sensorIDBase, _sensors.size());
+  LOG(CONFIG_GPIO_S88_SENSOR_LOG_LEVEL
+    , "[S88 Bus-%d] Data:%d, Base:%d, Count:%d:"
+    , _id, _dataPin, _sensorIDBase, _sensors.size());
   for (const auto& sensor : _sensors)
   {
-    LOG(VERBOSE, "[S88] Input: %d :: %s", sensor->getIndex(), sensor->isActive() ? "ACTIVE" : "INACTIVE");
+    LOG(CONFIG_GPIO_S88_SENSOR_LOG_LEVEL, "[S88] Input: %d :: %s"
+      , sensor->getIndex(), sensor->isActive() ? "ACTIVE" : "INACTIVE");
     status += sensor->get_state_for_dccpp();
   }
   return status;
 }
 
-S88Sensor::S88Sensor(uint16_t id, uint16_t index) : Sensor(id, NON_STORED_SENSOR_PIN, false, false), _index(index)
+S88Sensor::S88Sensor(uint16_t id, uint16_t index)
+  : Sensor(id, NON_STORED_SENSOR_PIN, false, false), _index(index)
 {
-  LOG(VERBOSE, "[S88] Sensor(%d) created with index %d", id, _index);
+  LOG(CONFIG_GPIO_S88_SENSOR_LOG_LEVEL
+    , "[S88] Sensor(%d) created with index %d", id, _index);
 }
 
 DCC_PROTOCOL_COMMAND_HANDLER(S88BusCommandAdapter,

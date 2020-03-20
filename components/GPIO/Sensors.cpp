@@ -173,11 +173,14 @@ string SensorManager::get_state_for_dccpp()
   return res;
 }
 
-Sensor::Sensor(uint16_t sensorID, gpio_num_t pin, bool pullUp, bool announce) : _sensorID(sensorID), _pin(pin), _pullUp(pullUp), _lastState(false)
+Sensor::Sensor(uint16_t sensorID, gpio_num_t pin, bool pullUp, bool announce)
+  : _sensorID(sensorID), _pin(pin), _pullUp(pullUp), _lastState(false)
 {
   if(announce)
   {
-    LOG(VERBOSE, "[Sensors] Sensor(%d) on pin %d created, pullup %s", _sensorID, _pin, _pullUp ? "Enabled" : "Disabled");
+    LOG(CONFIG_GPIO_SENSOR_LOG_LEVEL
+      , "[Sensors] Sensor(%d) on pin %d created, pullup %s", _sensorID, _pin
+      , _pullUp ? "Enabled" : "Disabled");
     gpio_pad_select_gpio(_pin);
     ESP_ERROR_CHECK(gpio_set_direction(_pin, GPIO_MODE_INPUT));
     if (pullUp)
@@ -193,7 +196,9 @@ Sensor::Sensor(string &data) : _lastState(false)
   _sensorID = object[JSON_ID_NODE];
   _pin = (gpio_num_t)object[JSON_PIN_NODE];
   _pullUp = object[JSON_PULLUP_NODE];
-  LOG(VERBOSE, "[Sensors] Sensor(%d) on pin %d loaded, pullup %s", _sensorID, _pin, _pullUp ? "Enabled" : "Disabled");
+  LOG(CONFIG_GPIO_SENSOR_LOG_LEVEL
+    , "[Sensors] Sensor(%d) on pin %d loaded, pullup %s", _sensorID, _pin
+    , _pullUp ? "Enabled" : "Disabled");
   gpio_pad_select_gpio(_pin);
   ESP_ERROR_CHECK(gpio_set_direction(_pin, GPIO_MODE_INPUT));
   if (_pullUp)
@@ -222,7 +227,9 @@ void Sensor::update(gpio_num_t pin, bool pullUp)
   ESP_ERROR_CHECK(gpio_reset_pin(_pin));
   _pin = pin;
   _pullUp = pullUp;
-  LOG(VERBOSE, "[Sensors] Sensor(%d) on pin %d updated, pullup %s", _sensorID, _pin, _pullUp ? "Enabled" : "Disabled");
+  LOG(CONFIG_GPIO_SENSOR_LOG_LEVEL
+    , "[Sensors] Sensor(%d) on pin %d updated, pullup %s", _sensorID, _pin
+    , _pullUp ? "Enabled" : "Disabled");
   gpio_pad_select_gpio(_pin);
   ESP_ERROR_CHECK(gpio_set_direction(_pin, GPIO_MODE_INPUT));
   if (_pullUp)

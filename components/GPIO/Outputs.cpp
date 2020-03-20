@@ -182,7 +182,9 @@ Output::Output(uint16_t id, gpio_num_t pin, uint8_t flags) : _id(id), _pin(pin),
   {
     set(false, false);
   }
-  LOG(VERBOSE, "[Output] Output(%d) on pin %d created, flags: %s", _id, _pin, getFlagsAsString().c_str());
+  LOG(CONFIG_GPIO_OUTPUT_LOG_LEVEL
+    , "[Output] Output(%d) on pin %d created, flags: %s"
+    , _id, _pin, getFlagsAsString().c_str());
 }
 
 Output::Output(string &data)
@@ -201,7 +203,9 @@ Output::Output(string &data)
   {
     set(object[JSON_STATE_NODE].get<bool>(), false);
   }
-  LOG(VERBOSE, "[Output] Output(%d) on pin %d loaded, flags: %s", _id, _pin, getFlagsAsString().c_str());
+  LOG(CONFIG_GPIO_OUTPUT_LOG_LEVEL
+    , "[Output] Output(%d) on pin %d loaded, flags: %s"
+    , _id, _pin, getFlagsAsString().c_str());
 }
 
 string Output::set(bool active, bool announce)
@@ -234,7 +238,8 @@ void Output::update(gpio_num_t pin, uint8_t flags)
   {
     set((_flags & OUTPUT_IFLAG_FORCE_STATE) == OUTPUT_IFLAG_FORCE_STATE, false);
   }
-  LOG(VERBOSE, "[Output] Output(%d) on pin %d updated, flags: %s", _id, _pin
+  LOG(CONFIG_GPIO_OUTPUT_LOG_LEVEL
+    , "[Output] Output(%d) on pin %d updated, flags: %s", _id, _pin
     , getFlagsAsString().c_str());
 }
 
