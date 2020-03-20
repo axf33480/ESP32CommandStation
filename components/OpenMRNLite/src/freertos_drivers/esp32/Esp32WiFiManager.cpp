@@ -32,6 +32,9 @@
  * @date 4 February 2019
  */
 
+// Ensure we only compile this code for the ESP32
+#ifdef ESP32
+
 #include "Esp32WiFiManager.hxx"
 #include "os/MDNS.hxx"
 #include "utils/FdUtils.hxx"
@@ -1081,14 +1084,15 @@ size_t Esp32WiFiManager::get_ssid_scan_result_count()
 }
 
 // Returns one SSID record from the last scan.
-const wifi_ap_record_t& Esp32WiFiManager::get_ssid_scan_result(size_t index)
+wifi_ap_record_t Esp32WiFiManager::get_ssid_scan_result(size_t index)
 {
     OSMutexLock l(&ssidScanResultsLock_);
+    wifi_ap_record_t record = wifi_ap_record_t();
     if (index < ssidScanResults_.size())
     {
-        return ssidScanResults_[index];
+        record = ssidScanResults_[index];
     }
-    return defaultApRecord_;
+    return record;
 }
 
 // Clears all cached SSID scan results.
@@ -1452,3 +1456,5 @@ const char *gai_strerror(int __ecode)
             return "memory allocation failure";
     }
 }
+
+#endif // ESP32
