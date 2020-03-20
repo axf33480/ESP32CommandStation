@@ -344,15 +344,15 @@ bool Httpd::is_servicable_uri(HttpRequest *req)
   {
     auto processor = stream_handler(req->uri());
     LOG(CONFIG_HTTP_SERVER_LOG_LEVEL
-      , "[Httpd uri:%s] POST/PUT request, streamproc: %p"
-      , req->uri().c_str(), processor);
+      , "[Httpd uri:%s] POST/PUT request, streamproc found: %d"
+      , req->uri().c_str(), processor != nullptr);
     return processor != nullptr;
   }
 
   // Check if we have a handler for the provided URI
-  auto processor = handler(req->method(), req->uri())
-  LOG(CONFIG_HTTP_SERVER_LOG_LEVEL, "[Httpd uri:%s] method: %s, proc: %p"
-    , req->raw_method().c_str(), req->uri().c_str(), processor);
+  auto processor = handler(req->method(), req->uri());
+  LOG(CONFIG_HTTP_SERVER_LOG_LEVEL, "[Httpd uri:%s] method: %s, proc: %d"
+    , req->raw_method().c_str(), req->uri().c_str(), processor != nullptr);
   return processor != nullptr;
 }
 

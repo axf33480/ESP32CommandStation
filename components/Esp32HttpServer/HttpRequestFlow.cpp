@@ -504,8 +504,9 @@ StateFlowBase::Action HttpRequestFlow::parse_multipart_headers()
   // reduce the body size by the amount of data we have successfully parsed.
   body_len_ -= parsed;
 
-  LOG(REQ_DEBUG_LOG_LEVEL, "[Httpd fd:%d,uri:%s] parsed: %zu, body: %zu", fd_
-    , req_.uri().c_str(), parsed, body_len_);
+  LOG(CONFIG_HTTP_REQ_FLOW_LOG_LEVEL
+    , "[Httpd fd:%d,uri:%s] parsed: %zu, body: %zu", fd_, req_.uri().c_str()
+    , parsed, body_len_);
 
   // process any remaining lines as headers until we reach a blank line
   int processed_lines = 0;
