@@ -21,7 +21,8 @@ COPYRIGHT (c) 2018-2019 Mike Dunston
 #include "TrackOutputDescriptor.h"
 
 #include <executor/StateFlow.hxx>
-#include <openlcb/SimpleStack.hxx>
+#include <openlcb/EventHandlerTemplates.hxx>
+#include <openlcb/Node.hxx>
 #include <os/OS.hxx>
 #include <utils/ConfigUpdateListener.hxx>
 #include <utils/format_utils.hxx>
@@ -31,7 +32,7 @@ COPYRIGHT (c) 2018-2019 Mike Dunston
 
 class MonitoredHBridge : public StateFlowBase, public DefaultConfigUpdateListener {
 public:
-  MonitoredHBridge(openlcb::SimpleCanStack *
+  MonitoredHBridge(openlcb::Node *
                  , Service *
                  , const adc1_channel_t
                  , const gpio_num_t
@@ -42,7 +43,7 @@ public:
                  , const std::string &
                  , const esp32cs::TrackOutputConfig &);
 
-  MonitoredHBridge(openlcb::SimpleCanStack *
+  MonitoredHBridge(openlcb::Node *
                  , Service *
                  , const adc1_channel_t
                  , const gpio_num_t
@@ -52,7 +53,7 @@ public:
                  , const std::string &
                  , const esp32cs::TrackOutputConfig &);
 
-  MonitoredHBridge(openlcb::SimpleCanStack *
+  MonitoredHBridge(openlcb::Node *
                  , Service *
                  , const adc1_channel_t
                  , const gpio_num_t

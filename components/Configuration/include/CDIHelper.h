@@ -42,7 +42,8 @@ public:
 /// filesystem. For example "/spiffs/cdi.xml".
 template <class ConfigDef>
 static void create_config_descriptor_xml(
-    const ConfigDef &config, const char *filename, bool register_space)
+    const ConfigDef &config, const char *filename
+  , openlcb::SimpleStackBase *stack = nullptr)
 {
   string cdi_string;
   ConfigDef cfg(config.offset());
@@ -82,22 +83,21 @@ static void create_config_descriptor_xml(
     write_string_to_file(filename, cdi_string);
   }
 
-  if (register_space)
+  if (stack)
   {
-    extern std::unique_ptr<openlcb::SimpleCanStack> lccStack;
     LOG(INFO, "[CDI] Registering CDI with stack...");
     // Creates list of event IDs for factory reset.
     auto *v = new vector<uint16_t>();
     cfg.handle_events([v](unsigned o) { v->push_back(o); });
     v->push_back(0);
-    lccStack->set_event_offsets(v);
+    stack->set_event_offsets(v);
     // We leak v because it has to stay alive for the entire lifetime of
     // the stack.
 
     // Exports the file memory space.
     openlcb::MemorySpace *space = new openlcb::ROFileMemorySpace(filename);
-    lccStack->memory_config_handler()->registry()->insert(
-        lccStack->node(), openlcb::MemoryConfigDefs::SPACE_CDI, space);
+    stack->memory_config_handler()->registry()->insert(
+        stack->node(), openlcb::MemoryConfigDefs::SPACE_CDI, space);
   }
 }
 };

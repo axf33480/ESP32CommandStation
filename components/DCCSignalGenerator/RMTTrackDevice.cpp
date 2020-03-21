@@ -427,7 +427,8 @@ static void railcom_uart_isr(void *ctx)
 // for short circuits and disable the track output from the h-bridge
 // independently from the RMT signal being generated.
 ///////////////////////////////////////////////////////////////////////////////
-RMTTrackDevice::RMTTrackDevice(openlcb::SimpleCanStack *stack
+RMTTrackDevice::RMTTrackDevice(openlcb::Node *node
+                             , Service *service
                              , const esp32cs::TrackOutputConfig &opsCfg
                              , const esp32cs::TrackOutputConfig &progCfg
 #if CONFIG_OPS_RAILCOM
@@ -436,10 +437,10 @@ RMTTrackDevice::RMTTrackDevice(openlcb::SimpleCanStack *stack
                              )
                              : BitEventInterface(openlcb::Defs::CLEAR_EMERGENCY_OFF_EVENT
                                                , openlcb::Defs::EMERGENCY_OFF_EVENT)
-                             , stack_(stack)
+                             , node_(node)
                              , opsPacketQueue_(DeviceBuffer<dcc::Packet>::create(CONFIG_OPS_PACKET_QUEUE_SIZE))
-                             , opsHBridge_(stack
-                                         , stack->service()
+                             , opsHBridge_(node
+                                         , service
                                          , (adc1_channel_t)CONFIG_OPS_ADC
                                          , opsOutputEnablePin_
 #if defined(CONFIG_OPS_THERMAL_PIN)
@@ -450,8 +451,8 @@ RMTTrackDevice::RMTTrackDevice(openlcb::SimpleCanStack *stack
                                          , CONFIG_OPS_TRACK_NAME, CONFIG_OPS_HBRIDGE_TYPE_NAME
                                          , opsCfg)
                              , progPacketQueue_(DeviceBuffer<dcc::Packet>::create(CONFIG_PROG_PACKET_QUEUE_SIZE))
-                             , progHBridge_(stack
-                                          , stack->service()
+                             , progHBridge_(node
+                                          , service
                                           , (adc1_channel_t)CONFIG_PROG_ADC
                                           , progOutputEnablePin_
                                           , CONFIG_PROG_HBRIDGE_MAX_MILLIAMPS
@@ -541,8 +542,8 @@ RMTTrackDevice::RMTTrackDevice(openlcb::SimpleCanStack *stack
 #endif // CONFIG_OPS_RAILCOM
 
   // add a callback to update the initial state of the track output rather than
-  // call it here since the h-bridge code is not fully "up" yet.
-  stack->executor()->add(new CallbackExecutable([this]
+  // call it here since the h-bridge code may not be fully "up" yet.
+  service->executor()->add(new CallbackExecutable([this]
   {
     update_status_display();
   }));

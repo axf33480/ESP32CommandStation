@@ -203,8 +203,8 @@ Esp32TrainDatabase::Esp32TrainDatabase(openlcb::SimpleStackBase *stack)
 {
   TrainConfigDef trainCfg(0);
   TrainTmpConfigDef tmpTrainCfg(0);
-  CDIHelper::create_config_descriptor_xml(trainCfg, TRAIN_CDI_FILE, false);
-  CDIHelper::create_config_descriptor_xml(tmpTrainCfg, TEMP_TRAIN_CDI_FILE, false);
+  CDIHelper::create_config_descriptor_xml(trainCfg, TRAIN_CDI_FILE);
+  CDIHelper::create_config_descriptor_xml(tmpTrainCfg, TEMP_TRAIN_CDI_FILE);
   trainCdiFile_.reset(new openlcb::ROFileMemorySpace(TRAIN_CDI_FILE));
   tempTrainCdiFile_.reset(new openlcb::ROFileMemorySpace(TEMP_TRAIN_CDI_FILE));
   persistFlow_.emplace(stack->service()
@@ -387,7 +387,7 @@ unsigned Esp32TrainDatabase::add_dynamic_entry(TrainDbEntry* temp_entry)
   // not marked dirty.
   knownTrains_.emplace_back(
     new Esp32TrainDbEntry(Esp32PersistentTrainData(address, mode)
-#if !CONFIG_AUTO_CREATE_ROSTER_ENTRIES
+#if !CONFIG_ROSTER_AUTO_CREATE_ENTRIES
                         , false
 #endif
   ));

@@ -29,7 +29,7 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 class StatusDisplay : public StateFlowBase, public Singleton<StatusDisplay>
 {
 public:
-  StatusDisplay(openlcb::SimpleCanStack *, Service *);
+  StatusDisplay(openlcb::SimpleStackBase *, Service *);
   void clear();
   void info(const std::string&, ...);
   void status(const std::string&, ...);

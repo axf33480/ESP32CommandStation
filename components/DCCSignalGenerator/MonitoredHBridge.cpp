@@ -21,7 +21,7 @@ COPYRIGHT (c) 2019 Mike Dunston
 #include <numeric>
 #include <StatusLED.h>
 
-MonitoredHBridge::MonitoredHBridge(openlcb::SimpleCanStack *stack
+MonitoredHBridge::MonitoredHBridge(openlcb::Node *node
                                  , Service *service
                                  , const adc1_channel_t senseChannel
                                  , const gpio_num_t enablePin
@@ -43,9 +43,9 @@ MonitoredHBridge::MonitoredHBridge(openlcb::SimpleCanStack *stack
   , shutdownLimit_(4080)
   , cfg_(cfg)
   , targetLED_(StatusLED::LED::OPS_TRACK)
-  , shortBit_(stack->node(), 0, 0, &state_, STATE_OVERCURRENT)
-  , shutdownBit_(stack->node(), 0, 0, &state_, STATE_SHUTDOWN)
-  , thermalBit_(stack->node(), 0, 0, &state_, STATE_THERMAL_SHUTDOWN)
+  , shortBit_(node, 0, 0, &state_, STATE_OVERCURRENT)
+  , shutdownBit_(node, 0, 0, &state_, STATE_SHUTDOWN)
+  , thermalBit_(node, 0, 0, &state_, STATE_THERMAL_SHUTDOWN)
   , shortProducer_(&shortBit_)
   , shutdownProducer_(&shortBit_)
   , thermalProducer_(&shortBit_)
@@ -54,7 +54,7 @@ MonitoredHBridge::MonitoredHBridge(openlcb::SimpleCanStack *stack
   warnLimit_ = ((overCurrentLimit_ << 1) + overCurrentLimit_) >> 2;
 }
 
-MonitoredHBridge::MonitoredHBridge(openlcb::SimpleCanStack *stack
+MonitoredHBridge::MonitoredHBridge(openlcb::Node *node
                                  , Service *service
                                  , const adc1_channel_t senseChannel
                                  , const gpio_num_t enablePin
@@ -77,9 +77,9 @@ MonitoredHBridge::MonitoredHBridge(openlcb::SimpleCanStack *stack
   , shutdownLimit_(4080)
   , cfg_(cfg)
   , targetLED_(StatusLED::LED::OPS_TRACK)
-  , shortBit_(stack->node(), 0, 0, &state_, STATE_OVERCURRENT)
-  , shutdownBit_(stack->node(), 0, 0, &state_, STATE_SHUTDOWN)
-  , thermalBit_(stack->node(), 0, 0, &state_, STATE_THERMAL_SHUTDOWN)
+  , shortBit_(node, 0, 0, &state_, STATE_OVERCURRENT)
+  , shutdownBit_(node, 0, 0, &state_, STATE_SHUTDOWN)
+  , thermalBit_(node, 0, 0, &state_, STATE_THERMAL_SHUTDOWN)
   , shortProducer_(&shortBit_)
   , shutdownProducer_(&shortBit_)
   , thermalProducer_(&shortBit_)
@@ -88,7 +88,7 @@ MonitoredHBridge::MonitoredHBridge(openlcb::SimpleCanStack *stack
   warnLimit_ = ((overCurrentLimit_ << 1) + overCurrentLimit_) >> 2;
 }
 
-MonitoredHBridge::MonitoredHBridge(openlcb::SimpleCanStack *stack
+MonitoredHBridge::MonitoredHBridge(openlcb::Node *node
                                  , Service *service
                                  , const adc1_channel_t senseChannel
                                  , const gpio_num_t enablePin
@@ -110,9 +110,9 @@ MonitoredHBridge::MonitoredHBridge(openlcb::SimpleCanStack *stack
   , progAckLimit_((60 << 12) / maxMilliAmps_)      // ~60mA
   , cfg_(cfg)
   , targetLED_(StatusLED::LED::PROG_TRACK)
-  , shortBit_(stack->node(), 0, 0, &state_, STATE_OVERCURRENT)
-  , shutdownBit_(stack->node(), 0, 0, &state_, STATE_SHUTDOWN)
-  , thermalBit_(stack->node(), 0, 0, &state_, STATE_THERMAL_SHUTDOWN)
+  , shortBit_(node, 0, 0, &state_, STATE_OVERCURRENT)
+  , shutdownBit_(node, 0, 0, &state_, STATE_SHUTDOWN)
+  , thermalBit_(node, 0, 0, &state_, STATE_THERMAL_SHUTDOWN)
   , shortProducer_(&shortBit_)
   , shutdownProducer_(&shortBit_)
   , thermalProducer_(&shortBit_)

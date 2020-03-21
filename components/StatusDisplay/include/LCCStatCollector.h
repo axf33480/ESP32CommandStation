@@ -25,7 +25,7 @@ COPYRIGHT (c) 2019-2020 Mike Dunston
 class LCCStatCollector : public StateFlowBase
 {
 public:
-  LCCStatCollector(openlcb::SimpleCanStack *stack) :
+  LCCStatCollector(openlcb::SimpleStackBase *stack) :
     StateFlowBase(stack->service()), stack_(stack)
   {
     start_flow(STATE(startup_delay));
@@ -37,8 +37,10 @@ public:
   StateFlowBase::Action update_count()
   {
     // TODO: Migrate to DG listener to capture node aliases as they are announced.
+#if !CONFIG_LCC_TCP_STACK
     remoteNodeCount_ = static_cast<openlcb::IfCan *>(stack_->iface())->remote_aliases()->size();
     localNodeCount_ = static_cast<openlcb::IfCan *>(stack_->iface())->local_aliases()->size();
+#endif // !CONFIG_LCC_TCP_STACK
     uint32_t currentCount = stack_->service()->executor()->sequence();
     executorCount_ = currentCount - lastExecutorCount_;
     lastExecutorCount_ = currentCount;
@@ -58,18 +60,26 @@ public:
   }
   size_t getPoolFreeCount() const
   {
-    return stack_->can_hub()->pool()->free_items();
+#if !CONFIG_LCC_TCP_STACK
+    return static_cast<openlcb::SimpleCanStack *>(stack_)->can_hub()->pool()->free_items();
+#else
+    return static_cast<openlcb::SimpleTcpStack *>(stack_)->tcp_hub()->pool()->free_items();
+#endif // !CONFIG_LCC_TCP_STACK
   }
   size_t getPoolSize() const
   {
-    return stack_->can_hub()->pool()->total_size();
+#if !CONFIG_LCC_TCP_STACK
+    return static_cast<openlcb::SimpleCanStack *>(stack_)->can_hub()->pool()->total_size();
+#else
+    return static_cast<openlcb::SimpleTcpStack *>(stack_)->tcp_hub()->pool()->total_size();
+#endif // !CONFIG_LCC_TCP_STACK
   }
   uint32_t getDatagramCount() const
   {
     return stack_->dg_service()->client_allocator()->pending();
   }
 private:
-  openlcb::SimpleCanStack *stack_;
+  openlcb::SimpleStackBase *stack_;
   StateFlowTimer timer_{this};
   size_t remoteNodeCount_{0};
   size_t localNodeCount_{0};

@@ -1,67 +1,3 @@
-menu "WiFi Configuration"
-    config HOSTNAME_PREFIX
-        string "Hostname prefix"
-        default "esp32cs_"
-        help
-            The LCC node id will be appended to this value, ie: esp32cs_050101013F00.
-
-    choice WIFI_MODE
-        bool "WiFi mode"
-        default WIFI_MODE_SOFTAP
-        config WIFI_MODE_STATION
-            bool "Connect to SSID"
-        config WIFI_MODE_SOFTAP
-            bool "Create SoftAP"
-        config WIFI_MODE_SOFTAP_STATION
-            bool "Connect to SSID and create SoftAP"
-    endchoice
-
-    config WIFI_SOFTAP_SSID
-        string "SoftAP SSID"
-        depends on WIFI_MODE_SOFTAP
-
-    config WIFI_SSID
-        string "SSID"
-        depends on WIFI_MODE_STATION || WIFI_MODE_SOFTAP_STATION
-
-    config WIFI_PASSWORD
-        string "Password"
-        depends on WIFI_MODE_STATION || WIFI_MODE_SOFTAP_STATION
-
-    choice WIFI_IP_TYPE
-        bool "WiFi IP"
-        default WIFI_IP_DHCP
-        config WIFI_IP_DHCP
-            bool "DHCP"
-        config WIFI_IP_STATIC
-            bool "Static"
-    endchoice
-
-    config WIFI_STATIC_IP_ADDRESS
-        string "IP address"
-        default "10.0.0.155"
-        depends on WIFI_IP_STATIC
-
-    config WIFI_STATIC_IP_GATEWAY
-        string "Gateway IP address"
-        default "10.0.0.1"
-        depends on WIFI_IP_STATIC
-
-    config WIFI_STATIC_IP_SUBNET
-        string "Subnet mask"
-        default "255.255.255.0"
-        depends on WIFI_IP_STATIC
-
-    config WIFI_STATIC_IP_DNS
-        string "Primary DNS address"
-        default "8.8.8.8"
-        depends on WIFI_IP_STATIC
-
-    config WIFI_SOFT_AP_CHANNEL
-        int
-        default 6
-endmenu
-
 menu "LCC Configuration"
     config LCC_NODE_ID
         hex "Node ID"
@@ -154,6 +90,7 @@ menu "LCC Configuration"
     config LCC_GC_DELAY_USEC
         int "GridConnect packet delay (microseconds)"
         default 500
+        default 2000 if LCC_HUB_USE_SELECT
         help
             How long (in microseconds) to buffer generated gridconnect data
             before sending off to the lowlevel system (such as a TCP socket).
@@ -166,36 +103,52 @@ menu "LCC Configuration"
             per-connection basis. This limit ensures that we don't leak memory
             if the output socket cannot send the data fast enough.
 
+    config LCC_TCP_STACK
+        bool
+        default n
+        help
+            By default the CS will use SimpleCanStack which supports both
+            hardware CAN and TCP/IP GridConnect formatted packets. Enabling
+            this option will shift to only support TCP/IP Binary packets.
+
+    config LCC_HUB_USE_SELECT
+        bool "Use select() for TCP/IP connections"
+        default n
+        help
+            By enabling this option OpenMRN will use select() to detect when a
+            TCP/IP connection is ready to be serviced. When not enabled two
+            extra threads are created for servicing the TCP/IP connection.
+
     config ESP32CS_CDI_VERSION
         hex
         default 0x0150
 endmenu
 
+config NEXTION
+    bool "Enable Nextion HMI interface"
+    default n
+    help
+        The Nextion HMI interface provides a throttle interface
+        directly connected to the ESP32 Command Station.
+
 menu "Nextion HMI Configuration"
-    config NEXTION
-        bool "Enable Nextion HMI interface"
-        default n
-        help
-            The Nextion HMI interface provides a throttle interface
-            directly connected to the ESP32 Command Station.
+    depends on NEXTION
 
     config NEXTION_RX_PIN
-        int "RX Pin"
+        int "RX Pin (blue)"
         range 0 39
         default 14
         help
             This should be connected to the TX pin on the Nextion HMI,
             typically the blue wire.
-        depends on NEXTION
 
     config NEXTION_TX_PIN
-        int "TX Pin"
+        int "TX Pin (yellow)"
         range 0 32
         default 27
         help
             This should be connected to the RX pin on the Nextion HMI,
             typically the yellow wire.
-        depends on NEXTION
 
     config NEXTION_BAUD_RATE
         int "BAUD rate"
@@ -203,12 +156,10 @@ menu "Nextion HMI Configuration"
         help
             This must match the "bauds=XXX" value set in the Nextion
             HMI initialization event.
-        depends on NEXTION
 
     choice NEXTION_UART
         bool "Hardware UART to use for the Nextion HMI"
         default NEXTION_UART_UART1
-        depends on NEXTION
         config NEXTION_UART_UART1
             bool "UART1"
             depends on !OPS_RAILCOM_UART1 && !HC12_UART_UART1
@@ -221,7 +172,7 @@ menu "Nextion HMI Configuration"
         int
         default 1 if NEXTION_UART_UART1
         default 2 if NEXTION_UART_UART2
-        depends on NEXTION
+
 endmenu
 
 # LocoNet will not be supported in v1.5.0 so it must remain disabled.
@@ -280,18 +231,10 @@ menu "LocoNet"
 endmenu
 endif
 
-menu "Advanced Configuration Settings"
-
-    config ESP32CS_FORCE_FACTORY_RESET
-        bool "Perform factory reset on startup"
-        default n
-        help
-            Enabling this option will force clear all persistent configuration
-            settings upon startup, including all LCC configuration data. This
-            would not be recommended to be enabled for most use cases.
+menu "Locomotive Roster"
 
     # TODO: move this to Train Roster config options
-    config AUTO_CREATE_ROSTER_ENTRIES
+    config ROSTER_AUTO_CREATE_ENTRIES
         bool "Create a roster entry for new trains on first use"
         default y
         help

@@ -29,15 +29,15 @@ COPYRIGHT (c) 2019 Mike Dunston
 #include <dcc/RailCom.hxx>
 #include <dcc/RailcomHub.hxx>
 #include <freertos_drivers/arduino/DeviceBuffer.hxx>
-#include <MonitoredHBridge.h>
 #include <openlcb/EventHandlerTemplates.hxx>
+#include <openlcb/SimpleStack.hxx>
 #include <os/OS.hxx>
 #include <utils/macros.h>
 #include <utils/Singleton.hxx>
 #include <utils/StringPrintf.hxx>
 
 #include "can_ioctl.h"
-
+#include "MonitoredHBridge.h"
 #include "sdkconfig.h"
 
 static constexpr uint8_t OPS_CDI_TRACK_OUTPUT_INDEX = 0;
@@ -48,7 +48,8 @@ class RMTTrackDevice : public dcc::PacketFlowInterface
                      , public Singleton<RMTTrackDevice>
 {
 public:
-  RMTTrackDevice(openlcb::SimpleCanStack *
+  RMTTrackDevice(openlcb::Node *
+               , Service *
                , const esp32cs::TrackOutputConfig &
                , const esp32cs::TrackOutputConfig &
 #if CONFIG_OPS_RAILCOM
@@ -123,7 +124,7 @@ public:
   // BitEventInterface method
   openlcb::Node *node() override
   {
-    return stack_->node();
+    return node_;
   }
 
   // returns true if either of the track outputs are active.
@@ -175,7 +176,7 @@ private:
   static constexpr uint8_t RAILCOM_BRAKE_DISABLE_DELAY_USEC = 10;
 #endif // CONFIG_OPS_RAILCOM
 
-  openlcb::SimpleCanStack *stack_{nullptr};
+  openlcb::Node *node_{nullptr};
 
   const gpio_num_t opsSignalPin_{(gpio_num_t)CONFIG_OPS_SIGNAL_PIN};
   const rmt_channel_t opsRMTChannel_{RMT_CHANNEL_0};

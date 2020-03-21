@@ -76,11 +76,18 @@ OVERRIDE_CONST_EXPAND_VALUE(num_memory_spaces, CONFIG_LCC_MEMORY_SPACES);
 OVERRIDE_CONST_EXPAND_VALUE(gridconnect_buffer_size, CONFIG_TCP_MSS);
 
 ///////////////////////////////////////////////////////////////////////////////
-// This will allow up to 500 usec for the buffer to fill up before sending it
-// out over the socket connection.
+// Increase the time for the buffer to fill up before sending it out over the
+// socket connection.
 ///////////////////////////////////////////////////////////////////////////////
 OVERRIDE_CONST_EXPAND_VALUE(gridconnect_buffer_delay_usec
                           , CONFIG_LCC_GC_DELAY_USEC);
+
+#if CONFIG_LCC_HUB_USE_SELECT
+///////////////////////////////////////////////////////////////////////////////
+// Enable usage of select() for GridConnect connections.
+///////////////////////////////////////////////////////////////////////////////
+OVERRIDE_CONST_TRUE(gridconnect_tcp_use_select);
+#endif // CONFIG_LCC_HUB_USE_SELECT
 
 ///////////////////////////////////////////////////////////////////////////////
 // This limites the number of outbound GridConnect packets which limits the
@@ -104,7 +111,7 @@ OVERRIDE_CONST_EXPAND_VALUE(local_nodes_count, CONFIG_LCC_LOCAL_NODE_COUNT);
 OVERRIDE_CONST_EXPAND_VALUE(local_alias_cache_size
                           , CONFIG_LCC_LOCAL_NODE_COUNT);
 
-unique_ptr<openlcb::SimpleCanStack> lccStack;
+unique_ptr<openlcb::SimpleStackBase> lccStack;
 
 // Esp32ConfigDef comes from CSConfigDescriptor.h and is specific to this
 // particular device and target. It defines the layout of the configuration
@@ -225,7 +232,11 @@ extern "C" void app_main()
   ConfigurationManager *config = new ConfigurationManager(cfg);
 
   LOG(INFO, "[LCC] Initializing Stack");
+#if !CONFIG_LCC_TCP_STACK
   lccStack.reset(new openlcb::SimpleCanStack(config->getNodeId()));
+#else
+  lccStack.reset(new openlcb::SimpleTcpStack(config->getNodeId()));
+#endif // CONFIG_LCC_TCP_STACK
 
   // Initialize the enabled modules.
   config->configureWiFi();
@@ -295,14 +306,16 @@ extern "C" void app_main()
 #endif // CONFIG_OPS_RAILCOM_DUMP_PACKETS
 
   // Initialize Track Signal Device (both OPS and PROG)
-  RMTTrackDevice trackSignal(lccStack.get()
+  RMTTrackDevice trackSignal(lccStack->node()
+                           , lccStack->service()
                            , cfg.seg().hbridge().entry(OPS_CDI_TRACK_OUTPUT_INDEX)
                            , cfg.seg().hbridge().entry(PROG_CDI_TRACK_OUTPUT_INDEX)
                            , &railComHub);
 
 #else // NO RAILCOM
   // Initialize Track Signal Device (both OPS and PROG)
-  RMTTrackDevice trackSignal(lccStack.get()
+  RMTTrackDevice trackSignal(lccStack->node()
+                           , lccStack->service()
                            , cfg.seg().hbridge().entry(OPS_CDI_TRACK_OUTPUT_INDEX)
                            , cfg.seg().hbridge().entry(PROG_CDI_TRACK_OUTPUT_INDEX));
 #endif // CONFIG_OPS_RAILCOM

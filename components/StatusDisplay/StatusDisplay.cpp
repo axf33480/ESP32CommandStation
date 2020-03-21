@@ -186,7 +186,7 @@ static inline bool send_lcd_byte(uint8_t addr, uint8_t value, bool data)
     i2c_cmd_link_delete(cmd);                                             \
   }
 
-StatusDisplay::StatusDisplay(openlcb::SimpleCanStack *stack, Service *service)
+StatusDisplay::StatusDisplay(openlcb::SimpleStackBase *stack, Service *service)
   : StateFlowBase(service), lccStatCollector_(stack)
 {
 #if !CONFIG_DISPLAY_TYPE_NONE

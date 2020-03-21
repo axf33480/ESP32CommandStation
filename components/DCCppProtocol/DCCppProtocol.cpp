@@ -37,7 +37,7 @@ and has been adapter for use in ESP32 COMMAND STATION.
 
 #include <openlcb/SimpleStack.hxx>
 
-extern std::unique_ptr<openlcb::SimpleCanStack> lccStack;
+extern std::unique_ptr<openlcb::SimpleStackBase> lccStack;
 std::vector<std::unique_ptr<DCCPPProtocolCommand>> registeredCommands;
 
 // <R {CV} {CALLBACK} {CALLBACK-SUB}> command handler, this command attempts

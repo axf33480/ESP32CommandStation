@@ -46,7 +46,7 @@ static constexpr const char ESP32_CS_CONFIG_JSON[] = "esp32cs-config.json";
 // Global handle for WiFi Manager
 std::unique_ptr<Esp32WiFiManager> wifiManager;
 
-extern std::unique_ptr<openlcb::SimpleCanStack> lccStack;
+extern std::unique_ptr<openlcb::SimpleStackBase> lccStack;
 
 // holder of the parsed configuration.
 json csConfig;
@@ -495,7 +495,7 @@ void ConfigurationManager::configureLCC()
   }
 
   // Create the CDI.xml dynamically if it doesn't already exist.
-  CDIHelper::create_config_descriptor_xml(cfg_, LCC_CDI_XML, true);
+  CDIHelper::create_config_descriptor_xml(cfg_, LCC_CDI_XML, lccStack.get());
 
   // Create the default internal configuration file if it doesn't already exist.
   configFd_ =
@@ -853,9 +853,11 @@ void ConfigurationManager::configureWiFi()
 {
   parseWiFiConfig();
   LOG(INFO, "[Config] Registering WiFi Manager");
+  // TODO: decide what needs to be done in Esp32WiFiManager for passing
+  // SimpleStackBase * instead of casting to SimpleCanStack *
   wifiManager.reset(new Esp32WiFiManager(wifiSSID_.c_str()
                                        , wifiPassword_.c_str()
-                                       , lccStack.get()
+                                       , (openlcb::SimpleCanStack *)lccStack.get()
                                        , cfg_.seg().wifi()
                                        , CONFIG_HOSTNAME_PREFIX
                                        , wifiMode_
