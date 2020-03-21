@@ -234,8 +234,7 @@
         <thead>
          <tr>
           <th>Address</th>
-          <th>Type</th>
-          <th>Description</th>
+          <th>Name</th>
           <th>Actions</th>
          </tr>
         </thead>
@@ -607,12 +606,8 @@
      <input type="number" pattern="[0-9]*" id="cs-loco-addr" value="1" min="1" max="16384" />
     </div>
     <div class="ui-field-contain">
-     <label for="cs-loco-type">Type:</label>
-     <input type="text" pattern="[0-9]*" id="cs-loco-type" value="" />
-    </div>
-    <div class="ui-field-contain">
-     <label for="cs-loco-desc">Description:</label>
-     <textarea id="cs-loco-desc" rows="5" cols="40"></textarea>
+     <label for="cs-loco-name">Name:</label>
+     <input type="text" id="cs-loco-name" value="" />
     </div>
     <div class="ui-field-contain">
      <label for="cs-loco-idle">Automatically add this locomotive to the "Active Locomotives" list on Command Station startup?</label>
@@ -1029,13 +1024,12 @@ function setupBSOutput() {
 function setupBSRoster() {
  $('#cs-loco-save').on('vclick', function() {
   console.log('Creating roster entry:', $('#cs-loco-addr').val(),
-   'type:', $('#cs-loco-type').val(), 'desc:', $('#cs-loco-desc').val(),
+   'name:', $('#cs-loco-name').val(),
    'idle:', $('#cs-loco-idle').prop('checked'),
    'default:',$('#cs-loco-default').prop('checked'));
   $.post('/locomotive/roster', {
    'address': $('#cs-loco-addr').val(),
-   'type' : $('#cs-loco-type').val(),
-   'description' : $('#cs-loco-desc').val(),
+   'name' : $('#cs-loco-name').val(),
    'idleOnStartup' : $('#cs-loco-idle').prop('checked'),
    'defaultOnThrottles' : $('#cs-loco-default').prop('checked')
   });
@@ -1043,8 +1037,7 @@ function setupBSRoster() {
  });
  $('#cs-loco-create').on('vclick', function() {
   $('#cs-loco-addr').val(1);
-  $('#cs-loco-type').val("");
-  $('#cs-loco-desc').val("");
+  $('#cs-loco-name').val("");
   $('#cs-loco-idle').prop('checked', false);
   $('#cs-loco-default').prop('checked', true);
   $('#cs-loco-editor').popup('open', {positionTo:'window'});
@@ -1515,7 +1508,7 @@ function BSTabRefresh(section) {
   });
  } else if(section === 'Locomotive Roster') {
   refreshTable({table: '#cs-table-loco-roster', url: '/locomotive/roster',
-   fields: ['address', 'type', 'description', function(record) {
+   fields: ['address', 'name', function(record) {
     var buttons = '';
     buttons += createButton({type:'delete', id:String.format("roster-{0}-delete", record.address)});
     buttons += createButton({type:'edit', id:String.format("roster-{0}-edit", record.address)});
@@ -1542,8 +1535,7 @@ function BSTabRefresh(section) {
        success:function(data, status, jqxhr) {
         console.log('Edit roster entry', data);
         $('#cs-loco-addr').val(data.address);
-        $('#cs-loco-type').val(data.type);
-        $('#cs-loco-desc').val(data.description);
+        $('#cs-loco-name').val(data.name);
         $('#cs-loco-idle').prop('checked', data.idleOnStartup === 'true');
         $('#cs-loco-default').prop('checked', data.defaultOnThrottles === 'true');
         $('#cs-loco-editor').popup('open', {positionTo:'window'});
