@@ -476,7 +476,7 @@ HTTP_HANDLER_IMPL(process_prog, request)
     {
       request->set_status(HttpStatusCode::STATUS_NOT_ALLOWED);
     }
-    else if(request->has_param(JSON_IDENTIFY_NODE))
+    else if (request->has_param(JSON_IDENTIFY_NODE))
     {
       int16_t decoderConfig = readCV(CV_NAMES::DECODER_CONFIG);
       if (decoderConfig > 0)
@@ -752,7 +752,7 @@ string convert_loco_to_json(openlcb::TrainImpl *t)
     { JSON_SPEED_NODE, t->get_speed().get_dcc_128() & 0x7F },
     { JSON_DIRECTION_NODE, t->get_speed().direction() ? JSON_VALUE_REVERSE : JSON_VALUE_FORWARD},
   };
-  for(uint8_t funcID = 0; funcID < DCC_MAX_FN; funcID++)
+  for (uint8_t funcID = 0; funcID < DCC_MAX_FN; funcID++)
   {
     j[JSON_FUNCTIONS_NODE].push_back({
       { JSON_ID_NODE, funcID },
@@ -797,14 +797,14 @@ HTTP_HANDLER_IMPL(process_loco, request)
 
   // check if we have an eStop command, we don't care how this gets sent to the
   // command station (method) so check it first
-  if(url.find("/estop") != string::npos)
+  if (url.find("/estop") != string::npos)
   {
     Singleton<esp32cs::EStopHandler>::instance()->set_state(true);
     request->set_status(HttpStatusCode::STATUS_OK);
   }
-  else if(url.find("/roster")  != string::npos)
+  else if (url.find("/roster")  != string::npos)
   {
-    if(request->method() == HttpMethod::GET &&
+    if (request->method() == HttpMethod::GET &&
        !request->has_param(JSON_ADDRESS_NODE))
     {
       return new StringResponse(
@@ -813,7 +813,7 @@ HTTP_HANDLER_IMPL(process_loco, request)
     }
     else if (request->has_param(JSON_ADDRESS_NODE))
     {
-      if(request->method() == HttpMethod::DELETE)
+      if (request->method() == HttpMethod::DELETE)
       {
         traindb->delete_entry(request->param(JSON_ADDRESS_NODE, 0));
         request->set_status(HttpStatusCode::STATUS_OK);
@@ -822,21 +822,21 @@ HTTP_HANDLER_IMPL(process_loco, request)
       {
         uint16_t address = request->param(JSON_ADDRESS_NODE, 0);
         traindb->create_if_not_found(address);
-        if(request->method() == HttpMethod::PUT ||
-           request->method() == HttpMethod::POST)
+        if (request->method() == HttpMethod::PUT ||
+            request->method() == HttpMethod::POST)
         {
-          if(request->has_param(JSON_NAME_NODE))
+          if (request->has_param(JSON_NAME_NODE))
           {
             string name = request->param(JSON_NAME_NODE);
             traindb->set_train_name(address, name);
           }
-          if(request->has_param(JSON_IDLE_ON_STARTUP_NODE))
+          if (request->has_param(JSON_IDLE_ON_STARTUP_NODE))
           {
             traindb->set_train_auto_idle(address
                                        , request->param(JSON_IDLE_ON_STARTUP_NODE
                                                       , false));
           }
-          if(request->has_param(JSON_DEFAULT_ON_THROTTLE_NODE))
+          if (request->has_param(JSON_DEFAULT_ON_THROTTLE_NODE))
           {
             bool value = request->param(JSON_DEFAULT_ON_THROTTLE_NODE, false);
             traindb->set_train_show_on_limited_throttle(address, value);
@@ -852,7 +852,7 @@ HTTP_HANDLER_IMPL(process_loco, request)
     // Since it is not an eStop or roster command we need to check the request
     // method and ensure it contains the required arguments otherwise the
     // request should be rejected
-    if(request->method() == HttpMethod::GET && 
+    if (request->method() == HttpMethod::GET && 
        !request->has_param(JSON_ADDRESS_NODE))
     {
       // get all active locomotives
@@ -877,21 +877,21 @@ HTTP_HANDLER_IMPL(process_loco, request)
     else if (request->has_param(JSON_ADDRESS_NODE))
     {
       uint16_t address = request->param(JSON_ADDRESS_NODE, 0);
-      if(request->method() == HttpMethod::PUT ||
-         request->method() == HttpMethod::POST)
+      if (request->method() == HttpMethod::PUT ||
+          request->method() == HttpMethod::POST)
       {
         GET_LOCO_VIA_EXECUTOR(loco, address);
         auto upd_speed = loco->get_speed();
         // Creation / Update of active locomotive
-        if(request->has_param(JSON_IDLE_NODE))
+        if (request->has_param(JSON_IDLE_NODE))
         {
           upd_speed.set_dcc_128(0);
         }
-        if(request->has_param(JSON_SPEED_NODE))
+        if (request->has_param(JSON_SPEED_NODE))
         {
           upd_speed.set_dcc_128(request->param(JSON_SPEED_NODE, 0));
         }
-        if(request->has_param(JSON_DIRECTION_NODE))
+        if (request->has_param(JSON_DIRECTION_NODE))
         {
           bool forward =
             !request->param(JSON_DIRECTION_NODE).compare(JSON_VALUE_FORWARD);
@@ -899,10 +899,10 @@ HTTP_HANDLER_IMPL(process_loco, request)
                                           : dcc::SpeedType::REVERSE);
         }
         loco->set_speed(upd_speed);
-        for(uint8_t funcID = 0; funcID <=28 ; funcID++)
+        for (uint8_t funcID = 0; funcID <=28 ; funcID++)
         {
           string fArg = StringPrintf("f%d", funcID);
-          if(request->has_param(fArg.c_str()))
+          if (request->has_param(fArg.c_str()))
           {
             loco->set_fn(funcID, request->param(fArg, false));
           }
@@ -910,7 +910,7 @@ HTTP_HANDLER_IMPL(process_loco, request)
         return new StringResponse(convert_loco_to_json(loco)
                                 , MIME_TYPE_APPLICATION_JSON);
       }
-      else if(request->method() == HttpMethod::DELETE)
+      else if (request->method() == HttpMethod::DELETE)
       {
         // we don't need to queue it up on the executor as it is done internally.
         Singleton<commandstation::AllTrainNodes>::instance()->remove_train_impl(address);
@@ -1000,7 +1000,7 @@ HTTP_HANDLER_IMPL(process_sensors, request)
 {
   request->set_status(HttpStatusCode::STATUS_SERVER_ERROR);
   if (request->method() == HttpMethod::GET &&
-      !request->has_param(JSON_ID_NODE))
+     !request->has_param(JSON_ID_NODE))
   {
     return new StringResponse(SensorManager::getStateAsJson()
                             , MIME_TYPE_APPLICATION_JSON);
@@ -1067,17 +1067,17 @@ HTTP_HANDLER_IMPL(process_sensors, request)
 HTTP_HANDLER_IMPL(process_remote_sensors, request)
 {
   request->set_status(HttpStatusCode::STATUS_OK);
-  if(request->method() == HttpMethod::GET)
+  if (request->method() == HttpMethod::GET)
   {
     return new StringResponse(RemoteSensorManager::getStateAsJson()
                             , MIME_TYPE_APPLICATION_JSON);
   }
-  else if(request->method() == HttpMethod::POST)
+  else if (request->method() == HttpMethod::POST)
   {
     RemoteSensorManager::createOrUpdate(request->param(JSON_ID_NODE, 0),
                                         request->param(JSON_VALUE_NODE, 0));
   }
-  else if(request->method() == HttpMethod::DELETE)
+  else if (request->method() == HttpMethod::DELETE)
   {
     RemoteSensorManager::remove(request->param(JSON_ID_NODE, 0));
   }
@@ -1088,12 +1088,12 @@ HTTP_HANDLER_IMPL(process_remote_sensors, request)
 HTTP_HANDLER_IMPL(process_s88, request)
 {
   request->set_status(HttpStatusCode::STATUS_OK);
-  if(request->method() == HttpMethod::GET)
+  if (request->method() == HttpMethod::GET)
   {
     return new StringResponse(S88BusManager::getStateAsJson()
                             , MIME_TYPE_APPLICATION_JSON);
   }
-  else if(request->method() == HttpMethod::POST)
+  else if (request->method() == HttpMethod::POST)
   {
     if(!S88BusManager::createOrUpdateBus(
       request->param(JSON_ID_NODE, 0),
@@ -1104,7 +1104,7 @@ HTTP_HANDLER_IMPL(process_s88, request)
       request->set_status(HttpStatusCode::STATUS_NOT_ALLOWED);
     }
   }
-  else if(request->method() == HttpMethod::DELETE)
+  else if (request->method() == HttpMethod::DELETE)
   {
     S88BusManager::removeBus(request->param(JSON_ID_NODE, 0));
   }
