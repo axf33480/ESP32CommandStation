@@ -774,7 +774,7 @@ bool ConfigurationManager::seedDefaultConfigSections()
       { JSON_WIFI_MODE_NODE, JSON_VALUE_WIFI_MODE_SOFTAP_STATION },
       { JSON_WIFI_SOFTAP_NODE,
         {
-          { JSON_WIFI_SSID_NODE, CONFIG_WIFI_SOFTAP_SSID },
+          { JSON_WIFI_SSID_NODE, "esp32cs" },
         },
       },
 #else
