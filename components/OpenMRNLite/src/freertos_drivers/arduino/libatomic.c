@@ -1,5 +1,5 @@
 /** \copyright
- * Copyright (c) 2014, Balazs Racz
+ * Copyright (c) 2019, Balazs Racz
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -24,49 +24,44 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  *
- * \file TractionTestTrain.hxx
+ * \file libatomic.c
  *
- * Train implementation plugins helpful for testing without a layout.
+ * A partial implementation of libatomic for Cortex-M0 for the necessary
+ * operations in OpenMRN.
  *
  * @author Balazs Racz
- * @date 4 Aug 2014
+ * @date 30 Dec 2019
  */
 
-#ifndef _OPENLCB_TRACTIONTESTTRAIN_HXX_
-#define _OPENLCB_TRACTIONTESTTRAIN_HXX_
+#include <stdint.h>
 
-#include <map>
+#if defined(STM32F0xx) || (!defined(ARDUINO) && !defined(ESP32))
+// On Cortex-M0 the only way to do atomic operation is to disable interrupts.
 
-#include "openlcb/TrainInterface.hxx"
+/// Disables interrupts and saves the interrupt enable flag in a register.
+#define ACQ_LOCK()                                                             \
+    int _pastlock;                                                             \
+    __asm volatile(" mrs %0, PRIMASK \n cpsid i\n" : "=r"(_pastlock));
 
-namespace openlcb
+/// Restores the interrupte enable flag from a register.
+#define REL_LOCK() __asm volatile(" msr PRIMASK, %0\n " : : "r"(_pastlock));
+
+uint16_t __atomic_fetch_sub_2(uint16_t *ptr, uint16_t val, int memorder)
 {
+    ACQ_LOCK();
+    uint16_t ret = *ptr;
+    *ptr -= val;
+    REL_LOCK();
+    return ret;
+}
 
-/** Test train implementation that just logs every action to the info log. */
-class LoggingTrain : public TrainImpl
+uint8_t __atomic_exchange_1(uint8_t *ptr, uint8_t val, int memorder)
 {
-public:
-    LoggingTrain(uint32_t legacy_address,
-        dcc::TrainAddressType address_type =
-            dcc::TrainAddressType::DCC_LONG_ADDRESS);
-    ~LoggingTrain();
-    void set_speed(SpeedType speed) OVERRIDE;
-    SpeedType get_speed() OVERRIDE;
-    void set_emergencystop() OVERRIDE;
-    bool get_emergencystop() OVERRIDE;
-    void set_fn(uint32_t address, uint16_t value) OVERRIDE;
-    uint16_t get_fn(uint32_t address) OVERRIDE;
-    uint32_t legacy_address() OVERRIDE;
-    dcc::TrainAddressType legacy_address_type() OVERRIDE;
+    ACQ_LOCK();
+    uint8_t ret = *ptr;
+    *ptr = val;
+    REL_LOCK();
+    return ret;
+}
 
-private:
-    uint32_t legacyAddress_;
-    dcc::TrainAddressType legacyAddressType_;
-    SpeedType currentSpeed_;
-    bool estopActive_;
-    std::map<uint32_t, uint16_t> fnValues_;
-};
-
-} // namespace openlcb
-
-#endif  // _OPENLCB_TRACTIONTESTTRAIN_HXX_
+#endif // guard for arduino compilation

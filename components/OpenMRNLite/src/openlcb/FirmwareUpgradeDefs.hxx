@@ -1,9 +1,9 @@
 /** \copyright
- * Copyright (c) 2014, Balazs Racz
+ * Copyright (c) 2019, Balazs Racz
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
- * modification, are  permitted provided that the following conditions are met:
+ * modification, are permitted provided that the following conditions are met:
  *
  *  - Redistributions of source code must retain the above copyright notice,
  *    this list of conditions and the following disclaimer.
@@ -24,49 +24,36 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  *
- * \file TractionTestTrain.hxx
+ * \file FirmwareUpgradeDefs.hxx
  *
- * Train implementation plugins helpful for testing without a layout.
+ * Definitions from the Firmware Upgrade Standard
  *
  * @author Balazs Racz
- * @date 4 Aug 2014
+ * @date 14 Dec 2019
  */
 
-#ifndef _OPENLCB_TRACTIONTESTTRAIN_HXX_
-#define _OPENLCB_TRACTIONTESTTRAIN_HXX_
-
-#include <map>
-
-#include "openlcb/TrainInterface.hxx"
+#ifndef _OPENLCB_FIRMWAREUPGRADEDEFS_HXX_
+#define _OPENLCB_FIRMWAREUPGRADEDEFS_HXX_
 
 namespace openlcb
 {
 
-/** Test train implementation that just logs every action to the info log. */
-class LoggingTrain : public TrainImpl
+/// Contains definitions from the Firmware Upgrade Standard.
+struct FirmwareUpgradeDefs
 {
-public:
-    LoggingTrain(uint32_t legacy_address,
-        dcc::TrainAddressType address_type =
-            dcc::TrainAddressType::DCC_LONG_ADDRESS);
-    ~LoggingTrain();
-    void set_speed(SpeedType speed) OVERRIDE;
-    SpeedType get_speed() OVERRIDE;
-    void set_emergencystop() OVERRIDE;
-    bool get_emergencystop() OVERRIDE;
-    void set_fn(uint32_t address, uint16_t value) OVERRIDE;
-    uint16_t get_fn(uint32_t address) OVERRIDE;
-    uint32_t legacy_address() OVERRIDE;
-    dcc::TrainAddressType legacy_address_type() OVERRIDE;
+    enum
+    {
+        ERROR_WRITE_CHECKSUM_FAILED = 0x2088,
+        ERROR_INCOMPATIBLE_FIRMWARE = 0x1088,
+        ERROR_CORRUPTED_DATA = 0x1089,
+    };
 
-private:
-    uint32_t legacyAddress_;
-    dcc::TrainAddressType legacyAddressType_;
-    SpeedType currentSpeed_;
-    bool estopActive_;
-    std::map<uint32_t, uint16_t> fnValues_;
+    enum
+    {
+        SPACE_FIRMWARE = 0xEF,
+    };
 };
 
-} // namespace openlcb
+}
 
-#endif  // _OPENLCB_TRACTIONTESTTRAIN_HXX_
+#endif // _OPENLCB_FIRMWAREUPGRADEDEFS_HXX_

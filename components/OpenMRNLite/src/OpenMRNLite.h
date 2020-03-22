@@ -55,7 +55,7 @@
 namespace openmrn_arduino {
 
 /// Default stack size to use for all OpenMRN tasks on the ESP32 platform.
-constexpr uint32_t OPENMRN_STACK_SIZE = 2048L;
+constexpr uint32_t OPENMRN_STACK_SIZE = 4096L;
 
 /// Default thread priority for any OpenMRN owned tasks on the ESP32 platform.
 /// ESP32 hardware CAN RX and TX tasks run at lower priority (-1 and -2 
@@ -76,6 +76,12 @@ constexpr UBaseType_t OPENMRN_TASK_PRIORITY = ESP_TASK_TCPIP_PRIO - 1;
 #define HAVE_FILESYSTEM
 
 #endif // ESP32
+
+#ifdef ARDUINO_ARCH_STM32
+
+#include "freertos_drivers/stm32/Stm32Can.hxx"
+
+#endif
 
 namespace openmrn_arduino {
 
@@ -124,7 +130,7 @@ private:
         size_t to_write = writeBuffer_->data()->size() - writeOfs_;
         if (len > to_write)
             len = to_write;
-        port_->write(writeBuffer_->data()->data() + writeOfs_, len);
+        port_->write((const uint8_t*)writeBuffer_->data()->data() + writeOfs_, len);
         writeOfs_ += len;
         if (writeOfs_ >= writeBuffer_->data()->size())
         {
@@ -146,7 +152,7 @@ private:
         auto *b = txtHub_.alloc();
         b->data()->skipMember_ = &writePort_;
         b->data()->resize(av);
-        port_->read(b->data()->data(), b->data()->size());
+        port_->readBytes((char*)b->data()->data(), b->data()->size());
         txtHub_.send(b);
     }
 
@@ -462,6 +468,8 @@ public:
         string cdi_string;
         ConfigDef cfg(config.offset());
         cfg.config_renderer().render_cdi(&cdi_string);
+        
+        cdi_string += '\0';
 
         bool need_write = false;
         FILE *ff = fopen(filename, "rb");
