@@ -224,7 +224,8 @@ public:
             exceptfds = &newexcept;
         }
         FD_SET(vfsFd_, exceptfds);
-        if (vfsFd_ >= nfds) {
+        if (vfsFd_ >= nfds)
+        {
             nfds = vfsFd_ + 1;
         }
 #endif //ESP32
@@ -267,10 +268,9 @@ private:
     int vfsFd_{-1};
 
 #if defined(ESP_IDF_VERSION_MAJOR)
-    /// Semaphore for waking up ESP32 select.
-    esp_vfs_select_sem_t espSem_;
-    /// Arguments to pass to esp_end_select when waking up early.
-    void **endSelectArgs_{nullptr};
+    /// Semaphore provided by the ESP32 VFS layer to use for waking up the
+    /// ESP32 early from the select() call.
+    esp_vfs_select_sem_t espSem_{false, nullptr};
 #else
     /// Semaphore for waking up ESP32 select.
     void* espSem_{nullptr};
