@@ -89,8 +89,8 @@ menu "LCC Configuration"
 
     config LCC_GC_DELAY_USEC
         int "GridConnect packet delay (microseconds)"
+        default 1500 if LCC_HUB_USE_SELECT
         default 500
-        default 2000 if LCC_HUB_USE_SELECT
         help
             How long (in microseconds) to buffer generated gridconnect data
             before sending off to the lowlevel system (such as a TCP socket).
