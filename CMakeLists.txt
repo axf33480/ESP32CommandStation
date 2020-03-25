@@ -6,7 +6,7 @@ set(PROJECT_VER "1.5.0")
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
-if(IDF_VERSION_MAJOR LESS 4)
+if (IDF_VERSION_MAJOR LESS 4)
     message(FATAL_ERROR "ESP32CommandStation requires IDF v4.0 or later")
 endif()
 
@@ -45,7 +45,7 @@ FIND_PROGRAM(GZIP
         /usr/local/bin
 )
 
-if(NOT GZIP)
+if (NOT GZIP)
   message(FATAL_ERROR "Unable to find 'gzip' program")
 endif()
 
@@ -150,6 +150,15 @@ if (CONFIG_LCC_CAN_ENABLED)
     if (CONFIG_LCC_CAN_RX_PIN EQUAL CONFIG_LCC_CAN_TX_PIN)
         message(FATAL_ERROR "LCC CAN RX and LCC CAN TX pin must be unique.")
     endif()
+
+    if (CONFIG_LCC_CAN_RX_PIN GREATER_EQUAL 6 AND CONFIG_LCC_CAN_RX_PIN LESS_EQUAL 11)
+        message(FATAL_ERROR "LCC CAN RX pin can not be set to pin 6-11 (used by onboard flash).")
+    endif()
+
+    if (CONFIG_LCC_CAN_TX_PIN GREATER_EQUAL 6 AND CONFIG_LCC_CAN_TX_PIN LESS_EQUAL 11)
+        message(FATAL_ERROR "LCC CAN TX pin can not be set to pin 6-11 (used by onboard flash).")
+    endif()
+
     if (CONFIG_STATUS_LED)
         if (CONFIG_STATUS_LED_DATA_PIN EQUAL CONFIG_LCC_CAN_RX_PIN)
             message(FATAL_ERROR "Status LED data pin and LCC CAN RX pin must be unique.")
@@ -216,6 +225,14 @@ if (NOT CONFIG_OPS_ENABLE_PIN OR NOT CONFIG_OPS_SIGNAL_PIN OR NOT CONFIG_OPS_PRE
     message(FATAL_ERROR "One (or more) OPS H-Bridge required parameters is not defined.")
 endif()
 
+if (CONFIG_OPS_ENABLE_PIN GREATER_EQUAL 6 AND CONFIG_OPS_ENABLE_PIN LESS_EQUAL 11)
+    message(FATAL_ERROR "OPS H-Bridge enable pin can not be set to pin 6-11 (used by onboard flash).")
+endif()
+
+if (CONFIG_OPS_SIGNAL_PIN GREATER_EQUAL 6 AND CONFIG_OPS_SIGNAL_PIN LESS_EQUAL 11)
+    message(FATAL_ERROR "OPS H-Bridge signal pin can not be set to pin 6-11 (used by onboard flash).")
+endif()
+
 if (CONFIG_OPS_PREAMBLE_BITS LESS 11 AND NOT CONFIG_OPS_RAILCOM)
     message(FATAL_ERROR "OPS track preamble bits is too low, at least 11 bits are required.")
 endif()
@@ -228,6 +245,12 @@ if (CONFIG_OPS_PREAMBLE_BITS GREATER 20)
     message(FATAL_ERROR "OPS track preamble bits is too high, a maximum of 20 bits is supported.")
 endif()
 
+if (CONFIG_OPS_HBRIDGE_LMD18200)
+    if (CONFIG_OPS_THERMAL_PIN GREATER_EQUAL 6 AND CONFIG_OPS_THERMAL_PIN LESS_EQUAL 11)
+        message(FATAL_ERROR "OPS H-Bridge thermal pin can not be set to pin 6-11 (used by onboard flash).")
+    endif()
+endif()
+
 if (CONFIG_OPS_RAILCOM)
     if(CONFIG_OPS_ENABLE_PIN EQUAL CONFIG_OPS_RAILCOM_ENABLE_PIN)
         message(FATAL_ERROR "OPS RailCom enable pin and OPS H-Bridge enable pin must be unique.")
@@ -237,8 +260,28 @@ if (CONFIG_OPS_RAILCOM)
         message(FATAL_ERROR "OPS RailCom enable pin and OPS H-Bridge signal pin must be unique.")
     endif()
 
+    if (CONFIG_OPS_RAILCOM_ENABLE_PIN GREATER_EQUAL 6 AND CONFIG_OPS_RAILCOM_ENABLE_PIN LESS_EQUAL 11)
+        message(FATAL_ERROR "OPS RailCom enable pin can not be set to pin 6-11 (used by onboard flash).")
+    endif()
+
+    if (NOT CONFIG_ALLOW_USAGE_OF_RESTRICTED_GPIO_PINS)
+        if (CONFIG_OPS_RAILCOM_ENABLE_PIN LESS 4 OR CONFIG_OPS_RAILCOM_ENABLE_PIN EQUAL 5 OR CONFIG_OPS_RAILCOM_ENABLE_PIN EQUAL 12 OR CONFIG_OPS_RAILCOM_ENABLE_PIN EQUAL 15)
+            message(FATAL_ERROR "OPS RailCom enable pin should not use GPIO 0-3, 5, 12, 15. These are reserved pins.")
+        endif()
+    endif()
+
     if (CONFIG_OPS_ENABLE_PIN EQUAL CONFIG_OPS_RAILCOM_BRAKE_PIN)
         message(FATAL_ERROR "OPS RailCom brake pin and OPS H-Bridge enable pin must be unique.")
+    endif()
+
+    if (CONFIG_OPS_RAILCOM_BRAKE_PIN GREATER_EQUAL 6 AND CONFIG_OPS_RAILCOM_BRAKE_PIN LESS_EQUAL 11)
+        message(FATAL_ERROR "OPS RailCom brake pin can not be set to pin 6-11 (used by onboard flash).")
+    endif()
+
+    if (NOT CONFIG_ALLOW_USAGE_OF_RESTRICTED_GPIO_PINS)
+        if (CONFIG_OPS_RAILCOM_BRAKE_PIN LESS 4 OR CONFIG_OPS_RAILCOM_BRAKE_PIN EQUAL 5 OR CONFIG_OPS_RAILCOM_BRAKE_PIN EQUAL 12 OR CONFIG_OPS_RAILCOM_BRAKE_PIN EQUAL 15)
+            message(FATAL_ERROR "OPS RailCom brake pin should not use GPIO 0-3, 5, 12, 15. These are reserved pins.")
+        endif()
     endif()
 
     if (CONFIG_OPS_SIGNAL_PIN EQUAL CONFIG_OPS_RAILCOM_BRAKE_PIN)
@@ -249,12 +292,32 @@ if (CONFIG_OPS_RAILCOM)
         message(FATAL_ERROR "OPS RailCom short pin and OPS H-Bridge enable pin must be unique.")
     endif()
 
+    if (CONFIG_OPS_RAILCOM_SHORT_PIN GREATER_EQUAL 6 AND CONFIG_OPS_RAILCOM_SHORT_PIN LESS_EQUAL 11)
+        message(FATAL_ERROR "OPS RailCom short pin can not be set to pin 6-11 (used by onboard flash).")
+    endif()
+    
+    if (NOT CONFIG_ALLOW_USAGE_OF_RESTRICTED_GPIO_PINS)
+        if (CONFIG_OPS_RAILCOM_SHORT_PIN LESS 4 OR CONFIG_OPS_RAILCOM_SHORT_PIN EQUAL 5 OR CONFIG_OPS_RAILCOM_SHORT_PIN EQUAL 12 OR CONFIG_OPS_RAILCOM_SHORT_PIN EQUAL 15)
+            message(FATAL_ERROR "OPS RailCom short pin should not use GPIO 0-3, 5, 12, 15. These are reserved pins.")
+        endif()
+    endif()
+
     if (CONFIG_OPS_SIGNAL_PIN EQUAL CONFIG_OPS_RAILCOM_SHORT_PIN)
         message(FATAL_ERROR "OPS RailCom short pin and OPS H-Bridge signal pin must be unique.")
     endif()
 
     if (CONFIG_OPS_ENABLE_PIN EQUAL CONFIG_OPS_RAILCOM_UART_RX_PIN)
         message(FATAL_ERROR "OPS RailCom UART RX pin and OPS H-Bridge enable pin must be unique.")
+    endif()
+
+    if (CONFIG_OPS_RAILCOM_UART_RX_PIN GREATER_EQUAL 6 AND CONFIG_OPS_RAILCOM_UART_RX_PIN LESS_EQUAL 11)
+        message(FATAL_ERROR "OPS RailCom RX pin can not be set to pin 6-11 (used by onboard flash).")
+    endif()
+
+    if (NOT CONFIG_ALLOW_USAGE_OF_RESTRICTED_GPIO_PINS)
+        if (CONFIG_OPS_RAILCOM_UART_RX_PIN LESS 4 OR CONFIG_OPS_RAILCOM_UART_RX_PIN EQUAL 5 OR CONFIG_OPS_RAILCOM_UART_RX_PIN EQUAL 12 OR CONFIG_OPS_RAILCOM_UART_RX_PIN EQUAL 15)
+            message(FATAL_ERROR "OPS RailCom RX pin should not use GPIO 0-3, 5, 12, 15. These are reserved pins.")
+        endif()
     endif()
 
     if (CONFIG_OPS_SIGNAL_PIN EQUAL CONFIG_OPS_RAILCOM_UART_RX_PIN)
@@ -268,6 +331,24 @@ endif()
 
 if (NOT CONFIG_PROG_ENABLE_PIN OR NOT CONFIG_PROG_SIGNAL_PIN OR NOT CONFIG_PROG_PREAMBLE_BITS OR CONFIG_PROG_ADC STREQUAL "")
     message(FATAL_ERROR "One (or more) PROG H-Bridge required parameters is not defined.")
+endif()
+
+if (CONFIG_PROG_ENABLE_PIN GREATER_EQUAL 6 AND CONFIG_PROG_ENABLE_PIN LESS_EQUAL 11)
+    message(FATAL_ERROR "PROG H-Bridge enable pin can not be set to pin 6-11 (used by onboard flash).")
+endif()
+
+if (CONFIG_PROG_SIGNAL_PIN GREATER_EQUAL 6 AND CONFIG_PROG_SIGNAL_PIN LESS_EQUAL 11)
+    message(FATAL_ERROR "PROG H-Bridge signal pin can not be set to pin 6-11 (used by onboard flash).")
+endif()
+
+if (NOT CONFIG_ALLOW_USAGE_OF_RESTRICTED_GPIO_PINS)
+    if (CONFIG_PROG_ENABLE_PIN LESS 4 OR CONFIG_PROG_ENABLE_PIN EQUAL 5 OR CONFIG_PROG_ENABLE_PIN EQUAL 12 OR CONFIG_PROG_ENABLE_PIN EQUAL 15)
+        message(FATAL_ERROR "PROG H-Bridge enable pin should not use GPIO 0-3, 5, 12, 15. These are reserved pins.")
+    endif()
+
+    if (CONFIG_PROG_SIGNAL_PIN LESS 4 OR CONFIG_PROG_SIGNAL_PIN EQUAL 5 OR CONFIG_PROG_SIGNAL_PIN EQUAL 12 OR CONFIG_PROG_SIGNAL_PIN EQUAL 15)
+        message(FATAL_ERROR "PROG H-Bridge signal pin should not use GPIO 0-3, 5, 12, 15. These are reserved pins.")
+    endif()
 endif()
 
 if (CONFIG_PROG_PREAMBLE_BITS LESS 22)
@@ -302,6 +383,16 @@ if (CONFIG_STATUS_LED)
     if (CONFIG_STATUS_LED_DATA_PIN EQUAL CONFIG_PROG_SIGNAL_PIN)
         message(FATAL_ERROR "Status LED data pin and PROG H-Bridge signal pin must be unique.")
     endif()
+
+    if (CONFIG_STATUS_LED_DATA_PIN GREATER_EQUAL 6 AND CONFIG_STATUS_LED_DATA_PIN LESS_EQUAL 11)
+        message(FATAL_ERROR "Status LED data pin can not be set to pin 6-11 (used by onboard flash).")
+    endif()
+
+    if (NOT CONFIG_ALLOW_USAGE_OF_RESTRICTED_GPIO_PINS)
+        if (CONFIG_STATUS_LED_DATA_PIN LESS 4 OR CONFIG_STATUS_LED_DATA_PIN EQUAL 5 OR CONFIG_STATUS_LED_DATA_PIN EQUAL 12 OR CONFIG_STATUS_LED_DATA_PIN EQUAL 15)
+            message(FATAL_ERROR "Status LED data pin should not use GPIO 0-3, 5, 12, 15. These are reserved pins.")
+        endif()
+    endif()
 endif()
 
 ###############################################################################
@@ -312,6 +403,25 @@ if (CONFIG_NEXTION)
     if (CONFIG_NEXTION_RX_PIN EQUAL CONFIG_NEXTION_TX_PIN)
         message(FATAL_ERROR "Nextion RX and TX pin must be unique.")
     endif()
+
+    if (CONFIG_NEXTION_RX_PIN GREATER_EQUAL 6 AND CONFIG_NEXTION_RX_PIN LESS_EQUAL 11)
+        message(FATAL_ERROR "Nextion RX pin can not be set to pin 6-11 (used by onboard flash).")
+    endif()
+
+    if (CONFIG_NEXTION_TX_PIN GREATER_EQUAL 6 AND CONFIG_NEXTION_TX_PIN LESS_EQUAL 11)
+        message(FATAL_ERROR "Nextion TX pin can not be set to pin 6-11 (used by onboard flash).")
+    endif()
+
+    if (NOT CONFIG_ALLOW_USAGE_OF_RESTRICTED_GPIO_PINS)
+        if (CONFIG_NEXTION_RX_PIN LESS 4 OR CONFIG_NEXTION_RX_PIN EQUAL 5 OR CONFIG_NEXTION_RX_PIN EQUAL 12 OR CONFIG_NEXTION_RX_PIN EQUAL 15)
+            message(FATAL_ERROR "Nextion RX pin should not use GPIO 0-3, 5, 12, 15. These are reserved pins.")
+        endif()
+
+        if (CONFIG_NEXTION_TX_PIN LESS 4 OR CONFIG_NEXTION_TX_PIN EQUAL 5 OR CONFIG_NEXTION_TX_PIN EQUAL 12 OR CONFIG_NEXTION_TX_PIN EQUAL 15)
+            message(FATAL_ERROR "Nextion TX pin should not use GPIO 0-3, 5, 12, 15. These are reserved pins.")
+        endif()
+    endif()
+
     if (CONFIG_STATUS_LED)
         if (CONFIG_STATUS_LED_DATA_PIN EQUAL CONFIG_NEXTION_RX_PIN)
             message(FATAL_ERROR "Status LED data pin and Nextion RX pin must be unique.")
@@ -379,6 +489,25 @@ if (CONFIG_HC12)
     if (CONFIG_HC12_RX_PIN EQUAL CONFIG_HC12_TX_PIN)
         message(FATAL_ERROR "HC12 RX pin and HC12 TX pin must be unique.")
     endif()
+
+    if (CONFIG_HC12_RX_PIN GREATER_EQUAL 6 AND CONFIG_HC12_RX_PIN LESS_EQUAL 11)
+        message(FATAL_ERROR "HC12 RX pin can not be set to pin 6-11 (used by onboard flash).")
+    endif()
+
+    if (CONFIG_HC12_TX_PIN GREATER_EQUAL 6 AND CONFIG_HC12_TX_PIN LESS_EQUAL 11)
+        message(FATAL_ERROR "HC12 TX pin can not be set to pin 6-11 (used by onboard flash).")
+    endif()
+
+    if (NOT CONFIG_ALLOW_USAGE_OF_RESTRICTED_GPIO_PINS)
+        if (CONFIG_HC12_RX_PIN LESS 4 OR CONFIG_HC12_RX_PIN EQUAL 5 OR CONFIG_HC12_RX_PIN EQUAL 12 OR CONFIG_HC12_RX_PIN EQUAL 15)
+            message(FATAL_ERROR "HC12 RX pin should not use GPIO 0-3, 5, 12, 15. These are reserved pins.")
+        endif()
+
+        if (CONFIG_HC12_TX_PIN LESS 4 OR CONFIG_HC12_TX_PIN EQUAL 5 OR CONFIG_HC12_TX_PIN EQUAL 12 OR CONFIG_HC12_TX_PIN EQUAL 15)
+            message(FATAL_ERROR "HC12 TX pin should not use GPIO 0-3, 5, 12, 15. These are reserved pins.")
+        endif()
+    endif()
+
     if (CONFIG_STATUS_LED)
         if (CONFIG_STATUS_LED_DATA_PIN EQUAL CONFIG_HC12_RX_PIN)
             message(FATAL_ERROR "Status LED data pin and HC12 RX pin must be unique.")
@@ -429,6 +558,24 @@ endif()
 ###############################################################################
 
 if (CONFIG_LOCONET)
+    if (CONFIG_LOCONET_RX_PIN GREATER_EQUAL 6 AND CONFIG_LOCONET_RX_PIN LESS_EQUAL 11)
+        message(FATAL_ERROR "LocoNet RX pin can not be set to pin 6-11 (used by onboard flash).")
+    endif()
+
+    if (CONFIG_LOCONET_TX_PIN GREATER_EQUAL 6 AND CONFIG_LOCONET_TX_PIN LESS_EQUAL 11)
+        message(FATAL_ERROR "LocoNet TX pin can not be set to pin 6-11 (used by onboard flash).")
+    endif()
+
+    if (NOT CONFIG_ALLOW_USAGE_OF_RESTRICTED_GPIO_PINS)
+        if (CONFIG_LOCONET_RX_PIN LESS 4 OR CONFIG_LOCONET_RX_PIN EQUAL 5 OR CONFIG_LOCONET_RX_PIN EQUAL 12 OR CONFIG_LOCONET_RX_PIN EQUAL 15)
+            message(FATAL_ERROR "LocoNet RX pin should not use GPIO 0-3, 5, 12, 15. These are reserved pins.")
+        endif()
+
+        if (CONFIG_LOCONET_TX_PIN LESS 4 OR CONFIG_LOCONET_TX_PIN EQUAL 5 OR CONFIG_LOCONET_TX_PIN EQUAL 12 OR CONFIG_LOCONET_TX_PIN EQUAL 15)
+            message(FATAL_ERROR "LocoNet TX pin should not use GPIO 0-3, 5, 12, 15. These are reserved pins.")
+        endif()
+    endif()
+
     if (CONFIG_STATUS_LED)
         if (CONFIG_STATUS_LED_DATA_PIN EQUAL CONFIG_LOCONET_RX_PIN)
             message(FATAL_ERROR "Status LED data pin and LocoNet RX pin must be unique.")
@@ -459,3 +606,49 @@ if (CONFIG_LOCONET)
         endif()
     endif()
 endif()
+
+###############################################################################
+# S88 validations
+###############################################################################
+
+if (CONFIG_GPIO_S88)
+
+    if (CONFIG_GPIO_S88_CLOCK_PIN EQUAL CONFIG_GPIO_S88_LOAD_PIN)
+        message(FATAL_ERROR "S88 Clock pin and S88 Load pin must be unique.")
+    endif()
+
+    if (CONFIG_GPIO_S88_CLOCK_PIN EQUAL CONFIG_GPIO_S88_RESET_PIN)
+        message(FATAL_ERROR "S88 Clock pin and S88 Reset pin must be unique.")
+    endif()
+
+    if (CONFIG_GPIO_S88_CLOCK_PIN GREATER_EQUAL 6 AND CONFIG_GPIO_S88_CLOCK_PIN LESS_EQUAL 11)
+        message(FATAL_ERROR "S88 Clock pin can not be set to pin 6-11 (used by onboard flash).")
+    endif()
+
+    if (CONFIG_GPIO_S88_LOAD_PIN EQUAL CONFIG_GPIO_S88_RESET_PIN)
+        message(FATAL_ERROR "S88 Load pin and S88 Reset pin must be unique.")
+    endif()
+
+    if (CONFIG_GPIO_S88_LOAD_PIN GREATER_EQUAL 6 AND CONFIG_GPIO_S88_LOAD_PIN LESS_EQUAL 11)
+        message(FATAL_ERROR "S88 Load pin can not be set to pin 6-11 (used by onboard flash).")
+    endif()
+
+    if (CONFIG_GPIO_S88_RESET_PIN GREATER_EQUAL 6 AND CONFIG_GPIO_S88_RESET_PIN LESS_EQUAL 11)
+        message(FATAL_ERROR "S88 Reset pin can not be set to pin 6-11 (used by onboard flash).")
+    endif()
+
+    if (NOT CONFIG_ALLOW_USAGE_OF_RESTRICTED_GPIO_PINS)
+        if (CONFIG_GPIO_S88_CLOCK_PIN LESS 4 OR CONFIG_GPIO_S88_CLOCK_PIN EQUAL 5 OR CONFIG_GPIO_S88_CLOCK_PIN EQUAL 12 OR CONFIG_GPIO_S88_CLOCK_PIN EQUAL 15)
+            message(FATAL_ERROR "S88 Clock pin should not use GPIO 0-3, 5, 12, 15. These are reserved pins.")
+        endif()
+
+        if (CONFIG_GPIO_S88_LOAD_PIN LESS 4 OR CONFIG_GPIO_S88_LOAD_PIN EQUAL 5 OR CONFIG_GPIO_S88_LOAD_PIN EQUAL 12 OR CONFIG_GPIO_S88_LOAD_PIN EQUAL 15)
+            message(FATAL_ERROR "S88 Load pin should not use GPIO 0-3, 5, 12, 15. These are reserved pins.")
+        endif()
+
+        if (CONFIG_GPIO_S88_RESET_PIN LESS 4 OR CONFIG_GPIO_S88_RESET_PIN EQUAL 5 OR CONFIG_GPIO_S88_RESET_PIN EQUAL 12 OR CONFIG_GPIO_S88_RESET_PIN EQUAL 15)
+            message(FATAL_ERROR "S88 Reset pin should not use GPIO 0-3, 5, 12, 15. These are reserved pins.")
+        endif()
+    endif()
+endif()
+
