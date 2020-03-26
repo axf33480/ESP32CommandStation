@@ -110,6 +110,15 @@ menu "Status Display"
             bool "Bold"
     endchoice
 
+    choice DISPLAY_LCC_LOGGING
+        bool "LCC Stat Logging"
+        default DISPLAY_LCCT_LOGGING_NONE
+        config DISPLAY_LCC_LOGGING_VERBOSE
+            bool "Verbose"
+        config DISPLAY_LCC_LOGGING_NONE
+            bool "None"
+    endchoice
+
     config DISPLAY_LINE_COUNT
         int
         default 8 if DISPLAY_OLED_128x64

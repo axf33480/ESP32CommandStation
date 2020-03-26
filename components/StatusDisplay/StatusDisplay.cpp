@@ -187,9 +187,12 @@ static inline bool send_lcd_byte(uint8_t addr, uint8_t value, bool data)
   }
 
 StatusDisplay::StatusDisplay(openlcb::SimpleStackBase *stack, Service *service)
-  : StateFlowBase(service), lccStatCollector_(stack)
+  : StateFlowBase(service), stack_(stack)
 {
 #if !CONFIG_DISPLAY_TYPE_NONE
+  lccNodeBrowser_.emplace(stack->node()
+                        , std::bind(&StatusDisplay::node_pong, this
+                                  , std::placeholders::_1));
   clear();
   info("ESP32-CS: v%s", esp_ota_get_app_description()->version);
   wifi("IP:Pending");
@@ -291,6 +294,59 @@ void StatusDisplay::wifi_event(system_event_t *event)
   {
     wifi("Disconnected");
   }
+}
+
+// NOTE: this code uses ets_printf() instead of LOG(VERBOSE, ...) due to the
+// calling context.
+void StatusDisplay::node_pong(openlcb::NodeID id)
+{
+  AtomicHolder h(this);
+  // If this is the first response, reset the counts
+  if (lccNodeRefreshPending_)
+  {
+    lccNodeRefreshPending_ = false;
+    lccLocalNodeCount_ = 0;
+    lccRemoteNodeCount_ = 0;
+    lccSeenNodes_.clear();
+  }
+  else if (lccSeenNodes_.find(id) != lccSeenNodes_.end())
+  {
+    // duplicate node
+    return;
+  }
+  lccSeenNodes_.emplace(id);
+#if CONFIG_DISPLAY_LCC_LOGGING_VERBOSE
+  ets_printf("[LCC-Node] PONG: %s,", uint64_to_string_hex(id).c_str());
+#endif
+  // If it is a train node and we recognize it as one we manage then it is
+  // considered a local node.
+  if ((id & openlcb::TractionDefs::NODE_ID_MASK) == openlcb::TractionDefs::NODE_ID_DCC &&
+      Singleton<commandstation::AllTrainNodes>::instance()->is_valid_train_node(id))
+  {
+#if CONFIG_DISPLAY_LCC_LOGGING_VERBOSE
+    ets_printf("Train");
+#endif
+    lccLocalNodeCount_++;
+  }
+  else if (id == stack_->node()->node_id())
+  {
+#if CONFIG_DISPLAY_LCC_LOGGING_VERBOSE
+    ets_printf("CS");
+#endif
+    // If the node id is our local node id it is considered local
+    lccLocalNodeCount_++;
+  }
+  else
+  {
+#if CONFIG_DISPLAY_LCC_LOGGING_VERBOSE
+    ets_printf("Remote");
+#endif
+    // Anything else is remote
+    lccRemoteNodeCount_++;
+  }
+#if CONFIG_DISPLAY_LCC_LOGGING_VERBOSE
+  ets_printf("\n");
+#endif
 }
 
 StateFlowBase::Action StatusDisplay::init()
@@ -568,22 +624,20 @@ StateFlowBase::Action StatusDisplay::update()
   {
     if(rotatingIndex_ == 0)
     {
-      status("Free Heap:%d"
-                , heap_caps_get_free_size(MALLOC_CAP_INTERNAL)
-      );
+      status("Free Heap:%d", heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
     }
     else if (rotatingIndex_ == 1)
     {
       uint64_t seconds = USEC_TO_SEC(esp_timer_get_time());
       status("Uptime: %02d:%02d:%02d"
-                , (uint32_t)(seconds / 3600), (uint32_t)(seconds % 3600) / 60
-                , (uint32_t)(seconds % 60)
+           , (uint32_t)(seconds / 3600), (uint32_t)(seconds % 3600) / 60
+           , (uint32_t)(seconds % 60)
       );
     }
     else if (rotatingIndex_ == 2)
     {
       status("Active Locos:%3d"
-                , Singleton<commandstation::AllTrainNodes>::instance()->size()
+           , Singleton<commandstation::AllTrainNodes>::instance()->size()
       );
     }
     else if (rotatingIndex_ == 3)
@@ -592,48 +646,52 @@ StateFlowBase::Action StatusDisplay::update()
     }
     else if (rotatingIndex_ == 4)
     {
+      AtomicHolder h(this);
       static uint8_t _lccStatusIndex = 0;
       ++_lccStatusIndex %= 5;
       if(_lccStatusIndex == 0)
       {
-        status("LCC Nodes: %d"
-                  , lccStatCollector_.getRemoteNodeCount()
-        );
+        status("LCC Nodes: %d", lccRemoteNodeCount_);
       }
       else if (_lccStatusIndex == 1)
       {
-        status("LCC Lcl: %d", lccStatCollector_.getLocalNodeCount()
-        );
+        status("LCC Lcl: %d", lccLocalNodeCount_);
       }
       else if (_lccStatusIndex == 2)
       {
-        status("LCC dg_svc: %d", lccStatCollector_.getDatagramCount()
-        );
+        status("LCC dg_svc: %d", stack_->dg_service()->client_allocator()->pending());
       }
       else if (_lccStatusIndex == 3)
       {
-        status("LCC Ex: %d", lccStatCollector_.getExecutorCount()
-        );
+        uint32_t currentCount = stack_->service()->executor()->sequence();
+        status("LCC Ex: %d", currentCount - lccLastExecCount_);
+        lccLastExecCount_ = currentCount;
       }
       else if (_lccStatusIndex == 4)
       {
-        status("LCC Pool: %d/%d", lccStatCollector_.getPoolFreeCount()
-                  , lccStatCollector_.getPoolSize()
-        );
+        auto pool =
+#if !CONFIG_LCC_TCP_STACK
+          static_cast<openlcb::SimpleCanStack *>(stack_)->can_hub()->pool();
+#else
+          static_cast<openlcb::SimpleTcpStack *>(stack_)->tcp_hub()->pool();
+#endif
+        status("LCC Pool: %d/%d", pool->free_items(), pool->total_size());
+        lccNodeRefreshPending_ = true;
+        lccNodeBrowser_->refresh();
       }
 #if CONFIG_LOCONET
     }
     else if (rotatingIndex_ == 5)
     {
       status("LN-RX: %d/%d", locoNet.getRxStats()->rxPackets
-                , locoNet.getRxStats()->rxErrors
+           , locoNet.getRxStats()->rxErrors
       );
     }
     else if (rotatingIndex_ == 6)
     {
       status("LN-TX: %d/%d/%d", locoNet.getTxStats()->txPackets
-                , locoNet.getTxStats()->txErrors
-                , locoNet.getTxStats()->collisions
+           , locoNet.getTxStats()->txErrors
+           , locoNet.getTxStats()->collisions
       );
 #endif
     }

@@ -18,15 +18,18 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 #ifndef STATUS_DISPLAY_H_
 #define STATUS_DISPLAY_H_
 
+#include <functional>
+#include <set>
 #include <string>
 #include <esp_event.h>
 #include <executor/StateFlow.hxx>
+#include <openlcb/NodeBrowser.hxx>
 #include <openlcb/SimpleStack.hxx>
+#include <openlcb/TractionDefs.hxx>
 #include <utils/Uninitialized.hxx>
 
-#include "LCCStatCollector.h"
-
 class StatusDisplay : public StateFlowBase, public Singleton<StatusDisplay>
+                    , private Atomic
 {
 public:
   StatusDisplay(openlcb::SimpleStackBase *, Service *);
@@ -36,6 +39,8 @@ public:
   void wifi(const std::string&, ...);
   void track_power(const std::string&, ...);
   void wifi_event(system_event_t *);
+
+  void node_pong(openlcb::NodeID id);
 private:
   STATE_FLOW_STATE(init);
   STATE_FLOW_STATE(initOLED);
@@ -51,9 +56,16 @@ private:
   bool sh1106_{false};
   StateFlowTimer timer_{this};
   uint8_t regZero_{0};
-  LCCStatCollector lccStatCollector_;
   uint8_t rotatingIndex_{0};
   uint8_t updateCount_{0};
+  uint32_t lccExecCount_{0};
+  uint32_t lccLastExecCount_{0};
+  size_t lccRemoteNodeCount_{0};
+  size_t lccLocalNodeCount_{0};
+  bool lccNodeRefreshPending_{true};
+  std::set<openlcb::NodeID> lccSeenNodes_;
+  uninitialized<openlcb::NodeBrowser> lccNodeBrowser_;
+  openlcb::SimpleStackBase *stack_;
 };
 
 #endif // STATUS_DISPLAY_H_
