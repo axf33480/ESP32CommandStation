@@ -25,6 +25,7 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 #include <dcc/ProgrammingTrackBackend.hxx>
 #include <dcc/RailcomHub.hxx>
 #include <esp_adc_cal.h>
+#include <esp_log.h>
 #include <EStopHandler.h>
 #include <executor/PoolToQueueFlow.hxx>
 #include <FreeRTOSTaskMonitor.h>
@@ -178,6 +179,8 @@ void init_webserver();
 
 extern "C" void app_main()
 {
+  esp_log_level_set("*", ESP_LOG_ERROR);
+
   // Setup UART0 115200 8N1 TX: 1, RX: 3, 2k buffer (1k rx, 1k tx)
   uart_config_t uart0 = {
     .baud_rate           = 115200,
@@ -279,11 +282,7 @@ extern "C" void app_main()
 
 #if CONFIG_HC12
   esp32cs::HC12Radio hc12(lccStack->service()
-#if CONFIG_HC12_UART_UART1
-                        , UART_NUM_1
-#else
-                        , UART_NUM_2
-#endif
+                        , (uart_port_t)CONFIG_HC12_UART
                         , (gpio_num_t)CONFIG_HC12_RX_PIN
                         , (gpio_num_t)CONFIG_HC12_TX_PIN));
 #endif // CONFIG_HC12
@@ -296,29 +295,11 @@ extern "C" void app_main()
   // Initialize the factory reset helper for the CS.
   FactoryResetHelper resetHelper;
 
-#if CONFIG_OPS_RAILCOM
-  // Initialize the RailCom Hub
-  dcc::RailcomHubFlow railComHub(lccStack->service());
-
-#if CONFIG_OPS_RAILCOM_DUMP_PACKETS
-  // Add a data dumper for the RailCom Hub
-  dcc::RailcomPrintfFlow railComDataDumper(&railComHub);
-#endif // CONFIG_OPS_RAILCOM_DUMP_PACKETS
-
-  // Initialize Track Signal Device (both OPS and PROG)
-  RMTTrackDevice trackSignal(lccStack->node()
-                           , lccStack->service()
-                           , cfg.seg().hbridge().entry(OPS_CDI_TRACK_OUTPUT_INDEX)
-                           , cfg.seg().hbridge().entry(PROG_CDI_TRACK_OUTPUT_INDEX)
-                           , &railComHub);
-
-#else // NO RAILCOM
   // Initialize Track Signal Device (both OPS and PROG)
   RMTTrackDevice trackSignal(lccStack->node()
                            , lccStack->service()
                            , cfg.seg().hbridge().entry(OPS_CDI_TRACK_OUTPUT_INDEX)
                            , cfg.seg().hbridge().entry(PROG_CDI_TRACK_OUTPUT_INDEX));
-#endif // CONFIG_OPS_RAILCOM
 
   // Initialize Local Track inteface.
   trackInterface.emplace(lccStack->service()
