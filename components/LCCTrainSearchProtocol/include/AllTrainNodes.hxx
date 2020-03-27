@@ -92,6 +92,10 @@ class AllTrainNodes : public Singleton<AllTrainNodes> {
   bool is_valid_train_node(openlcb::Node *node) {
     return find_node(node) != nullptr;
   }
+  
+  bool is_valid_train_node(openlcb::NodeID node_id) {
+    return find_node(node_id) != nullptr;
+  }
 
  private:
   // ==== Interface for children ====
