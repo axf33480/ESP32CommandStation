@@ -659,7 +659,8 @@ StateFlowBase::Action StatusDisplay::update()
       }
       else if (_lccStatusIndex == 2)
       {
-        status("LCC dg_svc: %d", stack_->dg_service()->client_allocator()->pending());
+        status("LCC dg_svc: %d"
+             , stack_->dg_service()->client_allocator()->pending());
       }
       else if (_lccStatusIndex == 3)
       {
@@ -670,10 +671,10 @@ StateFlowBase::Action StatusDisplay::update()
       else if (_lccStatusIndex == 4)
       {
         auto pool =
-#if !CONFIG_LCC_TCP_STACK
-          static_cast<openlcb::SimpleCanStack *>(stack_)->can_hub()->pool();
-#else
+#ifdef CONFIG_LCC_TCP_STACK
           static_cast<openlcb::SimpleTcpStack *>(stack_)->tcp_hub()->pool();
+#else
+          static_cast<openlcb::SimpleCanStack *>(stack_)->can_hub()->pool();
 #endif
         status("LCC Pool: %d/%d", pool->free_items(), pool->total_size());
         lccNodeRefreshPending_ = true;

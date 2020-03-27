@@ -235,10 +235,10 @@ extern "C" void app_main()
   ConfigurationManager *config = new ConfigurationManager(cfg);
 
   LOG(INFO, "[LCC] Initializing Stack");
-#if !CONFIG_LCC_TCP_STACK
-  lccStack.reset(new openlcb::SimpleCanStack(config->getNodeId()));
-#else
+#ifdef CONFIG_LCC_TCP_STACK
   lccStack.reset(new openlcb::SimpleTcpStack(config->getNodeId()));
+#else
+  lccStack.reset(new openlcb::SimpleCanStack(config->getNodeId()));
 #endif // CONFIG_LCC_TCP_STACK
 
   // Initialize the enabled modules.
