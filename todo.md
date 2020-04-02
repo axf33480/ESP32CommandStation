@@ -15,6 +15,7 @@ These are must have features/bug fixes for v1.5.0:
     -   [x] Basic integration is functional (loco request works for dynamic locos)
     -   [ ] Persisted locos that are not active can not be requested from UWT-100.
 -   [ ] LCC: Rewrite ESP32 Hardware CAN adapter code.
+-   [ ] LCC: Add fallback option for Esp32WiFiManager to not reboot the node when SSID connect fails and SoftAP is active.
 -   [ ] Nextion: rewrite from scratch.
 -   [ ] Roster: Roster Entries should contain function id mappings.
 -   [ ] Web: Entering loco name as "loco #3" results in "loco 33" being registered.
