@@ -20,7 +20,7 @@ set(COMPONENT_REQUIRES "mdns" )
 
 register_component()
 
-target_compile_options(${COMPONENT_LIB} PUBLIC -DESP32)
+target_compile_options(${COMPONENT_LIB} PUBLIC -DESP32 -DLOCKED_LOGGING)
 
 set_source_files_properties(src/utils/FileUtils.cpp PROPERTIES COMPILE_FLAGS -Wno-type-limits)
 set_source_files_properties(src/dcc/Loco.cpp PROPERTIES COMPILE_FLAGS -Wno-ignored-qualifiers)
@@ -31,7 +31,8 @@ set_source_files_properties(src/executor/StateFlow.cpp PROPERTIES COMPILE_FLAGS 
 set_source_files_properties(src/executor/Service.cpp PROPERTIES COMPILE_FLAGS -Wno-ignored-qualifiers)
 set_source_files_properties(src/executor/Timer.cpp PROPERTIES COMPILE_FLAGS -Wno-ignored-qualifiers)
 set_source_files_properties(src/freertos_drivers/arduino/CpuLoad.cpp PROPERTIES COMPILE_FLAGS -Wno-ignored-qualifiers)
-set_source_files_properties(src/freertos_drivers/esp32/Esp32WiFiManager.cpp PROPERTIES COMPILE_FLAGS -Wno-ignored-qualifiers)
+set_source_files_properties(src/freertos_drivers/esp32/Esp32WiFiManager.cpp PROPERTIES COMPILE_FLAGS
+    "-Wno-ignored-qualifiers -DESP32_WIFIMGR_SOCKETPARAMS_LOG_LEVEL=VERBOSE -DESP32_WIFIMGR_MDNS_LOOKUP_LOG_LEVEL=VERBOSE")
 set_source_files_properties(src/openlcb/AliasAllocator.cpp PROPERTIES COMPILE_FLAGS -Wno-ignored-qualifiers)
 set_source_files_properties(src/openlcb/BroadcastTime.cpp PROPERTIES COMPILE_FLAGS -Wno-ignored-qualifiers)
 set_source_files_properties(src/openlcb/BroadcastTimeClient.cpp PROPERTIES COMPILE_FLAGS -Wno-ignored-qualifiers)

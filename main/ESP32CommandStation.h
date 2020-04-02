@@ -35,7 +35,6 @@ using std::set;
 #include <driver/uart.h>
 #include <esp_ota_ops.h>
 
-#include <dcc/LocalTrackIf.hxx>
 #include <dcc/Loco.hxx>
 #include <dcc/Packet.hxx>
 #include <dcc/SimpleUpdateLoop.hxx>
@@ -46,8 +45,6 @@ using std::set;
 
 #include <os/MDNS.hxx>
 #include <os/OS.hxx>
-
-#include <StatusLED.h>
 
 #include <utils/AutoSyncFileFlow.hxx>
 #include <utils/constants.hxx>
@@ -62,20 +59,20 @@ using std::set;
 
 // Include ESP32 Command Station component declarations
 #include "JsonConstants.h"
-#include "ConfigurationManager.h"
+#include <ConfigurationManager.h>
 #include "ESP32TrainDatabase.h"
-#include "HttpStringUtils.h"
-
+#include <HttpStringUtils.h>
+#include <DuplexedTrackIf.h>
 #include <DCCProgrammer.h>
-#include <Turnouts.h>
-
 #include <DCCppProtocol.h>
+#include <StatusLED.h>
+#include <Turnouts.h>
 
 #if CONFIG_NEXTION
 #include "Interfaces/nextion/NextionInterface.h"
 #endif
 
-extern uninitialized<dcc::LocalTrackIf> trackInterface;
+extern uninitialized<esp32cs::DuplexedTrackIf> trackInterface;
 extern std::unique_ptr<openlcb::SimpleStackBase> lccStack;
 
 #if LOCONET_ENABLED

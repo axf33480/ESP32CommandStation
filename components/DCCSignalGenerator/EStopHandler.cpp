@@ -26,8 +26,7 @@ void EStopHandler::set_state(bool new_value)
 {
   if (new_value)
   {
-    LOG(INFO, "[eStop] Received eStop request, sending eStop packets to all "
-              "trains.");
+    LOG(INFO, "[eStop] Received eStop request, sending eStop to all trains.");
     // TODO: add helper method on AllTrainNodes for this.
     auto  trains = Singleton<commandstation::AllTrainNodes>::instance();
     for (size_t id = 0; id < trains->size(); id++)
@@ -39,7 +38,7 @@ void EStopHandler::set_state(bool new_value)
       }
     }
     {
-      OSMutexLock l(&lock_);
+      AtomicHolder l(this);
       remaining_ = CONFIG_DCC_ESTOP_PACKET_COUNT;
       packet_processor_add_refresh_source(this
                                         , dcc::UpdateLoopBase::ESTOP_PRIORITY);
@@ -48,7 +47,7 @@ void EStopHandler::set_state(bool new_value)
   else
   {
     LOG(INFO, "[eStop] Received eStop clear request.");
-    OSMutexLock l(&lock_);
+    AtomicHolder l(this);
     remaining_ = 0;
     packet_processor_remove_refresh_source(this);
   }
@@ -59,7 +58,7 @@ void EStopHandler::get_next_packet(unsigned code, dcc::Packet* packet)
   packet->set_dcc_speed14(dcc::DccShortAddress(0), true, false
                         , dcc::Packet::EMERGENCY_STOP);
   {
-    OSMutexLock l(&lock_);
+    AtomicHolder l(this);
     remaining_--;
     if (remaining_ <= 0)
     {

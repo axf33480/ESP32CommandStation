@@ -19,11 +19,11 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 
 #include <AllTrainNodes.hxx>
 #include <Dnsd.h>
+#include <DCCSignalVFS.h>
 #include <esp_log.h>
-#include <EStopHandler.h>
 #include <Httpd.h>
 #include <json.hpp>
-#include <RMTTrackDevice.h>
+
 #include <utils/FileUtils.hxx>
 #include "OTAMonitor.h"
 
@@ -297,8 +297,7 @@ HTTP_STREAM_HANDLER_IMPL(process_ota, request, filename, size, data, length
     }
     LOG(INFO, "[WebSrv] OTA Update starting (%zu bytes, target:%s)...", size
       , ota_partition->label);
-    Singleton<RMTTrackDevice>::instance()->disable_ops_output();
-    Singleton<RMTTrackDevice>::instance()->disable_prog_output();
+    esp32cs::disable_track_outputs();
     Singleton<OTAMonitorFlow>::instance()->report_start();
   }
   HASSERT(ota_partition);
@@ -341,18 +340,17 @@ HTTP_HANDLER_IMPL(process_power, request)
   request->set_status(HttpStatusCode::STATUS_OK);
   if (request->method() == HttpMethod::GET)
   {
-    response.assign(Singleton<RMTTrackDevice>::instance()->generate_status_json());
+    response.assign(esp32cs::get_track_state_json());
   }
   else if (request->method() == HttpMethod::PUT)
   {
     if (request->param(JSON_STATE_NODE, false))
     {
-      Singleton<RMTTrackDevice>::instance()->enable_ops_output();
+      esp32cs::enable_ops_track_output();
     }
     else
     {
-      Singleton<RMTTrackDevice>::instance()->disable_ops_output();
-      Singleton<RMTTrackDevice>::instance()->disable_prog_output();
+      esp32cs::disable_track_outputs();
     }
   }
   return new StringResponse(response, MIME_TYPE_APPLICATION_JSON);
@@ -433,7 +431,7 @@ HTTP_HANDLER_IMPL(process_config, request)
       request->has_param("ops-shutdown") && request->has_param("ops-shutdown-clear") &&
       request->has_param("ops-thermal") && request->has_param("ops-thermal-clear"))
   {
-    Singleton<ConfigurationManager>::instance()->setHBridgeEvents(OPS_CDI_TRACK_OUTPUT_INDEX
+    Singleton<ConfigurationManager>::instance()->setHBridgeEvents(esp32cs::OPS_CDI_TRACK_OUTPUT_IDX
                                 , request->param("ops-short")
                                 , request->param("ops-short-clear")
                                 , request->param("ops-shutdown")
@@ -444,7 +442,7 @@ HTTP_HANDLER_IMPL(process_config, request)
   if (request->has_param("prog-short") && request->has_param("prog-short-clear") &&
       request->has_param("prog-shutdown") && request->has_param("prog-shutdown-clear"))
   {
-    Singleton<ConfigurationManager>::instance()->setHBridgeEvents(PROG_CDI_TRACK_OUTPUT_INDEX
+    Singleton<ConfigurationManager>::instance()->setHBridgeEvents(esp32cs::PROG_CDI_TRACK_OUTPUT_IDX
                                 , request->param("prog-short")
                                 , request->param("prog-short-clear")
                                 , request->param("prog-shutdown")
@@ -799,7 +797,7 @@ HTTP_HANDLER_IMPL(process_loco, request)
   // command station (method) so check it first
   if (url.find("/estop") != string::npos)
   {
-    Singleton<esp32cs::EStopHandler>::instance()->set_state(true);
+    esp32cs::initiate_estop();
     request->set_status(HttpStatusCode::STATUS_OK);
   }
   else if (url.find("/roster")  != string::npos)

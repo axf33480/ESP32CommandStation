@@ -19,10 +19,10 @@ COPYRIGHT (c) 2019 Mike Dunston
 
 #include <dcc/ProgrammingTrackBackend.hxx>
 #include <dcc/DccDebug.hxx>
-#include <dcc/LocalTrackIf.hxx>
+#include <DuplexedTrackIf.h>
 #include <utils/Uninitialized.hxx>
 
-extern uninitialized<dcc::LocalTrackIf> trackInterface;
+extern uninitialized<esp32cs::DuplexedTrackIf> trackInterface;
 
 // number of attempts the programming track will make to read/write a CV
 static constexpr uint8_t PROG_TRACK_CV_ATTEMPTS = 3;

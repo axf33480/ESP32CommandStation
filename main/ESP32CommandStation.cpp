@@ -26,13 +26,14 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 #include <dcc/RailcomHub.hxx>
 #include <esp_adc_cal.h>
 #include <esp_log.h>
-#include <EStopHandler.h>
 #include <executor/PoolToQueueFlow.hxx>
 #include <FreeRTOSTaskMonitor.h>
+
 #include <nvs.h>
 #include <nvs_flash.h>
 #include <openlcb/SimpleInfoProtocol.hxx>
-#include <RMTTrackDevice.h>
+
+#include <DCCSignalVFS.h>
 #include <StatusDisplay.h>
 #include <StatusLED.h>
 #include <HC12Radio.h>
@@ -152,7 +153,7 @@ namespace openlcb
   const char *const SNIP_DYNAMIC_FILENAME = LCC_CONFIG_FILE;
 }
 
-uninitialized<dcc::LocalTrackIf> trackInterface;
+uninitialized<esp32cs::DuplexedTrackIf> trackInterface;
 
 // when the command station starts up the first time the config is blank
 // and needs to be reset to factory settings. This class being declared here
@@ -232,17 +233,17 @@ extern "C" void app_main()
   // (if configured) and then load the CS configuration (if present) or
   // prepare the default configuration. This will also include the LCC
   // Factory reset (if required).
-  ConfigurationManager *config = new ConfigurationManager(cfg);
+  ConfigurationManager config(cfg);
 
   LOG(INFO, "[LCC] Initializing Stack");
 #ifdef CONFIG_LCC_TCP_STACK
-  lccStack.reset(new openlcb::SimpleTcpStack(config->getNodeId()));
+  lccStack.reset(new openlcb::SimpleTcpStack(config.getNodeId()));
 #else
-  lccStack.reset(new openlcb::SimpleCanStack(config->getNodeId()));
+  lccStack.reset(new openlcb::SimpleCanStack(config.getNodeId()));
 #endif // CONFIG_LCC_TCP_STACK
 
   // Initialize the enabled modules.
-  config->configureWiFi();
+  config.configureWiFi();
 
   // Initialize the status display module (dependency of WiFi)
   StatusDisplay statusDisplay(lccStack.get(), lccStack->service());
@@ -295,21 +296,25 @@ extern "C" void app_main()
   // Initialize the factory reset helper for the CS.
   FactoryResetHelper resetHelper;
 
-  // Initialize Track Signal Device (both OPS and PROG)
-  RMTTrackDevice trackSignal(lccStack->node()
-                           , lccStack->service()
-                           , cfg.seg().hbridge().entry(OPS_CDI_TRACK_OUTPUT_INDEX)
-                           , cfg.seg().hbridge().entry(PROG_CDI_TRACK_OUTPUT_INDEX));
+  // Initialize the DCC VFS adapter, this will also initialize the DCC signal
+  // generation code.
+  esp32cs::init_dcc_vfs(lccStack->node(), lccStack->service()
+                      , cfg.seg().hbridge().entry(esp32cs::OPS_CDI_TRACK_OUTPUT_IDX)
+                      , cfg.seg().hbridge().entry(esp32cs::PROG_CDI_TRACK_OUTPUT_IDX));
 
   // Initialize Local Track inteface.
   trackInterface.emplace(lccStack->service()
                        , CONFIG_DCC_PACKET_POOL_SIZE);
 
-  // Open a handle to the track device driver
-  int track = ::open("/dev/track", O_RDWR);
-  HASSERT(track > 0);
-  // pass the track device handle to the track interface
-  trackInterface->set_fd(track);
+  int ops_track = ::open(
+    StringPrintf("/dev/track/%s", CONFIG_OPS_TRACK_NAME).c_str(), O_WRONLY);
+  HASSERT(ops_track > 0);
+  trackInterface->set_fd_ops(ops_track);
+
+  int prog_track = ::open(
+    StringPrintf("/dev/track/%s", CONFIG_PROG_TRACK_NAME).c_str(), O_WRONLY);
+  HASSERT(prog_track > 0);
+  trackInterface->set_fd_prog(prog_track);
 
   // Initialize the DCC Update Loop.
   dcc::SimpleUpdateLoop dccUpdateLoop(lccStack->service()
@@ -320,21 +325,10 @@ extern "C" void app_main()
                                                    , trackInterface->pool()
                                                    , &dccUpdateLoop);
 
-  // Initialize the e-stop event handler
-  esp32cs::EStopHandler eStop(lccStack->node());
-
-  // Initialize the Programming Track backend handler
-  ProgrammingTrackBackend
-    progTrackBackend(lccStack->service()
-                   , std::bind(&RMTTrackDevice::enable_prog_output
-                             , &trackSignal)
-                   , std::bind(&RMTTrackDevice::disable_prog_output
-                             , &trackSignal));
-
   // Initialize the OpenMRN stack, this needs to be done *AFTER* all other LCC
   // dependent components as it will initiate configuration load and factory
   // reset calls.
-  config->configureLCC();
+  config.configureLCC();
 
   // Initialize the DCC++ protocol adapter
   DCCPPProtocolHandler::init();
@@ -415,7 +409,7 @@ DCC_PROTOCOL_COMMAND_HANDLER(StatusCommand,
   const esp_app_desc_t *app_data = esp_ota_get_app_description();
   string status = StringPrintf("<iDCC++ ESP32 Command Station: V-%s / %s %s>"
                 , app_data->version, app_data->date, app_data->time);
-  status += Singleton<RMTTrackDevice>::instance()->get_state_for_dccpp();
+  status += esp32cs::get_track_state_for_dccpp();
   auto trains = Singleton<commandstation::AllTrainNodes>::instance();
   for (size_t id = 0; id < trains->size(); id++)
   {

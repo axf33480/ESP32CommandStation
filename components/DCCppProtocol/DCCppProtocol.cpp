@@ -25,12 +25,12 @@ and has been adapter for use in ESP32 COMMAND STATION.
 
 #include "sdkconfig.h"
 
+#include <algorithm>
 #include <AllTrainNodes.hxx>
+#include <DCCSignalVFS.h>
 #include <esp_ota_ops.h>
 #include <esp_wifi.h>
 #include <esp_wifi_types.h>
-#include <EStopHandler.h>
-#include <RMTTrackDevice.h>
 #include <memory>
 #include <HttpStringUtils.h>
 #include <Turnouts.h>
@@ -145,7 +145,7 @@ DECLARE_DCC_PROTOCOL_COMMAND_CLASS(EStopCommand, "estop")
 DCC_PROTOCOL_COMMAND_HANDLER(EStopCommand,
 [](const vector<string> arguments)
 {
-  Singleton<esp32cs::EStopHandler>::instance()->set_state(true);
+  esp32cs::initiate_estop();
   return COMMAND_SUCCESSFUL_RESPONSE;
 })
 
@@ -153,14 +153,14 @@ DECLARE_DCC_PROTOCOL_COMMAND_CLASS(CurrentDrawCommand, "c")
 DCC_PROTOCOL_COMMAND_HANDLER(CurrentDrawCommand,
 [](const vector<string> arguments)
 {
-  return Singleton<RMTTrackDevice>::instance()->get_state_for_dccpp();
+  return esp32cs::get_track_state_for_dccpp();
 })
 
 DECLARE_DCC_PROTOCOL_COMMAND_CLASS(PowerOnCommand, "1")
 DCC_PROTOCOL_COMMAND_HANDLER(PowerOnCommand,
 [](const vector<string> arguments)
 {
-  Singleton<RMTTrackDevice>::instance()->enable_ops_output();
+  esp32cs::enable_ops_track_output();
   // hardcoded response since enable/disable is deferred until the next
   // check interval.
   return "<p1 OPS>";
@@ -170,7 +170,7 @@ DECLARE_DCC_PROTOCOL_COMMAND_CLASS(PowerOffCommand, "0")
 DCC_PROTOCOL_COMMAND_HANDLER(PowerOffCommand,
 [](const vector<string> arguments)
 {
-  Singleton<RMTTrackDevice>::instance()->disable_ops_output();
+  esp32cs::disable_track_outputs();
   // hardcoded response since enable/disable is deferred until the next
   // check interval.
   return "<p0 OPS>";

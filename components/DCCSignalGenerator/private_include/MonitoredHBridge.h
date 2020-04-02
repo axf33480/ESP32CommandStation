@@ -1,7 +1,7 @@
 /**********************************************************************
 ESP32 COMMAND STATION
 
-COPYRIGHT (c) 2018-2019 Mike Dunston
+COPYRIGHT (c) 2018-2020 Mike Dunston
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -23,44 +23,36 @@ COPYRIGHT (c) 2018-2019 Mike Dunston
 #include <executor/StateFlow.hxx>
 #include <openlcb/EventHandlerTemplates.hxx>
 #include <openlcb/Node.hxx>
+#include <openlcb/PolledProducer.hxx>
+#include <os/Gpio.hxx>
 #include <os/OS.hxx>
 #include <utils/ConfigUpdateListener.hxx>
+#include <utils/Debouncer.hxx>
 #include <utils/format_utils.hxx>
 #include <utils/logging.h>
 #include <driver/adc.h>
 #include <esp_adc_cal.h>
 
-class MonitoredHBridge : public StateFlowBase, public DefaultConfigUpdateListener {
+class HBridgeShortDetector : public DefaultConfigUpdateListener
+                           , public openlcb::Polling
+{
 public:
-  MonitoredHBridge(openlcb::Node *
-                 , Service *
-                 , const adc1_channel_t
-                 , const gpio_num_t
-                 , const gpio_num_t
-                 , const uint32_t
-                 , const uint32_t
-                 , const std::string &
-                 , const std::string &
-                 , const esp32cs::TrackOutputConfig &);
+  HBridgeShortDetector(openlcb::Node *node
+                     , const adc1_channel_t senseChannel
+                     , const Gpio *enablePin
+                     , const uint32_t limitMilliAmps
+                     , const uint32_t maxMilliAmps
+                     , const string &name
+                     , const string &bridgeType
+                     , const esp32cs::TrackOutputConfig &cfg);
 
-  MonitoredHBridge(openlcb::Node *
-                 , Service *
-                 , const adc1_channel_t
-                 , const gpio_num_t
-                 , const uint32_t
-                 , const uint32_t
-                 , const std::string &
-                 , const std::string &
-                 , const esp32cs::TrackOutputConfig &);
-
-  MonitoredHBridge(openlcb::Node *
-                 , Service *
-                 , const adc1_channel_t
-                 , const gpio_num_t
-                 , const uint32_t
-                 , const std::string &
-                 , const std::string &
-                 , const esp32cs::TrackOutputConfig &);
+  HBridgeShortDetector(openlcb::Node *node
+                     , const adc1_channel_t senseChannel
+                     , const Gpio *enablePin
+                     , const uint32_t
+                     , const std::string &name
+                     , const std::string &bridgeType
+                     , const esp32cs::TrackOutputConfig &cfg);
 
   enum STATE
   {
@@ -113,28 +105,15 @@ public:
 
   std::string get_state_for_dccpp();
 
-  void disable();
-
-  void enable();
-
   UpdateAction apply_configuration(int fd, bool initial_load, BarrierNotifiable *done) override
   {
     AutoNotify n(done);
-    UpdateAction res = UPDATED;
+    UpdateAction res = initial_load ? REINIT_NEEDED : UPDATED;
     openlcb::EventId short_detected = cfg_.event_short().read(fd);
     openlcb::EventId short_cleared = cfg_.event_short_cleared().read(fd);
     openlcb::EventId shutdown = cfg_.event_shutdown().read(fd);
     openlcb::EventId shutdown_cleared = cfg_.event_shutdown_cleared().read(fd);
-    openlcb::EventId thermal_shutdown = cfg_.event_thermal_shutdown().read(fd);
-    openlcb::EventId thermal_shutdown_cleared = cfg_.event_thermal_shutdown_cleared().read(fd);
 
-    if (initial_load)
-    {
-      start_flow(STATE(init));
-      res = REINIT_NEEDED;
-    }
-
-    // reinitialize the event producer
     auto saved_node = shortBit_.node();
     if (short_detected != shortBit_.event_on() ||
         short_cleared != shortBit_.event_off())
@@ -156,17 +135,6 @@ public:
       new (&shutdownProducer_)openlcb::BitEventProducer(&shutdownBit_);
       res = REINIT_NEEDED;
     }
-
-    if (thermal_shutdown != shortBit_.event_on() ||
-        thermal_shutdown_cleared != shortBit_.event_off())
-    {
-      saved_node = thermalBit_.node();
-      thermalBit_.openlcb::MemoryBit<uint8_t>::~MemoryBit();
-      new (&thermalBit_)openlcb::MemoryBit<uint8_t>(saved_node, thermal_shutdown, thermal_shutdown_cleared, &state_, STATE_THERMAL_SHUTDOWN);
-      thermalProducer_.openlcb::BitEventProducer::~BitEventProducer();
-      new (&thermalProducer_)openlcb::BitEventProducer(&thermalBit_);
-      res = REINIT_NEEDED;
-    }
     return res;
   }
 
@@ -178,10 +146,12 @@ public:
     cfg_.description().write(fd, StringPrintf("%s Track", name_.c_str()));
   }
 
+  void poll_33hz(openlcb::WriteHelper *helper, Notifiable *done) override;
+
 private:
   const adc1_channel_t channel_;
-  const gpio_num_t enablePin_;
-  const gpio_num_t thermalWarningPin_;
+  const Gpio *enablePin_;
+  const Gpio *thermalWarningPin_;
   const uint32_t maxMilliAmps_;
   const std::string name_;
   const std::string bridgeType_;
@@ -197,17 +167,10 @@ private:
   const uint8_t overCurrentRetryCount_{3};
   const uint64_t overCurrentRetryInterval_{MSEC_TO_NSEC(25)};
   const uint64_t currentReportInterval_{SEC_TO_USEC(30)};
-  const uint8_t thermalWarningRetryCount_{3};
-  const uint64_t thermalWarningRetryInterval_{MSEC_TO_NSEC(25)};
-  StateFlowTimer timer_{this};
   openlcb::MemoryBit<uint8_t> shortBit_;
   openlcb::MemoryBit<uint8_t> shutdownBit_;
-  openlcb::MemoryBit<uint8_t> thermalBit_;
   openlcb::BitEventProducer shortProducer_;
   openlcb::BitEventProducer shutdownProducer_;
-  openlcb::BitEventProducer thermalProducer_;
-  openlcb::WriteHelper helper_;
-  BarrierNotifiable n_;
   uint64_t lastReport_{0};
   uint32_t lastReading_{0};
   uint8_t state_{STATE_OFF};
@@ -217,23 +180,7 @@ private:
   uint8_t overCurrentCheckCount_{0};
   uint8_t thermalWarningCheckCount_{0};
 
-  STATE_FLOW_STATE(init);
-  STATE_FLOW_STATE(check);
-
-  Action sleep_and_check_state()
-  {
-    return sleep_and_call(&timer_, checkInterval_, STATE(check));
-  }
-
-  Action sleep_and_check_overcurrent()
-  {
-    return sleep_and_call(&timer_, overCurrentRetryInterval_, STATE(check));
-  }
-
-  Action sleep_and_check_thermal_warning()
-  {
-    return sleep_and_call(&timer_, thermalWarningRetryInterval_, STATE(check));
-  }
+  void configure();
 };
 
 #endif // MONITORED_H_BRIDGE_

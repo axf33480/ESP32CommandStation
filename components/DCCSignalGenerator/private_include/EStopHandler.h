@@ -1,7 +1,7 @@
 /**********************************************************************
 ESP32 COMMAND STATION
 
-COPYRIGHT (c) 2019 Mike Dunston
+COPYRIGHT (c) 2019-2020 Mike Dunston
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -22,8 +22,8 @@ COPYRIGHT (c) 2019 Mike Dunston
 #include <dcc/SimpleUpdateLoop.hxx>
 #include <openlcb/Defs.hxx>
 #include <openlcb/EventHandlerTemplates.hxx>
+#include <utils/Atomic.hxx>
 #include <utils/logging.h>
-#include <utils/Singleton.hxx>
 
 namespace esp32cs
 {
@@ -32,8 +32,8 @@ namespace esp32cs
 // continuous stream of e-stop DCC packets until the E-Stop event has been
 // received or the state has been reset via API.
 class EStopHandler : public openlcb::BitEventInterface
-                   , public Singleton<EStopHandler>
                    , public dcc::NonTrainPacketSource
+                   , private Atomic
 {
 public:
   EStopHandler(openlcb::Node *node)
@@ -42,7 +42,9 @@ public:
     , node_(node)
     , remaining_(0)
   {
-    LOG(VERBOSE, "[eStop] Registered for event handling...");
+    LOG(INFO, "[eStop] Registering emergency stop handler (On: %s, Off:%s)"
+      , uint64_to_string_hex(openlcb::Defs::EMERGENCY_STOP_EVENT).c_str()
+      , uint64_to_string_hex(openlcb::Defs::CLEAR_EMERGENCY_STOP_EVENT).c_str());
   }
 
   openlcb::EventState get_current_state() override
@@ -60,9 +62,8 @@ public:
   }
 
 private:
-  openlcb::BitEventConsumer consumer_{this};
+  openlcb::BitEventPC pc_{this};
   openlcb::Node *node_;
-  OSMutex lock_;
   int16_t remaining_;
 };
 

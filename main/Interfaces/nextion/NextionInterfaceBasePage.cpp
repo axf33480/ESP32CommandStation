@@ -17,6 +17,8 @@ COPYRIGHT (c) 2018-2019 NormHal, Mike Dunston
 
 #include "ESP32CommandStation.h"
 
+#include <DCCSignalVFS.h>
+
 #if CONFIG_NEXTION
 
 constexpr uint8_t ON_PIC_OFF=54;
@@ -76,7 +78,7 @@ void BaseNextionPage::setTrackPower(bool on) {
 }
 
 void BaseNextionPage::sendEStop() {
-  Singleton<esp32cs::EStopHandler>::instance()->set_state(true);
+  initiate_estop();
   refresh();
 }
 

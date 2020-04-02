@@ -26,15 +26,16 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 #include <driver/sdspi_host.h>
 #include <esp_spiffs.h>
 #include <esp_vfs_fat.h>
+#if defined(CONFIG_LCC_CAN_ENABLED)
+#include <freertos_drivers/esp32/Esp32HardwareCanAdapter.hxx>
+#endif // CONFIG_LCC_CAN_ENABLED
 #include <Httpd.h>
 #include <json.hpp>
-#include <sdmmc_cmd.h>
 #include <openlcb/MemoryConfig.hxx>
+#include <sdmmc_cmd.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <utils/FileUtils.hxx>
-
-#include <RMTTrackDevice.h>
 
 using nlohmann::json;
 
@@ -254,6 +255,7 @@ ConfigurationManager::ConfigurationManager(const esp32cs::Esp32ConfigDef &cfg)
       // Check if we need to force a reset of the LCC config (node id change)
       auto lccConfig = csConfig[JSON_LCC_NODE];
       if (lccConfig.contains(JSON_LCC_FORCE_RESET_NODE) &&
+          lccConfig[JSON_LCC_FORCE_RESET_NODE].is_boolean() &&
           lccConfig[JSON_LCC_FORCE_RESET_NODE].get<bool>())
       {
         LOG(WARNING, "[Config] LCC force factory_reset flag is ENABLED!");
@@ -475,24 +477,22 @@ bool ConfigurationManager::setNodeID(string value)
 
 void ConfigurationManager::configureLCC()
 {
-  auto lccConfig = csConfig[JSON_LCC_NODE];
-  if (lccConfig.contains(JSON_LCC_CAN_NODE))
+#if defined(CONFIG_LCC_CAN_ENABLED) && !defined(CONFIG_LCC_TCP_STACK)
+  if (csConfig[JSON_LCC_NODE].contains(JSON_LCC_CAN_NODE) &&
+      csConfig[JSON_LCC_NODE][JSON_LCC_CAN_NODE].is_boolean() &&
+      csConfig[JSON_LCC_NODE][JSON_LCC_CAN_NODE].get<bool>())
   {
-    auto canConfig = lccConfig[JSON_LCC_CAN_NODE];
-    bool canEnabled = canConfig[JSON_LCC_CAN_ENABLED_NODE];
-    gpio_num_t canRXPin =
-      (gpio_num_t)canConfig[JSON_LCC_CAN_RX_NODE].get<uint8_t>();
-    gpio_num_t canTXPin =
-      (gpio_num_t)canConfig[JSON_LCC_CAN_TX_NODE].get<uint8_t>();
-    if (canEnabled && canRXPin < GPIO_NUM_MAX && canTXPin < GPIO_NUM_MAX)
-    {
-      LOG(INFO, "[Config] Enabling LCC CAN interface (rx: %d, tx: %d)"
-        , canRXPin, canTXPin);
-// TODO: re-introduce CAN interface after reimplementing as HubFlow
-//      openmrn->add_can_port(
-//        new Esp32HardwareCan("esp32can", canRXPin, canTXPin, false));
-    }
+    LOG(INFO, "[Config] Enabling LCC CAN interface (rx: %d, tx: %d)"
+      , CONFIG_LCC_CAN_RX_PIN, CONFIG_LCC_CAN_TX_PIN);
+    lccStack->executor()->add(
+      new CanBridge(
+        new Esp32HardwareCan("esp32can"
+                          , (gpio_num_t)CONFIG_LCC_CAN_RX_PIN
+                          , (gpio_num_t)CONFIG_LCC_CAN_TX_PIN
+                          , false)
+      , ((openlcb::SimpleCanStack *)lccStack.operator->())->can_hub()));
   }
+#endif // CONFIG_LCC_CAN_ENABLED && !CONFIG_LCC_TCP_STACK
 
   // Create the CDI.xml dynamically if it doesn't already exist.
   CDIHelper::create_config_descriptor_xml(cfg_, LCC_CDI_XML, lccStack.get());
@@ -529,9 +529,9 @@ void ConfigurationManager::setLCCHub(bool enabled)
 
 bool ConfigurationManager::setLCCCan(bool enabled)
 {
-  if (csConfig[JSON_LCC_NODE][JSON_LCC_CAN_NODE][JSON_LCC_CAN_ENABLED_NODE] != enabled)
+  if (csConfig[JSON_LCC_NODE][JSON_LCC_CAN_NODE] != enabled)
   {
-    csConfig[JSON_LCC_NODE][JSON_LCC_CAN_NODE][JSON_LCC_CAN_ENABLED_NODE] = enabled;
+    csConfig[JSON_LCC_NODE][JSON_LCC_CAN_NODE] = enabled;
     persistConfig();
     SCHEDULE_REBOOT();
     return true;
@@ -578,7 +578,8 @@ bool ConfigurationManager::setWiFiStationParams(string ssid, string password
   {
     auto station = csConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE];
     if (!station.contains(JSON_WIFI_MODE_NODE) ||
-        station[JSON_WIFI_MODE_NODE].get<string>().compare(JSON_VALUE_STATION_IP_MODE_DHCP))
+        (station[JSON_WIFI_MODE_NODE].is_string() &&
+         station[JSON_WIFI_MODE_NODE].get<string>().compare(JSON_VALUE_STATION_IP_MODE_DHCP)))
     {
       LOG(INFO, "[Config] Reconfiguring Station IP mode to DHCP");
       csConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_MODE_NODE] = JSON_VALUE_STATION_IP_MODE_DHCP;
@@ -642,7 +643,7 @@ void ConfigurationManager::setHBridgeEvents(uint8_t index
   CDI_COMPARE_AND_SET(hbridge.event_shutdown_cleared, configFd_
                     , string_to_uint64(evt_shutdown_off), upd);
   // only OPS has the thermal pin
-  if (index == OPS_CDI_TRACK_OUTPUT_INDEX)
+  if (index == esp32cs::OPS_CDI_TRACK_OUTPUT_IDX)
   {
     CDI_COMPARE_AND_SET(hbridge.event_thermal_shutdown, configFd_
                       , string_to_uint64(evt_thermal_on), upd);
@@ -713,6 +714,7 @@ bool ConfigurationManager::validateConfiguration()
   LOG(VERBOSE, "[Config] LCC config: %s", lccNode.dump().c_str());
 
   if (!lccNode.contains(JSON_LCC_NODE_ID_NODE) ||
+      !lccNode[JSON_LCC_NODE_ID_NODE].is_number_unsigned() ||
       lccNode[JSON_LCC_NODE_ID_NODE].get<uint64_t>() == 0)
   {
     LOG_ERROR("[Config] Missing LCC node ID!");
@@ -720,11 +722,9 @@ bool ConfigurationManager::validateConfiguration()
   }
 
   if (!lccNode.contains(JSON_LCC_CAN_NODE) ||
-      !lccNode[JSON_LCC_CAN_NODE].contains(JSON_LCC_CAN_RX_NODE) ||
-      !lccNode[JSON_LCC_CAN_NODE].contains(JSON_LCC_CAN_TX_NODE) ||
-      !lccNode[JSON_LCC_CAN_NODE].contains(JSON_LCC_CAN_ENABLED_NODE))
+      !lccNode[JSON_LCC_CAN_NODE].is_boolean())
   {
-    LOG_ERROR("[Config] LCC CAN configuration invalid.");
+    LOG_ERROR("[Config] LCC CAN enabled flag is missing or not a boolean!");
     return false;
   }
 
@@ -741,19 +741,11 @@ bool ConfigurationManager::seedDefaultConfigSections()
     csConfig[JSON_LCC_NODE] =
     {
       { JSON_LCC_NODE_ID_NODE, UINT64_C(CONFIG_LCC_NODE_ID) },
-      { JSON_LCC_CAN_NODE,
-        {
-#if CONFIG_LCC_CAN_ENABLED
-          { JSON_LCC_CAN_ENABLED_NODE, (bool)(CONFIG_LCC_CAN_ENABLED) },
-          { JSON_LCC_CAN_RX_NODE, CONFIG_LCC_CAN_RX_PIN },
-          { JSON_LCC_CAN_TX_NODE, CONFIG_LCC_CAN_TX_PIN },
+#if defined(CONFIG_LCC_CAN_ENABLED)
+      { JSON_LCC_CAN_NODE, true },
 #else
-          { JSON_LCC_CAN_ENABLED_NODE, false },
-          { JSON_LCC_CAN_RX_NODE, -1 },
-          { JSON_LCC_CAN_TX_NODE, -1 },
+      { JSON_LCC_CAN_NODE, false },
 #endif
-        }
-      },
       { JSON_LCC_FORCE_RESET_NODE, false },
     };
     config_updated = true;
@@ -853,8 +845,8 @@ void ConfigurationManager::configureWiFi()
 {
   parseWiFiConfig();
   LOG(INFO, "[Config] Registering WiFi Manager");
-  // TODO: decide what needs to be done in Esp32WiFiManager for passing
-  // SimpleStackBase * instead of casting to SimpleCanStack *
+  // TODO: Switch to SimpleStackBase * instead of casting to SimpleCanStack *
+  // once Esp32WiFiManager supports this.
   wifiManager.reset(new Esp32WiFiManager(wifiSSID_.c_str()
                                        , wifiPassword_.c_str()
                                        , (openlcb::SimpleCanStack *)lccStack.get()

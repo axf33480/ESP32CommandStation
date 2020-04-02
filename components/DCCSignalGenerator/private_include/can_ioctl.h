@@ -120,10 +120,7 @@ extern "C" {
 #define CAN_IOC_READ_ACTIVE IOW(CAN_IOC_MAGIC, 1, NOTIFIABLE_TYPE)
 
 /** write active ioctl. Argument is a literal pointer to a Notifiable. */
-#define CAN_IOC_WRITE_OPS_ACTIVE IOW(CAN_IOC_MAGIC, 2, NOTIFIABLE_TYPE)
-
-/** write active ioctl. Argument is a literal pointer to a Notifiable. */
-#define CAN_IOC_WRITE_PROG_ACTIVE IOW(CAN_IOC_MAGIC, 3, NOTIFIABLE_TYPE)
+#define CAN_IOC_WRITE_ACTIVE IOW(CAN_IOC_MAGIC, 2, NOTIFIABLE_TYPE)
 
 #if defined (__cplusplus)
 }

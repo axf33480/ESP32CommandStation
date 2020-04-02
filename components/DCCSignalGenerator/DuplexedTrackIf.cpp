@@ -38,8 +38,8 @@
  */
 
 #include "can_ioctl.h"
+#include "DuplexedTrackIf.h"
 
-#include <dcc/LocalTrackIf.hxx>
 #include <dcc/Packet.hxx>
 #include <executor/Executor.hxx>
 #include <executor/StateFlow.hxx>
@@ -47,31 +47,29 @@
 #include <utils/Buffer.hxx>
 #include <utils/Queue.hxx>
 
-namespace dcc
+namespace esp32cs
 {
 
-LocalTrackIf::LocalTrackIf(Service *service, int pool_size)
+DuplexedTrackIf::DuplexedTrackIf(Service *service, int pool_size)
     : StateFlow<Buffer<dcc::Packet>, QList<1>>(service)
-    , fd_(-1)
     , pool_(sizeof(Buffer<dcc::Packet>), pool_size)
 {
 }
 
-StateFlowBase::Action LocalTrackIf::entry()
+StateFlowBase::Action DuplexedTrackIf::entry()
 {
-  HASSERT(fd_ >= 0);
   auto *p = message()->data();
-  int ret = ::write(fd_, p, sizeof(*p));
+  auto fd = p->packet_header.send_long_preamble ?
+    fd_prog_ : fd_ops_;
+  HASSERT(fd >= 0);
+  int ret = ::write(fd, p, sizeof(*p));
   if (ret < 0)
   {
     HASSERT(errno == ENOSPC);
-    ::ioctl(fd_
-          , p->packet_header.send_long_preamble ?
-            CAN_IOC_WRITE_PROG_ACTIVE : CAN_IOC_WRITE_OPS_ACTIVE
-          , this);
+    ::ioctl(fd, CAN_IOC_WRITE_ACTIVE, this);
     return wait();
   }
   return finish();
 }
 
-} // namespace dcc
+} // namespace esp32cs

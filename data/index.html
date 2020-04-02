@@ -1140,7 +1140,7 @@ function int_to_hex(value, length) {return pad_hex(value.toString(16), length);}
 function pad_hex(str, length) {var hex = new Array(length + 1).join('0') + str;return hex.substr(-length).match(/.{1,2}/g).join('.');}
 function csConfigUpdate(data) {
  $('#cs-lcc-node-id').val(int_to_hex(data.lcc.id, 12));
- $('#cs-lcc-can').prop('checked', (data.lcc.can.enable && data.lcc.can.rx !== -1 && data.lcc.can.tx !== -1)).flipswitch('refresh');
+ $('#cs-lcc-can').prop('checked', data.lcc.can).flipswitch('refresh');
  $('#cs-lcc-hub').prop('checked', data.cdi.hub.enable).flipswitch('refresh');
  $('#cs-lcc-uplink-reconnect').prop('checked', data.cdi.uplink.reconnect).flipswitch('refresh');
  $('#cs-lcc-uplink-auto-service').val(data.cdi.uplink.auto_service);

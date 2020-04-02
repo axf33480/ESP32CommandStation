@@ -24,9 +24,7 @@ idf_build_set_property(CXX_COMPILE_OPTIONS "${CXX_OPTIONS}" REPLACE)
 # Add required compilation flags for customization of OpenMRNLite
 ###############################################################################
 
-idf_build_set_property(COMPILE_DEFINITIONS "-DESP32_WIFIMGR_SOCKETPARAMS_LOG_LEVEL=VERBOSE" APPEND)
-idf_build_set_property(COMPILE_DEFINITIONS "-DESP32_WIFIMGR_MDNS_LOOKUP_LOG_LEVEL=VERBOSE" APPEND)
-idf_build_set_property(COMPILE_DEFINITIONS "-DLOCKED_LOGGING" APPEND)
+# none currently
 
 ###############################################################################
 # Enable usage of std::stoi/stol/etc

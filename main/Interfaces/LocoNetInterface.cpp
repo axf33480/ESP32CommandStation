@@ -20,6 +20,7 @@ COPYRIGHT (c) 2019-2020 Mike Dunston
 #if LOCONET_ENABLED
 
 #include <AllTrainNodes.hxx>
+#include <DCCSignalVFS.h>
 
 LocoNetESP32Uart locoNet(LOCONET_RX_PIN, LOCONET_TX_PIN, LOCONET_UART, LOCONET_INVERTED_LOGIC, LOCONET_ENABLE_RX_PIN_PULLUP);
 
@@ -64,7 +65,7 @@ void initializeLocoNet()
   locoNet.onPacket(OPC_IDLE, [](lnMsg *msg)
   {
     LOG(INFO, "[LocoNet] Requesting eStop!");
-    Singleton<esp32cs::EStopHandler>::instance()->set_state(true);
+    initiate_estop();
   });
   locoNet.onPacket(OPC_LOCO_ADR, [](lnMsg *msg)
   {

@@ -23,7 +23,6 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 #include <driver/i2c.h>
 #include <esp_ota_ops.h>
 #include <freertos_drivers/esp32/Esp32WiFiManager.hxx>
-#include <RMTTrackDevice.h>
 
 static constexpr uint8_t STATUS_DISPLAY_LINE_COUNT = 5;
 
@@ -642,24 +641,20 @@ StateFlowBase::Action StatusDisplay::update()
     }
     else if (rotatingIndex_ == 3)
     {
-      status(Singleton<RMTTrackDevice>::instance()->get_status_screen_data());
-    }
-    else if (rotatingIndex_ == 4)
-    {
       AtomicHolder h(this);
       static uint8_t _lccStatusIndex = 0;
       ++_lccStatusIndex %= 5;
       if(_lccStatusIndex == 0)
       {
-        status("LCC Nodes: %d", lccRemoteNodeCount_);
+        status("LCC Rmt:%d", lccRemoteNodeCount_);
       }
       else if (_lccStatusIndex == 1)
       {
-        status("LCC Lcl: %d", lccLocalNodeCount_);
+        status("LCC Lcl:%d", lccLocalNodeCount_);
       }
       else if (_lccStatusIndex == 2)
       {
-        status("LCC dg_svc: %d"
+        status("LCC Dg: %d"
              , stack_->dg_service()->client_allocator()->pending());
       }
       else if (_lccStatusIndex == 3)

@@ -381,11 +381,12 @@ menu "DCC Signal"
 
     config DCC_PACKET_POOL_SIZE
         int "Maximum number of DCC packets to queue"
+        default 5
+        range 2 10
         help
             Declares the maximum number of DCC packets to allow for the
             track, generally this does not need to be very large and the
             default value should be sufficient.
-        default 5
 
     config DCC_ESTOP_PACKET_COUNT
         int "Number of eStop packets to send before powering off track"
