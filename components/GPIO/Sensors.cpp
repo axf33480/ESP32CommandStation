@@ -17,7 +17,7 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 
 #include "sdkconfig.h"
 
-#if CONFIG_GPIO_SENSORS
+#if defined(CONFIG_GPIO_SENSORS)
 
 #include <ConfigurationManager.h>
 #include <DCCppProtocol.h>

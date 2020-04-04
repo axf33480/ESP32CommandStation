@@ -60,7 +60,7 @@ GPIO_PIN(OPS_THERMAL, GpioInputPU, CONFIG_OPS_THERMAL_PIN);
 typedef DummyPinWithReadHigh OPS_THERMAL_Pin;
 #endif // CONFIG_OPS_THERMAL_PIN
 
-#if CONFIG_OPS_RAILCOM
+#if defined(CONFIG_OPS_RAILCOM)
 /// OPS Track h-bridge brake pin, active HIGH.
 GPIO_PIN(OPS_RAILCOM_BRAKE, GpioInputPU, CONFIG_OPS_RAILCOM_BRAKE_PIN);
 
@@ -350,7 +350,7 @@ void init_dcc_vfs(openlcb::Node *node, Service *service
 
   update_status_display();
 
-#if CONFIG_OPS_ENERGIZE_ON_STARTUP
+#if defined(CONFIG_OPS_ENERGIZE_ON_STARTUP)
   power_event->set_state(true);
 #endif
 }

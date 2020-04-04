@@ -17,6 +17,8 @@ COPYRIGHT (c) 2018-2020 Mike Dunston
 
 #include "HC12Radio.h"
 
+#if defined(CONFIG_HC12)
+
 namespace esp32cs
 {
 
@@ -24,14 +26,11 @@ HC12Radio::HC12Radio(Service *service, uart_port_t port, gpio_num_t rx
                    , gpio_num_t tx)
                    : StateFlowBase(service), uart_(port), rx_(rx), tx_(tx)
 {
-#if CONFIG_HC12
   start_flow(STATE(initialize));
-#endif
 }
 
 StateFlowBase::Action HC12Radio::initialize()
 {
-#if CONFIG_HC12
   CONFIGURE_UART("hc12", uart_, CONFIG_HC12_BAUD_RATE, rx_, tx_
                , CONFIG_HC12_BUFFER_SIZE, CONFIG_HC12_BUFFER_SIZE)
 
@@ -49,7 +48,6 @@ StateFlowBase::Action HC12Radio::initialize()
 
   LOG_ERROR("[HC12] Initialization failure, unable to open UART device: %s"
           , strerror(errno));
-#endif
   return exit();
 }
 
@@ -81,3 +79,5 @@ StateFlowBase::Action HC12Radio::wait_for_data()
 }
 
 } // namespace esp32cs
+
+#endif // CONFIG_HC12

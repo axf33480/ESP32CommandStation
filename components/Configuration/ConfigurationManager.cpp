@@ -137,12 +137,12 @@ void recursiveWalkTree(const string &path, bool remove=false)
 ConfigurationManager::ConfigurationManager(const esp32cs::Esp32ConfigDef &cfg)
   : cfg_(cfg)
 {
-#if CONFIG_ESP32CS_FORCE_FACTORY_RESET
+#if defined(CONFIG_ESP32CS_FORCE_FACTORY_RESET)
   bool factory_reset_config{true};
 #else
   bool factory_reset_config{false};
 #endif
-#if CONFIG_LCC_FACTORY_RESET
+#if defined(CONFIG_LCC_FACTORY_RESET)
   bool lcc_factory_reset{true};
 #else
   bool lcc_factory_reset{false};
@@ -514,7 +514,7 @@ void ConfigurationManager::configureLCC()
                         , configFd_
                         , SEC_TO_USEC(CONFIG_LCC_SD_FSYNC_SEC)));
   }
-#if CONFIG_LCC_PRINT_ALL_PACKETS
+#if defined(CONFIG_LCC_PRINT_ALL_PACKETS)
   LOG(INFO, "[Config] Configuring LCC packet printer");
   lccStack->print_all_packets();
 #endif
@@ -755,14 +755,14 @@ bool ConfigurationManager::seedDefaultConfigSections()
   {
     csConfig[JSON_WIFI_NODE] =
     {
-#if CONFIG_WIFI_MODE_SOFTAP
+#if defined(CONFIG_WIFI_MODE_SOFTAP)
       { JSON_WIFI_MODE_NODE, JSON_VALUE_WIFI_MODE_SOFTAP_ONLY },
       { JSON_WIFI_SOFTAP_NODE,
         {
           { JSON_WIFI_SSID_NODE, CONFIG_WIFI_SOFTAP_SSID },
         },
       },
-#elif CONFIG_WIFI_MODE_SOFTAP_STATION
+#elif defined(CONFIG_WIFI_MODE_SOFTAP_STATION)
       { JSON_WIFI_MODE_NODE, JSON_VALUE_WIFI_MODE_SOFTAP_STATION },
       { JSON_WIFI_SOFTAP_NODE,
         {
@@ -772,13 +772,13 @@ bool ConfigurationManager::seedDefaultConfigSections()
 #else
       { JSON_WIFI_MODE_NODE, JSON_VALUE_WIFI_MODE_STATION_ONLY },
 #endif
-#if CONFIG_WIFI_STATIC_IP_DNS
-      { JSON_WIFI_DNS_NODE, WIFI_STATIC_IP_DNS },
+#if defined(CONFIG_WIFI_STATIC_IP_DNS)
+      { JSON_WIFI_DNS_NODE, CONFIG_WIFI_STATIC_IP_DNS },
 #endif
-#if CONFIG_WIFI_MODE_SOFTAP_STATION || CONFIG_WIFI_MODE_STATION
+#if defined(CONFIG_WIFI_MODE_SOFTAP_STATION) || defined(CONFIG_WIFI_MODE_STATION)
       { JSON_WIFI_STATION_NODE, 
         {
-#if CONFIG_WIFI_IP_STATIC
+#if defined(CONFIG_WIFI_IP_STATIC)
           { JSON_WIFI_MODE_NODE, JSON_VALUE_STATION_IP_MODE_STATIC },
           { JSON_WIFI_STATION_IP_NODE, CONFIG_WIFI_STATIC_IP_ADDRESS },
           { JSON_WIFI_STATION_GATEWAY_NODE, CONFIG_WIFI_STATIC_IP_GATEWAY },
@@ -929,19 +929,19 @@ string ConfigurationManager::getCSFeatures()
 {
   json features = 
   {
-#if CONFIG_GPIO_S88
+#if defined(CONFIG_GPIO_S88)
     { JSON_S88_SENSOR_BASE_NODE, CONFIG_GPIO_S88_FIRST_SENSOR }
   , { JSON_S88_NODE, JSON_VALUE_TRUE }
 #else
     { JSON_S88_SENSOR_BASE_NODE, 0 }
   , { JSON_S88_NODE, JSON_VALUE_FALSE }
 #endif
-#if CONFIG_GPIO_OUTPUTS
+#if defined(CONFIG_GPIO_OUTPUTS)
   , { JSON_OUTPUTS_NODE, JSON_VALUE_TRUE }
 #else
   , { JSON_OUTPUTS_NODE, JSON_VALUE_FALSE }
 #endif
-#if CONFIG_GPIO_SENSORS
+#if defined(CONFIG_GPIO_SENSORS)
   , { JSON_SENSORS_NODE, JSON_VALUE_TRUE }
 #else
   , { JSON_SENSORS_NODE, JSON_VALUE_FALSE }
@@ -952,12 +952,12 @@ string ConfigurationManager::getCSFeatures()
 
 
 
-#if CONFIG_GPIO_OUTPUTS || CONFIG_GPIO_SENSORS
+#if defined(CONFIG_GPIO_OUTPUTS) || defined(CONFIG_GPIO_SENSORS)
 bool is_restricted_pin(int8_t pin)
 {
   vector<uint8_t> restrictedPins
   {
-#if !CONFIG_ALLOW_USAGE_OF_RESTRICTED_GPIO_PINS
+#if !defined(CONFIG_ALLOW_USAGE_OF_RESTRICTED_GPIO_PINS)
     0,                        // Bootstrap / Firmware Flash Download
     1,                        // UART0 TX
     2,                        // Bootstrap / Firmware Flash Download
@@ -974,8 +974,8 @@ bool is_restricted_pin(int8_t pin)
   , CONFIG_PROG_ENABLE_PIN
   , CONFIG_PROG_SIGNAL_PIN
 
-#if CONFIG_OPS_RAILCOM
-#if CONFIG_OPS_HBRIDGE_LMD18200
+#if defined(CONFIG_OPS_RAILCOM)
+#if defined(CONFIG_OPS_HBRIDGE_LMD18200)
   , CONFIG_OPS_RAILCOM_BRAKE_PIN
 #endif
   , CONFIG_OPS_RAILCOM_ENABLE_PIN
@@ -983,41 +983,41 @@ bool is_restricted_pin(int8_t pin)
   , CONFIG_OPS_RAILCOM_UART_RX_PIN
 #endif // CONFIG_OPS_RAILCOM
 
-#if CONFIG_LCC_CAN_ENABLED
+#if defined(CONFIG_LCC_CAN_ENABLED)
   , CONFIG_LCC_CAN_RX_PIN
   , CONFIG_LCC_CAN_TX_PIN
 #endif
 
-#if CONFIG_HC12
+#if defined(CONFIG_HC12)
   , CONFIG_HC12_RX_PIN
   , CONFIG_HC12_TX_PIN
 #endif
 
-#if CONFIG_NEXTION
+#if defined(CONFIG_NEXTION)
   , CONFIG_NEXTION_RX_PIN
   , CONFIG_NEXTION_TX_PIN
 #endif
 
-#if CONFIG_DISPLAY_TYPE_OLED || CONFIG_DISPLAY_TYPE_LCD
+#if defined(CONFIG_DISPLAY_TYPE_OLED) || defined(CONFIG_DISPLAY_TYPE_LCD)
   , CONFIG_DISPLAY_SCL
   , CONFIG_DISPLAY_SDA
-#if CONFIG_DISPLAY_OLED_RESET_PIN && CONFIG_DISPLAY_OLED_RESET_PIN != -1
+#if defined(CONFIG_DISPLAY_OLED_RESET_PIN) && CONFIG_DISPLAY_OLED_RESET_PIN != -1
   , CONFIG_DISPLAY_OLED_RESET_PIN
 #endif
 #endif
 
-#if CONFIG_LOCONET
+#if defined(CONFIG_LOCONET)
   , CONFIG_LOCONET_RX_PIN
   , CONFIG_LOCONET_TX_PIN
 #endif
 
-#if CONFIG_GPIO_S88
+#if defined(CONFIG_GPIO_S88)
   , CONFIG_GPIO_S88_CLOCK_PIN
   , CONFIG_GPIO_S88_RESET_PIN
   , CONFIG_GPIO_S88_LOAD_PIN
 #endif
 
-#if CONFIG_STATUS_LED
+#if defined(CONFIG_STATUS_LED)
   , CONFIG_STATUS_LED_DATA_PIN
 #endif
   };

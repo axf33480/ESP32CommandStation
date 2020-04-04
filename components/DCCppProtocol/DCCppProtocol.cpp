@@ -566,15 +566,15 @@ void DCCPPProtocolHandler::init()
   registerCommand(new WriteCVBitOpsCommand());
   registerCommand(new ConfigErase());
   registerCommand(new ConfigStore());
-#if CONFIG_GPIO_OUTPUTS
+#if defined(CONFIG_GPIO_OUTPUTS)
   registerCommand(new OutputCommandAdapter());
   registerCommand(new OutputExCommandAdapter());
 #endif
   registerCommand(new TurnoutCommandAdapter());
   registerCommand(new TurnoutExCommandAdapter());
-#if CONFIG_GPIO_SENSORS
+#if defined(CONFIG_GPIO_SENSORS)
   registerCommand(new SensorCommandAdapter());
-#if CONFIG_GPIO_S88
+#if defined(CONFIG_GPIO_S88)
   registerCommand(new S88BusCommandAdapter());
 #endif
   registerCommand(new RemoteSensorsCommandAdapter());

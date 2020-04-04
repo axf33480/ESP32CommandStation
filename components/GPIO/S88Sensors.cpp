@@ -41,7 +41,7 @@ S88 Sensors are reported in the same manner as generic Sensors:
 **********************************************************************/
 #include "sdkconfig.h"
 
-#if CONFIG_GPIO_S88
+#if defined(CONFIG_GPIO_S88)
 #include <ConfigurationManager.h>
 #include <DCCppProtocol.h>
 #include <driver/gpio.h>
