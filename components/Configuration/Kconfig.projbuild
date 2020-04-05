@@ -72,4 +72,12 @@ menu "Advanced Configuration Settings"
             settings upon startup, including all LCC configuration data. This
             would not be recommended to be enabled for most use cases.
 
+    config ESP32CS_FORCE_FACTORY_RESET_PIN
+        int "Factory Reset pin"
+        range -1 39
+        default -1
+        help
+            When this pin is held LOW during startup all persistent
+            configuration will be cleared and defaults will be restored. Note
+            this will also clear the LCC configuration data.
 endmenu

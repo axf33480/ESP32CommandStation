@@ -26,6 +26,8 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 #include <driver/sdspi_host.h>
 #include <esp_spiffs.h>
 #include <esp_vfs_fat.h>
+#include <freertos_drivers/arduino/DummyGPIO.hxx>
+#include <freertos_drivers/esp32/Esp32Gpio.hxx>
 #if defined(CONFIG_LCC_CAN_ENABLED)
 #include <freertos_drivers/esp32/Esp32HardwareCanAdapter.hxx>
 #endif // CONFIG_LCC_CAN_ENABLED
@@ -48,6 +50,12 @@ static constexpr const char ESP32_CS_CONFIG_JSON[] = "esp32cs-config.json";
 std::unique_ptr<Esp32WiFiManager> wifiManager;
 
 extern std::unique_ptr<openlcb::SimpleStackBase> lccStack;
+
+#if defined(CONFIG_ESP32CS_FORCE_FACTORY_RESET_PIN) && CONFIG_ESP32CS_FORCE_FACTORY_RESET_PIN >= 0
+GPIO_PIN(FACTORY_RESET, GpioInputPU, CONFIG_ESP32CS_FORCE_FACTORY_RESET_PIN);
+#else
+typedef DummyPinWithReadHigh FACTORY_RESET_Pin;
+#endif // CONFIG_ESP32CS_FORCE_FACTORY_RESET_PIN
 
 // holder of the parsed configuration.
 json csConfig;
@@ -149,6 +157,12 @@ ConfigurationManager::ConfigurationManager(const esp32cs::Esp32ConfigDef &cfg)
 #endif
   bool persist_config{true};
   struct stat statbuf;
+
+  if (FACTORY_RESET_Pin::instance()->is_clr())
+  {
+    factory_reset_config = true;
+    lcc_factory_reset = true;
+  }
 
   sdmmc_host_t sd_host = SDSPI_HOST_DEFAULT();
   sdspi_slot_config_t sd_slot = SDSPI_SLOT_CONFIG_DEFAULT();
