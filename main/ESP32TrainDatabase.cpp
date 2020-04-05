@@ -261,14 +261,14 @@ Esp32TrainDatabase::Esp32TrainDatabase(openlcb::SimpleStackBase *stack)
       auto ent = std::find_if(knownTrains_.begin(), knownTrains_.end(),
       [data](const shared_ptr<Esp32TrainDbEntry> &train)
       {
-        LOG(INFO, "[TrainDB] Registering %u - %s (idle: %s, limited: %s)"
-          , data.address, data.name.c_str()
-          , data.automatic_idle ? JSON_VALUE_ON : JSON_VALUE_OFF
-          , data.show_on_limited_throttles ? JSON_VALUE_ON : JSON_VALUE_OFF);
         return train->get_legacy_address() == data.address;
       });
       if (ent == knownTrains_.end())
       {
+        LOG(INFO, "[TrainDB] Registering %u - %s (idle: %s, limited: %s)"
+          , data.address, data.name.c_str()
+          , data.automatic_idle ? JSON_VALUE_ON : JSON_VALUE_OFF
+          , data.show_on_limited_throttles ? JSON_VALUE_ON : JSON_VALUE_OFF);
         knownTrains_.emplace_back(new Esp32TrainDbEntry(data));
       }
       else
