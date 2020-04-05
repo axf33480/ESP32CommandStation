@@ -27,6 +27,7 @@ and has been adapter for use in ESP32 COMMAND STATION.
 
 #include <algorithm>
 #include <AllTrainNodes.hxx>
+#include <ConfigurationManager.h>
 #include <DCCSignalVFS.h>
 #include <esp_ota_ops.h>
 #include <esp_wifi.h>
@@ -35,9 +36,6 @@ and has been adapter for use in ESP32 COMMAND STATION.
 #include <HttpStringUtils.h>
 #include <Turnouts.h>
 
-#include <openlcb/SimpleStack.hxx>
-
-extern std::unique_ptr<openlcb::SimpleStackBase> lccStack;
 std::vector<std::unique_ptr<DCCPPProtocolCommand>> registeredCommands;
 
 // <R {CV} {CALLBACK} {CALLBACK-SUB}> command handler, this command attempts
@@ -180,8 +178,8 @@ DCC_PROTOCOL_COMMAND_HANDLER(PowerOffCommand,
   openlcb::TrainImpl *NAME = nullptr;                                                 \
   {                                                                                   \
     SyncNotifiable n;                                                                 \
-    lccStack->executor()->add(new CallbackExecutable(                                 \
-    [&]()                                                                             \
+    Singleton<ConfigurationManager>::instance()->getLCCStack()->executor()->add(      \
+    new CallbackExecutable([&]()                                                      \
     {                                                                                 \
       NAME = Singleton<commandstation::AllTrainNodes>::instance()->get_train_impl(    \
                                         commandstation::DccMode::DCC_128_LONG_ADDRESS \

@@ -73,7 +73,6 @@ using std::set;
 #endif
 
 extern uninitialized<esp32cs::DuplexedTrackIf> trackInterface;
-extern std::unique_ptr<openlcb::SimpleStackBase> lccStack;
 
 #if LOCONET_ENABLED
 #include <LocoNetESP32UART.h>

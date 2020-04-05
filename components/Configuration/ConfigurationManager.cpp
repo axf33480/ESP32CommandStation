@@ -41,15 +41,7 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 
 using nlohmann::json;
 
-// global instance of the ConfigurationManager
-std::unique_ptr<ConfigurationManager> configStore;
-
 static constexpr const char ESP32_CS_CONFIG_JSON[] = "esp32cs-config.json";
-
-// Global handle for WiFi Manager
-std::unique_ptr<Esp32WiFiManager> wifiManager;
-
-extern std::unique_ptr<openlcb::SimpleStackBase> lccStack;
 
 #if defined(CONFIG_ESP32CS_FORCE_FACTORY_RESET_PIN) && CONFIG_ESP32CS_FORCE_FACTORY_RESET_PIN >= 0
 GPIO_PIN(FACTORY_RESET, GpioInputPU, CONFIG_ESP32CS_FORCE_FACTORY_RESET_PIN);
@@ -74,19 +66,19 @@ json csConfig;
 
 // Helper which will trigger a config reload event to be queued when
 // updated is true.
-#define MAYBE_TRIGGER_UPDATE(updated)                      \
-  if (updated)                                             \
-  {                                                        \
-    lccStack->executor()->add(new CallbackExecutable([]()  \
-    {                                                      \
-      lccStack->config_service()->trigger_update();        \
-    }));                                                   \
+#define MAYBE_TRIGGER_UPDATE(updated)                         \
+  if (updated)                                                \
+  {                                                           \
+    stack_->executor()->add(new CallbackExecutable([&]()      \
+    {                                                         \
+      stack_->config_service()->trigger_update();             \
+    }));                                                      \
   }
 
 // Helper which will trigger a config reload event to be queued when
 // updated is true.
 #define SCHEDULE_REBOOT()                               \
-  lccStack->executor()->add(new CallbackExecutable([]() \
+  stack_->executor()->add(new CallbackExecutable([]()   \
   {                                                     \
     reboot();                                           \
   }));
@@ -332,7 +324,7 @@ ConfigurationManager::ConfigurationManager(const esp32cs::Esp32ConfigDef &cfg)
   // If we need an LCC factory reset trigger is now.
   if (lcc_factory_reset)
   {
-    configStore->factory_reset_lcc(false);
+    factory_reset_lcc(false);
   }
 }
 
@@ -351,7 +343,7 @@ void ConfigurationManager::shutdown()
 
   // shutdown the executor so that no more tasks will run
   LOG(INFO, "[Config] Shutting down executor");
-  lccStack->executor()->shutdown();
+  stack_->executor()->shutdown();
 
   LOG(INFO, "[Config] Shutting down Httpd executor");
   Singleton<http::Httpd>::instance()->executor()->shutdown();
@@ -376,13 +368,6 @@ void ConfigurationManager::shutdown()
     LOG(INFO, "[Config] Unmounting SD...");
     ESP_ERROR_CHECK(esp_vfs_fat_sdmmc_unmount());
   }
-}
-
-void ConfigurationManager::clear()
-{
-  LOG(INFO, "[Config] Clearing persistent config...");
-  recursiveWalkTree(CS_CONFIG_DIR, true);
-  mkdir(CS_CONFIG_DIR, ACCESSPERMS);
 }
 
 bool ConfigurationManager::exists(const string &name)
@@ -485,12 +470,26 @@ bool ConfigurationManager::setNodeID(string value)
   return false;
 }
 
-#ifndef CONFIG_LCC_SD_FSYNC_SEC
-#define CONFIG_LCC_SD_FSYNC_SEC 10
-#endif
-
-void ConfigurationManager::configureLCC()
+void ConfigurationManager::prepareLCCStack()
 {
+  LOG(INFO, "[LCC] Initializing Stack");
+#ifdef CONFIG_LCC_TCP_STACK
+  stack_.reset(new openlcb::SimpleTcpStack(getNodeId()));
+#else
+  stack_.reset(new openlcb::SimpleCanStack(getNodeId()));
+#endif // CONFIG_LCC_TCP_STACK
+
+  parseWiFiConfig();
+  // TODO: Switch to SimpleStackBase * instead of casting to SimpleCanStack *
+  // once Esp32WiFiManager supports this.
+  wifiManager_.emplace(wifiSSID_.c_str(), wifiPassword_.c_str()
+                    , (openlcb::SimpleCanStack *)stack_.get()
+                    , cfg_.seg().wifi()
+                    , CONFIG_HOSTNAME_PREFIX
+                    , wifiMode_
+                    , stationStaticIP_.get()
+                    , stationDNSServer_
+                    , CONFIG_WIFI_SOFT_AP_CHANNEL);
 #if defined(CONFIG_LCC_CAN_ENABLED) && !defined(CONFIG_LCC_TCP_STACK)
   if (csConfig[JSON_LCC_NODE].contains(JSON_LCC_CAN_NODE) &&
       csConfig[JSON_LCC_NODE][JSON_LCC_CAN_NODE].is_boolean() &&
@@ -498,24 +497,31 @@ void ConfigurationManager::configureLCC()
   {
     LOG(INFO, "[Config] Enabling LCC CAN interface (rx: %d, tx: %d)"
       , CONFIG_LCC_CAN_RX_PIN, CONFIG_LCC_CAN_TX_PIN);
-    lccStack->executor()->add(
+    stack_->executor()->add(
       new CanBridge(
         new Esp32HardwareCan("esp32can"
                           , (gpio_num_t)CONFIG_LCC_CAN_RX_PIN
                           , (gpio_num_t)CONFIG_LCC_CAN_TX_PIN
                           , false)
-      , ((openlcb::SimpleCanStack *)lccStack.operator->())->can_hub()));
+      , ((openlcb::SimpleCanStack *)stack)->can_hub()));
   }
 #endif // CONFIG_LCC_CAN_ENABLED && !CONFIG_LCC_TCP_STACK
+}
 
+#ifndef CONFIG_LCC_SD_FSYNC_SEC
+#define CONFIG_LCC_SD_FSYNC_SEC 10
+#endif
+
+void ConfigurationManager::startLCCStack()
+{
   // Create the CDI.xml dynamically if it doesn't already exist.
-  CDIHelper::create_config_descriptor_xml(cfg_, LCC_CDI_XML, lccStack.get());
+  CDIHelper::create_config_descriptor_xml(cfg_, LCC_CDI_XML, stack_.get());
 
   // Create the default internal configuration file if it doesn't already exist.
   configFd_ =
-    lccStack->create_config_file_if_needed(cfg_.seg().internal_config()
-                                         , CONFIG_ESP32CS_CDI_VERSION
-                                         , openlcb::CONFIG_FILE_SIZE);
+    stack_->create_config_file_if_needed(cfg_.seg().internal_config()
+                                       , CONFIG_ESP32CS_CDI_VERSION
+                                       , openlcb::CONFIG_FILE_SIZE);
 
   if (sd_)
   {
@@ -524,13 +530,13 @@ void ConfigurationManager::configureLCC()
     // config changes are saved since the LCC config file is less than 512b.
     LOG(INFO, "[Config] Creating automatic fsync(%d) calls every %d seconds."
       , configFd_, CONFIG_LCC_SD_FSYNC_SEC);
-    configAutoSync_.reset(new AutoSyncFileFlow(lccStack->service()
+    configAutoSync_.reset(new AutoSyncFileFlow(stack_->service()
                         , configFd_
                         , SEC_TO_USEC(CONFIG_LCC_SD_FSYNC_SEC)));
   }
 #if defined(CONFIG_LCC_PRINT_ALL_PACKETS)
   LOG(INFO, "[Config] Configuring LCC packet printer");
-  lccStack->print_all_packets();
+  stack_->print_all_packets();
 #endif
 }
 
@@ -853,23 +859,6 @@ void ConfigurationManager::parseWiFiConfig()
     string value = wifiConfig[JSON_WIFI_DNS_NODE];
     stationDNSServer_.u_addr.ip4.addr = ipaddr_addr(value.c_str());
   }
-}
-
-void ConfigurationManager::configureWiFi()
-{
-  parseWiFiConfig();
-  LOG(INFO, "[Config] Registering WiFi Manager");
-  // TODO: Switch to SimpleStackBase * instead of casting to SimpleCanStack *
-  // once Esp32WiFiManager supports this.
-  wifiManager.reset(new Esp32WiFiManager(wifiSSID_.c_str()
-                                       , wifiPassword_.c_str()
-                                       , (openlcb::SimpleCanStack *)lccStack.get()
-                                       , cfg_.seg().wifi()
-                                       , CONFIG_HOSTNAME_PREFIX
-                                       , wifiMode_
-                                       , stationStaticIP_.get()
-                                       , stationDNSServer_
-                                       , CONFIG_WIFI_SOFT_AP_CHANNEL));
 }
 
 string ConfigurationManager::getCSConfig()

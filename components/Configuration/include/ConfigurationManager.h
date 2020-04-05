@@ -42,8 +42,6 @@ class ConfigurationManager : public Singleton<ConfigurationManager>
 public:
   ConfigurationManager(const esp32cs::Esp32ConfigDef &);
   void shutdown();
-  void init();
-  void clear();
 
   bool exists(const std::string &);
   void remove(const std::string &);
@@ -53,8 +51,12 @@ public:
   void factory_reset_lcc(bool=true);
   openlcb::NodeID getNodeId();
   bool setNodeID(std::string);
-  void configureLCC();
-  void configureWiFi();
+  void prepareLCCStack();
+  openlcb::SimpleStackBase *getLCCStack()
+  {
+    return stack_.get();
+  }
+  void startLCCStack();
   std::string getCSConfig();
   std::string getCSFeatures();
   std::string getSSID()
@@ -90,7 +92,9 @@ private:
   const esp32cs::Esp32ConfigDef cfg_;
   int configFd_{-1};
   sdmmc_card_t *sd_{nullptr};
+  std::unique_ptr<openlcb::SimpleStackBase> stack_;
 
+  uninitialized<Esp32WiFiManager> wifiManager_;
   std::string wifiSSID_;
   std::string wifiPassword_;
   wifi_mode_t wifiMode_{WIFI_MODE_STA};

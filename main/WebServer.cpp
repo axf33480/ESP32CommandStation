@@ -764,8 +764,8 @@ string convert_loco_to_json(openlcb::TrainImpl *t)
   openlcb::TrainImpl *NAME = nullptr;                                                 \
   {                                                                                   \
     SyncNotifiable n;                                                                 \
-    lccStack->executor()->add(new CallbackExecutable(                                 \
-    [&]()                                                                             \
+    Singleton<ConfigurationManager>::instance()->getLCCStack()->executor()->add(      \
+    new CallbackExecutable([&]()                                                      \
     {                                                                                 \
       NAME = Singleton<commandstation::AllTrainNodes>::instance()->get_train_impl(    \
                                         commandstation::DccMode::DCC_128_LONG_ADDRESS \

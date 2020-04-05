@@ -234,24 +234,18 @@ extern "C" void app_main()
   // prepare the default configuration. This will also include the LCC
   // Factory reset (if required).
   ConfigurationManager config(cfg);
-
-  LOG(INFO, "[LCC] Initializing Stack");
-#ifdef CONFIG_LCC_TCP_STACK
-  lccStack.reset(new openlcb::SimpleTcpStack(config.getNodeId()));
-#else
-  lccStack.reset(new openlcb::SimpleCanStack(config.getNodeId()));
-#endif // CONFIG_LCC_TCP_STACK
-
-  // Initialize the enabled modules.
-  config.configureWiFi();
+  
+  config.prepareLCCStack();
+  
+  auto stack = config.getLCCStack();
 
   // Initialize the status display module (dependency of WiFi)
-  StatusDisplay statusDisplay(lccStack.get(), lccStack->service());
+  StatusDisplay statusDisplay(stack, stack->service());
 
 #if CONFIG_NEXTION
   // Initialize the Nextion module (dependency of WiFi)
   LOG(INFO, "[Config] Enabling Nextion module");
-  nextionInterfaceInit(lccStack->service());
+  nextionInterfaceInit(stack->service());
 #endif
 
   init_webserver();
@@ -262,7 +256,7 @@ extern "C" void app_main()
 
   // Initialize the turnout manager and register it with the LCC stack to
   // process accessories packets.
-  TurnoutManager turnoutManager(lccStack->node(), lccStack->service());
+  TurnoutManager turnoutManager(stack->node(), stack->service());
 
 #if CONFIG_OUTPUTS
   LOG(INFO, "[Config] Enabling GPIO Outputs");
@@ -282,28 +276,28 @@ extern "C" void app_main()
 #endif
 
 #if CONFIG_HC12
-  esp32cs::HC12Radio hc12(lccStack->service()
+  esp32cs::HC12Radio hc12(stack->service()
                         , (uart_port_t)CONFIG_HC12_UART
                         , (gpio_num_t)CONFIG_HC12_RX_PIN
                         , (gpio_num_t)CONFIG_HC12_TX_PIN));
 #endif // CONFIG_HC12
 
-  StatusLED statusLED(lccStack->service());
+  StatusLED statusLED(stack->service());
 
   // cppcheck-suppress UnusedVar
-  OTAMonitorFlow ota(lccStack->service());
+  OTAMonitorFlow ota(stack->service());
 
   // Initialize the factory reset helper for the CS.
   FactoryResetHelper resetHelper;
 
   // Initialize the DCC VFS adapter, this will also initialize the DCC signal
   // generation code.
-  esp32cs::init_dcc_vfs(lccStack->node(), lccStack->service()
+  esp32cs::init_dcc_vfs(stack->node(), stack->service()
                       , cfg.seg().hbridge().entry(esp32cs::OPS_CDI_TRACK_OUTPUT_IDX)
                       , cfg.seg().hbridge().entry(esp32cs::PROG_CDI_TRACK_OUTPUT_IDX));
 
   // Initialize Local Track inteface.
-  trackInterface.emplace(lccStack->service()
+  trackInterface.emplace(stack->service()
                        , CONFIG_DCC_PACKET_POOL_SIZE);
 
   int ops_track = ::open(
@@ -317,46 +311,45 @@ extern "C" void app_main()
   trackInterface->set_fd_prog(prog_track);
 
   // Initialize the DCC Update Loop.
-  dcc::SimpleUpdateLoop dccUpdateLoop(lccStack->service()
+  dcc::SimpleUpdateLoop dccUpdateLoop(stack->service()
                                     , &trackInterface.value());
 
   // Attach the DCC update loop to the track interface
-  PoolToQueueFlow<Buffer<dcc::Packet>> dccPacketFlow(lccStack->service()
+  PoolToQueueFlow<Buffer<dcc::Packet>> dccPacketFlow(stack->service()
                                                    , trackInterface->pool()
                                                    , &dccUpdateLoop);
 
-  // Initialize the OpenMRN stack, this needs to be done *AFTER* all other LCC
+  // Starts the OpenMRN stack, this needs to be done *AFTER* all other LCC
   // dependent components as it will initiate configuration load and factory
   // reset calls.
-  config.configureLCC();
+  config.startLCCStack();
 
   // Initialize the DCC++ protocol adapter
   DCCPPProtocolHandler::init();
 
   // Initialize the Traction Protocol support
-  openlcb::TrainService trainService(lccStack->iface());
+  openlcb::TrainService trainService(stack->iface());
 
   // Initialize the train database
-  esp32cs::Esp32TrainDatabase trainDb(lccStack.get());
+  esp32cs::Esp32TrainDatabase trainDb(stack);
 
   // Initialize the Train Search and Train Manager.
   commandstation::AllTrainNodes trainNodes(&trainDb
                                          , &trainService
-                                         , lccStack->info_flow()
-                                         , lccStack->memory_config_handler()
+                                         , stack->info_flow()
+                                         , stack->memory_config_handler()
                                          , trainDb.get_readonly_train_cdi()
                                          , trainDb.get_readonly_temp_train_cdi());
 
-
   // Task Monitor, periodically dumps runtime state to STDOUT.
   LOG(VERBOSE, "Starting FreeRTOS Task Monitor");
-  FreeRTOSTaskMonitor taskMon(lccStack->service());
+  FreeRTOSTaskMonitor taskMon(stack->service());
 
   LOG(INFO, "\n\nESP32 Command Station Startup complete!\n");
   Singleton<StatusDisplay>::instance()->status("ESP32-CS Started");
 
   // donate our task thread to OpenMRN executor.
-  lccStack->loop_executor();
+  stack->loop_executor();
 }
 
 // TODO: move these back to DCCppProtocol after moving sensors and outputs to
