@@ -63,9 +63,8 @@ menu "DCC Signal"
                 H-Bridge IC.
 
         config OPS_THERMAL_PIN
-            int "PH-Bridge Thermal Alert pin"
+            int "LMD18200 Thermal Alert pin"
             range 0 39
-            default -1
             depends on OPS_HBRIDGE_LMD18200
             help
                 The LMD18200 has a thermal alert pin that will be HIGH if
@@ -148,8 +147,7 @@ menu "DCC Signal"
 
         config OPS_RAILCOM_SHORT_PIN
             int "RailCom detector short pin"
-            range -1 39
-            default -1
+            range 0 39
             depends on OPS_RAILCOM
             help
                 The RailCom detector circuitry should pull this input to
