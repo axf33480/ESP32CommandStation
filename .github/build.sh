@@ -35,10 +35,10 @@ if [ ! -f ${TOOLCHAIN_DIR}/bin/xtensa-esp32-elf-gcc ]; then
         echo "Install failed!"
         exit 1
     fi
-    echo "Adding ${TOOLCHAIN_DIR}/xtensa-esp32-elf/bin to the path"
-    # add toolchain to the path
-    export PATH=${TOOLCHAIN_DIR}/xtensa-esp32-elf/bin:${PATH}
 fi
+echo "Adding ${TOOLCHAIN_DIR}/xtensa-esp32-elf/bin to the path"
+# add toolchain to the path
+export PATH=${TOOLCHAIN_DIR}/xtensa-esp32-elf/bin:${PATH}
 
 # clone ESP-IDF
 if [ ! -d ${IDF_PATH} ]; then
@@ -48,8 +48,8 @@ if [ ! -d ${IDF_PATH} ]; then
         echo "Git clone failed!"
         exit 1
     fi
-    cd ${IDF_PATH} && python -m pip install -r requirements.txt
 fi
+cd ${IDF_PATH} && python -m pip install -r requirements.txt
 
 # generate config.env file for confgen.py and cmake
 echo "Generating config.env"

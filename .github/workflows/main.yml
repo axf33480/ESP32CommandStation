@@ -11,15 +11,22 @@ jobs:
       matrix:
         target: [ESP32CommandStation, ESP32CommandStation.pcb]
     steps:
-    - uses: actions/checkout@v1
+    - name: Checkout ESP32CommandStation code
+      uses: actions/checkout@v1
+    - name: Checkout ESP-IDF v4
+      uses: actions/checkout@v1
+      with:
+        repository: https://github.com/espressif/esp-idf.git
+        ref: release/v4.0
+        submodules: true
     - name: Install dependencies
       run: sudo apt-get install git wget curl libssl-dev libncurses-dev flex bison gperf python python-pip python-setuptools python-serial python-click python-cryptography python-future python-pyparsing python-pyelftools cmake ninja-build ccache
-    - name: Install Python Wheel
-      run: pip install wheel
     - name: Set up Python 3.5
       uses: actions/setup-python@v1
       with:
         python-version: 3.5
+    - name: Install Python Wheel
+      run: pip install wheel
     - name: build
       run: bash .github/build.sh ${{ matrix.target }}
     - name: Set up Python 2.7
