@@ -21,13 +21,6 @@ COPYRIGHT (c) 2019-2020 Mike Dunston
 #include <soc/gpio_struct.h>
 
 ///////////////////////////////////////////////////////////////////////////////
-// RMT clock tick divider value. With the APB frequency of 80Mhz we can use a
-// divider of 80 to have an approximate 1usec tick frequency which simplifies
-// and improves accuracy on the DCC packet timing.
-///////////////////////////////////////////////////////////////////////////////
-static constexpr uint8_t RMT_CLOCK_DIVIDER = 80;
-
-///////////////////////////////////////////////////////////////////////////////
 // RMT direct register access helper macros. These are used in the tx complete
 // ISR handler(s) rather than IDF RMT APIs which can crash from inside the ISR
 // callback due to FreeRTOS function usage.
@@ -59,33 +52,51 @@ static constexpr uint8_t RMT_CLOCK_DIVIDER = 80;
 //           | usec |
 //           --------
 //
-// Waveforms above are not exact to scale.
+// Waveforms above are not exact to scale. The timing can be adjusted via
+// menuconfig with the above being the default values when using the APB clock.
 //
 ///////////////////////////////////////////////////////////////////////////////
-static constexpr uint32_t DCC_ZERO_BIT_PULSE_USEC = 96;
-static constexpr uint32_t DCC_ONE_BIT_PULSE_USEC = 58;
 
 ///////////////////////////////////////////////////////////////////////////////
-// DCC ZERO bit pre-encoded in RMT format, sent as HIGH then LOW.
+// DCC ZERO bit pre-encoded in RMT format.
 ///////////////////////////////////////////////////////////////////////////////
+#if defined(CONFIG_DCC_SIGNAL_HIGH_FIRST)
 static constexpr rmt_item32_t DCC_RMT_ZERO_BIT =
 {{{
-    DCC_ZERO_BIT_PULSE_USEC       // number of microseconds for TOP half
-  , 1                             // of the square wave.
-  , DCC_ZERO_BIT_PULSE_USEC       // number of microseconds for BOTTOM half
-  , 0                             // of the square wave.
+    CONFIG_DCC_RMT_TICKS_ZERO_PULSE // number of microseconds for TOP half
+  , 1                               // of the square wave.
+  , CONFIG_DCC_RMT_TICKS_ZERO_PULSE // number of microseconds for BOTTOM half
+  , 0                               // of the square wave.
 }}};
+#else
+{{{
+    CONFIG_DCC_RMT_TICKS_ZERO_PULSE // number of microseconds for TOP half
+  , 0                               // of the square wave.
+  , CONFIG_DCC_RMT_TICKS_ZERO_PULSE // number of microseconds for BOTTOM half
+  , 1                               // of the square wave.
+}}};
+#endif // CONFIG_DCC_SIGNAL_HIGH_FIRST
 
 ///////////////////////////////////////////////////////////////////////////////
-// DCC ONE bit pre-encoded in RMT format, sent as HIGH then LOW.
+// DCC ONE bit pre-encoded in RMT format.
 ///////////////////////////////////////////////////////////////////////////////
+#if defined(CONFIG_DCC_SIGNAL_HIGH_FIRST)
 static constexpr rmt_item32_t DCC_RMT_ONE_BIT =
 {{{
-    DCC_ONE_BIT_PULSE_USEC        // number of microseconds for TOP half
-  , 1                             // of the square wave.
-  , DCC_ONE_BIT_PULSE_USEC        // number of microseconds for BOTTOM half
-  , 0                             // of the square wave.
+    CONFIG_DCC_RMT_TICKS_ONE_PULSE  // number of microseconds for TOP half
+  , 1                               // of the square wave.
+  , CONFIG_DCC_RMT_TICKS_ONE_PULSE  // number of microseconds for BOTTOM half
+  , 0                               // of the square wave.
 }}};
+#else
+static constexpr rmt_item32_t DCC_RMT_ONE_BIT =
+{{{
+    CONFIG_DCC_RMT_TICKS_ONE_PULSE  // number of microseconds for TOP half
+  , 0                               // of the square wave.
+  , CONFIG_DCC_RMT_TICKS_ONE_PULSE  // number of microseconds for BOTTOM half
+  , 1                               // of the square wave.
+}}};
+#endif // CONFIG_DCC_SIGNAL_HIGH_FIRST
 
 ///////////////////////////////////////////////////////////////////////////////
 // Marklin Motorola bit timing (WIP)
@@ -306,13 +317,13 @@ RMTTrackDevice::RMTTrackDevice(openlcb::Node *node
   LOG(INFO, "[%s] Using RMT(%d), pin: %d, memory: %d blocks (%d/%d bits), "
             "clk-div: %d, DCC bit timing: zero: %duS, one: %duS"
           , name_, channel_, pin, memoryBlocks, maxBitCount
-          , (memoryBlocks * RMT_MEM_ITEM_NUM), RMT_CLOCK_DIVIDER
-          , DCC_ZERO_BIT_PULSE_USEC, DCC_ONE_BIT_PULSE_USEC);
+          , (memoryBlocks * RMT_MEM_ITEM_NUM), CONFIG_DCC_RMT_CLOCK_DIVIDER
+          , CONFIG_DCC_RMT_TICKS_ZERO_PULSE, CONFIG_DCC_RMT_TICKS_ONE_PULSE);
   rmt_config_t config =
   {
     .rmt_mode = RMT_MODE_TX,
     .channel = channel_,
-    .clk_div = RMT_CLOCK_DIVIDER,
+    .clk_div = CONFIG_DCC_RMT_CLOCK_DIVIDER,
     .gpio_num = pin,
     .mem_block_num = memoryBlocks,
     {
@@ -330,6 +341,9 @@ RMTTrackDevice::RMTTrackDevice(openlcb::Node *node
   };
   ESP_ERROR_CHECK(rmt_config(&config));
   ESP_ERROR_CHECK(rmt_driver_install(channel_, 0, RMT_ISR_FLAGS));
+#if defined(CONFIG_DCC_RMT_USE_REF_CLOCK)
+  ESP_ERROR_CHECK(rmt_set_source_clk(channel_, RMT_BASECLK_REF));
+#endif // CONFIG_DCC_RMT_USE_APB_CLOCK
 }
 
 ///////////////////////////////////////////////////////////////////////////////

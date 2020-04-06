@@ -390,6 +390,8 @@ menu "DCC Signal"
         int "Number of eStop packets to send before powering off track"
         default 200
 
+###############################################################################
+#
 # Log level constants from from components/OpenMRNLite/src/utils/logging.h
 #
 # ALWAYS      : -1
@@ -400,7 +402,8 @@ menu "DCC Signal"
 # VERBOSE     :  4
 #
 # Note that FATAL will cause the MCU to reboot!
-
+#
+###############################################################################
     choice DCC_RMT_LOGGING
         bool "DCC RMT logging"
         default DCC_RMT_LOGGING_MINIMAL
@@ -414,4 +417,56 @@ menu "DCC Signal"
         default 4 if DCC_RMT_LOGGING_MINIMAL
         default 3 if DCC_RMT_LOGGING_VERBOSE
         default 5
+
+###############################################################################
+#
+# These options should be used with extreme care as they will alter how the DCC
+# signal is generated. This is most useful when debugging the DCC signal using
+# LEDs to visually inspect the signal without a logic analyzer or oscilloscope.
+#
+# When using LEDs to debug the DCC signal it is necessary to slow the signal.
+# Enabling DCC_RMT_USE_REF_CLOCK and setting DCC_RMT_DIVIDER to at least 160 or
+# even 240 should be sufficient to slow the DCC signal for visible changes in
+# the LEDs. If this is not slow enough the pulse lengths can be increased.
+#
+###############################################################################
+    menu "Advanced Debug options"
+        config DCC_SIGNAL_HIGH_FIRST
+            bool "HIGH then LOW signal"
+            default y
+            help
+                When enabled this will cause the RMT to generate a HIGH then
+                LOW signal on the output PIN. When disabled it will be LOW then
+                HIGH.
+
+        config DCC_RMT_USE_REF_CLOCK
+            bool "Use REF_TICK clock source (1Mhz)"
+            default n
+            help
+                When enabled this will cause the RMT to use the REF_TICK clock
+                as the clock source, this is a 1Mhz clock. By default the RMT
+                will use the APB clock which is an 80Mhz clock.
+
+        config DCC_RMT_CLOCK_DIVIDER
+            int "RMT clock divider"
+            range 1 255
+            default 80
+            help
+                When using the APB clock (80Mhz) this will provide around a
+                1usec time factor for the RMT pulses.
+
+        config DCC_RMT_TICKS_ZERO_PULSE
+            int "RMT ticks for DCC Zero"
+            default 96
+            help
+                This is how many ticks the RMT should use for each half of a
+                DCC ZERO bit.
+
+        config DCC_RMT_TICKS_ONE_PULSE
+            int "RMT ticks for DCC One"
+            default 58
+            help
+                This is how many ticks the RMT should use for each half of a
+                DCC ONE bit.
+    endmenu
 endmenu
