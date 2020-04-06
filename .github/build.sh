@@ -9,7 +9,7 @@ BUILD_DIR=${RUN_DIR}/build
 BINARIES_DIR=${RUN_DIR}/binaries
 
 # install GCC 8.2.0 toolchain
-if [ ! -f ${TOOLCHAIN_DIR}/bin/xtensa-esp32-elf-gcc ]; then
+if [ ! -f "${TOOLCHAIN_DIR}/xtensa-esp32-elf/bin/xtensa-esp32-elf-gcc" ]; then
     echo "Toolchain not found in ${TOOLCHAIN_DIR}!"
     exit 1
 fi
@@ -19,23 +19,23 @@ echo "Adding ${TOOLCHAIN_DIR}/xtensa-esp32-elf/bin to the path"
 export PATH=${TOOLCHAIN_DIR}/xtensa-esp32-elf/bin:${PATH}
 
 # clone ESP-IDF
-if [ ! -f ${IDF_PATH}/export.sh ]; then
+if [ ! -f "${IDF_PATH}/export.sh" ]; then
     echo "ESP-IDF not found under ${IDF_PATH}!"
     exit 1
 fi
 
-python -m pip install -r ${IDF_PATH}/requirements.txt
+python -m pip install -r "${IDF_PATH}/requirements.txt"
 
-if [ -d ${BUILD_DIR} ]; then
+if [ -d "${BUILD_DIR}" ]; then
     echo "Cleaning up ${BUILD_DIR}"
-    rm -rf ${BUILD_DIR}
+    rm -rf "${BUILD_DIR}"
 fi
 
-mkdir -p ${BUILD_DIR} ${BUILD_DIR}/config
+mkdir -p "${BUILD_DIR}" "${BUILD_DIR}/config"
 
 # generate config.env file for confgen.py and cmake
-echo "Generating config.env"
-cat > ${BUILD_DIR}/config.env <<CONFIG_ENV_EOF
+echo "Generating ${BUILD_DIR}/config.env"
+cat > "${BUILD_DIR}/config.env" <<CONFIG_ENV_EOF
 {
     "COMPONENT_KCONFIGS": "$(find ${IDF_PATH}/components -name Kconfig -printf '%p ')",
     "COMPONENT_KCONFIGS_PROJBUILD": "${RUN_DIR}/main/Kconfig.projbuild $(find ${IDF_PATH} -name Kconfig.profjbuild -printf '%p ')",
@@ -53,30 +53,30 @@ if [ "${ESP32CS_TARGET}" == "ESP32CommandStation.pcb" ]; then
     SDKCONFIG_DEFAULTS="${RUN_DIR}/sdkconfig.defaults.pcb"
 fi
 echo "Generating default sdkconfig"
-python ${IDF_PATH}/tools/kconfig_new/confgen.py \
-    --kconfig ${IDF_PATH}/Kconfig \
-    --config ${RUN_DIR}/sdkconfig \
-    --sdkconfig-rename ${IDF_PATH}/sdkconfig.rename \
+python "${IDF_PATH}/tools/kconfig_new/confgen.py" \
+    --kconfig "${IDF_PATH}/Kconfig" \
+    --config "${RUN_DIR}/sdkconfig" \
+    --sdkconfig-rename "${IDF_PATH}/sdkconfig.rename" \
     --defaults "${SDKCONFIG_DEFAULTS}" \
-    --env-file ${BUILD_DIR}/config.env \
-    --output header ${BUILD_DIR}/config/sdkconfig.h \
-    --output cmake ${BUILD_DIR}/config/sdkconfig.cmake \
-    --output json ${BUILD_DIR}/config/sdkconfig.json \
-    --output json_menus ${BUILD_DIR}/config/kconfig_menus.json \
-    --output config ${RUN_DIR}/sdkconfig
+    --env-file "${BUILD_DIR}/config.env" \
+    --output header "${BUILD_DIR}/config/sdkconfig.h" \
+    --output cmake "${BUILD_DIR}/config/sdkconfig.cmake" \
+    --output json "${BUILD_DIR}/config/sdkconfig.json" \
+    --output json_menus "${BUILD_DIR}/config/kconfig_menus.json" \
+    --output config "${RUN_DIR}/sdkconfig"
 if [ $? -ne 0 ]; then
     echo "sdkconfig generation failed!"
     exit 1
 fi
 
 # build via cmake/ninja
-cd ${BUILD_DIR} && cmake ${RUN_DIR} -G Ninja && ninja
+cd "${BUILD_DIR}" && cmake "${RUN_DIR}" -G Ninja && ninja
 
 # print size information
-python ${IDF_PATH}/tools/idf_size.py ${BUILD_DIR}/ESP32CommandStation.map
+python "${IDF_PATH}/tools/idf_size.py" "${BUILD_DIR}/ESP32CommandStation.map"
 
 mkdir -p "${BINARIES_DIR}"
-cat > "${BINARIES_DIR}"/readme.txt << README_EOF
+cat > "${BINARIES_DIR}/readme.txt" << README_EOF
 The binaries can be sent to the ESP32 via esptool.py similar to the following:
 python esptool.py -p (PORT) -b 460800 --before default_reset --after hard_reset write_flash 
     --flash_mode dio --flash_size detect --flash_freq 40m
