@@ -29,11 +29,12 @@ jobs:
       run: |
         mkdir toolchain
         curl -k https://dl.espressif.com/dl/xtensa-esp32-elf-gcc8_2_0-esp-2019r2-linux-amd64.tar.gz | tar zxv -C toolchain
-    - name: Configure CMake/Ninja
+    - name: Configure CMake
       uses: jwlawson/actions-setup-cmake@v1.0
-      uses: seanmiddleditch/gha-setup-ninja@master
       with:
         cmake-version: '3.5'
+    - name: Configure Ninja
+      uses: seanmiddleditch/gha-setup-ninja@master
     - name: build
       run: bash .github/build.sh ${{ matrix.target }}
     - name: Set up Python 2.7
