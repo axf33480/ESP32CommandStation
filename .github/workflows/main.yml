@@ -32,7 +32,7 @@ jobs:
     - name: Configure CMake
       uses: jwlawson/actions-setup-cmake@v1.0
       with:
-        cmake-version: '3.5'
+        cmake-version: '3.17'
     - name: Configure Ninja
       uses: seanmiddleditch/gha-setup-ninja@master
     - name: build
