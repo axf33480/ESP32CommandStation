@@ -8,6 +8,10 @@ TOOLCHAIN_DIR=${RUN_DIR}/toolchain
 BUILD_DIR=${RUN_DIR}/build
 BINARIES_DIR=${RUN_DIR}/binaries
 
+if [ -d "${GITHUB_WORKSPACE}/esp-idf" ]; then
+    export IDF_PATH=${GITHUB_WORKSPACE}/esp-idf
+fi
+
 # export IDF_PATH=~/esp-idf
 # TOOLCHAIN_DIR=~/esp/crosstool-NG/builds/xtensa-esp32-elf
 # BUILD_DIR=${RUN_DIR}/build-test
