@@ -3,7 +3,8 @@
 ESP32CS_TARGET=$1
 RUN_DIR=$PWD
 
-env
+env | sort
+ls -l $RUN_DIR
 
 IDF_PATH=${GITHUB_WORKSPACE}/../esp-idf
 TOOLCHAIN_DIR=${GITHUB_WORKSPACE}/../toolchain
