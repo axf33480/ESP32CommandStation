@@ -141,7 +141,6 @@ void initiate_estop()
 /// Enables the OPS track output
 void enable_ops_track_output()
 {
-  LOG(INFO, "[Track] Enabling OPS track output");
   ops_track->enable();
   OPS_ENABLE_Pin::set_on();
   Singleton<StatusLED>::instance()->setStatusLED(
@@ -152,7 +151,6 @@ void enable_ops_track_output()
 /// Enables the OPS track output
 void disable_ops_track_output()
 {
-  LOG(INFO, "[Track] Disabling OPS track output");
   ops_track->disable();
   OPS_ENABLE_Pin::set_off();
   Singleton<StatusLED>::instance()->setStatusLED(
@@ -163,7 +161,6 @@ void disable_ops_track_output()
 /// Enables the PROG track output
 static void enable_prog_track_output()
 {
-  LOG(INFO, "[Track] Enabling PROG track output");
   prog_track->enable();
   PROG_ENABLE_Pin::set_on();
   Singleton<StatusLED>::instance()->setStatusLED(
@@ -174,7 +171,6 @@ static void enable_prog_track_output()
 /// Disables the PROG track outputs
 static void disable_prog_track_output()
 {
-  LOG(INFO, "[Track] Disabling PROG track output");
   PROG_ENABLE_Pin::set_off();
   prog_track->disable();
   Singleton<StatusLED>::instance()->setStatusLED(
