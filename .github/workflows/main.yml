@@ -16,7 +16,7 @@ jobs:
     - name: Checkout ESP-IDF v4
       uses: actions/checkout@v1
       with:
-        repository: https://github.com/espressif/esp-idf.git
+        repository: espressif/esp-idf
         ref: release/v4.0
         submodules: true
     - name: Install dependencies
