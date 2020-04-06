@@ -11,7 +11,7 @@ jobs:
       matrix:
         target: [ESP32CommandStation, ESP32CommandStation.pcb]
     steps:
-    - name: Checkout ESP32CommandStation code
+    - name: Checkout ESP32CommandStation
       uses: actions/checkout@v1
     - name: Checkout ESP-IDF v4
       uses: actions/checkout@v1
@@ -27,6 +27,10 @@ jobs:
         python-version: 3.5
     - name: Install Python Wheel
       run: pip install wheel
+    - name: Install ESP32 toolchain
+      run: |
+        mkdir toolchain
+        curl -k https://dl.espressif.com/dl/xtensa-esp32-elf-gcc8_2_0-esp-2019r2-linux-amd64.tar.gz | tar zxv -C toolchain
     - name: build
       run: bash .github/build.sh ${{ matrix.target }}
     - name: Set up Python 2.7

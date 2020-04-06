@@ -1,20 +1,30 @@
 #!bin/bash
 
 ESP32CS_TARGET=$1
-
 RUN_DIR=$PWD
-export IDF_PATH=${RUN_DIR}/esp-idf
-TOOLCHAIN_DIR=${RUN_DIR}/toolchain
+
+IDF_PATH=${GITHUB_WORKSPACE}/esp-idf
+TOOLCHAIN_DIR=${GITHUB_WORKSPACE}/toolchain
 BUILD_DIR=${RUN_DIR}/build
 BINARIES_DIR=${RUN_DIR}/binaries
 
-if [ -d "${GITHUB_WORKSPACE}/esp-idf" ]; then
-    export IDF_PATH=${GITHUB_WORKSPACE}/esp-idf
+# install GCC 8.2.0 toolchain
+if [ ! -f ${TOOLCHAIN_DIR}/bin/xtensa-esp32-elf-gcc ]; then
+    echo "Toolchain not found in ${TOOLCHAIN_DIR}!"
+    exit 1
 fi
 
-# export IDF_PATH=~/esp-idf
-# TOOLCHAIN_DIR=~/esp/crosstool-NG/builds/xtensa-esp32-elf
-# BUILD_DIR=${RUN_DIR}/build-test
+echo "Adding ${TOOLCHAIN_DIR}/xtensa-esp32-elf/bin to the path"
+# add toolchain to the path
+export PATH=${TOOLCHAIN_DIR}/xtensa-esp32-elf/bin:${PATH}
+
+# clone ESP-IDF
+if [ ! -f ${IDF_PATH}/export.sh ]; then
+    echo "ESP-IDF not found under ${IDF_PATH}!"
+    exit 1
+fi
+
+python -m pip install -r ${IDF_PATH}/requirements.txt
 
 if [ -d ${BUILD_DIR} ]; then
     echo "Cleaning up ${BUILD_DIR}"
@@ -22,38 +32,6 @@ if [ -d ${BUILD_DIR} ]; then
 fi
 
 mkdir -p ${BUILD_DIR} ${BUILD_DIR}/config
-
-# install GCC 8.2.0 toolchain
-if [ ! -f ${TOOLCHAIN_DIR}/bin/xtensa-esp32-elf-gcc ]; then
-    echo "Toolchain not found, downloading..."
-    curl -k https://dl.espressif.com/dl/xtensa-esp32-elf-gcc8_2_0-esp-2019r2-linux-amd64.tar.gz \
-        -o ${RUN_DIR}/xtensa-esp32-elf-gcc8_2_0-esp-2019r2-linux-amd64.tar.gz
-    if [ $? -ne 0 ]; then
-        echo "Download failed!"
-        exit 1
-    fi
-    mkdir -p ${TOOLCHAIN_DIR}
-    echo "Installing toolchain..."
-    tar zxf ${RUN_DIR}/xtensa-esp32-elf-gcc8_2_0-esp-2019r2-linux-amd64.tar.gz -C ${TOOLCHAIN_DIR}
-    if [ $? -ne 0 ]; then
-        echo "Install failed!"
-        exit 1
-    fi
-fi
-echo "Adding ${TOOLCHAIN_DIR}/xtensa-esp32-elf/bin to the path"
-# add toolchain to the path
-export PATH=${TOOLCHAIN_DIR}/xtensa-esp32-elf/bin:${PATH}
-
-# clone ESP-IDF
-if [ ! -d ${IDF_PATH} ]; then
-    echo "ESP-IDF not available, cloning..."
-    git clone -b release/v4.0 --recurse-submodules https://github.com/espressif/esp-idf.git -j4 ${IDF_PATH}
-    if [ $? -ne 0 ]; then
-        echo "Git clone failed!"
-        exit 1
-    fi
-fi
-cd ${IDF_PATH} && python -m pip install -r requirements.txt
 
 # generate config.env file for confgen.py and cmake
 echo "Generating config.env"
