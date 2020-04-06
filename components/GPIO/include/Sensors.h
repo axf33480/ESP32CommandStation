@@ -25,7 +25,7 @@ static constexpr gpio_num_t NON_STORED_SENSOR_PIN = (gpio_num_t)-1;
 class Sensor
 {
 public:
-  Sensor(uint16_t, gpio_num_t, bool=false, bool=true);
+  Sensor(uint16_t, gpio_num_t, bool=false, bool=true, bool=false);
   Sensor(std::string &);
   virtual ~Sensor() {}
   void update(gpio_num_t, bool=false);

@@ -49,16 +49,26 @@ menu "GPIO"
             int "S88 Clock pin"
             range 0 32
             default 17
+            help
+                This pin is used to advance the sensor input data to the next
+                sensor.
 
         config GPIO_S88_RESET_PIN
             int "S88 Reset pin"
-            range 0 32
+            range -1 32
             default 16
+            help
+                This pin will be sent a pulse when initializing the read cycle
+                for the sensors on the bus. This behavior can be disabled by
+                setting this to -1.
 
         config GPIO_S88_LOAD_PIN
             int "S88 Load pin"
             range 0 32
             default 27
+            help
+                This pin is used to tell the sensors on the bus to load their
+                current state for reading.
 
         config GPIO_S88_FIRST_SENSOR
             int "First sensor ID"

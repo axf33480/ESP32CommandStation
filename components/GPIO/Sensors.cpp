@@ -67,7 +67,7 @@ uint16_t SensorManager::store()
   uint16_t sensorStoredCount = 0;
   for (const auto& sensor : sensors)
   {
-    if(sensor->getPin() != NON_STORED_SENSOR_PIN)
+    if (sensor->getPin() != NON_STORED_SENSOR_PIN)
     {
       root[JSON_SENSORS_NODE].push_back(sensor->toJson());
       sensorStoredCount++;
@@ -86,7 +86,10 @@ void SensorManager::sensorTask(void *param)
       OSMutexLock l(&_lock);
       for (const auto& sensor : sensors)
       {
-        sensor->check();
+        if (sensor->getPin() != NON_STORED_SENSOR_PIN)
+        {
+          sensor->check();
+        }
       }
     }
     vTaskDelay(pdMS_TO_TICKS(50));
@@ -173,14 +176,17 @@ string SensorManager::get_state_for_dccpp()
   return res;
 }
 
-Sensor::Sensor(uint16_t sensorID, gpio_num_t pin, bool pullUp, bool announce)
-  : _sensorID(sensorID), _pin(pin), _pullUp(pullUp), _lastState(false)
+Sensor::Sensor(uint16_t sensorID, gpio_num_t pin, bool pullUp, bool announce, bool initialState)
+  : _sensorID(sensorID), _pin(pin), _pullUp(pullUp), _lastState(initialState)
 {
-  if(announce)
+  if (_pin != NON_STORED_SENSOR_PIN)
   {
-    LOG(CONFIG_GPIO_SENSOR_LOG_LEVEL
-      , "[Sensors] Sensor(%d) on pin %d created, pullup %s", _sensorID, _pin
-      , _pullUp ? "Enabled" : "Disabled");
+    if (announce)
+    {
+      LOG(CONFIG_GPIO_SENSOR_LOG_LEVEL
+        , "[Sensors] Sensor(%d) on pin %d created, pullup %s", _sensorID, _pin
+        , _pullUp ? "Enabled" : "Disabled");
+    }
     gpio_pad_select_gpio(_pin);
     ESP_ERROR_CHECK(gpio_set_direction(_pin, GPIO_MODE_INPUT));
     if (pullUp)
@@ -215,7 +221,7 @@ string Sensor::toJson(bool includeState)
     { JSON_PIN_NODE, (uint8_t)_pin },
     { JSON_PULLUP_NODE, _pullUp },
   };
-  if(includeState)
+  if (includeState)
   {
     object[JSON_STATE_NODE] = _lastState;
   }
@@ -250,10 +256,11 @@ string Sensor::get_state_for_dccpp()
 
 string Sensor::set(bool state)
 {
-  if(_lastState != state)
+  if (_lastState != state)
   {
     _lastState = state;
     LOG(INFO, "Sensor: %d :: %s", _sensorID, _lastState ? "ACTIVE" : "INACTIVE");
+    // TODO: find a way to send this out on the JMRI interface
     return StringPrintf("<%c %d>", state ? 'Q' : 'q', _sensorID);
   }
   return COMMAND_NO_RESPONSE;

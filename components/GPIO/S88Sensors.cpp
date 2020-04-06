@@ -45,9 +45,13 @@ S88 Sensors are reported in the same manner as generic Sensors:
 #include <ConfigurationManager.h>
 #include <DCCppProtocol.h>
 #include <driver/gpio.h>
+#include <freertos_drivers/arduino/DummyGPIO.hxx>
+#include <freertos_drivers/esp32/Esp32Gpio.hxx>
 #include <json.hpp>
 #include <JsonConstants.h>
+#include <os/OS.hxx>
 #include <StatusDisplay.h>
+#include <utils/GpioInitializer.hxx>
 
 #include "S88Sensors.h"
 
@@ -71,17 +75,29 @@ OSMutex S88BusManager::_s88SensorLock;
 static constexpr UBaseType_t S88_SENSOR_TASK_PRIORITY = 1;
 static constexpr uint32_t S88_SENSOR_TASK_STACK_SIZE = 2048;
 
+GPIO_PIN(S88_CLOCK, GpioInputNP, CONFIG_GPIO_S88_CLOCK_PIN);
+GPIO_PIN(S88_LOAD, GpioInputNP, CONFIG_GPIO_S88_LOAD_PIN);
+#if CONFIG_GPIO_S88_RESET_PIN >= 0
+GPIO_PIN(S88_RESET, GpioInputNP, CONFIG_GPIO_S88_RESET_PIN);
+#else
+typedef DummyGpio S88_RESET_Pin;
+#endif
+
 std::vector<std::unique_ptr<S88SensorBus>> s88SensorBus;
+
+typedef GpioInitializer<S88_CLOCK_Pin, S88_LOAD_Pin, S88_RESET_Pin> S88PinInit;
 
 void S88BusManager::init()
 {
-  LOG(INFO, "[S88] Configuration (clock: %d, reset: %d, load: %d)", CONFIG_GPIO_S88_CLOCK_PIN, CONFIG_GPIO_S88_RESET_PIN, CONFIG_GPIO_S88_LOAD_PIN);
-  gpio_pad_select_gpio((gpio_num_t)CONFIG_GPIO_S88_CLOCK_PIN);
-  ESP_ERROR_CHECK(gpio_set_direction((gpio_num_t)CONFIG_GPIO_S88_CLOCK_PIN, GPIO_MODE_OUTPUT));
-  gpio_pad_select_gpio((gpio_num_t)CONFIG_GPIO_S88_RESET_PIN);
-  ESP_ERROR_CHECK(gpio_set_direction((gpio_num_t)CONFIG_GPIO_S88_RESET_PIN, GPIO_MODE_OUTPUT));
-  gpio_pad_select_gpio((gpio_num_t)CONFIG_GPIO_S88_LOAD_PIN);
-  ESP_ERROR_CHECK(gpio_set_direction((gpio_num_t)CONFIG_GPIO_S88_LOAD_PIN, GPIO_MODE_OUTPUT));
+#if CONFIG_GPIO_S88_RESET_PIN >= 0
+  LOG(INFO, "[S88] Configuration (clock: %d, reset: %d, load: %d)"
+    , S88_CLOCK_Pin::pin(), S88_RESET_Pin::pin(), S88_LOAD_Pin::pin());
+#else
+  LOG(INFO, "[S88] Configuration (clock: %d, load: %d)"
+    , S88_CLOCK_Pin::pin(), S88_LOAD_Pin::pin());
+#endif
+
+  S88PinInit::hw_init();
 
   LOG(INFO, "[S88] Initializing SensorBus list");
   nlohmann::json root = nlohmann::json::parse(Singleton<ConfigurationManager>::instance()->load(S88_SENSORS_JSON_FILE));
@@ -96,6 +112,7 @@ void S88BusManager::init()
     }
   }
   LOG(INFO, "[S88] Loaded %d Sensor Buses", s88SensorBus.size());
+  // TODO: rework S88 to not use a dedicated task but instead switch to polling model.
   xTaskCreate(s88SensorTask, "S88SensorManager", S88_SENSOR_TASK_STACK_SIZE, NULL, S88_SENSOR_TASK_PRIORITY, nullptr);
 }
 
@@ -120,24 +137,24 @@ uint8_t S88BusManager::store()
 
 void S88BusManager::s88SensorTask(void *param)
 {
-  while(true)
+  while (true)
   {
     OSMutexLock l(&_s88SensorLock);
     for (const auto& sensorBus : s88SensorBus)
     {
       sensorBus->prepForRead();
     }
-    ESP_ERROR_CHECK(gpio_set_level((gpio_num_t)CONFIG_GPIO_S88_LOAD_PIN, 1));
+    S88_LOAD_Pin::set(true);
     ets_delay_us(S88_SENSOR_LOAD_PRE_CLOCK_TIME);
-    ESP_ERROR_CHECK(gpio_set_level((gpio_num_t)CONFIG_GPIO_S88_CLOCK_PIN, 1));
+    S88_CLOCK_Pin::set(true);
     ets_delay_us(S88_SENSOR_CLOCK_PULSE_TIME);
-    ESP_ERROR_CHECK(gpio_set_level((gpio_num_t)CONFIG_GPIO_S88_CLOCK_PIN, 0));
+    S88_CLOCK_Pin::set(false);
     ets_delay_us(S88_SENSOR_CLOCK_PRE_RESET_TIME);
-    ESP_ERROR_CHECK(gpio_set_level((gpio_num_t)CONFIG_GPIO_S88_RESET_PIN, 1));
+    S88_RESET_Pin::set(true);
     ets_delay_us(S88_SENSOR_RESET_PULSE_TIME);
-    ESP_ERROR_CHECK(gpio_set_level((gpio_num_t)CONFIG_GPIO_S88_RESET_PIN, 0));
+    S88_RESET_Pin::set(false);
     ets_delay_us(S88_SENSOR_LOAD_POST_RESET_TIME);
-    ESP_ERROR_CHECK(gpio_set_level((gpio_num_t)CONFIG_GPIO_S88_LOAD_PIN, 0));
+    S88_LOAD_Pin::set(false);
 
     ets_delay_us(S88_SENSOR_READ_TIME);
     bool keepReading = true;
@@ -146,15 +163,15 @@ void S88BusManager::s88SensorTask(void *param)
       keepReading = false;
       for (const auto& sensorBus : s88SensorBus)
       {
-        if(sensorBus->hasMore())
+        if (sensorBus->hasMore())
         {
           keepReading = true;
           sensorBus->readNext();
         }
       }
-      ESP_ERROR_CHECK(gpio_set_level((gpio_num_t)CONFIG_GPIO_S88_CLOCK_PIN, 1));
+      S88_CLOCK_Pin::set(true);
       ets_delay_us(S88_SENSOR_CLOCK_PULSE_TIME);
-      ESP_ERROR_CHECK(gpio_set_level((gpio_num_t)CONFIG_GPIO_S88_CLOCK_PIN, 0));
+      S88_CLOCK_Pin::set(false);
       ets_delay_us(S88_SENSOR_READ_TIME);
     }
     vTaskDelay(S88_SENSOR_CHECK_DELAY);
@@ -367,10 +384,11 @@ string S88SensorBus::get_state_for_dccpp()
 }
 
 S88Sensor::S88Sensor(uint16_t id, uint16_t index)
-  : Sensor(id, NON_STORED_SENSOR_PIN, false, false), _index(index)
+  : Sensor(id, NON_STORED_SENSOR_PIN, false, false, true), _index(index)
 {
   LOG(CONFIG_GPIO_S88_SENSOR_LOG_LEVEL
     , "[S88] Sensor(%d) created with index %d", id, _index);
+  
 }
 
 DCC_PROTOCOL_COMMAND_HANDLER(S88BusCommandAdapter,
