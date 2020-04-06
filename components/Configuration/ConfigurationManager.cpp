@@ -503,7 +503,7 @@ void ConfigurationManager::prepareLCCStack()
                           , (gpio_num_t)CONFIG_LCC_CAN_RX_PIN
                           , (gpio_num_t)CONFIG_LCC_CAN_TX_PIN
                           , false)
-      , ((openlcb::SimpleCanStack *)stack)->can_hub()));
+      , ((openlcb::SimpleCanStack *)stack_.get())->can_hub()));
   }
 #endif // CONFIG_LCC_CAN_ENABLED && !CONFIG_LCC_TCP_STACK
 }
