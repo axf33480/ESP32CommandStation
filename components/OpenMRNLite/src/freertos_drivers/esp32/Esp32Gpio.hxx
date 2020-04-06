@@ -302,7 +302,7 @@ public:
 /// Defines a GPIO input pin. No pull-up or pull-down.
 ///
 /// Do not use this class directly. Use @ref GPIO_PIN instead.
-template <class Defs> struct GpioInput : public GpioInputPar<Defs, false, false>
+template <class Defs> struct GpioInputNP : public GpioInputPar<Defs, false, false>
 {
 };
 
