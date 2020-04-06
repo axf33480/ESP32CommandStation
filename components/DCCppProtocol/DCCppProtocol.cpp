@@ -161,7 +161,7 @@ DCC_PROTOCOL_COMMAND_HANDLER(PowerOnCommand,
   esp32cs::enable_ops_track_output();
   // hardcoded response since enable/disable is deferred until the next
   // check interval.
-  return "<p1 OPS>";
+  return StringPrintf("<p1 %s>", CONFIG_OPS_TRACK_NAME);
 })
 
 DECLARE_DCC_PROTOCOL_COMMAND_CLASS(PowerOffCommand, "0")
@@ -171,7 +171,7 @@ DCC_PROTOCOL_COMMAND_HANDLER(PowerOffCommand,
   esp32cs::disable_track_outputs();
   // hardcoded response since enable/disable is deferred until the next
   // check interval.
-  return "<p0 OPS>";
+  return StringPrintf("<p0 %s>", CONFIG_OPS_TRACK_NAME);
 })
 
 #define GET_LOCO_VIA_EXECUTOR(NAME, address)                                          \
