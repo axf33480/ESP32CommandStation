@@ -46,10 +46,13 @@ void EStopHandler::set_state(bool new_value)
   }
   else
   {
-    LOG(INFO, "[eStop] Received eStop clear request.");
     AtomicHolder l(this);
-    remaining_ = 0;
-    packet_processor_remove_refresh_source(this);
+    if (remaining_)
+    {
+      LOG(INFO, "[eStop] Received eStop clear request.");
+      remaining_ = 0;
+      packet_processor_remove_refresh_source(this);
+    }
   }
 }
 
