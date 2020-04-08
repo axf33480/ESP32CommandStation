@@ -60,7 +60,7 @@ public:
     /// Sets pin to output.
     static void set_output()
     {
-        HASSERT(PIN_NUM < 34);
+        HASSERT(GPIO_IS_VALID_OUTPUT_GPIO(PIN_NUM));
         ESP_ERROR_CHECK(gpio_set_direction(pin(), GPIO_MODE_OUTPUT));
     }
 
@@ -129,6 +129,17 @@ public:
     /// @return input pin level.
     static bool get()
     {
+        if (is_output())
+        {
+            if (PIN_NUM < 32)
+            {
+                return GPIO.out & ((uint32_t)1 << (PIN_NUM & 31));
+            }
+            else
+            {
+                return GPIO.out1.data & ((uint32_t)1 << (PIN_NUM & 31));
+            }
+        }
         return gpio_get_level(pin());
     }
 
@@ -154,16 +165,16 @@ public:
     /// @return true if pin is configured as an output pin.
     static bool is_output()
     {
-        if(PIN_NUM < 34)
+        if (GPIO_IS_VALID_OUTPUT_GPIO(PIN_NUM))
         {
             // pins 32 and below use the first GPIO controller
-            if(PIN_NUM < 32)
+            if (PIN_NUM < 32)
             {
-                return GPIO.enable_w1ts & ((uint32_t)1 << (PIN_NUM & 31));
+                return GPIO.enable & ((uint32_t)1 << (PIN_NUM & 31));
             }
             else
             {
-                return GPIO.enable1_w1ts.val & ((uint32_t)1 << (PIN_NUM & 31));
+                return GPIO.enable1.data & ((uint32_t)1 << (PIN_NUM & 31));
             }
         }
         return false;
@@ -173,7 +184,7 @@ public:
     static void hw_init()
     {
         // sanity check that the pin number is valid
-        HASSERT(PIN_NUM >= 0 && PIN_NUM < GPIO_PIN_COUNT);
+        HASSERT(GPIO_IS_VALID_GPIO(PIN_NUM));
 
         // configure the pad for GPIO function
         gpio_pad_select_gpio(pin());
@@ -202,7 +213,7 @@ public:
     /// Initializes the hardware pin.
     static void hw_init()
     {
-        HASSERT(Base::pin() < 34);
+        HASSERT(GPIO_IS_VALID_OUTPUT_GPIO(Base::pin()));
         Base::hw_init();
         Base::set(SAFE_VALUE);
         Base::set_output();
@@ -267,29 +278,30 @@ struct GpioOutputSafeHighInvert : public GpioOutputPin<Defs, true, true>
 /// GPIO_PIN macro.
 /// @param PUEN is true if the pull-up should be enabled.
 /// @param PDEN is true if the pull-down should be enabled.
-/// Note: PUEN and PDEN are mutually exclusive and can not both be enabled at
-/// the same time.
 template <class Base, bool PUEN, bool PDEN> struct GpioInputPar : public Base
 {
 public:
     /// Initializes the hardware pin.
     static void hw_init()
     {
-        HASSERT(!(PUEN && PDEN));
-
         Base::hw_init();
         Base::set_input();
-        if (PUEN && !PDEN)
+        if (PUEN)
         {
             Base::set_pullup_on();
         }
-        else if (!PUEN && !PDEN)
+        else
         {
             Base::set_pullup_off();
         }
-        else if (PDEN)
+        
+        if (PDEN)
         {
             Base::set_pulldown_on();
+        }
+        else
+        {
+            Base::set_pulldown_off();
         }
     }
     /// Sets the hardware pin to a safe state.
@@ -299,7 +311,7 @@ public:
     }
 };
 
-/// Defines a GPIO input pin. No pull-up or pull-down.
+/// Defines a GPIO input pin  with pull-up and pull-down disabled.
 ///
 /// Do not use this class directly. Use @ref GPIO_PIN instead.
 template <class Defs> struct GpioInputNP : public GpioInputPar<Defs, false, false>
@@ -317,6 +329,13 @@ template <class Defs> struct GpioInputPU : public GpioInputPar<Defs, true, false
 ///
 /// Do not use this class directly. Use @ref GPIO_PIN instead.
 template <class Defs> struct GpioInputPD : public GpioInputPar<Defs, false, true>
+{
+};
+
+/// Defines a GPIO input pin with pull-up and pull-down enabled.
+///
+/// Do not use this class directly. Use @ref GPIO_PIN instead.
+template <class Defs> struct GpioInputPUPD : public GpioInputPar<Defs, true, true>
 {
 };
 
