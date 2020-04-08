@@ -21,6 +21,7 @@ COPYRIGHT (c) 2020 Mike Dunston
 #include "TrackPowerBitInterface.h"
 
 #include <dcc/ProgrammingTrackBackend.hxx>
+#include <driver/rmt.h>
 #include <esp_vfs.h>
 #include <freertos_drivers/arduino/DummyGPIO.hxx>
 #include <freertos_drivers/esp32/Esp32Gpio.hxx>
@@ -39,12 +40,6 @@ static constexpr rmt_channel_t OPS_RMT_CHANNEL = RMT_CHANNEL_0;
 
 /// RMT channel to use for the PROG track output.
 static constexpr rmt_channel_t PROG_RMT_CHANNEL = RMT_CHANNEL_3;
-
-/// File descriptor to use/return for the OPS track output.
-static const int OPS_FD_NUM = 0;
-
-/// File descriptor to use/return for the PROG track output.
-static const int PROG_FD_NUM = 1;
 
 /// OPS Track signal pin.
 GPIO_PIN(OPS_SIGNAL, GpioOutputSafeLow, CONFIG_OPS_SIGNAL_PIN);
@@ -110,16 +105,13 @@ typedef GpioInitializer<
 , OPS_RAILCOM_BRAKE_Pin, OPS_RAILCOM_ENABLE_Pin, OPS_RAILCOM_SHORT_Pin
 > DCCGpioInitializer;
 
-uninitialized<RMTTrackDevice> ops_track;
-uninitialized<HBridgeShortDetector> ops_track_mon;
-uninitialized<HBridgeThermalMonitor> ops_thermal_mon;
-uninitialized<RMTTrackDevice> prog_track;
-uninitialized<HBridgeShortDetector> prog_track_mon;
-uninitialized<TrackPowerBit> track_power;
-uninitialized<openlcb::BitEventConsumer> power_event;
-uninitialized<EStopHandler> estop_handler;
-uninitialized<ProgrammingTrackBackend> prog_track_backend;
-openlcb::RefreshLoop *dcc_poller;
+static std::unique_ptr<openlcb::RefreshLoop> dcc_poller;
+static std::unique_ptr<RMTTrackDevice> track[RMT_CHANNEL_MAX];
+static std::unique_ptr<HBridgeShortDetector> track_mon[RMT_CHANNEL_MAX];
+static std::unique_ptr<HBridgeThermalMonitor> ops_thermal_mon;
+static std::unique_ptr<openlcb::BitEventConsumer> power_event;
+static std::unique_ptr<EStopHandler> estop_handler;
+static std::unique_ptr<ProgrammingTrackBackend> prog_track_backend;
 
 /// Updates the status display with the current state of the track outputs.
 static void update_status_display()
@@ -141,41 +133,53 @@ void initiate_estop()
 /// Enables the OPS track output
 void enable_ops_track_output()
 {
-  ops_track->enable();
-  OPS_ENABLE_Pin::set_on();
-  Singleton<StatusLED>::instance()->setStatusLED(
-        StatusLED::LED::OPS_TRACK, StatusLED::COLOR::GREEN);
-  update_status_display();
+  if (OPS_ENABLE_Pin::instance()->is_clr())
+  {
+    LOG(INFO, "[Track] Enabling track output: %s", CONFIG_OPS_TRACK_NAME);
+    OPS_ENABLE_Pin::instance()->set();
+    Singleton<StatusLED>::instance()->setStatusLED(
+          StatusLED::LED::OPS_TRACK, StatusLED::COLOR::GREEN);
+    update_status_display();
+  }
 }
 
 /// Enables the OPS track output
 void disable_ops_track_output()
 {
-  ops_track->disable();
-  OPS_ENABLE_Pin::set_off();
-  Singleton<StatusLED>::instance()->setStatusLED(
-        StatusLED::LED::OPS_TRACK, StatusLED::COLOR::OFF);
-  update_status_display();
+  if (OPS_ENABLE_Pin::instance()->is_set())
+  {
+    LOG(INFO, "[Track] Disabling track output: %s", CONFIG_OPS_TRACK_NAME);
+    OPS_ENABLE_Pin::instance()->clr();
+    Singleton<StatusLED>::instance()->setStatusLED(
+          StatusLED::LED::OPS_TRACK, StatusLED::COLOR::OFF);
+    update_status_display();
+  }
 }
 
 /// Enables the PROG track output
 static void enable_prog_track_output()
 {
-  prog_track->enable();
-  PROG_ENABLE_Pin::set_on();
-  Singleton<StatusLED>::instance()->setStatusLED(
-        StatusLED::LED::PROG_TRACK, StatusLED::COLOR::GREEN);
-  update_status_display();
+  if (PROG_ENABLE_Pin::instance()->is_clr())
+  {
+    LOG(INFO, "[Track] Enabling track output: %s", CONFIG_PROG_TRACK_NAME);
+    PROG_ENABLE_Pin::instance()->set();
+    Singleton<StatusLED>::instance()->setStatusLED(
+          StatusLED::LED::PROG_TRACK, StatusLED::COLOR::GREEN);
+    update_status_display();
+  }
 }
 
 /// Disables the PROG track outputs
 static void disable_prog_track_output()
 {
-  PROG_ENABLE_Pin::set_off();
-  prog_track->disable();
-  Singleton<StatusLED>::instance()->setStatusLED(
-        StatusLED::LED::PROG_TRACK, StatusLED::COLOR::OFF);
-  update_status_display();
+  if (PROG_ENABLE_Pin::instance()->is_set())
+  {
+    LOG(INFO, "[Track] Disabling track output: %s", CONFIG_PROG_TRACK_NAME);
+    PROG_ENABLE_Pin::instance()->clr();
+    Singleton<StatusLED>::instance()->setStatusLED(
+          StatusLED::LED::PROG_TRACK, StatusLED::COLOR::OFF);
+    update_status_display();
+  }
 }
 
 /// Disables all track outputs
@@ -192,11 +196,8 @@ void disable_track_outputs()
 /// @returns number of bytes written.
 static ssize_t dcc_vfs_write(int fd, const void *data, size_t size)
 {
-  if (fd == OPS_FD_NUM)
-  {
-    return ops_track->write(fd, data, size);
-  }
-  return prog_track->write(fd, data, size);
+  HASSERT(track[fd] != nullptr);
+  return track[fd]->write(fd, data, size);
 }
 
 /// ESP32 VFS ::open() impl for the RMTTrackDevice
@@ -206,14 +207,20 @@ static ssize_t dcc_vfs_write(int fd, const void *data, size_t size)
 /// @returns file descriptor for the opened file location.
 static int dcc_vfs_open(const char *path, int flags, int mode)
 {
-  int fd = OPS_FD_NUM;
+  int fd;
   if (!strcasecmp(path + 1, CONFIG_OPS_TRACK_NAME))
   {
-    fd = OPS_FD_NUM;
+    fd = OPS_RMT_CHANNEL;
   }
   else if (!strcasecmp(path + 1, CONFIG_PROG_TRACK_NAME))
   {
-    fd = PROG_FD_NUM;
+    fd = PROG_RMT_CHANNEL;
+  }
+  else
+  {
+    LOG_ERROR("[Track] Attempt to open unknown track interface: %s", path + 1);
+    errno = ENOTSUP;
+    return -1;
   }
   LOG(INFO, "[Track] Connecting track interface (track:%s, fd:%d)", path + 1, fd);
   return fd;
@@ -224,8 +231,9 @@ static int dcc_vfs_open(const char *path, int flags, int mode)
 /// @returns the status of the close() operation, only returns zero.
 static int dcc_vfs_close(int fd)
 {
+  HASSERT(track[fd] != nullptr);
   LOG(INFO, "[Track] Disconnecting track interface (track:%s, fd:%d)"
-    , (fd == OPS_FD_NUM) ? CONFIG_OPS_TRACK_NAME : CONFIG_PROG_TRACK_NAME, fd);
+    , track[fd]->name(), fd);
   return 0;
 }
 
@@ -237,35 +245,55 @@ static int dcc_vfs_close(int fd)
 /// set errno.
 static int dcc_vfs_ioctl(int fd, int cmd, va_list args)
 {
-  if (fd == OPS_FD_NUM)
-  {
-    return ops_track->ioctl(fd, cmd, args);
-  }
-  return prog_track->ioctl(fd, cmd, args);
+  HASSERT(track[fd] != nullptr);
+  return track[fd]->ioctl(fd, cmd, args);
 }
 
-/// RMT transmit complete ISR callback.
+/// RMT transmit complete callback.
 ///
 /// @param channel is the RMT channel that has completed transmission.
 /// @param ctx is unused.
 ///
 /// This is called automatically by the RMT peripheral when it reaches the end
 /// of TX data.
-static void rmt_tx_complete_isr_callback(rmt_channel_t channel, void *ctx)
+static void rmt_tx_callback(rmt_channel_t channel, void *ctx)
 {
-  // Check if the channel 0 TX END has been triggered
-  // if so the OPS TX has completed and we need to clear the event
-  if (channel == OPS_RMT_CHANNEL)
+  if (track[channel] != nullptr)
   {
-    ops_track->rmt_transmit_complete();
+    track[channel]->rmt_transmit_complete();
   }
+}
 
-  // Check if the channel 1 TX END has been triggered
-  // if so the PROG TX has completed and we need to clear the event
-  if (channel == PROG_RMT_CHANNEL)
-  {
-    prog_track->rmt_transmit_complete();
-  }
+/// Initializes the RMT based signal generation
+///
+/// @param param unused.
+///
+/// Note: this is necessary to ensure the RMT ISRs are started on the second
+/// core of the ESP32.
+static void init_rmt_outputs(void *param)
+{
+  // Connect our callback into the RMT so we can queue up the next packet for
+  // transmission when needed.
+  rmt_register_tx_end_callback(rmt_tx_callback, nullptr);
+
+  track[OPS_RMT_CHANNEL].reset(
+    new RMTTrackDevice(CONFIG_OPS_TRACK_NAME, OPS_RMT_CHANNEL
+                     , CONFIG_OPS_DCC_PREAMBLE_BITS
+                     , CONFIG_OPS_PACKET_QUEUE_SIZE, OPS_SIGNAL_Pin::pin()
+                     , &opsRailComDriver));
+
+  track[PROG_RMT_CHANNEL].reset(
+    new RMTTrackDevice(CONFIG_PROG_TRACK_NAME, PROG_RMT_CHANNEL
+                     , CONFIG_PROG_DCC_PREAMBLE_BITS
+                     , CONFIG_PROG_PACKET_QUEUE_SIZE, PROG_SIGNAL_Pin::pin()
+                     , &progRailComDriver));
+
+#if defined(CONFIG_OPS_ENERGIZE_ON_STARTUP)
+  power_event->set_state(true);
+#endif
+
+  // this is a one-time task, shutdown the task before returning
+  vTaskDelete(nullptr);
 }
 
 /// Initializes the ESP32 VFS adapter for the DCC track interface and the short
@@ -295,73 +323,84 @@ void init_dcc_vfs(openlcb::Node *node, Service *service
   OPS_ENABLE_Pin::set_pulldown_on();
   PROG_ENABLE_Pin::set_pulldown_on();
 
-  ops_thermal_mon.emplace(node, ops_cfg, OPS_THERMAL_Pin::instance());
+  ops_thermal_mon.reset(
+    new HBridgeThermalMonitor(node, ops_cfg, OPS_THERMAL_Pin::instance()));
 
-  ops_track_mon.emplace(node, (adc1_channel_t)CONFIG_OPS_ADC
-                      , OPS_ENABLE_Pin::instance()
-                      , CONFIG_OPS_HBRIDGE_LIMIT_MILLIAMPS
-                      , CONFIG_OPS_HBRIDGE_MAX_MILLIAMPS
-                      , CONFIG_OPS_TRACK_NAME
-                      , CONFIG_OPS_HBRIDGE_TYPE_NAME
-                      , ops_cfg);
+  track_mon[OPS_RMT_CHANNEL].reset(
+    new HBridgeShortDetector(node, (adc1_channel_t)CONFIG_OPS_ADC
+                           , OPS_ENABLE_Pin::instance()
+                           , CONFIG_OPS_HBRIDGE_LIMIT_MILLIAMPS
+                           , CONFIG_OPS_HBRIDGE_MAX_MILLIAMPS
+                           , CONFIG_OPS_TRACK_NAME
+                           , CONFIG_OPS_HBRIDGE_TYPE_NAME
+                           , ops_cfg));
 
-  prog_track_mon.emplace(node, (adc1_channel_t)CONFIG_PROG_ADC
-                       , PROG_ENABLE_Pin::instance()
-                       , CONFIG_PROG_HBRIDGE_MAX_MILLIAMPS
-                       , CONFIG_PROG_TRACK_NAME
-                       , CONFIG_PROG_HBRIDGE_TYPE_NAME
-                       , prog_cfg);
+  track_mon[PROG_RMT_CHANNEL].reset(
+    new HBridgeShortDetector(node, (adc1_channel_t)CONFIG_PROG_ADC
+                           , PROG_ENABLE_Pin::instance()
+                           , CONFIG_PROG_HBRIDGE_MAX_MILLIAMPS
+                           , CONFIG_PROG_TRACK_NAME
+                           , CONFIG_PROG_HBRIDGE_TYPE_NAME
+                           , prog_cfg));
 
-  // This can not use the emplace option as it does not appear to map correctly
-  dcc_poller = new openlcb::RefreshLoop(node,
+  dcc_poller.reset(new openlcb::RefreshLoop(node,
     { ops_thermal_mon->polling()
-    , ops_track_mon.operator->()
-    , prog_track_mon.operator->()
-  });
+    , track_mon[OPS_RMT_CHANNEL].get()
+    , track_mon[PROG_RMT_CHANNEL].get()
+  }));
 
-  ops_track.emplace(node, CONFIG_OPS_TRACK_NAME, OPS_RMT_CHANNEL
-                  , CONFIG_OPS_PREAMBLE_BITS, CONFIG_OPS_PACKET_QUEUE_SIZE
-                  , OPS_SIGNAL_Pin::pin(), &opsRailComDriver);
-
-  prog_track.emplace(node, CONFIG_PROG_TRACK_NAME, PROG_RMT_CHANNEL
-                   , CONFIG_PROG_PREAMBLE_BITS, CONFIG_PROG_PACKET_QUEUE_SIZE
-                   , PROG_SIGNAL_Pin::pin(), &progRailComDriver);
-
-  // hook into the RMT ISR to have callbacks when TX completes
-  rmt_register_tx_end_callback(rmt_tx_complete_isr_callback, nullptr);
+  // initialize the RMT using the second core so that the ISR is bound to that
+  // core instead of this core.
+  // TODO: should this block until the RMT is running?
+  xTaskCreatePinnedToCore(&init_rmt_outputs, "RMT Init", 2048, nullptr, 2
+                        , nullptr, APP_CPU_NUM);
 
   LOG(INFO
     , "[Track] Registering LCC EventConsumer for Track Power (On:%s, Off:%s)"
     , uint64_to_string_hex(openlcb::Defs::CLEAR_EMERGENCY_OFF_EVENT).c_str()
     , uint64_to_string_hex(openlcb::Defs::EMERGENCY_OFF_EVENT).c_str());
-  track_power.emplace(node, OPS_ENABLE_Pin::instance());
-  power_event.emplace(track_power.operator->());
+  power_event.reset(
+    new openlcb::BitEventConsumer(
+      new TrackPowerBit(node, OPS_ENABLE_Pin::instance())));
 
   // Initialize the e-stop event handler
-  estop_handler.emplace(node);
+  estop_handler.reset(new EStopHandler(node));
 
   // Initialize the Programming Track backend handler
-  prog_track_backend.emplace(service, &enable_prog_track_output
-                           , &disable_prog_track_output);
+  prog_track_backend.reset(
+    new ProgrammingTrackBackend(service
+                              , &enable_prog_track_output
+                              , &disable_prog_track_output));
 
   update_status_display();
-
-#if defined(CONFIG_OPS_ENERGIZE_ON_STARTUP)
-  power_event->set_state(true);
-#endif
 }
 
 /// @return string containing a two element json array of the track monitors.
 std::string get_track_state_json()
 {
-  return StringPrintf("[%s,%s]", ops_track_mon->getStateAsJson().c_str()
-                    , prog_track_mon->getStateAsJson().c_str());
+  return StringPrintf("[%s,%s]"
+                    , track_mon[OPS_RMT_CHANNEL]->getStateAsJson().c_str()
+                    , track_mon[PROG_RMT_CHANNEL]->getStateAsJson().c_str());
 }
 
 /// @return DCC++ status data from the OPS track only.
 std::string get_track_state_for_dccpp()
 {
-  return ops_track_mon->get_state_for_dccpp();
+  return track_mon[OPS_RMT_CHANNEL]->get_state_for_dccpp();
+}
+
+/// Enables or disables track power via event state.
+/// @param new_value is the requested status.
+void TrackPowerBit::set_state(bool new_value)
+{
+  if (new_value)
+  {
+    enable_ops_track_output();
+  }
+  else
+  {
+    disable_track_outputs();
+  }
 }
 
 } // namespace esp32cs

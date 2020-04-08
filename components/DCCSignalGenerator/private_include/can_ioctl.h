@@ -25,90 +25,21 @@
  * POSSIBILITY OF SUCH DAMAGE.
  *
  * \file can_ioctl.h
- * This file implements ioctl() prototypes and defines.
+ * This file implements can specific ioctl() keys.
  *
  * @author Stuart W. Baker
  * @date 2 November 2013
  */
 
-#ifndef _can_ioctl_h_
-#define _can_ioctl_h_
+#ifndef _FREERTOS_CAN_IOCTL_H_
+#define _FREERTOS_CAN_IOCTL_H_
+
+#include <stdint.h>
+#include "stropts.h"
 
 #if defined (__cplusplus)
 extern "C" {
 #endif
-
-/** ioctl key value for operation (not read or write) */
-#define IOC_NONE 0U
-
-/** ioctl key write bit */
-#define IOC_WRITE 1U
-
-/** ioctl key read bit */
-#define IOC_READ 2U
-
-/** create an ioctl.
- * @param _dir direction
- * @param _type device driver unique number
- * @param _num ioctl index number
- * @param _size size of ioctl data in bytes
- */
-#define IOC(_dir, _type, _num, _size) \
-    (((_dir) << 30) | ((_type) << 8) | ((_num)) | ((_size) << 16))
-
-/** create an operation ioctl
- * @param _type device driver unique number
- * @param _num ioctl index number
- */
-#define IO(_type, _num) IOC(IOC_NONE, (_type), (_num), 0)
-
-/** create an operation ioctl
- * @param _type device driver unique number
- * @param _num ioctl index number
- * @param _size size of ioctl data in bytes
- */
-#define IOR(_type, _num, _size) IOC(IOC_READ, (_type), (_num), (_size))
-
-/** create an operation ioctl
- * @param _type device driver unique number
- * @param _num ioctl index number
- * @param _size size of ioctl data in bytes
- */
-#define IOW(_type, _num, _size) IOC(IOC_WRITE, (_type), (_num), (_size))
-
-/** create an operation ioctl
- * @param _type device driver unique number
- * @param _num ioctl index number
- * @param _size size of ioctl data in bytes
- */
-#define IOWR(_type, _num, _size) IOC(IOC_WRITE | IOC_READ, (_type), (_num), (_size))
-
-/** Decode ioctl number direction.
- * @param _num encoded ioctl value
- * @return IOC_NONE, IOC_WRITE, IOC_READ, or IOC_WRITE | IOC_READ
- */
-#define IOC_DIR(_num) (((_num) >> 30) & 0x00000003)
-
-/** Decode ioctl type.
- * @param _num encoded ioctl value
- * @return device driver unique number
- */
-#define IOC_TYPE(_num) (((_num) >> 8) & 0x000000FF)
-
-/** Decode ioctl number.
- * @param _num encoded ioctl value
- * @return ioctl index number
- */
-#define IOC_NR(_num) (((_num) >> 0) & 0x000000FF)
-
-/** Decode ioctl size.
- * @param _num encoded ioctl value
- * @return size of ioctl data in bytes
- */
-#define IOC_SIZE(_num) (((_num) >> 16) & 0x00003FFF)
-
-/** Number of bits that make up the size field */
-#define IOC_SIZEBITS 14
 
 /** Magic number for this driver's ioctl calls */
 #define CAN_IOC_MAGIC ('c')
@@ -122,8 +53,35 @@ extern "C" {
 /** write active ioctl. Argument is a literal pointer to a Notifiable. */
 #define CAN_IOC_WRITE_ACTIVE IOW(CAN_IOC_MAGIC, 2, NOTIFIABLE_TYPE)
 
+/** CAN state type */
+typedef uint32_t can_state_t;
+
+/** Read the CAN state */
+#define SIOCGCANSTATE IOR(CAN_IOC_MAGIC, 3, sizeof(can_state_t))
+
+/** CAN bus active */
+#define CAN_STATE_ACTIVE            0
+
+/** CAN bus error warning */
+#define CAN_STATE_BUS_WARNING       1
+
+/** CAN bus error passive */
+#define CAN_STATE_BUS_PASSIVE       2
+
+/** CAN bus off */
+#define CAN_STATE_BUS_OFF           3
+
+/** CAN bus scanning baud rate (CANFD) */
+#define CAN_STATE_SCANNING_BAUDRATE 4
+
+/** CAN bus stopped */
+#define CAN_STATE_STOPPED           5
+
+/** CAN bus sleeping */
+#define CAN_STATE_SLEEPING          6
+
 #if defined (__cplusplus)
 }
 #endif
 
-#endif /* _can_ioctl_h_ */
+#endif /* _FREERTOS_CAN_IOCTL_H_ */

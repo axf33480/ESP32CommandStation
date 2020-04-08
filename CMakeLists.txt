@@ -219,7 +219,7 @@ endif()
 # OPS H-Bridge validations
 ###############################################################################
 
-if (NOT CONFIG_OPS_ENABLE_PIN OR NOT CONFIG_OPS_SIGNAL_PIN OR NOT CONFIG_OPS_PREAMBLE_BITS OR CONFIG_OPS_ADC STREQUAL "")
+if (NOT CONFIG_OPS_ENABLE_PIN OR NOT CONFIG_OPS_SIGNAL_PIN OR NOT CONFIG_OPS_DCC_PREAMBLE_BITS OR CONFIG_OPS_ADC STREQUAL "")
     message(FATAL_ERROR "One (or more) OPS H-Bridge required parameters is not defined.")
 endif()
 
@@ -231,15 +231,15 @@ if (CONFIG_OPS_SIGNAL_PIN GREATER_EQUAL 6 AND CONFIG_OPS_SIGNAL_PIN LESS_EQUAL 1
     message(FATAL_ERROR "OPS H-Bridge signal pin can not be set to pin 6-11 (used by onboard flash).")
 endif()
 
-if (CONFIG_OPS_PREAMBLE_BITS LESS 11 AND NOT CONFIG_OPS_RAILCOM)
+if (CONFIG_OPS_DCC_PREAMBLE_BITS LESS 11 AND NOT CONFIG_OPS_RAILCOM)
     message(FATAL_ERROR "OPS track preamble bits is too low, at least 11 bits are required.")
 endif()
 
-if (CONFIG_OPS_PREAMBLE_BITS LESS 16 AND CONFIG_OPS_RAILCOM)
+if (CONFIG_OPS_DCC_PREAMBLE_BITS LESS 16 AND CONFIG_OPS_RAILCOM)
     message(FATAL_ERROR "OPS track preamble bits is too low, at least 16 bits are required when RailCom is enabled.")
 endif()
 
-if (CONFIG_OPS_PREAMBLE_BITS GREATER 20)
+if (CONFIG_OPS_DCC_PREAMBLE_BITS GREATER 20)
     message(FATAL_ERROR "OPS track preamble bits is too high, a maximum of 20 bits is supported.")
 endif()
 
@@ -327,7 +327,7 @@ endif()
 # PROG H-Bridge validations
 ###############################################################################
 
-if (NOT CONFIG_PROG_ENABLE_PIN OR NOT CONFIG_PROG_SIGNAL_PIN OR NOT CONFIG_PROG_PREAMBLE_BITS OR CONFIG_PROG_ADC STREQUAL "")
+if (NOT CONFIG_PROG_ENABLE_PIN OR NOT CONFIG_PROG_SIGNAL_PIN OR NOT CONFIG_PROG_DCC_PREAMBLE_BITS OR CONFIG_PROG_ADC STREQUAL "")
     message(FATAL_ERROR "One (or more) PROG H-Bridge required parameters is not defined.")
 endif()
 
@@ -349,11 +349,11 @@ if (NOT CONFIG_ALLOW_USAGE_OF_RESTRICTED_GPIO_PINS)
     endif()
 endif()
 
-if (CONFIG_PROG_PREAMBLE_BITS LESS 22)
+if (CONFIG_PROG_DCC_PREAMBLE_BITS LESS 22)
     message(FATAL_ERROR "PROG track preamble bits is too low, at least 22 bits are required.")
 endif()
 
-if (CONFIG_PROG_PREAMBLE_BITS GREATER 75)
+if (CONFIG_PROG_DCC_PREAMBLE_BITS GREATER 75)
     message(FATAL_ERROR "PROG track preamble bits is too high, a maximum of 75 bits is supported.")
 endif()
 

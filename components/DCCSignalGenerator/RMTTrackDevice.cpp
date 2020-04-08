@@ -16,18 +16,10 @@ COPYRIGHT (c) 2019-2020 Mike Dunston
 **********************************************************************/
 
 #include "RMTTrackDevice.h"
+#include "sdkconfig.h"
 
 #include <dcc/DccDebug.hxx>
 #include <soc/gpio_struct.h>
-
-///////////////////////////////////////////////////////////////////////////////
-// RMT direct register access helper macros. These are used in the tx complete
-// ISR handler(s) rather than IDF RMT APIs which can crash from inside the ISR
-// callback due to FreeRTOS function usage.
-///////////////////////////////////////////////////////////////////////////////
-#define RMT_SET_FIFO(mode) RMT.apb_conf.fifo_mask = mode;
-#define RMT_SET_DATA(channel, index) RMTMEM.chan[channel].data32[index].val
-#define RMT_CONFIG(channel) RMT.conf_ch[channel].conf1
 
 ///////////////////////////////////////////////////////////////////////////////
 // The NMRA DCC Signal is sent as a square wave with each half having
@@ -52,15 +44,15 @@ COPYRIGHT (c) 2019-2020 Mike Dunston
 //           | usec |
 //           --------
 //
-// Waveforms above are not exact to scale. The timing can be adjusted via
-// menuconfig with the above being the default values when using the APB clock.
+// The timing can be adjusted via menuconfig with the above being the default
+// values when using the APB clock.
 //
 ///////////////////////////////////////////////////////////////////////////////
 
 ///////////////////////////////////////////////////////////////////////////////
 // DCC ZERO bit pre-encoded in RMT format.
 ///////////////////////////////////////////////////////////////////////////////
-#if defined(CONFIG_DCC_SIGNAL_HIGH_FIRST)
+#if CONFIG_DCC_RMT_HIGH_FIRST
 static constexpr rmt_item32_t DCC_RMT_ZERO_BIT =
 {{{
     CONFIG_DCC_RMT_TICKS_ZERO_PULSE // number of microseconds for TOP half
@@ -75,12 +67,12 @@ static constexpr rmt_item32_t DCC_RMT_ZERO_BIT =
   , CONFIG_DCC_RMT_TICKS_ZERO_PULSE // number of microseconds for BOTTOM half
   , 1                               // of the square wave.
 }}};
-#endif // CONFIG_DCC_SIGNAL_HIGH_FIRST
+#endif // CONFIG_DCC_RMT_HIGH_FIRST
 
 ///////////////////////////////////////////////////////////////////////////////
 // DCC ONE bit pre-encoded in RMT format.
 ///////////////////////////////////////////////////////////////////////////////
-#if defined(CONFIG_DCC_SIGNAL_HIGH_FIRST)
+#if CONFIG_DCC_RMT_HIGH_FIRST
 static constexpr rmt_item32_t DCC_RMT_ONE_BIT =
 {{{
     CONFIG_DCC_RMT_TICKS_ONE_PULSE  // number of microseconds for TOP half
@@ -96,7 +88,7 @@ static constexpr rmt_item32_t DCC_RMT_ONE_BIT =
   , CONFIG_DCC_RMT_TICKS_ONE_PULSE  // number of microseconds for BOTTOM half
   , 1                               // of the square wave.
 }}};
-#endif // CONFIG_DCC_SIGNAL_HIGH_FIRST
+#endif // CONFIG_DCC_RMT_HIGH_FIRST
 
 ///////////////////////////////////////////////////////////////////////////////
 // Marklin Motorola bit timing (WIP)
@@ -167,116 +159,6 @@ static constexpr DRAM_ATTR uint8_t PACKET_BIT_MASK[] =
 };
 
 ///////////////////////////////////////////////////////////////////////////////
-// Inline method for setting the output state of a gpio pin via it's hardware
-// register. gpio_set_level should normally be used instead.
-//
-// Note: This method has minimal error checking and should only be used with
-// previously validated parameters when execution speed is critical.
-///////////////////////////////////////////////////////////////////////////////
-static inline void _set_gpio_state(gpio_num_t pin, bool state)
-{
-  if (state)
-  {
-    if (pin < 32)
-    {
-      GPIO.out_w1ts = (1 << pin);
-    }
-    else if (pin < 40)
-    {
-      GPIO.out1_w1ts.data = (1 << (pin & 31));
-    }
-  }
-  else
-  {
-    if (pin < 32)
-    {
-      GPIO.out_w1tc = (1 << pin);
-    }
-    else if (pin < 40)
-    {
-      GPIO.out1_w1tc.data = (1 << (pin & 31));
-    }
-  }
-}
-
-///////////////////////////////////////////////////////////////////////////////
-// Inline method to retrieve the current state of a gpio pin from the hardware
-// register. gpio_get_level should normally be used instead.
-//
-// Note: This method has minimal error checking and should only be used with
-// previously validated parameters when execution speed is critical.
-///////////////////////////////////////////////////////////////////////////////
-static inline bool _get_gpio_state(gpio_num_t pin)
-{
-  if (pin < 32)
-  {
-    return (GPIO.in >> pin) & 0x1;
-  }
-  else if (pin < 40)
-  {
-    return (GPIO.in1.data >> (pin & 31)) & 0x1;
-  }
-  return false;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-// Helper macro for encoding a dcc::Packet into an RMT payload
-//
-// When a packet has remaining repeats the packet data is not re-encoded.
-// This will allocate a new RailCom feedback when a new packet is encoded based
-// on the alloc_railcom function passed in.
-///////////////////////////////////////////////////////////////////////////////
-#define ENCODE_PACKET(queue, lock, preambleCount, encodedPacket             \
-                    , encodedLength, repeatCount, notifiable)               \
-  /* decrement the repeat count and if we still have at least one repeat
-     remaining skip reencoding the packet */                                \
-  if (--repeatCount >= 0)                                                   \
-  {                                                                         \
-    return;                                                                 \
-  }                                                                         \
-  /* attempt to fetch a packet from the queue or use an idle packet */      \
-  dcc::Packet packet{dcc::Packet::DCC_IDLE()};                              \
-  {                                                                         \
-    AtomicHolder l(&lock);                                                  \
-    queue->get(&packet, 1);                                                 \
-  }                                                                         \
-  /* Check if we have a pending writer and notify it if needed. */          \
-  Notifiable* n = nullptr;                                                  \
-  std::swap(n, notifiable);                                                 \
-  if (n)                                                                    \
-  {                                                                         \
-    n->notify_from_isr();                                                   \
-  }                                                                         \
-  /* encode the preamble bits */                                            \
-  for (encodedLength = 0; encodedLength < preambleCount; encodedLength++)   \
-  {                                                                         \
-    encodedPacket[encodedLength].val = DCC_RMT_ONE_BIT.val;                 \
-  }                                                                         \
-  /* start of payload marker */                                             \
-  encodedPacket[encodedLength++].val = DCC_RMT_ZERO_BIT.val;                \
-  /* encode the packet bits */                                              \
-  for (uint8_t dlc = 0; dlc < packet.dlc; dlc++)                            \
-  {                                                                         \
-    for(uint8_t bit = 0; bit < 8; bit++)                                    \
-    {                                                                       \
-      encodedPacket[encodedLength++].val =                                  \
-        packet.payload[dlc] & PACKET_BIT_MASK[bit] ?                        \
-          DCC_RMT_ONE_BIT.val : DCC_RMT_ZERO_BIT.val;                       \
-    }                                                                       \
-    /* end of byte marker */                                                \
-    encodedPacket[encodedLength++].val = DCC_RMT_ZERO_BIT.val;              \
-  }                                                                         \
-  /* set the last bit of the encoded payload to be an end of packet 
-      marker */                                                             \
-  encodedPacket[encodedLength - 1].val = DCC_RMT_ONE_BIT.val;               \
-  /* add an extra ONE bit to the end to prevent mangling of the last bit
-      by the RMT */                                                         \
-  encodedPacket[encodedLength++].val = DCC_RMT_ONE_BIT.val;                 \
-  /* record the repeat count */                                             \
-  repeatCount = packet.packet_header.rept_count + 1;                        \
-  railcomDriver_->set_feedback_key(packet.feedback_key);
-
-///////////////////////////////////////////////////////////////////////////////
 // RMTTrackDevice constructor.
 //
 // This creates a VFS interface for the packet queue which can be used by
@@ -289,36 +171,50 @@ static inline bool _get_gpio_state(gpio_num_t pin)
 // for short circuits and disable the track output from the h-bridge
 // independently from the RMT signal being generated.
 ///////////////////////////////////////////////////////////////////////////////
-RMTTrackDevice::RMTTrackDevice(openlcb::Node *node
-                             , const char *name
+RMTTrackDevice::RMTTrackDevice(const char *name
                              , const rmt_channel_t channel
-                             , const uint8_t preambleBitCount
+                             , const uint8_t dccPreambleBitCount
                              , size_t packet_queue_len
                              , gpio_num_t pin
                              , RailcomDriver *railcomDriver
                              )
                              : name_(name)
                              , channel_(channel)
-                             , preambleBitCount_(preambleBitCount)
+                             , dccPreambleBitCount_(dccPreambleBitCount)
                              , railcomDriver_(railcomDriver)
                              , packetQueue_(DeviceBuffer<dcc::Packet>::create(packet_queue_len))
 {
-  uint16_t maxBitCount = preambleBitCount                 // preamble bits
+  uint16_t maxBitCount = dccPreambleBitCount_             // preamble bits
                         + 1                               // packet start bit
                         + (dcc::Packet::MAX_PAYLOAD * 8)  // payload bits
                         +  dcc::Packet::MAX_PAYLOAD       // end of byte bits
                         + 1                               // end of packet bit
                         + 1;                              // RMT extra bit
-  HASSERT(maxBitCount <= MAX_DCC_PACKET_BITS);
+  HASSERT(maxBitCount <= MAX_RMT_BITS);
 
   uint8_t memoryBlocks = (maxBitCount / RMT_MEM_ITEM_NUM) + 1;
   HASSERT(memoryBlocks <= MAX_RMT_MEMORY_BLOCKS);
 
-  LOG(INFO, "[%s] Using RMT(%d), pin: %d, memory: %d blocks (%d/%d bits), "
-            "clk-div: %d, DCC bit timing: zero: %duS, one: %duS"
-          , name_, channel_, pin, memoryBlocks, maxBitCount
-          , (memoryBlocks * RMT_MEM_ITEM_NUM), CONFIG_DCC_RMT_CLOCK_DIVIDER
-          , CONFIG_DCC_RMT_TICKS_ZERO_PULSE, CONFIG_DCC_RMT_TICKS_ONE_PULSE);
+  LOG(INFO, "[%s] Signal pin: %d", name_, pin);
+  LOG(INFO
+    , "[%s] DCC config: zero: %duS, one: %duS, preamble-bits: %d, wave: %s"
+    , name_, CONFIG_DCC_RMT_TICKS_ZERO_PULSE, CONFIG_DCC_RMT_TICKS_ONE_PULSE
+    , dccPreambleBitCount_
+#if CONFIG_DCC_RMT_HIGH_FIRST
+    , "high, low"
+#else
+    , "low, high"
+#endif
+    );
+  /*LOG(INFO
+    , "[%s] Marklin-Motorola config: zero: %duS (high), zero: %duS (low), "
+      "one: %duS (high), one: %duS (low), preamble: %duS (low)",
+    , name_, MARKLIN_ZERO_BIT_PULSE_HIGH_USEC, MARKLIN_ZERO_BIT_PULSE_LOW_USEC
+    , MARKLIN_ONE_BIT_PULSE_HIGH_USEC, MARKLIN_ONE_BIT_PULSE_LOW_USEC
+    , MARKLIN_PREAMBLE_BIT_PULSE_HIGH_USEC + MARKLIN_PREAMBLE_BIT_PULSE_LOW_USEC);*/
+  LOG(INFO, "[%s] RMT(%d) config: memory: %d blocks (%d/%d DCC bits), div: %d"
+    , name_, channel_, memoryBlocks, maxBitCount
+    , (memoryBlocks * RMT_MEM_ITEM_NUM), CONFIG_DCC_RMT_CLOCK_DIVIDER);
   rmt_config_t config =
   {
     .rmt_mode = RMT_MODE_TX,
@@ -341,9 +237,16 @@ RMTTrackDevice::RMTTrackDevice(openlcb::Node *node
   };
   ESP_ERROR_CHECK(rmt_config(&config));
   ESP_ERROR_CHECK(rmt_driver_install(channel_, 0, RMT_ISR_FLAGS));
+
 #if defined(CONFIG_DCC_RMT_USE_REF_CLOCK)
+  LOG(INFO, "[%s] Configuring RMT to use REF_CLK", name_);
   ESP_ERROR_CHECK(rmt_set_source_clk(channel_, RMT_BASECLK_REF));
 #endif // CONFIG_DCC_RMT_USE_APB_CLOCK
+
+  LOG(INFO, "[%s] Starting signal generator", name_);
+  // send one bit to kickstart the signal, remaining data will come from the
+  // packet queue. We intentionally do not wait for the RMT TX complete here.
+  rmt_write_items(channel_, &DCC_RMT_ONE_BIT, 1, false);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -351,8 +254,7 @@ RMTTrackDevice::RMTTrackDevice(openlcb::Node *node
 //
 // This will write *ONE* dcc::Packet to either the OPS or PROG packet queue. If
 // there is no space in the packet queue the packet will be rejected and errno
-// set to ENOSPC. If the track output is not enabled the packet will be
-// discarded without an error being reported.
+// set to ENOSPC.
 //
 // NOTE: At this time Marklin packets will be actively rejected.
 ///////////////////////////////////////////////////////////////////////////////
@@ -372,7 +274,6 @@ ssize_t RMTTrackDevice::write(int fd, const void * data, size_t size)
     return -1;
   }
 
-  if (active_)
   {
     AtomicHolder l(&packetQueueLock_);
     dcc::Packet* writePacket;
@@ -384,18 +285,6 @@ ssize_t RMTTrackDevice::write(int fd, const void * data, size_t size)
       return 1;
     }
   }
-  else
-  {
-#if CONFIG_DCC_RMT_LOG_LEVEL == VERBOSE
-    dcc::Packet pkt;
-    memcpy(&pkt, data, size);
-    LOG(CONFIG_DCC_RMT_LOG_LEVEL, "[RMT] Discarding packet as track is not ENABLED:\n%s",
-        dcc::packet_to_string(pkt).c_str());
-#endif // CONFIG_DCC_RMT_LOG_LEVEL == VERBOSE
-    // discard packet
-    return 1;
-  }
-
   // packet queue is full!
   errno = ENOSPC;
   return -1;
@@ -404,12 +293,10 @@ ssize_t RMTTrackDevice::write(int fd, const void * data, size_t size)
 ///////////////////////////////////////////////////////////////////////////////
 // ESP VFS callback for ::ioctl()
 //
-// When the cmd is CAN_IOC_WRITE_OPS_ACTIVE the OPS packet queue will be
-// queried. When the cmd is CAN_IOC_WRITE_PROG_ACTIVE the PROG packet queue
-// will be queried.
-//
-// If there is space in the queue the args will be converted to a Notifiable
-// object which will be notified of space available or to requeue themselves.
+// When the cmd is CAN_IOC_WRITE_ACTIVE the packet queue will be checked. When
+// there is no space in the queue the Notifiable will be stored to be called
+// after the next DCC packet has been transmitted. Any existing Notifiable will
+// be called to requeue themselves if necessary.
 ///////////////////////////////////////////////////////////////////////////////
 int RMTTrackDevice::ioctl(int fd, int cmd, va_list args)
 {
@@ -440,36 +327,32 @@ int RMTTrackDevice::ioctl(int fd, int cmd, va_list args)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// RMT transmit complete for the OPS RMT channel.
+// RMT transmit complete callback.
 //
 // When RailCom is enabled this will poll for RailCom data before transmission
 // of the next dcc::Packet from the queue.
+//
+// Note: This does not use ESP-IDF provided rmt_write_items to increase
+// performance by avoiding various FreeRTOS functions used by the API.
 ///////////////////////////////////////////////////////////////////////////////
 void RMTTrackDevice::rmt_transmit_complete()
 {
-  // If the OPS signal is active generate the next packet for TX
-  if (active_)
+  encode_next_packet();
+  railcomDriver_->start_cutout();
+
+  // send the packet to the RMT, note not using memcpy for the packet as this
+  // directly accesses hardware registers.
+  RMT.apb_conf.fifo_mask = RMT_DATA_MODE_MEM;
+  for(uint32_t index = 0; index < pktLength_; index++)
   {
-    uint32_t encodedLength = 0;
-    rmt_item32_t encodedPacket[MAX_DCC_PACKET_BITS];
-    ENCODE_PACKET(packetQueue_, packetQueueLock_, preambleBitCount_
-                , encodedPacket, encodedLength, packetRepeatCount_
-                , notifiable_)
-    railcomDriver_->start_cutout();
-    // send the packet to the RMT, note not using memcpy for the packet as this
-    // directly accesses hardware registers.
-    RMT_SET_FIFO(RMT_DATA_MODE_MEM);
-    for(uint32_t index = 0; index < encodedLength; index++)
-    {
-      RMT_SET_DATA(channel_, index) = encodedPacket[index].val;
-    }
-    // RMT marker for "end of data"
-    RMT_SET_DATA(channel_, encodedLength) = 0;
-    // start transmit
-    RMT_CONFIG(channel_).mem_rd_rst = 1;
-    RMT_CONFIG(channel_).mem_owner = RMT_MEM_OWNER_TX;
-    RMT_CONFIG(channel_).tx_start = 1;
+    RMTMEM.chan[channel_].data32[index].val = packet_[index].val;
   }
+  // RMT marker for "end of data"
+  RMTMEM.chan[channel_].data32[pktLength_].val = 0;
+  // start transmit
+  RMT.conf_ch[channel_].conf1.mem_rd_rst = 1;
+  RMT.conf_ch[channel_].conf1.mem_owner = RMT_MEM_OWNER_TX;
+  RMT.conf_ch[channel_].conf1.tx_start = 1;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -496,35 +379,60 @@ void RMTTrackDevice::send(Buffer<dcc::Packet> *b, unsigned prio)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// Enables the OPS track output if not already enabled.
-//
-// Note: This will queue up a single DCC ONE bit to the RMT to start the
-// processing of the OPS packet queue.
+// Encode the next packet or reuse the existing packet.
 ///////////////////////////////////////////////////////////////////////////////
-void RMTTrackDevice::enable()
+void RMTTrackDevice::encode_next_packet()
 {
-  AtomicHolder h(this);
-  if (!active_)
+  // Check if we need to encode the next packet or if we still have at least
+  // one repeat left of the current packet.
+  if (--pktRepeatCount_ >= 0)
   {
-    active_ = true;
-    ets_printf("[RMT] Starting RMT for %s\n", name_);
-    // send one bit to kickstart the signal, remaining data will come from the
-    // packet queue. We intentionally do not wait for the RMT TX complete here.
-    rmt_write_items(channel_, &DCC_RMT_ONE_BIT, 1, false);
+    return;
   }
-}
-
-///////////////////////////////////////////////////////////////////////////////
-// Disables the OPS track output if enabled.
-///////////////////////////////////////////////////////////////////////////////
-void RMTTrackDevice::disable()
-{
-  AtomicHolder h(this);
-  if (active_)
+  // attempt to fetch a packet from the queue or use an idle packet
+  Notifiable* n = nullptr;
+  dcc::Packet packet{dcc::Packet::DCC_IDLE()};
   {
-    active_ = false;
     AtomicHolder l(&packetQueueLock_);
-    packetQueue_->flush();
-    ets_printf("[RMT] Shutting down RMT for %s\n", name_);
+    if (packetQueue_->get(&packet, 1))
+    {
+      // since we removed a packet from the queue, check if we have a pending
+      // notifiable to wake up.
+      std::swap(n, notifiable_);
+    }
   }
+  if (n)
+  {
+    n->notify_from_isr();
+  }
+  // TODO: add encoding for Marklin-Motorola
+
+  // encode the preamble bits
+  for (pktLength_ = 0; pktLength_ < dccPreambleBitCount_; pktLength_++)
+  {
+    packet_[pktLength_].val = DCC_RMT_ONE_BIT.val;
+  }
+  // start of payload marker
+  packet_[pktLength_++].val = DCC_RMT_ZERO_BIT.val;
+  // encode the packet bits
+  for (uint8_t dlc = 0; dlc < packet.dlc; dlc++)
+  {
+    for(uint8_t bit = 0; bit < 8; bit++)
+    {
+      packet_[pktLength_++].val =
+        packet.payload[dlc] & PACKET_BIT_MASK[bit] ?
+          DCC_RMT_ONE_BIT.val : DCC_RMT_ZERO_BIT.val;
+    }
+    // end of byte marker
+    packet_[pktLength_++].val = DCC_RMT_ZERO_BIT.val;
+  }
+  // set the last bit of the encoded payload to be an end of packet marker
+  packet_[pktLength_ - 1].val = DCC_RMT_ONE_BIT.val;
+  // add an extra ONE bit to the end to prevent mangling of the last bit by
+  // the RMT
+  packet_[pktLength_++].val = DCC_RMT_ONE_BIT.val;
+  // record the repeat count
+  pktRepeatCount_ = packet.packet_header.rept_count + 1;
+
+  railcomDriver_->set_feedback_key(packet.feedback_key);
 }

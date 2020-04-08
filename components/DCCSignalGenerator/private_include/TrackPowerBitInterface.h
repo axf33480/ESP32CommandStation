@@ -25,9 +25,6 @@ COPYRIGHT (c) 2020 Mike Dunston
 namespace esp32cs
 {
 
-void enable_ops_track_output();
-void disable_track_outputs();
-
 class TrackPowerBit : public openlcb::BitEventInterface
 {
 public:
@@ -48,17 +45,7 @@ public:
     return openlcb::EventState::INVALID;
   }
   
-  void set_state(bool new_value) override
-  {
-    if (new_value)
-    {
-      enable_ops_track_output();
-    }
-    else
-    {
-      disable_track_outputs();
-    }
-  }
+  void set_state(bool new_value) override;
 
   openlcb::Node *node()
   {

@@ -40,11 +40,11 @@ COPYRIGHT (c) 2019-2020 Mike Dunston
 #include "MonitoredHBridge.h"
 #include "sdkconfig.h"
 
-class RMTTrackDevice : public dcc::PacketFlowInterface, private Atomic
+class RMTTrackDevice : public dcc::PacketFlowInterface
 {
 public:
-  RMTTrackDevice(openlcb::Node *node, const char *name, const rmt_channel_t channel
-               , const uint8_t preambleBitCount, size_t packet_queue_len
+  RMTTrackDevice(const char *name, const rmt_channel_t channel
+               , const uint8_t dccPreambleBitCount, size_t packet_queue_len
                , gpio_num_t pin, RailcomDriver *railcomDriver);
 
   // VFS interface helper
@@ -60,16 +60,9 @@ public:
   // Used only for DCCProgrammer OPS track requests, TBD if this can be removed.
   void send(Buffer<dcc::Packet> *, unsigned);
 
-  // enables the generation of the DCC signal.
-  void enable();
-
-  // disables the generation of the DCC signal.
-  void disable();
-
-  // returns true if the DCC signal is active.
-  bool is_enabled()
+  const char *name() const
   {
-    return active_;
+    return name_;
   }
 
 private:
@@ -79,17 +72,20 @@ private:
   static constexpr uint8_t MAX_RMT_MEMORY_BLOCKS = 3;
 
   // maximum number of bits that can be transmitted as one packet.
-  static constexpr uint8_t MAX_DCC_PACKET_BITS = (RMT_MEM_ITEM_NUM * MAX_RMT_MEMORY_BLOCKS);
+  static constexpr uint8_t MAX_RMT_BITS = (RMT_MEM_ITEM_NUM * MAX_RMT_MEMORY_BLOCKS);
 
   const char *name_;
   const rmt_channel_t channel_;
-  const uint8_t preambleBitCount_;
+  const uint8_t dccPreambleBitCount_;
   RailcomDriver *railcomDriver_;
   Atomic packetQueueLock_;
   DeviceBuffer<dcc::Packet> *packetQueue_;
   Notifiable* notifiable_{nullptr};
-  int8_t packetRepeatCount_{0};
-  bool active_{false};
+  int8_t pktRepeatCount_{0};
+  uint32_t pktLength_{0};
+  rmt_item32_t packet_[MAX_RMT_BITS];
+
+  void encode_next_packet();
 
   DISALLOW_COPY_AND_ASSIGN(RMTTrackDevice);
 };
