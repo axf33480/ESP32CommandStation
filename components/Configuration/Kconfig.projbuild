@@ -18,6 +18,7 @@ menu "WiFi Configuration"
 
     config WIFI_SOFTAP_SSID
         string "SoftAP SSID"
+        default "esp32cs"
         depends on WIFI_MODE_SOFTAP
 
     config WIFI_SSID
