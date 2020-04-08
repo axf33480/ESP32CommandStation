@@ -1016,8 +1016,10 @@ bool is_restricted_pin(int8_t pin)
 
 #if defined(CONFIG_GPIO_S88)
   , CONFIG_GPIO_S88_CLOCK_PIN
-  , CONFIG_GPIO_S88_RESET_PIN
   , CONFIG_GPIO_S88_LOAD_PIN
+#if defined(CONFIG_GPIO_S88_RESET_PIN) && CONFIG_GPIO_S88_RESET_PIN != -1
+  , CONFIG_GPIO_S88_RESET_PIN
+#endif
 #endif
 
 #if defined(CONFIG_STATUS_LED)
