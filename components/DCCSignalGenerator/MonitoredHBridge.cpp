@@ -179,6 +179,7 @@ void HBridgeShortDetector::poll_33hz(openlcb::WriteHelper *helper, Notifiable *d
             , getUsage() / 1000.0f
             , lastReading_
             , shutdownLimit_);
+    enablePin_->clr();
     state_ = STATE_SHUTDOWN;
     shutdownProducer_.SendEventReport(helper, done);
     Singleton<StatusLED>::instance()->setStatusLED((StatusLED::LED)targetLED_
@@ -197,7 +198,7 @@ void HBridgeShortDetector::poll_33hz(openlcb::WriteHelper *helper, Notifiable *d
     if(overCurrentCheckCount_++ >= overCurrentRetryCount_)
     {
       // disable the h-bridge output
-      enablePin_->set();
+      enablePin_->clr();
       LOG_ERROR("[%s] Overcurrent detected %6.2f mA (raw: %d / %d)"
               , name_.c_str()
               , getUsage() / 1000.0f
