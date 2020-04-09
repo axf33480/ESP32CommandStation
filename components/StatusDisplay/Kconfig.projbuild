@@ -112,7 +112,7 @@ menu "Status Display"
 
     choice DISPLAY_LCC_LOGGING
         bool "LCC Stat Logging"
-        default DISPLAY_LCCT_LOGGING_NONE
+        default DISPLAY_LCC_LOGGING_NONE
         config DISPLAY_LCC_LOGGING_VERBOSE
             bool "Verbose"
         config DISPLAY_LCC_LOGGING_NONE
