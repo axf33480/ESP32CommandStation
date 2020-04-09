@@ -35,6 +35,12 @@ public:
     start_flow(STATE(sleep_and_persist));
   }
 
+  void stop()
+  {
+    set_terminated();
+    timer_.ensure_triggered();
+  }
+
 private:
   StateFlowTimer timer_{this};
   uint64_t interval_;

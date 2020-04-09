@@ -21,13 +21,21 @@ COPYRIGHT (c) 2019-2020 Mike Dunston
 #include <executor/Service.hxx>
 #include <executor/StateFlow.hxx>
 #include <openlcb/SimpleStack.hxx>
+#include <utils/Singleton.hxx>
 
 #include "sdkconfig.h"
 
 class FreeRTOSTaskMonitor : public StateFlowBase
+                          , public Singleton<FreeRTOSTaskMonitor>
 {
 public:
   FreeRTOSTaskMonitor(Service *);
+
+  void stop()
+  {
+    set_terminated();
+    timer_.ensure_triggered();
+  }
 
 private:
   StateFlowTimer timer_{this};

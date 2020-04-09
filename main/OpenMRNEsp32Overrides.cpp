@@ -17,13 +17,27 @@ COPYRIGHT (c) 2019-2020 Mike Dunston
 
 #include "ESP32CommandStation.h"
 
+#include <DCCSignalVFS.h>
+#include <ESP32TrainDatabase.h>
+#include <FreeRTOSTaskMonitor.h>
 #include <freertos/task.h>
+#include <StatusDisplay.h>
+#include <StatusLED.h>
+#include <Turnouts.h>
 
 extern "C"
 {
 
 void *node_reboot(void *arg)
 {
+  // shutdown any background refresh tasks.
+  esp32cs::shutdown_dcc_vfs();
+  Singleton<FreeRTOSTaskMonitor>::instance()->stop();
+  Singleton<StatusDisplay>::instance()->stop();
+  Singleton<StatusLED>::instance()->stop();
+  Singleton<TurnoutManager>::instance()->stop();
+  Singleton<esp32cs::Esp32TrainDatabase>::instance()->stop();
+  
   // shutdown and cleanup the configuration manager
   Singleton<ConfigurationManager>::instance()->shutdown();
 

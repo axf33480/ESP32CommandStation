@@ -33,6 +33,11 @@ class StatusDisplay : public StateFlowBase, public Singleton<StatusDisplay>
 {
 public:
   StatusDisplay(openlcb::SimpleStackBase *, Service *);
+  void stop()
+  {
+    set_terminated();
+    timer_.ensure_triggered();
+  }
   void clear();
   void info(const std::string&, ...);
   void status(const std::string&, ...);

@@ -121,6 +121,12 @@ public:
 #endif // CONFIG_STATUS_LED
   }
 
+  void stop()
+  {
+    set_terminated();
+    timer_.ensure_triggered();
+  }
+
   void setStatusLED(const LED, const COLOR, const bool=false);
 
   void wifi_event(system_event_t *);

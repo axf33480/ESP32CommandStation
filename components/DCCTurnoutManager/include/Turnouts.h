@@ -93,6 +93,10 @@ class TurnoutManager : public dcc::PacketFlowInterface
 {
 public:
   TurnoutManager(openlcb::Node *, Service *);
+  void stop()
+  {
+    persistFlow_.stop();
+  }
   void clear();
   std::string setByID(uint16_t, bool=false, bool=true);
   std::string setByAddress(uint16_t, bool=false, bool=true);

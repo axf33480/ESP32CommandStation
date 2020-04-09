@@ -193,6 +193,11 @@ namespace esp32cs
   public:
     Esp32TrainDatabase(openlcb::SimpleStackBase *stack);
 
+    void stop()
+    {
+      persistFlow_->stop();
+    }
+
     // not supported/used.
     bool has_file() override
     {

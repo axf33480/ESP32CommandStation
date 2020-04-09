@@ -118,9 +118,9 @@ static void update_status_display()
 {
   auto status = Singleton<StatusDisplay>::instance();
   status->track_power("%s:%s %s:%s", CONFIG_OPS_TRACK_NAME
-                    , OPS_ENABLE_Pin::get() ? "On" : "Off"
+                    , OPS_ENABLE_Pin::instance()->is_set() ? "On" : "Off"
                     , CONFIG_PROG_TRACK_NAME
-                    , PROG_ENABLE_Pin::get() ? "On" : "Off");
+                    , PROG_ENABLE_Pin::instance()->is_set() ? "On" : "Off");
 }
 
 /// Triggers an estop event to be sent
@@ -373,6 +373,15 @@ void init_dcc_vfs(openlcb::Node *node, Service *service
                               , &disable_prog_track_output));
 
   update_status_display();
+}
+
+void shutdown_dcc_vfs()
+{
+  // stop any future polling of the DCC outputs
+  dcc_poller->stop();
+
+  // Note that other objects are not released at this point since they may
+  // still be called by other systems until the reboot occurs.
 }
 
 /// @return string containing a two element json array of the track monitors.
