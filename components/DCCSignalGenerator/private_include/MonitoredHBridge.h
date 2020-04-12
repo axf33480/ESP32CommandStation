@@ -19,6 +19,7 @@ COPYRIGHT (c) 2018-2020 Mike Dunston
 #define MONITORED_H_BRIDGE_
 
 #include "TrackOutputDescriptor.h"
+#include "sdkconfig.h"
 
 #include <executor/StateFlow.hxx>
 #include <openlcb/EventHandlerTemplates.hxx>
@@ -32,6 +33,7 @@ COPYRIGHT (c) 2018-2020 Mike Dunston
 #include <utils/logging.h>
 #include <driver/adc.h>
 #include <esp_adc_cal.h>
+#include <esp_bit_defs.h>
 
 class HBridgeShortDetector : public DefaultConfigUpdateListener
                            , public openlcb::Polling
@@ -54,13 +56,12 @@ public:
                      , const std::string &bridgeType
                      , const esp32cs::TrackOutputConfig &cfg);
 
-  enum STATE
+  enum STATE : uint8_t
   {
-    STATE_OVERCURRENT       = 1
-  , STATE_SHUTDOWN          = 2
-  , STATE_THERMAL_SHUTDOWN  = 4
-  , STATE_ON                = 8
-  , STATE_OFF               = 16
+    STATE_OVERCURRENT       = BIT(0)
+  , STATE_SHUTDOWN          = BIT(1)
+  , STATE_ON                = BIT(2)
+  , STATE_OFF               = BIT(3)
   };
 
   std::string getName()
@@ -155,18 +156,16 @@ private:
   const uint32_t maxMilliAmps_;
   const std::string name_;
   const std::string bridgeType_;
+  const uint32_t overCurrentLimit_;
+  const uint32_t shutdownLimit_;
   const bool isProgTrack_;
-  uint32_t overCurrentLimit_{0};
-  uint32_t shutdownLimit_{0};
-  uint32_t warnLimit_{0};
-  uint32_t progAckLimit_{0};
+  const uint32_t progAckLimit_;
   const esp32cs::TrackOutputConfig cfg_;
   const uint8_t targetLED_;
-  const uint8_t adcSampleCount_{32};
-  const uint64_t checkInterval_{MSEC_TO_NSEC(50)};
-  const uint8_t overCurrentRetryCount_{3};
-  const uint64_t overCurrentRetryInterval_{MSEC_TO_NSEC(25)};
-  const uint64_t currentReportInterval_{SEC_TO_USEC(30)};
+  const uint8_t adcSampleCount_{CONFIG_ADC_AVERAGE_READING_COUNT};
+  const uint8_t overCurrentRetryCount_{CONFIG_DCC_HBRIDGE_OVERCURRENT_BEFORE_SHUTDOWN};
+  const uint64_t currentReportInterval_{SEC_TO_USEC(CONFIG_DCC_HBRIDGE_USAGE_REPORT_INTERVAL)};
+  uint32_t warnLimit_{0};
   openlcb::MemoryBit<uint8_t> shortBit_;
   openlcb::MemoryBit<uint8_t> shutdownBit_;
   openlcb::BitEventProducer shortProducer_;
@@ -174,11 +173,7 @@ private:
   uint64_t lastReport_{0};
   uint32_t lastReading_{0};
   uint8_t state_{STATE_OFF};
-  OSMutex requestedStateLock_;
-  uint8_t requestedState_{STATE_OFF};
-  uint8_t lastRequestedState_{STATE_OFF};
   uint8_t overCurrentCheckCount_{0};
-  uint8_t thermalWarningCheckCount_{0};
 
   void configure();
 };

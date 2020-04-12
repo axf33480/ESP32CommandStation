@@ -377,6 +377,10 @@ menu "DCC Signal"
         default 2 if ADC_ATTEN_DB_6
         default 3 if ADC_ATTEN_DB_11
 
+    config ADC_AVERAGE_READING_COUNT
+        int
+        default 32
+
     config DCC_PACKET_POOL_SIZE
         int "Maximum number of DCC packets to queue"
         default 5
@@ -417,6 +421,15 @@ menu "DCC Signal"
         default 4 if DCC_RMT_LOGGING_MINIMAL
         default 3 if DCC_RMT_LOGGING_VERBOSE
         default 5
+
+    config DCC_HBRIDGE_USAGE_REPORT_INTERVAL
+        int "Usage report interval (seconds)"
+        default 30
+        range 15 300
+
+    config DCC_HBRIDGE_OVERCURRENT_BEFORE_SHUTDOWN
+        int "Number of consecutive over-current reads before shutdown"
+        default 3
 
 ###############################################################################
 #

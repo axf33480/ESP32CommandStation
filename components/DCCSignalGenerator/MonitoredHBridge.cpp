@@ -35,9 +35,10 @@ HBridgeShortDetector::HBridgeShortDetector(openlcb::Node *node
   , maxMilliAmps_(maxMilliAmps)
   , name_(name)
   , bridgeType_(bridgeType)
-  , isProgTrack_(false)
   , overCurrentLimit_(((((limitMilliAmps << 3) + limitMilliAmps) / 10) << 12) / maxMilliAmps_) // ~90% max value
   , shutdownLimit_(4080)
+  , isProgTrack_(false)
+  , progAckLimit_(0)
   , cfg_(cfg)
   , targetLED_(StatusLED::LED::OPS_TRACK)
   , shortBit_(node, 0, 0, &state_, STATE_OVERCURRENT)
@@ -63,9 +64,9 @@ HBridgeShortDetector::HBridgeShortDetector(openlcb::Node *node
   , maxMilliAmps_(maxMilliAmps)
   , name_(name)
   , bridgeType_(bridgeType)
-  , isProgTrack_(true)
   , overCurrentLimit_((250 << 12) / maxMilliAmps_) // ~250mA
   , shutdownLimit_((500 << 12) / maxMilliAmps_)
+  , isProgTrack_(true)
   , progAckLimit_((60 << 12) / maxMilliAmps_)      // ~60mA
   , cfg_(cfg)
   , targetLED_(StatusLED::LED::PROG_TRACK)
@@ -87,6 +88,8 @@ string HBridgeShortDetector::getState()
       return "Normal";
     case STATE_OVERCURRENT:
       return "Fault";
+    case STATE_SHUTDOWN:
+      return "Shutdown";
     case STATE_OFF:
     default:
       return "Off";
@@ -182,12 +185,14 @@ void HBridgeShortDetector::poll_33hz(openlcb::WriteHelper *helper, Notifiable *d
     enablePin_->clr();
     state_ = STATE_SHUTDOWN;
     shutdownProducer_.SendEventReport(helper, done);
+#if CONFIG_STATUS_LED
     Singleton<StatusLED>::instance()->setStatusLED((StatusLED::LED)targetLED_
                                                  , StatusLED::COLOR::RED_BLINK);
+#endif // CONFIG_STATUS_LED
     if (isProgTrack_)
     {
       // If this is the programming track notify the ProgrammingTrackBackend of
-      // a possible short condition if our state is NOT ON.
+      // a possible short condition.
       Singleton<ProgrammingTrackBackend>::instance()->notify_service_mode_short();
     }
   }
@@ -206,25 +211,49 @@ void HBridgeShortDetector::poll_33hz(openlcb::WriteHelper *helper, Notifiable *d
               , overCurrentLimit_);
       state_ = STATE_OVERCURRENT;
       shortProducer_.SendEventReport(helper, done);
+#if CONFIG_STATUS_LED
       Singleton<StatusLED>::instance()->setStatusLED((StatusLED::LED)targetLED_
                                                    , StatusLED::COLOR::RED);
+#endif // CONFIG_STATUS_LED
       if (isProgTrack_)
       {
         // If this is the programming track notify the ProgrammingTrackBackend of
-        // a possible short condition if our state is NOT ON.
+        // a possible short condition.
         Singleton<ProgrammingTrackBackend>::instance()->notify_service_mode_short();
       }
     }
   }
-  else if (isProgTrack_ && lastReading_ >= progAckLimit_)
+  else if (enablePin_->is_set())
   {
-    // If this is the programming track and the average reading is at least the
-    // configured ack level, send a notification to the ProgrammingTrackBackend
-    // to wake it up.
-    Singleton<ProgrammingTrackBackend>::instance()->notify_service_mode_ack();
+    overCurrentCheckCount_ = 0;
+    state_ = STATE_ON;
+    if (isProgTrack_ && lastReading_ >= progAckLimit_)
+    {
+      // If this is the programming track and the average reading is at least the
+      // configured ack level, send a notification to the ProgrammingTrackBackend
+      // to wake it up.
+      Singleton<ProgrammingTrackBackend>::instance()->notify_service_mode_ack();
+    }
+#if CONFIG_STATUS_LED
+    // check if we are over the warning limit and update the LED accordingly.
+    if (lastReading_ >= warnLimit_)
+    {
+      Singleton<StatusLED>::instance()->setStatusLED((StatusLED::LED)targetLED_
+                                                   , StatusLED::COLOR::YELLOW);
+    }
+    else
+    {
+      Singleton<StatusLED>::instance()->setStatusLED((StatusLED::LED)targetLED_
+                                                   , StatusLED::COLOR::GREEN);
+    }
+#endif // CONFIG_STATUS_LED
+  }
+  else
+  {
+    state_ = STATE_OFF;
   }
 
-  if (esp_timer_get_time() - lastReport_ > currentReportInterval_)
+  if ((esp_timer_get_time() - lastReport_) >= currentReportInterval_)
   {
     lastReport_ = esp_timer_get_time();
     LOG(INFO, "[%s] %6.0f mA / %d mA", name_.c_str(), getUsage() / 1000.0f
