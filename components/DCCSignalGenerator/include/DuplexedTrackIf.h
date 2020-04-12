@@ -21,6 +21,7 @@ COPYRIGHT (c) 2019-2020 Mike Dunston
 #include <executor/Executor.hxx>
 #include <executor/StateFlow.hxx>
 #include <dcc/Packet.hxx>
+#include <utils/Singleton.hxx>
 
 namespace esp32cs
 {
@@ -31,41 +32,40 @@ namespace esp32cs
 /// The device driver must support the notifiable-based asynchronous write
 /// model.
 class DuplexedTrackIf : public StateFlow<Buffer<dcc::Packet>, QList<1>>
+                      , public Singleton<DuplexedTrackIf>
 {
 public:
-    /** Creates a TrackInterface from an fd to the mainline and an fd for prog.
-     *
-     * This class currently does synchronous writes to the device. In order not
-     * to block the executor, you have to create a new threadexecutor.
-     *
-     * @param service THE EXECUTOR OF THIS SERVICE WILL BE BLOCKED.
-     * @param pool_size will determine how many packets the current flow's
-     * alloc() will have.
-     */
-    DuplexedTrackIf(Service *service, int pool_size);
+    /// Creates a TrackInterface from an fd to the mainline and an fd for prog.
+    ///
+    /// This class currently does synchronous writes to the device. In order not
+    /// to block the executor, you have to create a new threadexecutor.
+    ///
+    /// @param service THE EXECUTOR OF THIS SERVICE WILL BE BLOCKED.
+    /// @param pool_size will determine how many packets the current flow's
+    /// alloc() will have.
+    /// @param ops_fd is the file descriptor for the OPS track.
+    /// @param prog_fd is the file descriptor for the PROG track.
+    DuplexedTrackIf(Service *service, int pool_size, int ops_fd, int prog_fd);
 
-    FixedPool *pool() OVERRIDE
+    /// @return the @ref FixedPool for dcc::Packet objects to send to the track.
+    FixedPool *pool() override
     {
         return &pool_;
     }
 
-    /// You must call this function before sending any packets.
-    ///
-    /// @param fd is the file descriptor to the OPS track output.
-    void set_fd_ops(int fd)
-    {
-        fd_ops_ = fd;
-    }
-
-    /// You must call this function before sending any packets.
-    ///
-    /// @param fd is the file descriptor to the PROG track output.
-    void set_fd_prog(int fd)
-    {
-        fd_prog_ = fd;
-    }
 protected:
-    Action entry() OVERRIDE;
+    /// Sends a queued packet to either the OPS or PROG track.
+    ///
+    /// Track selection is made based on the DCC header flag for a longer
+    /// preamble which is only used for PROG track packets.
+    ///
+    /// If the packet can not be written to the file descriptor it will be held
+    /// until the device driver alerts that it is ready for another packet.
+    ///
+    /// Note: Both OPS and PROG packets will be processed by this method and if
+    /// either device driver prevents the write operation both tracks will be
+    /// blocked.
+    Action entry() override;
 
     /// @return next action.
     Action finish()
@@ -73,11 +73,11 @@ protected:
         return release_and_exit();
     }
 
-    /// Filedes of the device to which we are writing the generated packets.
-    int fd_ops_{-1};
+    /// File descriptor for the OPS track output.
+    const int fd_ops_;
 
-    /// Filedes of the device to which we are writing the generated packets.
-    int fd_prog_{-1};
+    /// File descriptor for the PROG track output.
+    const int fd_prog_;
 
     /// Packet pool from which to allocate packets.
     FixedPool pool_;

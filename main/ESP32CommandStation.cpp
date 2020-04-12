@@ -34,6 +34,7 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 #include <openlcb/SimpleInfoProtocol.hxx>
 
 #include <DCCSignalVFS.h>
+#include <DuplexedTrackIf.h>
 #include <StatusDisplay.h>
 #include <StatusLED.h>
 #include <HC12Radio.h>
@@ -84,12 +85,12 @@ OVERRIDE_CONST_EXPAND_VALUE(gridconnect_buffer_size, CONFIG_TCP_MSS);
 OVERRIDE_CONST_EXPAND_VALUE(gridconnect_buffer_delay_usec
                           , CONFIG_LCC_GC_DELAY_USEC);
 
-#if CONFIG_LCC_HUB_USE_SELECT
+#if CONFIG_LCC_USE_SELECT
 ///////////////////////////////////////////////////////////////////////////////
 // Enable usage of select() for GridConnect connections.
 ///////////////////////////////////////////////////////////////////////////////
 OVERRIDE_CONST_TRUE(gridconnect_tcp_use_select);
-#endif // CONFIG_LCC_HUB_USE_SELECT
+#endif // CONFIG_LCC_USE_SELECT
 
 ///////////////////////////////////////////////////////////////////////////////
 // This limites the number of outbound GridConnect packets which limits the
@@ -152,8 +153,6 @@ namespace openlcb
   // data file as general configuration data.
   const char *const SNIP_DYNAMIC_FILENAME = LCC_CONFIG_FILE;
 }
-
-uninitialized<esp32cs::DuplexedTrackIf> trackInterface;
 
 // when the command station starts up the first time the config is blank
 // and needs to be reset to factory settings. This class being declared here
@@ -296,27 +295,25 @@ extern "C" void app_main()
                       , cfg.seg().hbridge().entry(esp32cs::OPS_CDI_TRACK_OUTPUT_IDX)
                       , cfg.seg().hbridge().entry(esp32cs::PROG_CDI_TRACK_OUTPUT_IDX));
 
-  // Initialize Local Track inteface.
-  trackInterface.emplace(stack->service()
-                       , CONFIG_DCC_PACKET_POOL_SIZE);
-
   int ops_track = ::open(
     StringPrintf("/dev/track/%s", CONFIG_OPS_TRACK_NAME).c_str(), O_WRONLY);
   HASSERT(ops_track > 0);
-  trackInterface->set_fd_ops(ops_track);
 
   int prog_track = ::open(
     StringPrintf("/dev/track/%s", CONFIG_PROG_TRACK_NAME).c_str(), O_WRONLY);
   HASSERT(prog_track > 0);
-  trackInterface->set_fd_prog(prog_track);
+
+  // Initialize Local Track inteface.
+  esp32cs::DuplexedTrackIf track(stack->service()
+                               , CONFIG_DCC_PACKET_POOL_SIZE
+                               , ops_track, prog_track);
 
   // Initialize the DCC Update Loop.
-  dcc::SimpleUpdateLoop dccUpdateLoop(stack->service()
-                                    , &trackInterface.value());
+  dcc::SimpleUpdateLoop dccUpdateLoop(stack->service(), &track);
 
   // Attach the DCC update loop to the track interface
   PoolToQueueFlow<Buffer<dcc::Packet>> dccPacketFlow(stack->service()
-                                                   , trackInterface->pool()
+                                                   , track.pool()
                                                    , &dccUpdateLoop);
 
   // Starts the OpenMRN stack, this needs to be done *AFTER* all other LCC

@@ -203,7 +203,7 @@ menu "DCC Signal"
 
         config OPS_PACKET_QUEUE_SIZE
             int "Number of packets to queue for the OPS track"
-            default 10
+            default 5
             help
                 This is the number of raw packets to allow for outbound
                 transmission to the track. Generally this does not need to
@@ -380,7 +380,7 @@ menu "DCC Signal"
     config DCC_PACKET_POOL_SIZE
         int "Maximum number of DCC packets to queue"
         default 5
-        range 2 10
+        range 2 20
         help
             Declares the maximum number of DCC packets to allow for the
             track, generally this does not need to be very large and the

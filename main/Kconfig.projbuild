@@ -111,7 +111,7 @@ menu "LCC Configuration"
             hardware CAN and TCP/IP GridConnect formatted packets. Enabling
             this option will shift to only support TCP/IP Binary packets.
 
-    config LCC_HUB_USE_SELECT
+    config LCC_USE_SELECT
         bool "Use select() for TCP/IP connections"
         default n
         help

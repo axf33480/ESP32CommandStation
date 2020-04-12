@@ -22,8 +22,6 @@ COPYRIGHT (c) 2019 Mike Dunston
 #include <DuplexedTrackIf.h>
 #include <utils/Uninitialized.hxx>
 
-extern uninitialized<esp32cs::DuplexedTrackIf> trackInterface;
-
 // number of attempts the programming track will make to read/write a CV
 static constexpr uint8_t PROG_TRACK_CV_ATTEMPTS = 3;
 
@@ -201,7 +199,8 @@ bool writeProgCVBit(const uint16_t cv, const uint8_t bit, const bool value)
 void writeOpsCVByte(const uint16_t locoAddress, const uint16_t cv
                   , const uint8_t cvValue)
 {
-  auto b = get_buffer_deleter(trackInterface->alloc());
+  auto track = Singleton<esp32cs::DuplexedTrackIf>::instance();
+  auto b = get_buffer_deleter(track->alloc());
   if (b)
   {
     LOG(INFO, "[OPS] Updating CV %d to %d for loco %d", cv, cvValue
@@ -218,7 +217,7 @@ void writeOpsCVByte(const uint16_t locoAddress, const uint16_t cv
     }
     b->data()->add_dcc_pom_write1(cv, cvValue);
     b->data()->packet_header.rept_count = 3;
-    trackInterface->send(b.get());
+    track->send(b.get());
   }
   else
   {
@@ -229,7 +228,8 @@ void writeOpsCVByte(const uint16_t locoAddress, const uint16_t cv
 void writeOpsCVBit(const uint16_t locoAddress, const uint16_t cv
                  , const uint8_t bit, const bool value)
 {
-  auto b = get_buffer_deleter(trackInterface->alloc());
+  auto track = Singleton<esp32cs::DuplexedTrackIf>::instance();
+  auto b = get_buffer_deleter(track->alloc());
   if (b)
   {
     LOG(INFO, "[OPS] Updating CV %d bit %d to %d for loco %d", cv, bit, value
@@ -247,7 +247,7 @@ void writeOpsCVBit(const uint16_t locoAddress, const uint16_t cv
     b->data()->add_dcc_prog_command(0xe8, cv - 1
                                   , (uint8_t)(0xF0 + bit + value * 8));
     b->data()->packet_header.rept_count = 3;
-    trackInterface->send(b.get());
+    track->send(b.get());
   }
   else
   {

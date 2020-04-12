@@ -50,8 +50,10 @@
 namespace esp32cs
 {
 
-DuplexedTrackIf::DuplexedTrackIf(Service *service, int pool_size)
+DuplexedTrackIf::DuplexedTrackIf(Service *service, int pool_size, int ops_fd
+                               , int prog_fd)
     : StateFlow<Buffer<dcc::Packet>, QList<1>>(service)
+    , fd_ops_(ops_fd), fd_prog_(prog_fd)
     , pool_(sizeof(Buffer<dcc::Packet>), pool_size)
 {
 }
