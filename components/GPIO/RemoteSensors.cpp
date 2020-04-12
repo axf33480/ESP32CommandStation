@@ -95,8 +95,11 @@ string RemoteSensorManager::getStateAsJson()
   string output = "[";
   for (const auto& sensor : remoteSensors)
   {
+    if (output.length() > 1)
+    {
+      output += ",";
+    }
     output += sensor->toJson();
-    output += ",";
   }
   output += "]";
   return output;

@@ -553,7 +553,7 @@
     </div>
     <div class="ui-field-contain">
      <label for="cs-sensor-s88-count">Sensor Count:</label>
-     <input type="number" pattern="[0-9]*" id="cs-sensor-s88-count" value="0" min="0" max="511">
+     <input type="number" pattern="[0-9]*" id="cs-sensor-s88-count" value="8" min="8" max="511">
     </div>
    </div>
    <div role="footer">
@@ -976,7 +976,7 @@ function setupBSS88Sensors() {
   $('#cs-sensor-s88-id').val($('#cs-table-sensors-s88 tbody tr').length);
   $('#cs-sensor-s88-sensor-id').val(s88SensorIDBase + ($('#cs-sensor-s88-id').val() * 512));
   $('#cs-sensor-s88-pin').val(1);
-  $('#cs-sensor-s88-count').val(0);
+  $('#cs-sensor-s88-count').val(8);
   $('#cs-sensor-s88-editor').popup('open', {positionTo:'window'});
  });
  $('#cs-sensor-s88-id').on('change', function() {

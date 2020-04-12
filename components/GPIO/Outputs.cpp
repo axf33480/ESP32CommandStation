@@ -111,8 +111,11 @@ std::string OutputManager::getStateAsJson()
   string state = "[";
   for (const auto& output : outputs)
   {
+    if (state.length() > 1)
+    {
+      state += ",";
+    }
     state += output->toJson(true);
-    state += ",";
   }
   state += "]";
   return state;

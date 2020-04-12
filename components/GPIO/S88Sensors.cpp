@@ -230,8 +230,11 @@ string S88BusManager::getStateAsJson()
   string state = "[";
   for (const auto& sensorBus : s88SensorBus)
   {
+    if (state.length() > 1)
+    {
+      state += ",";
+    }
     state += sensorBus->toJson(true);
-    state += ",";
   }
   state += "]";
   return state;
