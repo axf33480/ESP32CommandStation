@@ -9,6 +9,7 @@ support, expanded LCC integration and general stability improvements.
 These are must have features/bug fixes for v1.5.0:
 
 -   [ ] DCC: Rewrite/Test RailCom detector code.
+-   [ ] DOC: Write migration guide for building, what has changed since v1.2.3, future of legacy protocols (DCC++, non-LCC JMRI)
 -   [ ] LCC: Expose PROG track via CDI.
 -   [ ] LCC: Rewrite HW Can driver.
 -   [ ] LCC: TrainSearch protocol.
