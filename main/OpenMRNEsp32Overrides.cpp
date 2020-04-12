@@ -34,7 +34,9 @@ void *node_reboot(void *arg)
   esp32cs::shutdown_dcc_vfs();
   Singleton<FreeRTOSTaskMonitor>::instance()->stop();
   Singleton<StatusDisplay>::instance()->stop();
+#if CONFIG_STATUS_LED
   Singleton<StatusLED>::instance()->stop();
+#endif
   Singleton<TurnoutManager>::instance()->stop();
   Singleton<esp32cs::Esp32TrainDatabase>::instance()->stop();
   

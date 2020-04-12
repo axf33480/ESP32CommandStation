@@ -42,6 +42,7 @@ public:
   {
     progress_ = 0;
 
+#if CONFIG_STATUS_LED
     // set blink pattern to alternating green blink
     Singleton<StatusLED>::instance()->setStatusLED(
       StatusLED::LED::WIFI, StatusLED::COLOR::GREEN_BLINK, true);
@@ -53,6 +54,7 @@ public:
       StatusLED::LED::EXT_1, StatusLED::COLOR::GREEN_BLINK);
     Singleton<StatusLED>::instance()->setStatusLED(
       StatusLED::LED::EXT_2, StatusLED::COLOR::GREEN_BLINK, true);
+#endif // CONFIG_STATUS_LED
     Singleton<StatusDisplay>::instance()->status("Update starting");
 #if CONFIG_NEXTION
     titlePage_->show();
@@ -62,6 +64,7 @@ public:
 
   void report_success()
   {
+#if CONFIG_STATUS_LED
     // report successful OTA receipt
     Singleton<StatusLED>::instance()->setStatusLED(
       StatusLED::LED::WIFI, StatusLED::COLOR::GREEN);
@@ -73,6 +76,7 @@ public:
       StatusLED::LED::EXT_1, StatusLED::COLOR::GREEN);
     Singleton<StatusLED>::instance()->setStatusLED(
       StatusLED::LED::EXT_2, StatusLED::COLOR::GREEN);
+#endif // CONFIG_STATUS_LED
 #if CONFIG_NEXTION
     titlePage_->setStatusText(1, "Update Complete");
     titlePage_->setStatusText(2, "Rebooting");
@@ -86,6 +90,7 @@ public:
 
   void report_failure(esp_err_t err)
   {
+#if CONFIG_STATUS_LED
     // set blink pattern for alternating red blink
     Singleton<StatusLED>::instance()->setStatusLED(
       StatusLED::LED::WIFI, StatusLED::COLOR::RED_BLINK, true);
@@ -97,6 +102,7 @@ public:
       StatusLED::LED::EXT_1, StatusLED::COLOR::RED_BLINK);
     Singleton<StatusLED>::instance()->setStatusLED(
       StatusLED::LED::EXT_2, StatusLED::COLOR::RED_BLINK, true);
+#endif // CONFIG_STATUS_LED
 #if CONFIG_NEXTION
     titlePage_->setStatusText(1, esp_err_to_name(err));
 #endif
@@ -134,9 +140,11 @@ private:
   {
     if(countdown_ > 0)
     {
+#if CONFIG_STATUS_LED
       // turn off lights
       Singleton<StatusLED>::instance()->setStatusLED(
         (StatusLED::LED)countdown_, StatusLED::COLOR::OFF);
+#endif // CONFIG_STATUS_LED
       Singleton<StatusDisplay>::instance()->status("reboot in %2d...", countdown_);
       LOG(WARNING, "ESP32 will reboot in %d seconds...", countdown_);
       --countdown_;

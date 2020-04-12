@@ -137,8 +137,10 @@ void enable_ops_track_output()
   {
     LOG(INFO, "[Track] Enabling track output: %s", CONFIG_OPS_TRACK_NAME);
     OPS_ENABLE_Pin::instance()->set();
+#if CONFIG_STATUS_LED
     Singleton<StatusLED>::instance()->setStatusLED(
           StatusLED::LED::OPS_TRACK, StatusLED::COLOR::GREEN);
+#endif // CONFIG_STATUS_LED
     update_status_display();
   }
 }
@@ -150,8 +152,10 @@ void disable_ops_track_output()
   {
     LOG(INFO, "[Track] Disabling track output: %s", CONFIG_OPS_TRACK_NAME);
     OPS_ENABLE_Pin::instance()->clr();
+#if CONFIG_STATUS_LED
     Singleton<StatusLED>::instance()->setStatusLED(
           StatusLED::LED::OPS_TRACK, StatusLED::COLOR::OFF);
+#endif // CONFIG_STATUS_LED
     update_status_display();
   }
 }
@@ -163,8 +167,10 @@ static void enable_prog_track_output()
   {
     LOG(INFO, "[Track] Enabling track output: %s", CONFIG_PROG_TRACK_NAME);
     PROG_ENABLE_Pin::instance()->set();
+#if CONFIG_STATUS_LED
     Singleton<StatusLED>::instance()->setStatusLED(
           StatusLED::LED::PROG_TRACK, StatusLED::COLOR::GREEN);
+#endif // CONFIG_STATUS_LED
     update_status_display();
   }
 }
@@ -176,8 +182,10 @@ static void disable_prog_track_output()
   {
     LOG(INFO, "[Track] Disabling track output: %s", CONFIG_PROG_TRACK_NAME);
     PROG_ENABLE_Pin::instance()->clr();
+#if CONFIG_STATUS_LED
     Singleton<StatusLED>::instance()->setStatusLED(
           StatusLED::LED::PROG_TRACK, StatusLED::COLOR::OFF);
+#endif // CONFIG_STATUS_LED
     update_status_display();
   }
 }

@@ -245,34 +245,36 @@ extern "C" void app_main()
   // Initialize the Nextion module (dependency of WiFi)
   LOG(INFO, "[Config] Enabling Nextion module");
   nextionInterfaceInit(stack->service());
-#endif
+#endif // CONFIG_NEXTION
 
   init_webserver();
 
 #if CONFIG_JMRI
   init_jmri_interface();
-#endif
+#endif // CONFIG_JMRI
 
   // Initialize the turnout manager and register it with the LCC stack to
   // process accessories packets.
   TurnoutManager turnoutManager(stack->node(), stack->service());
 
-#if CONFIG_OUTPUTS
+#if CONFIG_GPIO_OUTPUTS
   LOG(INFO, "[Config] Enabling GPIO Outputs");
   OutputManager::init();
-#endif
+#endif // CONFIG_GPIO_OUTPUTS
 
-#if CONFIG_SENSORS
+#if CONFIG_GPIO_SENSORS
   LOG(INFO, "[Config] Enabling GPIO Inputs");
   SensorManager::init();
-  S88BusManager::init();
   RemoteSensorManager::init();
-#endif
+#if CONFIG_GPIO_S88
+  S88BusManager::init();
+#endif // CONFIG_GPIO_S88
+#endif // CONFIG_GPIO_SENSORS
 
 #if CONFIG_LOCONET
   LOG(INFO, "[Config] Enabling LocoNet interface");
   initializeLocoNet();
-#endif
+#endif // CONFIG_LOCONET
 
 #if CONFIG_HC12
   esp32cs::HC12Radio hc12(stack->service()
@@ -281,7 +283,9 @@ extern "C" void app_main()
                         , (gpio_num_t)CONFIG_HC12_TX_PIN));
 #endif // CONFIG_HC12
 
+#if CONFIG_STATUS_LED
   StatusLED statusLED(stack->service());
+#endif // CONFIG_STATUS_LED
 
   // cppcheck-suppress UnusedVar
   OTAMonitorFlow ota(stack->service());
@@ -362,12 +366,12 @@ DCC_PROTOCOL_COMMAND_HANDLER(ConfigErase,
 #if CONFIG_GPIO_S88
   S88BusManager::clear();
   S88BusManager::store();
-#endif
-#endif
+#endif // CONFIG_GPIO_S88
+#endif // CONFIG_GPIO_SENSORS
 #if CONFIG_GPIO_OUTPUTS
   OutputManager::clear();
   OutputManager::store();
-#endif
+#endif // CONFIG_GPIO_OUTPUTS
   return COMMAND_SUCCESSFUL_RESPONSE;
 })
 
@@ -380,15 +384,15 @@ DCC_PROTOCOL_COMMAND_HANDLER(ConfigStore,
                     , SensorManager::store()
 #if CONFIG_GPIO_S88
                     + S88BusManager::store()
-#endif
+#endif // CONFIG_GPIO_S88
 #else
                     , 0
-#endif
+#endif // CONFIG_GPIO_SENSORS
 #if CONFIG_GPIO_OUTPUTS
                     , OutputManager::store()
 #else
                     , 0
-#endif
+#endif // CONFIG_GPIO_OUTPUTS
     );
 })
 
