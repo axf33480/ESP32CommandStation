@@ -131,9 +131,8 @@ namespace openlcb
     4,
     "github.com/atanisoft (Mike Dunston)",
     "ESP32 Command Station",
-    "ESP32-v1",
-    // TODO: replace with CONFIG_APP_VERSION after v4.1 update
-    "1.5.0"
+    CONFIG_ESP32CS_HW_VERSION,
+    CONFIG_ESP32CS_SW_VERSION
   };
 }
 
@@ -157,22 +156,22 @@ namespace openlcb
 // when the command station starts up the first time the config is blank
 // and needs to be reset to factory settings. This class being declared here
 // takes care of that.
-class FactoryResetHelper : public DefaultConfigUpdateListener {
+class FactoryResetHelper : public DefaultConfigUpdateListener
+{
 public:
-    UpdateAction apply_configuration(int fd, bool initial_load,
-                                     BarrierNotifiable *done) OVERRIDE {
-        AutoNotify n(done);
-        return UPDATED;
-    }
+  UpdateAction apply_configuration(int fd, bool initial_load,
+                                    BarrierNotifiable *done) override
+  {
+    AutoNotify n(done);
+    return UPDATED;
+  }
 
-    void factory_reset(int fd) override
-    {
-        LOG(INFO
-          , "[LCC] ESP32 CS factory_reset(%d) invoked, defaulting "
-            "configuration", fd);
-        cfg.userinfo().name().write(fd, "ESP32 Command Station");
-        cfg.userinfo().description().write(fd, "");
-    }
+  void factory_reset(int fd) override
+  {
+    LOG(INFO, "[LCC] ESP32 Command Station factory_reset(%d) triggered.", fd);
+    cfg.userinfo().name().write(fd, "ESP32 Command Station");
+    cfg.userinfo().description().write(fd, "");
+  }
 };
 
 void init_webserver();
@@ -182,7 +181,8 @@ extern "C" void app_main()
   esp_log_level_set("*", ESP_LOG_ERROR);
 
   // Setup UART0 115200 8N1 TX: 1, RX: 3, 2k buffer (1k rx, 1k tx)
-  uart_config_t uart0 = {
+  uart_config_t uart0 =
+  {
     .baud_rate           = 115200,
     .data_bits           = UART_DATA_8_BITS,         // 8 bit bytes
     .parity              = UART_PARITY_DISABLE,      // no partity

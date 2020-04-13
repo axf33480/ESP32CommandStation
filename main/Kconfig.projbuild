@@ -24,7 +24,7 @@ menu "LCC Configuration"
 
     config LCC_CAN_TX_PIN
         int "CAN TX Pin"
-        range 0 32
+        range 0 33
         depends on LCC_CAN_ENABLED
         help
             This is the ESP32 pin connected to the SN6565HVD23x/MCP2551 D (TX) pin.
@@ -118,10 +118,6 @@ menu "LCC Configuration"
             By enabling this option OpenMRN will use select() to detect when a
             TCP/IP connection is ready to be serviced. When not enabled two
             extra threads are created for servicing the TCP/IP connection.
-
-    config ESP32CS_CDI_VERSION
-        hex
-        default 0x0150
 endmenu
 
 config NEXTION
@@ -253,3 +249,15 @@ menu "Locomotive Roster"
             are modified.
 
 endmenu
+
+config ESP32CS_CDI_VERSION
+    hex
+    default 0x0150
+
+config ESP32CS_HW_VERSION
+    string
+    default "ESP32-v1"
+
+config ESP32CS_SW_VERSION
+    string
+    default "1.5.0"
