@@ -80,7 +80,7 @@ GPIO_PIN(S88_LOAD, GpioInputNP, CONFIG_GPIO_S88_LOAD_PIN);
 #if CONFIG_GPIO_S88_RESET_PIN >= 0
 GPIO_PIN(S88_RESET, GpioInputNP, CONFIG_GPIO_S88_RESET_PIN);
 #else
-typedef DummyGpio S88_RESET_Pin;
+typedef DummyPin S88_RESET_Pin;
 #endif
 
 std::vector<std::unique_ptr<S88SensorBus>> s88SensorBus;
