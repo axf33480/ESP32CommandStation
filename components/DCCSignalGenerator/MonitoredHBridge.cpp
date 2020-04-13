@@ -223,37 +223,42 @@ void HBridgeShortDetector::poll_33hz(openlcb::WriteHelper *helper, Notifiable *d
       }
     }
   }
-  else if (enablePin_->is_set())
+  else
   {
-    overCurrentCheckCount_ = 0;
-    state_ = STATE_ON;
-    if (isProgTrack_ && lastReading_ >= progAckLimit_)
+    AutoNotify n(done);
+    if (enablePin_->is_set())
     {
-      // If this is the programming track and the average reading is at least the
-      // configured ack level, send a notification to the ProgrammingTrackBackend
-      // to wake it up.
-      Singleton<ProgrammingTrackBackend>::instance()->notify_service_mode_ack();
-    }
+      overCurrentCheckCount_ = 0;
+      state_ = STATE_ON;
+      if (isProgTrack_ && lastReading_ >= progAckLimit_)
+      {
+        // If this is the programming track and the average reading is at least the
+        // configured ack level, send a notification to the ProgrammingTrackBackend
+        // to wake it up.
+        Singleton<ProgrammingTrackBackend>::instance()->notify_service_mode_ack();
+      }
 #if CONFIG_STATUS_LED
-    // check if we are over the warning limit and update the LED accordingly.
-    if (lastReading_ >= warnLimit_)
-    {
-      Singleton<StatusLED>::instance()->setStatusLED((StatusLED::LED)targetLED_
-                                                   , StatusLED::COLOR::YELLOW);
+      // check if we are over the warning limit and update the LED accordingly.
+      if (lastReading_ >= warnLimit_)
+      {
+        Singleton<StatusLED>::instance()->setStatusLED((StatusLED::LED)targetLED_
+                                                    , StatusLED::COLOR::YELLOW);
+      }
+      else
+      {
+        Singleton<StatusLED>::instance()->setStatusLED((StatusLED::LED)targetLED_
+                                                    , StatusLED::COLOR::GREEN);
+      }
+#endif // CONFIG_STATUS_LED
     }
     else
     {
-      Singleton<StatusLED>::instance()->setStatusLED((StatusLED::LED)targetLED_
-                                                   , StatusLED::COLOR::GREEN);
+      state_ = STATE_OFF;
     }
-#endif // CONFIG_STATUS_LED
-  }
-  else
-  {
-    state_ = STATE_OFF;
   }
 
-  if ((esp_timer_get_time() - lastReport_) >= currentReportInterval_)
+  if (state_ == STATE_ON &&
+     (esp_timer_get_time() - lastReport_) >= currentReportInterval_)
   {
     lastReport_ = esp_timer_get_time();
     LOG(INFO, "[%s] %6.0f mA / %d mA", name_.c_str(), getUsage() / 1000.0f
