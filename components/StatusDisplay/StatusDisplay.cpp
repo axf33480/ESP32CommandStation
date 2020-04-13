@@ -436,7 +436,6 @@ StateFlowBase::Action StatusDisplay::init()
       scanresults += " --";
     }
   }
-  LOG(INFO, "[StatusDisplay] %s", scanresults.c_str());
   LOG(WARNING, "[StatusDisplay] A supported display was not detected, below "
       "are the detected I2C devices\n%s", scanresults.c_str());
 #endif // !CONFIG_DISPLAY_TYPE_NONE
