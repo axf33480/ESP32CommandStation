@@ -34,6 +34,16 @@ and has been adapter for use in ESP32 COMMAND STATION.
 #include <esp_wifi_types.h>
 #include <memory>
 #include <HttpStringUtils.h>
+#if CONFIG_GPIO_OUTPUTS
+#include <Outputs.h>
+#endif // CONFIG_GPIO_OUTPUTS
+#if CONFIG_GPIO_SENSORS
+#include <Sensors.h>
+#include <RemoteSensors.h>
+#if CONFIG_GPIO_S88
+#include <S88Sensors.h>
+#endif // CONFIG_GPIO_S88
+#endif // CONFIG_GPIO_SENSORS
 #include <Turnouts.h>
 
 std::vector<std::unique_ptr<DCCPPProtocolCommand>> registeredCommands;
