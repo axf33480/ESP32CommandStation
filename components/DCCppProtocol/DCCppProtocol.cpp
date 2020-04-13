@@ -545,6 +545,92 @@ DCC_PROTOCOL_COMMAND_HANDLER(AccessoryCommand,
   );
 })
 
+
+DCC_PROTOCOL_COMMAND_HANDLER(ConfigErase,
+[](const vector<string> arguments)
+{
+  Singleton<TurnoutManager>::instance()->clear();
+#if CONFIG_GPIO_SENSORS
+  SensorManager::clear();
+  SensorManager::store();
+#if CONFIG_GPIO_S88
+  S88BusManager::clear();
+  S88BusManager::store();
+#endif // CONFIG_GPIO_S88
+#endif // CONFIG_GPIO_SENSORS
+#if CONFIG_GPIO_OUTPUTS
+  OutputManager::clear();
+  OutputManager::store();
+#endif // CONFIG_GPIO_OUTPUTS
+  return COMMAND_SUCCESSFUL_RESPONSE;
+})
+
+DCC_PROTOCOL_COMMAND_HANDLER(ConfigStore,
+[](const vector<string> arguments)
+{
+  return StringPrintf("<e %d %d %d>"
+                    , Singleton<TurnoutManager>::instance()->getTurnoutCount()
+#if CONFIG_GPIO_SENSORS
+                    , SensorManager::store()
+#if CONFIG_GPIO_S88
+                    + S88BusManager::store()
+#endif // CONFIG_GPIO_S88
+#else
+                    , 0
+#endif // CONFIG_GPIO_SENSORS
+#if CONFIG_GPIO_OUTPUTS
+                    , OutputManager::store()
+#else
+                    , 0
+#endif // CONFIG_GPIO_OUTPUTS
+    );
+})
+
+DCC_PROTOCOL_COMMAND_HANDLER(StatusCommand,
+[](const vector<string> arguments)
+{
+  wifi_mode_t mode;
+  const esp_app_desc_t *app_data = esp_ota_get_app_description();
+  string status = StringPrintf("<iDCC++ ESP32 Command Station: V-%s / %s %s>"
+                , app_data->version, app_data->date, app_data->time);
+  status += esp32cs::get_track_state_for_dccpp();
+  auto trains = Singleton<commandstation::AllTrainNodes>::instance();
+  for (size_t id = 0; id < trains->size(); id++)
+  {
+    auto nodeid = trains->get_train_node_id(id);
+    if (nodeid)
+    {
+      auto impl = trains->get_train_impl(nodeid);
+      status += convert_loco_to_dccpp_state(impl, id);
+    }
+  }
+  status += Singleton<TurnoutManager>::instance()->get_state_for_dccpp();
+#if CONFIG_GPIO_OUTPUTS
+  status += OutputManager::get_state_for_dccpp();
+#endif // CONFIG_GPIO_OUTPUTS
+  if (esp_wifi_get_mode(&mode) == ESP_OK)
+  {
+    tcpip_adapter_ip_info_t ip_info;
+    if (mode == WIFI_MODE_STA || mode == WIFI_MODE_APSTA)
+    {
+      if (tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_STA, &ip_info) == ESP_OK)
+      {
+        status += StringPrintf("<N1: " IPSTR ">", IP2STR(&ip_info.ip));
+      }
+      if (tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_AP, &ip_info) == ESP_OK)
+      {
+        status += StringPrintf("<N1: " IPSTR ">", IP2STR(&ip_info.ip));
+      }
+    }
+    else if (mode != WIFI_MODE_NULL &&
+             tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_AP, &ip_info) == ESP_OK)
+    {
+      status += StringPrintf("<N1: " IPSTR ">", IP2STR(&ip_info.ip));
+    }
+  }
+  return status;
+})
+
 void DCCPPProtocolHandler::init()
 {
   registerCommand(new ThrottleCommandAdapter());

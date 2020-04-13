@@ -9,8 +9,9 @@ set(COMPONENT_ADD_INCLUDEDIRS "include" )
 set(COMPONENT_REQUIRES
     "Configuration"
     "DCCSignalGenerator"
-    "Esp32HttpServer"
     "DCCTurnoutManager"
+    "Esp32HttpServer"
+    "GPIO"
 )
 
 register_component()
