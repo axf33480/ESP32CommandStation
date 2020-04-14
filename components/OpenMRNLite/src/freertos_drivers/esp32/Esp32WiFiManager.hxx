@@ -145,6 +145,9 @@ public:
     Esp32WiFiManager(
         openlcb::SimpleCanStack *stack, const WiFiConfiguration &cfg);
 
+    /// Destructor.
+    ~Esp32WiFiManager();
+
     /// Updates the WiFiConfiguration settings used by this node.
     ///
     /// @param fd is the file descriptor used for the configuration settings.

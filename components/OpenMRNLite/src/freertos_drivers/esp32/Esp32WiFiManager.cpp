@@ -334,6 +334,30 @@ Esp32WiFiManager::Esp32WiFiManager(
     // Nothing to do here.
 }
 
+// destructor to ensure cleanup of owned resources
+Esp32WiFiManager::~Esp32WiFiManager()
+{
+    // if we are managing the WiFi connection we need to disconnect from the
+    // event loop to prevent a possible null deref.
+    if (manageWiFi_)
+    {
+        // disconnect from the event loop
+        esp_event_loop_set_cb(nullptr, nullptr);
+    }
+
+    // shutdown the WiFi background task
+    vTaskDelete(wifiTaskHandle_);
+
+    // Stop the hub and uplink (if they are active)
+    stop_hub();
+    stop_uplink();
+
+    // cleanup internal vectors/maps
+    ssidScanResults_.clear();
+    eventCallbacks_.clear();
+    mdnsDeferredPublish_.clear();
+}
+
 ConfigUpdateListener::UpdateAction Esp32WiFiManager::apply_configuration(
     int fd, bool initial_load, BarrierNotifiable *done)
 {
@@ -1009,7 +1033,7 @@ void Esp32WiFiManager::stop_uplink()
 {
     if (uplink_)
     {
-        LOG(INFO, "[UPLINK] Disconnecting from uplink.");
+        LOG(INFO, "[Uplink] Disconnecting from uplink.");
         uplink_->shutdown();
         uplink_.reset(nullptr);
     }

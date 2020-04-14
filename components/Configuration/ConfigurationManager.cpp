@@ -341,6 +341,9 @@ void ConfigurationManager::shutdown()
     configAutoSync_.reset(nullptr);
   }
 
+  // shutdown the wifi connection
+  wifiManager_.reset();
+
   // shutdown the executor so that no more tasks will run
   LOG(INFO, "[Config] Shutting down executor");
   stack_->executor()->shutdown();
