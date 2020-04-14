@@ -19,7 +19,9 @@ These are must have features/bug fixes for v1.5.0:
 -   [ ] LCC: Add fallback option for Esp32WiFiManager to not reboot the node when SSID connect fails and SoftAP is active.
 -   [ ] Nextion: rewrite from scratch.
 -   [ ] Roster: Roster Entries should contain function id mappings.
--   [ ] Sensors/S88: Convert to use openlcb::Polling model rather than tasks.
+-   [-] Convert to use openlcb::Polling model rather than tasks.
+    -   [x] S88 migrated
+    -   [ ] Sensors migrated
 -   [ ] Web: Entering loco name as "loco #3" results in "loco 33" being registered.
 -   [ ] Web: Test all endpoints to ensure proper functionality after httpd rework.
 
@@ -82,6 +84,7 @@ These entries are items being tracked for a future release, these are not listed
 -   [ ] LCC: Update Esp32WiFiManager to use SimpleStackBase instead of SimpleCanStack.
 -   [ ] Misc: Switch to shared_ptr instead of raw pointers.
 -   [ ] Misc: WiThrottle support (https://github.com/atanisoft/ESP32CommandStation/issues/15)
+-   [ ] Misc: Combine usages of openlcb::RefreshLoop.
 -   [ ] Nextion: Add support for Nextion Upload via OTA in NeoNextion.
 -   [ ] Nextion: Add notification of turnout state change when changed external to the nextion code.
 -   [ ] Nextion: Auto turn on of track power from Nextion when interacting with loco/turnouts.

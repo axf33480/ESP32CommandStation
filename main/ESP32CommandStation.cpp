@@ -267,7 +267,7 @@ extern "C" void app_main()
   SensorManager::init();
   RemoteSensorManager::init();
 #if CONFIG_GPIO_S88
-  S88BusManager::init();
+  S88BusManager s88(stack->node());
 #endif // CONFIG_GPIO_S88
 #endif // CONFIG_GPIO_SENSORS
 

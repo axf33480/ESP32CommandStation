@@ -1088,12 +1088,12 @@ HTTP_HANDLER_IMPL(process_s88, request)
   request->set_status(HttpStatusCode::STATUS_OK);
   if (request->method() == HttpMethod::GET)
   {
-    return new StringResponse(S88BusManager::getStateAsJson()
+    return new StringResponse(S88BusManager::instance()->get_state_as_json()
                             , MIME_TYPE_APPLICATION_JSON);
   }
   else if (request->method() == HttpMethod::POST)
   {
-    if(!S88BusManager::createOrUpdateBus(
+    if(!S88BusManager::instance()->createOrUpdateBus(
       request->param(JSON_ID_NODE, 0),
       (gpio_num_t)request->param(JSON_PIN_NODE, 0),
       request->param(JSON_COUNT_NODE, 0)))
@@ -1104,7 +1104,7 @@ HTTP_HANDLER_IMPL(process_s88, request)
   }
   else if (request->method() == HttpMethod::DELETE)
   {
-    S88BusManager::removeBus(request->param(JSON_ID_NODE, 0));
+    S88BusManager::instance()->removeBus(request->param(JSON_ID_NODE, 0));
   }
   return nullptr;
 }

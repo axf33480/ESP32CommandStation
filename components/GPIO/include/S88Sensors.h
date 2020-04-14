@@ -20,6 +20,10 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 
 #include <driver/gpio.h>
 
+#include <openlcb/RefreshLoop.hxx>
+#include <utils/Atomic.hxx>
+#include <utils/Singleton.hxx>
+
 #include "Sensors.h"
 
 class S88Sensor : public Sensor {
@@ -44,7 +48,6 @@ class S88SensorBus
 {
 public:
   S88SensorBus(const uint8_t, const gpio_num_t, const uint16_t);
-  S88SensorBus(std::string &);
   void update(const gpio_num_t, const uint16_t);
   std::string toJson(bool=false);
   void addSensors(int16_t);
@@ -85,19 +88,24 @@ private:
   std::vector<S88Sensor *> _sensors;
 };
 
-class S88BusManager
+class S88BusManager : public Singleton<S88BusManager>, public openlcb::Polling
+                    , private Atomic
 {
 public:
-  static void init();
-  static void clear();
-  static uint8_t store();
-  static void s88SensorTask(void *param);
-  static bool createOrUpdateBus(const uint8_t, const gpio_num_t, const uint16_t);
-  static bool removeBus(const uint8_t);
-  static std::string getStateAsJson();
-  static std::string get_state_for_dccpp();
+  S88BusManager(openlcb::Node *node);
+  ~S88BusManager();
+  void clear();
+  uint16_t store();
+  void poll_33hz(openlcb::WriteHelper *helper, Notifiable *done) override;
+  void poll();
+  bool createOrUpdateBus(const uint8_t, const gpio_num_t, const uint16_t);
+  bool removeBus(const uint8_t);
+  std::string get_state_as_json();
+  std::string get_state_for_dccpp();
 private:
-  static OSMutex _s88SensorLock;
+  openlcb::RefreshLoop poller_;
+  std::vector<std::unique_ptr<S88SensorBus>> buses_;
+  os_thread_t taskHandle_;
 };
 
 #endif // S88_SENSORS_H_

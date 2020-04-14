@@ -65,15 +65,7 @@ constexpr uint16_t S88_SENSOR_CLOCK_PRE_RESET_TIME = 50;
 constexpr uint16_t S88_SENSOR_RESET_PULSE_TIME = 50;
 constexpr uint16_t S88_SENSOR_READ_TIME = 25;
 
-// This is the interval at which sensors will be checked
-constexpr TickType_t S88_SENSOR_CHECK_DELAY = pdMS_TO_TICKS(50);
-
 static constexpr const char * S88_SENSORS_JSON_FILE = "s88.json";
-
-OSMutex S88BusManager::_s88SensorLock;
-
-static constexpr UBaseType_t S88_SENSOR_TASK_PRIORITY = 1;
-static constexpr uint32_t S88_SENSOR_TASK_STACK_SIZE = 2048;
 
 GPIO_PIN(S88_CLOCK, GpioOutputSafeLow, CONFIG_GPIO_S88_CLOCK_PIN);
 GPIO_PIN(S88_LOAD, GpioOutputSafeLow, CONFIG_GPIO_S88_LOAD_PIN);
@@ -83,11 +75,19 @@ GPIO_PIN(S88_RESET, GpioOutputSafeLow, CONFIG_GPIO_S88_RESET_PIN);
 typedef DummyPin S88_RESET_Pin;
 #endif
 
-std::vector<std::unique_ptr<S88SensorBus>> s88SensorBus;
-
 typedef GpioInitializer<S88_CLOCK_Pin, S88_LOAD_Pin, S88_RESET_Pin> S88PinInit;
 
-void S88BusManager::init()
+void *s88_task(void *param)
+{
+  S88BusManager *s88 = static_cast<S88BusManager *>(param);
+  while (true)
+  {
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    s88->poll();
+  }
+}
+
+S88BusManager::S88BusManager(openlcb::Node *node) : poller_(node, {this})
 {
 #if CONFIG_GPIO_S88_RESET_PIN >= 0
   LOG(INFO, "[S88] Configuration (clock: %d, reset: %d, load: %d)"
@@ -100,135 +100,148 @@ void S88BusManager::init()
   S88PinInit::hw_init();
 
   LOG(INFO, "[S88] Initializing SensorBus list");
-  nlohmann::json root = nlohmann::json::parse(Singleton<ConfigurationManager>::instance()->load(S88_SENSORS_JSON_FILE));
-  uint16_t s88BusCount = root.contains(JSON_COUNT_NODE) ? root[JSON_COUNT_NODE].get<int>() : 0;
-  Singleton<StatusDisplay>::instance()->status("Found %02d S88 Bus", s88BusCount);
-  if(s88BusCount > 0)
+  nlohmann::json root = nlohmann::json::parse(
+    Singleton<ConfigurationManager>::instance()->load(S88_SENSORS_JSON_FILE));
+  for (auto bus : root[JSON_SENSORS_NODE])
   {
-    for(auto bus : root[JSON_SENSORS_NODE])
-    {
-      string data = bus.dump();
-      s88SensorBus.emplace_back(new S88SensorBus(data));
-    }
+    buses_.push_back(
+      std::make_unique<S88SensorBus>(bus[JSON_ID_NODE], bus[JSON_PIN_NODE]
+                                   , bus[JSON_COUNT_NODE]));
   }
-  LOG(INFO, "[S88] Loaded %d Sensor Buses", s88SensorBus.size());
-  // TODO: rework S88 to not use a dedicated task but instead switch to polling model.
-  xTaskCreate(s88SensorTask, "S88SensorManager", S88_SENSOR_TASK_STACK_SIZE, NULL, S88_SENSOR_TASK_PRIORITY, nullptr);
+  LOG(INFO, "[S88] Loaded %d Sensor Buses", buses_.size());
+  os_thread_create(&taskHandle_, "s88", 1, 2048, s88_task, this);
+}
+
+S88BusManager::~S88BusManager()
+{
+  poller_.stop();
+  vTaskDelete(taskHandle_);
 }
 
 void S88BusManager::clear()
 {
-  s88SensorBus.clear();
+  buses_.clear();
 }
 
-uint8_t S88BusManager::store()
+uint16_t S88BusManager::store()
 {
-  nlohmann::json root;
-  uint8_t sensorBusIndex = 0;
-  for (const auto& bus : s88SensorBus)
+  AtomicHolder l(this);
+  uint16_t count = 0;
+  string content = "[";
+  for (const auto& bus : buses_)
   {
-    root[JSON_SENSORS_NODE].push_back(bus->toJson());
-    sensorBusIndex++;
-  }
-  root[JSON_COUNT_NODE] = sensorBusIndex;
-  Singleton<ConfigurationManager>::instance()->store(S88_SENSORS_JSON_FILE, root.dump());
-  return sensorBusIndex;
-}
-
-void S88BusManager::s88SensorTask(void *param)
-{
-  while (true)
-  {
-    OSMutexLock l(&_s88SensorLock);
-    for (const auto& sensorBus : s88SensorBus)
+    // only add the seperator if we have already serialized at least one
+    // bus.
+    if (content.length() > 1)
     {
-      sensorBus->prepForRead();
+      content += ",";
     }
-    S88_LOAD_Pin::set(true);
-    ets_delay_us(S88_SENSOR_LOAD_PRE_CLOCK_TIME);
+    content += bus->toJson();
+    count += bus->getSensorCount();
+  }
+  content += "]";
+  Singleton<ConfigurationManager>::instance()->store(S88_SENSORS_JSON_FILE, content);
+  return count;
+}
+
+void S88BusManager::poll_33hz(openlcb::WriteHelper *helper, Notifiable *done)
+{
+  AutoNotify n(done);
+
+  // wake up background task for polling
+  xTaskNotifyGive(taskHandle_);
+}
+
+void S88BusManager::poll()
+{
+  AtomicHolder l(this);
+  for (const auto& sensorBus : buses_)
+  {
+    sensorBus->prepForRead();
+  }
+  S88_LOAD_Pin::set(true);
+  ets_delay_us(S88_SENSOR_LOAD_PRE_CLOCK_TIME);
+  S88_CLOCK_Pin::set(true);
+  ets_delay_us(S88_SENSOR_CLOCK_PULSE_TIME);
+  S88_CLOCK_Pin::set(false);
+  ets_delay_us(S88_SENSOR_CLOCK_PRE_RESET_TIME);
+  S88_RESET_Pin::set(true);
+  ets_delay_us(S88_SENSOR_RESET_PULSE_TIME);
+  S88_RESET_Pin::set(false);
+  ets_delay_us(S88_SENSOR_LOAD_POST_RESET_TIME);
+  S88_LOAD_Pin::set(false);
+
+  ets_delay_us(S88_SENSOR_READ_TIME);
+  bool keepReading = true;
+  while (keepReading)
+  {
+    keepReading = false;
+    for (const auto& sensorBus : buses_)
+    {
+      if (sensorBus->hasMore())
+      {
+        keepReading = true;
+        sensorBus->readNext();
+      }
+    }
     S88_CLOCK_Pin::set(true);
     ets_delay_us(S88_SENSOR_CLOCK_PULSE_TIME);
     S88_CLOCK_Pin::set(false);
-    ets_delay_us(S88_SENSOR_CLOCK_PRE_RESET_TIME);
-    S88_RESET_Pin::set(true);
-    ets_delay_us(S88_SENSOR_RESET_PULSE_TIME);
-    S88_RESET_Pin::set(false);
-    ets_delay_us(S88_SENSOR_LOAD_POST_RESET_TIME);
-    S88_LOAD_Pin::set(false);
-
     ets_delay_us(S88_SENSOR_READ_TIME);
-    bool keepReading = true;
-    while(keepReading)
-    {
-      keepReading = false;
-      for (const auto& sensorBus : s88SensorBus)
-      {
-        if (sensorBus->hasMore())
-        {
-          keepReading = true;
-          sensorBus->readNext();
-        }
-      }
-      S88_CLOCK_Pin::set(true);
-      ets_delay_us(S88_SENSOR_CLOCK_PULSE_TIME);
-      S88_CLOCK_Pin::set(false);
-      ets_delay_us(S88_SENSOR_READ_TIME);
-    }
-    vTaskDelay(S88_SENSOR_CHECK_DELAY);
   }
 }
 
 bool S88BusManager::createOrUpdateBus(const uint8_t id, const gpio_num_t dataPin, const uint16_t sensorCount)
 {
   // check for duplicate data pin
-  for (const auto& sensorBus : s88SensorBus)
+  for (const auto& sensorBus : buses_)
   {
-    if(sensorBus->getID() != id && sensorBus->getDataPin() == dataPin)
+    if (sensorBus->getID() != id && sensorBus->getDataPin() == dataPin)
     {
       LOG_ERROR("[S88] Bus %d is already using data pin %d, rejecting create/update of S88 Bus %d",
         sensorBus->getID(), dataPin, id);
       return false;
     }
   }
-  OSMutexLock l(&_s88SensorLock);
+  AtomicHolder l(this);
   // check for existing bus to be updated
-  for (const auto& sensorBus : s88SensorBus)
+  for (const auto& sensorBus : buses_)
   {
-    if(sensorBus->getID() == id)
+    if (sensorBus->getID() == id)
     {
       sensorBus->update(dataPin, sensorCount);
       return true;
     }
   }
-  if(is_restricted_pin(dataPin))
+  if (is_restricted_pin(dataPin))
   {
     LOG_ERROR("[S88] Attempt to use a restricted pin: %d", dataPin);
     return false;
   }
-  s88SensorBus.push_back(std::make_unique<S88SensorBus>(id, dataPin, sensorCount));
+  buses_.push_back(std::make_unique<S88SensorBus>(id, dataPin, sensorCount));
   return true;
 }
 
 bool S88BusManager::removeBus(const uint8_t id)
 {
-  OSMutexLock l(&_s88SensorLock);
-  const auto & ent = std::find_if(s88SensorBus.begin(), s88SensorBus.end(),
+  AtomicHolder l(this);
+  const auto & ent = std::find_if(buses_.begin(), buses_.end(),
   [id](std::unique_ptr<S88SensorBus> & bus) -> bool
   {
     return bus->getID() == id;
   });
-  if (ent != s88SensorBus.end())
+  if (ent != buses_.end())
   {
-    s88SensorBus.erase(ent);
+    buses_.erase(ent);
     return true;
   }
   return false;
 }
 
-string S88BusManager::getStateAsJson()
+string S88BusManager::get_state_as_json()
 {
   string state = "[";
-  for (const auto& sensorBus : s88SensorBus)
+  for (const auto& sensorBus : buses_)
   {
     if (state.length() > 1)
     {
@@ -243,7 +256,7 @@ string S88BusManager::getStateAsJson()
 string S88BusManager::get_state_for_dccpp()
 {
   string res;
-  for (const auto& sensorBus : s88SensorBus)
+  for (const auto& sensorBus : buses_)
   {
     res += sensorBus->get_state_for_dccpp();
   }
@@ -258,22 +271,7 @@ S88SensorBus::S88SensorBus(const uint8_t id, const gpio_num_t dataPin, const uin
     _id, _dataPin, sensorCount, _sensorIDBase);
   gpio_pad_select_gpio((gpio_num_t)_dataPin);
   ESP_ERROR_CHECK(gpio_set_direction((gpio_num_t)_dataPin, GPIO_MODE_INPUT));
-  if(sensorCount > 0)
-  {
-    addSensors(sensorCount);
-  }
-}
-
-S88SensorBus::S88SensorBus(string &data)
-{
-  nlohmann::json object = nlohmann::json::parse(data);
-  _id = object[JSON_ID_NODE];
-  _dataPin = object[JSON_PIN_NODE];
-  _lastSensorID = _sensorIDBase = object[JSON_S88_SENSOR_BASE_NODE];
-  uint16_t sensorCount = object[JSON_COUNT_NODE];
-  Singleton<StatusDisplay>::instance()->status("S88(%d) %02d sensors", _id
-  , sensorCount);
-  if(sensorCount > 0)
+  if (sensorCount > 0)
   {
     addSensors(sensorCount);
   }
@@ -289,11 +287,11 @@ void S88SensorBus::update(const gpio_num_t dataPin, const uint16_t sensorCount)
   {
     sensor->updateID(_lastSensorID++);
   }
-  if(sensorCount < _sensors.size())
+  if (sensorCount < _sensors.size())
   {
     removeSensors(_sensors.size() - sensorCount);
   }
-  else if(sensorCount > 0)
+  else if (sensorCount > 0)
   {
     addSensors(sensorCount - _sensors.size());
   }
@@ -303,24 +301,22 @@ void S88SensorBus::update(const gpio_num_t dataPin, const uint16_t sensorCount)
 
 string S88SensorBus::toJson(bool includeState)
 {
-  nlohmann::json object =
+  string serialized = StringPrintf(
+    "{\"%s\":%d,\"%s\":%d,\"%s\":%d,\"%s\":%d"
+  , JSON_ID_NODE, _id, JSON_PIN_NODE, _dataPin
+  , JSON_S88_SENSOR_BASE_NODE, _sensorIDBase, JSON_COUNT_NODE, _sensors.size());
+  if (includeState)
   {
-    { JSON_ID_NODE, _id },
-    { JSON_PIN_NODE, _dataPin },
-    { JSON_S88_SENSOR_BASE_NODE, _sensorIDBase },
-    { JSON_COUNT_NODE, _sensors.size() },
-  };
-  if(includeState)
-  {
-    object[JSON_STATE_NODE] = getStateString();
+    serialized += StringPrintf("\"%s\":\"%s\"", JSON_STATE_NODE, getStateString().c_str());
   }
-  return object.dump();
+  serialized += "}";
+  return serialized;
 }
 
 void S88SensorBus::addSensors(int16_t sensorCount)
 {
   const uint16_t startingIndex = _sensors.size();
-  for(uint8_t id = 0; id < sensorCount; id++)
+  for (uint8_t id = 0; id < sensorCount; id++)
   {
     _sensors.push_back(new S88Sensor(_lastSensorID++, startingIndex + id));
   }
@@ -328,7 +324,7 @@ void S88SensorBus::addSensors(int16_t sensorCount)
 
 void S88SensorBus::removeSensors(int16_t sensorCount)
 {
-  if(sensorCount < 0)
+  if (sensorCount < 0)
   {
     for (const auto& sensor : _sensors)
     {
@@ -339,7 +335,7 @@ void S88SensorBus::removeSensors(int16_t sensorCount)
   }
   else
   {
-    for(uint8_t id = 0; id < sensorCount; id++)
+    for (uint8_t id = 0; id < sensorCount; id++)
     {
       LOG(CONFIG_GPIO_S88_SENSOR_LOG_LEVEL, "[S88] Sensor(%d) removed"
         , _sensors.back()->getID());
@@ -353,7 +349,7 @@ string S88SensorBus::getStateString()
   string state = "";
   for (const auto& sensor : _sensors)
   {
-    if(sensor->isActive())
+    if (sensor->isActive())
     {
       state += "1";
     }
@@ -397,23 +393,24 @@ S88Sensor::S88Sensor(uint16_t id, uint16_t index)
 DCC_PROTOCOL_COMMAND_HANDLER(S88BusCommandAdapter,
 [](const vector<string> arguments)
 {
-  if(arguments.empty())
+  auto s88 = S88BusManager::instance();
+  if (arguments.empty())
   {
     // list all sensor groups
-    return S88BusManager::get_state_for_dccpp();
+    return s88->get_state_for_dccpp();
   }
   else
   {
     if (arguments.size() == 1 &&
-        S88BusManager::removeBus(std::stoi(arguments[0])))
+        s88->removeBus(std::stoi(arguments[0])))
     {
       // delete sensor bus
       return COMMAND_SUCCESSFUL_RESPONSE;
     }
     else if (arguments.size() == 3 &&
-             S88BusManager::createOrUpdateBus(std::stoi(arguments[0])
-                                            , (gpio_num_t)std::stoi(arguments[1])
-                                            , std::stoi(arguments[2])))
+             s88->createOrUpdateBus(std::stoi(arguments[0])
+                                  , (gpio_num_t)std::stoi(arguments[1])
+                                  , std::stoi(arguments[2])))
     {
       // create sensor bus
       return COMMAND_SUCCESSFUL_RESPONSE;

@@ -564,8 +564,8 @@ DCC_PROTOCOL_COMMAND_HANDLER(ConfigErase,
   SensorManager::clear();
   SensorManager::store();
 #if CONFIG_GPIO_S88
-  S88BusManager::clear();
-  S88BusManager::store();
+  S88BusManager::instance()->clear();
+  S88BusManager::instance()->store();
 #endif // CONFIG_GPIO_S88
 #endif // CONFIG_GPIO_SENSORS
 #if CONFIG_GPIO_OUTPUTS
@@ -583,7 +583,7 @@ DCC_PROTOCOL_COMMAND_HANDLER(ConfigStore,
 #if CONFIG_GPIO_SENSORS
                     , SensorManager::store()
 #if CONFIG_GPIO_S88
-                    + S88BusManager::store()
+                    + S88BusManager::instance()->store()
 #endif // CONFIG_GPIO_S88
 #else
                     , 0
