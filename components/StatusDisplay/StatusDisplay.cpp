@@ -645,11 +645,11 @@ StateFlowBase::Action StatusDisplay::update()
       ++_lccStatusIndex %= 5;
       if(_lccStatusIndex == 0)
       {
-        status("LCC Rmt:%d", lccRemoteNodeCount_);
+        status("LCC Rmt Node:%02d", lccRemoteNodeCount_);
       }
       else if (_lccStatusIndex == 1)
       {
-        status("LCC Lcl:%d", lccLocalNodeCount_);
+        status("LCC Lcl Node:%02d", lccLocalNodeCount_);
       }
       else if (_lccStatusIndex == 2)
       {
@@ -671,8 +671,15 @@ StateFlowBase::Action StatusDisplay::update()
           static_cast<openlcb::SimpleCanStack *>(stack_)->can_hub()->pool();
 #endif
         status("LCC Pool: %d/%d", pool->free_items(), pool->total_size());
-        lccNodeRefreshPending_ = true;
-        lccNodeBrowser_->refresh();
+
+        // if enough time has passed since our last refresh trigger a new one.
+        if (esp_timer_get_time() >= nextLccNodeCountRefreshTime_)
+        {
+          nextLccNodeCountRefreshTime_ =
+            esp_timer_get_time() + LCC_NODE_REFRESH_INTERVAL;
+          lccNodeRefreshPending_ = true;
+          lccNodeBrowser_->refresh();
+        }
       }
 #if CONFIG_LOCONET
     }

@@ -26,6 +26,7 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 #include <openlcb/NodeBrowser.hxx>
 #include <openlcb/SimpleStack.hxx>
 #include <openlcb/TractionDefs.hxx>
+#include <utils/macros.h>
 #include <utils/Uninitialized.hxx>
 
 class StatusDisplay : public StateFlowBase, public Singleton<StatusDisplay>
@@ -68,6 +69,8 @@ private:
   size_t lccRemoteNodeCount_{0};
   size_t lccLocalNodeCount_{0};
   bool lccNodeRefreshPending_{true};
+  uint64_t nextLccNodeCountRefreshTime_{0};
+  const uint64_t LCC_NODE_REFRESH_INTERVAL{SEC_TO_USEC(300)};
   std::set<openlcb::NodeID> lccSeenNodes_;
   uninitialized<openlcb::NodeBrowser> lccNodeBrowser_;
   openlcb::SimpleStackBase *stack_;
