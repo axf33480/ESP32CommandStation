@@ -666,9 +666,9 @@ void Esp32WiFiManager::process_wifi_event(system_event_t *event)
                 tcpip_adapter_dhcps_start(TCPIP_ADAPTER_IF_AP));
         }
 
-        // If we are not operating in SoftAP mode only we can start the mDNS
-        // system now, otherwise we need to defer it until the station has
-        // received it's IP address to avoid reinitializing the mDNS system.
+        // If we are operating in SoftAP mode only we can start the mDNS system
+        // now, otherwise we need to defer it until the station has received
+        // it's IP address to avoid reinitializing the mDNS system.
         if (wifiMode_ == WIFI_MODE_AP)
         {
             start_mdns_system();
@@ -1201,6 +1201,9 @@ void Esp32WiFiManager::mdns_unpublish(string service)
 // published at this time.
 void Esp32WiFiManager::start_mdns_system()
 {
+    // if we are managing the WiFi stack start mDNS if it hasn't already been
+    // started previously.
+    if (manageWiFi_)
     {
         OSMutexLock l(&mdnsInitLock_);
         // If we have already initialized mDNS we can exit early.
@@ -1244,14 +1247,20 @@ static constexpr size_t MDNS_MAX_RESULTS = 10;
 // Advertises an mDNS service name.
 void mdns_publish(const char *name, const char *service, uint16_t port)
 {
-    // The name parameter is unused today.
-    Singleton<Esp32WiFiManager>::instance()->mdns_publish(service, port);
+    if (Singleton<Esp32WiFiManager>::exists())
+    {
+        // The name parameter is unused today.
+        Singleton<Esp32WiFiManager>::instance()->mdns_publish(service, port);
+    }
 }
 
 // Removes advertisement of an mDNS service name.
 void mdns_unpublish(const char *service)
 {
-    Singleton<Esp32WiFiManager>::instance()->mdns_unpublish(service);
+    if (Singleton<Esp32WiFiManager>::exists())
+    {
+        Singleton<Esp32WiFiManager>::instance()->mdns_unpublish(service);
+    }
 }
 
 // Splits an mDNS service name.
