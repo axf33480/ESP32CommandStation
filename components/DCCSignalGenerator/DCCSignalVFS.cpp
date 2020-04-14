@@ -385,6 +385,10 @@ void init_dcc_vfs(openlcb::Node *node, Service *service
 
 void shutdown_dcc_vfs()
 {
+  // disconnect the RMT TX complete callback so that no more DCC packets will
+  // be sent to the tracks.
+  rmt_register_tx_end_callback(nullptr, nullptr);
+
   // stop any future polling of the DCC outputs
   dcc_poller->stop();
 
