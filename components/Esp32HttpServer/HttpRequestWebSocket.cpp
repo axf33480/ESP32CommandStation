@@ -17,6 +17,12 @@ COPYRIGHT (c) 2019-2020 Mike Dunston
 
 #include "Httpd.h"
 
+#if defined(ESP32) || defined(ESP_IDF_VERSION_MAJOR)
+#include <mbedtls/sha1.h>
+#else
+#error unknown platform for mbedTLS
+#endif // ESP32 || ESP_IDF_VERSION_MAJOR
+
 namespace http
 {
 

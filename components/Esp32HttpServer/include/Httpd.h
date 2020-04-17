@@ -24,17 +24,8 @@ COPYRIGHT (c) 2019-2020 Mike Dunston
 #include <map>
 #include <stdint.h>
 
-#include <mbedtls/sha1.h>
-
 #include <executor/Service.hxx>
 #include <executor/StateFlow.hxx>
-
-#include "sdkconfig.h"
-
-#if defined(ESP32) || defined(CONFIG_IDF_TARGET_ESP32)
-#include <freertos_drivers/esp32/Esp32WiFiManager.hxx>
-#include <esp_system.h>
-#endif
 
 #include <os/MDNS.hxx>
 #include <os/OS.hxx>

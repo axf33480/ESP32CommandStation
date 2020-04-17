@@ -19,6 +19,9 @@ COPYRIGHT (c) 2019 Mike Dunston
 
 #if defined(ESP32) || defined(ESP_IDF_VERSION_MAJOR)
 
+#include <freertos_drivers/esp32/Esp32WiFiManager.hxx>
+#include <esp_system.h>
+
 // this method is not exposed via the MDNS class today, declare it here so we
 // can call it if needed. This is implemented inside Esp32WiFiManager.cxx.
 void mdns_unpublish(const char *service);
