@@ -530,12 +530,10 @@ void Esp32WiFiManager::process_wifi_event(system_event_t *event)
     else if (event->event_id == SYSTEM_EVENT_STA_GOT_IP)
     {
         // Retrieve the configured IP address from the TCP/IP stack.
-        tcpip_adapter_ip_info_t ip_info;
-        tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_STA, &ip_info);
         LOG(INFO,
             "[WiFi] IP address is " IPSTR ", starting hub (if enabled) and "
             "uplink.",
-            IP2STR(&ip_info.ip));
+            IP2STR(&event->event_info.got_ip.ip_info.ip));
 
         // Start the mDNS system since we have an IP address, the mDNS system
         // on the ESP32 requires that the IP address be assigned otherwise it
