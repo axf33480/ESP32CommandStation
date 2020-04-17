@@ -275,12 +275,10 @@ void StatusDisplay::wifi_event(system_event_t *event)
   {
     if (event->event_id == SYSTEM_EVENT_STA_GOT_IP)
     {
-      tcpip_adapter_ip_info_t ip_info;
-      tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_STA, &ip_info);
 #if CONFIG_DISPLAY_COLUMN_COUNT > 16 || CONFIG_DISPLAY_TYPE_OLED
-      wifi("IP: " IPSTR, IP2STR(&ip_info.ip));
+      wifi("IP: " IPSTR, IP2STR(&event->event_info.got_ip.ip_info.ip));
 #else
-      wifi(IPSTR, IP2STR(&ip_info.ip));
+      wifi(IPSTR, IP2STR(&event->event_info.got_ip.ip_info.ip));
 #endif
     }
     else
