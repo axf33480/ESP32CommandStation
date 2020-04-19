@@ -6,6 +6,8 @@ set(COMPONENT_ADD_INCLUDEDIRS "include" )
 
 set(COMPONENT_REQUIRES
     "OpenMRNLite"
+    "freertos"
+    "soc"
 )
 
 register_component()

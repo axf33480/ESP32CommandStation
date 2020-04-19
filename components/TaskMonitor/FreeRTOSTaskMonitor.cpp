@@ -17,6 +17,10 @@ COPYRIGHT (c) 2019-2020 Mike Dunston
 
 #include "FreeRTOSTaskMonitor.h"
 
+#include <algorithm>
+#include <freertos/task.h>
+#include <soc/soc.h>
+
 #ifndef CONFIG_TASK_LIST_INTERVAL_SEC
 #define CONFIG_TASK_LIST_INTERVAL_SEC 300
 #endif
@@ -26,7 +30,7 @@ FreeRTOSTaskMonitor::FreeRTOSTaskMonitor(Service *service)
   // explicit cast is necessary for these next two lines due to compiler
   // warnings for data type truncation.
   , reportInterval_{(uint64_t)SEC_TO_NSEC(CONFIG_TASK_MONITOR_INTERVAL_SEC)}
-#if CONFIG_TASK_LIST_REPORT
+#ifdef CONFIG_TASK_LIST_REPORT
   , taskListInterval_{(uint64_t)SEC_TO_USEC(CONFIG_TASK_LIST_INTERVAL_SEC)}
 #endif
 {
@@ -47,7 +51,7 @@ StateFlowBase::Action FreeRTOSTaskMonitor::report()
     , taskCount
     , mainBufferPool->total_size()
   );
-#if CONFIG_TASK_LIST_REPORT
+#ifdef CONFIG_TASK_LIST_REPORT
   vector<TaskStatus_t> taskList;
   uint64_t now = esp_timer_get_time();
   uint32_t ulTotalRunTime{0};
