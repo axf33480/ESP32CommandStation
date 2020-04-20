@@ -95,7 +95,7 @@ LCCStackManager::LCCStackManager(const esp32cs::Esp32ConfigDef &cfg) : cfg_(cfg)
   stack_ = new openlcb::SimpleTcpStack(nodeID_);
 #else
   stack_ = new openlcb::SimpleCanStack(nodeID_);
-#if defined(CONFIG_LCC_CAN_ENABLED)
+/*#if defined(CONFIG_LCC_CAN_ENABLED)
   if (cfg_mgr->exists(LCC_CAN_MARKER_FILE))
   {
     LOG(INFO, "[LCC] Enabling CAN interface (rx: %d, tx: %d)"
@@ -108,7 +108,7 @@ LCCStackManager::LCCStackManager(const esp32cs::Esp32ConfigDef &cfg) : cfg_(cfg)
     stack_->executor()->add(can_);
     stack_->executor()->add(canBridge_);
   }
-#endif // CONFIG_LCC_CAN_ENABLED
+#endif // CONFIG_LCC_CAN_ENABLED*/
 #endif // CONFIG_LCC_TCP_STACK
 }
 
