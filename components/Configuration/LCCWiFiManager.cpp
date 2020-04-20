@@ -211,6 +211,9 @@ void LCCWiFiManager::reconfigure_station(string ssid, string password
                                        , string subnet, string dns
                                        , bool restart)
 {
+  LOG(VERBOSE, "[WiFi] reconfigure_station(%s,%s,%s,%s,%s,%s,%d)", ssid.c_str()
+    , password.c_str(), ip.c_str(), gateway.c_str(), subnet.c_str()
+    , dns.c_str(), restart);
   auto cfg_mgr = Singleton<ConfigurationManager>::instance();
   string station_cfg = StringPrintf("%s\n%s", ssid.c_str(), password.c_str());
   cfg_mgr->store(WIFI_STATION_CFG, station_cfg);
@@ -271,9 +274,27 @@ string LCCWiFiManager::wifi_scan_json(bool ignore_duplicates)
     {
       result += ",";
     }
-    result += StringPrintf("{\"%s\":\"%s\",\"%s\":%d,\"%s\":%d}",
-      JSON_WIFI_SSID_NODE, entry.ssid, JSON_WIFI_RSSI_NODE, entry.rssi,
-      JSON_WIFI_AUTH_NODE, entry.authmode);
+    LOG(VERBOSE, "auth:%d,rssi:%d,ssid:%s", entry.authmode, entry.rssi, entry.ssid);
+    result += StringPrintf("{\"auth\":%d,\"rssi\":%d,\"ssid\":\"",
+                           entry.authmode, entry.rssi);
+    // TODO: remove this in favor of proper url encoding of non-ascii characters
+    for (uint8_t idx = 0; idx < 33; idx++)
+    {
+      if (entry.ssid[idx] >= 0x20 && entry.ssid[idx] <= 0x7F)
+      {
+        result += entry.ssid[idx];
+      }
+      else if (entry.ssid[idx])
+      {
+        result += StringPrintf("%%%02x", entry.ssid[idx]);
+      }
+      else
+      {
+        // end of ssid
+        break;
+      }
+    }
+    result += "\"}";
   }
   result += "]";
   wifi_->clear_ssid_scan_results();

@@ -1585,9 +1585,9 @@ function changeLocomotive(newAddress) {
   });
  }
 }
-function refreshTable({table, url, fields, filter=function() {return true;}, failureHandler=function(xhr, status) {showErrorDialog(String.format('Failed to load url:', url), status);}, refreshCallback=function() {}} = {}) {
+function refreshTable({table, url, fields, filter=function() {return true;}, failureHandler=function(xhr, status) {showErrorDialog(String.format('Failed to load url:{0}', url), status);}, refreshCallback=function() {}} = {}) {
  console.log('refreshing table:', table, 'using url:', url, 'and fields:', fields)
- $.ajax({url: url,dataType:'json',error: failureHandler,complete: hideSpinner,
+ $.ajax({url: url, dataType:'json',error: failureHandler, complete: hideSpinner,
   beforeSend: function() {showSpinner('Refreshing data');$(table + ' tbody').empty();},
   success: function(data, status, jqxhr) {
    var tableBody = $(table + ' tbody');
