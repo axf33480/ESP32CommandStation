@@ -6,6 +6,7 @@ set(COMPONENT_ADD_INCLUDEDIRS "include" )
 
 set(COMPONENT_REQUIRES
     "app_update"
+    "Configuration"
     "DCCSignalGenerator"
     "OpenMRNLite"
     "LCCTrainSearchProtocol"

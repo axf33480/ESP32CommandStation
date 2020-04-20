@@ -22,6 +22,7 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 #include <driver/i2c.h>
 #include <esp_ota_ops.h>
 #include <freertos_drivers/esp32/Esp32WiFiManager.hxx>
+#include <LCCWiFiManager.h>
 
 static constexpr uint8_t STATUS_DISPLAY_LINE_COUNT = 5;
 
@@ -282,7 +283,8 @@ void StatusDisplay::wifi_event(system_event_t *event)
     }
     else
     {
-      wifi("SSID: %s", event->event_info.connected.ssid);
+      wifi("SSID: %s"
+         , Singleton<esp32cs::LCCWiFiManager>::instance()->get_ssid().c_str());
     }
   } else if (event->event_id == SYSTEM_EVENT_STA_LOST_IP ||
               event->event_id == SYSTEM_EVENT_AP_STOP)

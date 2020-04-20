@@ -21,6 +21,11 @@ menu "WiFi Configuration"
         default "esp32cs"
         depends on WIFI_MODE_SOFTAP
 
+    config WIFI_SOFTAP_PASSWORD
+        string "SoftAP Password"
+        default "esp32cs"
+        depends on WIFI_MODE_SOFTAP
+    
     config WIFI_SSID
         string "SSID"
         depends on WIFI_MODE_STATION || WIFI_MODE_SOFTAP_STATION

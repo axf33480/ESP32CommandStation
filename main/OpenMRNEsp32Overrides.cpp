@@ -21,6 +21,9 @@ COPYRIGHT (c) 2019-2020 Mike Dunston
 #include <ESP32TrainDatabase.h>
 #include <FreeRTOSTaskMonitor.h>
 #include <freertos/task.h>
+#include <Httpd.h>
+#include <LCCStackManager.h>
+#include <LCCWiFiManager.h>
 #include <StatusDisplay.h>
 #include <StatusLED.h>
 #include <Turnouts.h>
@@ -39,6 +42,9 @@ void *node_reboot(void *arg)
 #endif
   Singleton<TurnoutManager>::instance()->stop();
   Singleton<esp32cs::Esp32TrainDatabase>::instance()->stop();
+  Singleton<http::Httpd>::instance()->executor()->shutdown();
+  Singleton<esp32cs::LCCWiFiManager>::instance()->shutdown();
+  Singleton<esp32cs::LCCStackManager>::instance()->shutdown();
   
   // shutdown and cleanup the configuration manager
   Singleton<ConfigurationManager>::instance()->shutdown();

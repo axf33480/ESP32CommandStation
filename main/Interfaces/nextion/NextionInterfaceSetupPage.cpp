@@ -17,6 +17,7 @@ COPYRIGHT (c) 2018-2019 Mike Dunston
 **********************************************************************/
 
 #include "ESP32CommandStation.h"
+#include <LCCWiFiManager.h>
 
 #if CONFIG_NEXTION
 
@@ -61,7 +62,7 @@ NextionSetupPage::NextionSetupPage(Nextion &nextion) :
 void NextionSetupPage::displayPage()
 {
   _versionText.setText(esp_ota_get_app_description()->version);
-  _ssidText.setText(Singleton<ConfigurationManager>::instance()->getSSID());
+  _ssidText.setText(Singleton<LCCWiFiManager>::instance()->get_ssid());
   tcpip_adapter_ip_info_t ip;
   tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_STA, &ip);
   _ipAddrText.setText(ipv4_to_string(ntohl(ip.ip.addr)));

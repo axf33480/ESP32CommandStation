@@ -17,7 +17,7 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 
 #include "ConfigurationManager.h"
 #include "JsonConstants.h"
-#include "CDIHelper.h"
+#include "LCCStackManager.h"
 
 #include <dirent.h>
 #include <driver/sdmmc_defs.h>
@@ -26,17 +26,13 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 #include <driver/sdspi_host.h>
 #include <esp_spiffs.h>
 #include <esp_vfs_fat.h>
-#include <freertos_drivers/arduino/DummyGPIO.hxx>
-#include <freertos_drivers/esp32/Esp32Gpio.hxx>
-#if defined(CONFIG_LCC_CAN_ENABLED)
-#include <freertos_drivers/esp32/Esp32HardwareCanAdapter.hxx>
-#endif // CONFIG_LCC_CAN_ENABLED
 #include <Httpd.h>
 #include <json.hpp>
 #include <openlcb/MemoryConfig.hxx>
 #include <sdmmc_cmd.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <utils/AutoSyncFileFlow.hxx>
 #include <utils/FileUtils.hxx>
 
 using nlohmann::json;
@@ -44,47 +40,26 @@ using nlohmann::json;
 static constexpr const char ESP32_CS_CONFIG_JSON[] = "esp32cs-config.json";
 
 #if defined(CONFIG_ESP32CS_FORCE_FACTORY_RESET_PIN) && CONFIG_ESP32CS_FORCE_FACTORY_RESET_PIN >= 0
+#include <freertos_drivers/esp32/Esp32Gpio.hxx>
 GPIO_PIN(FACTORY_RESET, GpioInputPU, CONFIG_ESP32CS_FORCE_FACTORY_RESET_PIN);
 #else
+#include <freertos_drivers/arduino/DummyGPIO.hxx>
 typedef DummyPinWithReadHigh FACTORY_RESET_Pin;
 #endif // CONFIG_ESP32CS_FORCE_FACTORY_RESET_PIN
 
 // holder of the parsed configuration.
 json csConfig;
 
-// CDI Helper which sets the provided path if it is different than the value
-// passed in.
-#define CDI_COMPARE_AND_SET(PATH, fd, value, updated) \
-  {                                                   \
-    auto current = PATH().read(fd);                   \
-    if (current != value)                             \
-    {                                                 \
-      PATH().write(fd, value);                        \
-      updated = true;                                 \
-    }                                                 \
-  }
-
-// Helper which will trigger a config reload event to be queued when
-// updated is true.
-#define MAYBE_TRIGGER_UPDATE(updated)                         \
-  if (updated)                                                \
-  {                                                           \
-    stack_->executor()->add(new CallbackExecutable([&]()      \
-    {                                                         \
-      stack_->config_service()->trigger_update();             \
-    }));                                                      \
-  }
-
 // Helper which will trigger a config reload event to be queued when
 // updated is true.
 #define SCHEDULE_REBOOT()                               \
-  stack_->executor()->add(new CallbackExecutable([]()   \
+  Singleton<esp32cs::LCCStackManager>::instance()->stack()->executor()->add(new CallbackExecutable([]()   \
   {                                                     \
     reboot();                                           \
   }));
 
 // Helper which converts a string to a uint64 value.
-static inline uint64_t string_to_uint64(string value)
+uint64_t string_to_uint64(string value)
 {
   // remove period characters if present
   value.erase(std::remove(value.begin(), value.end(), '.'), value.end());
@@ -142,18 +117,10 @@ ConfigurationManager::ConfigurationManager(const esp32cs::Esp32ConfigDef &cfg)
 #else
   bool factory_reset_config{false};
 #endif
-#if defined(CONFIG_LCC_FACTORY_RESET)
-  bool lcc_factory_reset{true};
-#else
-  bool lcc_factory_reset{false};
-#endif
-  bool persist_config{true};
-  struct stat statbuf;
 
   if (FACTORY_RESET_Pin::instance()->is_clr())
   {
     factory_reset_config = true;
-    lcc_factory_reset = true;
   }
 
   sdmmc_host_t sd_host = SDSPI_HOST_DEFAULT();
@@ -241,123 +208,10 @@ ConfigurationManager::ConfigurationManager(const esp32cs::Esp32ConfigDef &cfg)
   mkdir(CS_CONFIG_DIR, ACCESSPERMS);
   // Pre-create LCC configuration directory.
   mkdir(LCC_CFG_DIR, ACCESSPERMS);
-
-  if (exists(ESP32_CS_CONFIG_JSON))
-  {
-    LOG(INFO, "[Config] Found existing CS config file, attempting to load...");
-
-    csConfig = json::parse(load(ESP32_CS_CONFIG_JSON)     // content to parse
-                         , nullptr                        // callback (unused)
-                         , false);                        // disable exceptions
-
-    if (!csConfig.is_discarded() && // parse failure will set root to discarded
-        validateConfiguration())
-    {
-      LOG(INFO
-        , "[Config] Existing configuration successfully loaded and validated.");
-      factory_reset_config = false;
-      // Check for any missing default configuration settings.
-      persist_config = seedDefaultConfigSections();
-      // Check if we need to force a reset of the LCC config (node id change)
-      auto lccConfig = csConfig[JSON_LCC_NODE];
-      if (lccConfig.contains(JSON_LCC_FORCE_RESET_NODE) &&
-          lccConfig[JSON_LCC_FORCE_RESET_NODE].is_boolean() &&
-          lccConfig[JSON_LCC_FORCE_RESET_NODE].get<bool>())
-      {
-        LOG(WARNING, "[Config] LCC force factory_reset flag is ENABLED!");
-        csConfig[JSON_LCC_NODE][JSON_LCC_FORCE_RESET_NODE] = false;
-        persist_config = true;
-        lcc_factory_reset = true;
-      }
-    }
-    else
-    {
-      LOG_ERROR("[Config] Existing configuration failed one (or more) "
-                "validation(s) and will be regenerated!");
-      LOG(VERBOSE, "[Config] Old config: %s", csConfig.dump().c_str());
-      factory_reset_config = true;
-    }
-  }
-  else
-  {
-    factory_reset_config = true;
-  }
-
-  if (factory_reset_config)
-  {
-    LOG(INFO, "[Config] Generating default configuration...");
-    // TODO: break this up so it starts with an empty config and makes calls to
-    // various "getDefaultConfigXXX" for each section.
-    csConfig = {};
-    persist_config = seedDefaultConfigSections();
-    // force factory reset of LCC data
-    lcc_factory_reset = true;
-  }
-
-  // if we need to persist the updated config do so now.
-  if (persist_config)
-  {
-    persistConfig();
-  }
-
-  LOG(VERBOSE, "[Config] %s", csConfig.dump().c_str());
-
-  // If we are not currently forcing a factory reset, verify if the LCC config
-  // file is the correct size. If it is not the expected size force a factory
-  // reset.
-  if (!lcc_factory_reset &&
-      stat(LCC_CONFIG_FILE, &statbuf) != 0 &&
-      statbuf.st_size != openlcb::CONFIG_FILE_SIZE)
-  {
-    LOG(WARNING
-      , "[LCC] Corrupt configuration file detected, %s is too small: %lu "
-        "bytes, expected: %zu bytes"
-      , LCC_CONFIG_FILE, statbuf.st_size, openlcb::CONFIG_FILE_SIZE);
-    lcc_factory_reset = true;
-  }
-  else
-  {
-    LOG(VERBOSE, "[LCC] node config file(%s) is expected size %lu bytes"
-      , LCC_CONFIG_FILE, statbuf.st_size);
-  }
-
-  // If we need an LCC factory reset trigger is now.
-  if (lcc_factory_reset)
-  {
-    factory_reset_lcc(false);
-  }
 }
 
 void ConfigurationManager::shutdown()
 {
-  // Shutdown the auto-sync handler if it is running before unmounting the FS.
-  if (configAutoSync_.get())
-  {
-    LOG(INFO, "[Config] Disabling automatic fsync(%d) calls...", configFd_);
-    SyncNotifiable n;
-    configAutoSync_->shutdown(&n);
-    LOG(INFO, "[Config] Waiting for sync to stop");
-    n.wait_for_notification();
-    configAutoSync_.reset(nullptr);
-  }
-
-  // shutdown the wifi connection
-  wifiManager_.reset();
-
-  // shutdown the executor so that no more tasks will run
-  LOG(INFO, "[Config] Shutting down executor");
-  stack_->executor()->shutdown();
-
-  LOG(INFO, "[Config] Shutting down Httpd executor");
-  Singleton<http::Httpd>::instance()->executor()->shutdown();
-
-  // close the config file if it is open
-  if (configFd_ >= 0)
-  {
-    LOG(INFO, "[Config] Closing config file.");
-    ::close(configFd_);
-  }
-
   // Unmount the SPIFFS partition
   if (esp_spiffs_mounted(NULL))
   {
@@ -411,457 +265,9 @@ void ConfigurationManager::store(const char *name, const string &content)
   write_string_to_file(configFilePath, content);
 }
 
-void ConfigurationManager::factory_reset()
-{
-  remove(ESP32_CS_CONFIG_JSON);
-  SCHEDULE_REBOOT();
-}
-
-void ConfigurationManager::factory_reset_lcc(bool warn)
-{
-  struct stat statbuf;
-  // this code is not using access(path, F_OK) as that is not available for
-  // SPIFFS VFS. stat(path, buf) does work though.
-  if (!stat(LCC_CONFIG_FILE, &statbuf) || !stat(LCC_CDI_XML, &statbuf))
-  {
-    if (warn)
-    {
-      LOG(WARNING, "[Config] LCC factory reset underway...");
-    }
-
-    if (!stat(LCC_CONFIG_FILE, &statbuf))
-    {
-      LOG(WARNING, "[Config] Removing %s", LCC_CONFIG_FILE);
-      ERRNOCHECK(LCC_CONFIG_FILE, unlink(LCC_CONFIG_FILE));
-    }
-    if (!stat(LCC_CDI_XML, &statbuf))
-    {
-      LOG(WARNING, "[Config] Removing %s", LCC_CDI_XML);
-      ERRNOCHECK(LCC_CDI_XML, unlink(LCC_CDI_XML));
-    }
-    if (warn)
-    {
-      LOG(WARNING
-        , "[Config] The ESP32 CommandStation needs to be restarted in order "
-          "to complete the factory reset.");
-    }
-  }
-}
-
-openlcb::NodeID ConfigurationManager::getNodeId()
-{
-  auto lccConfig = csConfig[JSON_LCC_NODE];
-  return (openlcb::NodeID)lccConfig[JSON_LCC_NODE_ID_NODE].get<uint64_t>();
-}
-
-bool ConfigurationManager::setNodeID(string value)
-{
-  LOG(VERBOSE, "[Config] Current NodeID: %s, updated NodeID: %s"
-    , uint64_to_string_hex(getNodeId()).c_str(), value.c_str());
-  uint64_t new_node_id = string_to_uint64(value);
-  if (new_node_id != getNodeId())
-  {
-    LOG(INFO
-      , "[Config] Persisting NodeID: %s and enabling forced factory_reset."
-      , uint64_to_string_hex(new_node_id).c_str());
-    csConfig[JSON_LCC_NODE][JSON_LCC_NODE_ID_NODE] = new_node_id;
-    csConfig[JSON_LCC_NODE][JSON_LCC_FORCE_RESET_NODE] = true;
-    persistConfig();
-    SCHEDULE_REBOOT();
-    return true;
-  }
-  return false;
-}
-
-void ConfigurationManager::prepareLCCStack()
-{
-  LOG(INFO, "[LCC] Initializing Stack");
-#ifdef CONFIG_LCC_TCP_STACK
-  stack_.reset(new openlcb::SimpleTcpStack(getNodeId()));
-#else
-  stack_.reset(new openlcb::SimpleCanStack(getNodeId()));
-#endif // CONFIG_LCC_TCP_STACK
-
-  parseWiFiConfig();
-  // TODO: Switch to SimpleStackBase * instead of casting to SimpleCanStack *
-  // once Esp32WiFiManager supports this.
-  wifiManager_.emplace(wifiSSID_.c_str(), wifiPassword_.c_str()
-                    , (openlcb::SimpleCanStack *)stack_.get()
-                    , cfg_.seg().wifi()
-                    , CONFIG_HOSTNAME_PREFIX
-                    , wifiMode_
-                    , stationStaticIP_.get()
-                    , stationDNSServer_
-                    , CONFIG_WIFI_SOFT_AP_CHANNEL);
-#if defined(CONFIG_LCC_CAN_ENABLED) && !defined(CONFIG_LCC_TCP_STACK)
-  if (csConfig[JSON_LCC_NODE].contains(JSON_LCC_CAN_NODE) &&
-      csConfig[JSON_LCC_NODE][JSON_LCC_CAN_NODE].is_boolean() &&
-      csConfig[JSON_LCC_NODE][JSON_LCC_CAN_NODE].get<bool>())
-  {
-    LOG(INFO, "[Config] Enabling LCC CAN interface (rx: %d, tx: %d)"
-      , CONFIG_LCC_CAN_RX_PIN, CONFIG_LCC_CAN_TX_PIN);
-    stack_->executor()->add(
-      new CanBridge(
-        new Esp32HardwareCan("esp32can"
-                          , (gpio_num_t)CONFIG_LCC_CAN_RX_PIN
-                          , (gpio_num_t)CONFIG_LCC_CAN_TX_PIN
-                          , false)
-      , ((openlcb::SimpleCanStack *)stack_.get())->can_hub()));
-  }
-#endif // CONFIG_LCC_CAN_ENABLED && !CONFIG_LCC_TCP_STACK
-}
-
-#ifndef CONFIG_LCC_SD_FSYNC_SEC
-#define CONFIG_LCC_SD_FSYNC_SEC 10
-#endif
-
-void ConfigurationManager::startLCCStack()
-{
-  // Create the CDI.xml dynamically if it doesn't already exist.
-  CDIHelper::create_config_descriptor_xml(cfg_, LCC_CDI_XML, stack_.get());
-
-  // Create the default internal configuration file if it doesn't already exist.
-  configFd_ =
-    stack_->create_config_file_if_needed(cfg_.seg().internal_config()
-                                       , CONFIG_ESP32CS_CDI_VERSION
-                                       , openlcb::CONFIG_FILE_SIZE);
-
-  if (sd_)
-  {
-    // ESP32 FFat library uses a 512b cache in memory by default for the SD VFS
-    // adding a periodic fsync call for the LCC configuration file ensures that
-    // config changes are saved since the LCC config file is less than 512b.
-    LOG(INFO, "[Config] Creating automatic fsync(%d) calls every %d seconds."
-      , configFd_, CONFIG_LCC_SD_FSYNC_SEC);
-    configAutoSync_.reset(new AutoSyncFileFlow(stack_->service()
-                        , configFd_
-                        , SEC_TO_USEC(CONFIG_LCC_SD_FSYNC_SEC)));
-  }
-#if defined(CONFIG_LCC_PRINT_ALL_PACKETS)
-  LOG(INFO, "[Config] Configuring LCC packet printer");
-  stack_->print_all_packets();
-#endif
-}
-
-void ConfigurationManager::setLCCHub(bool enabled)
-{
-  bool upd = false;
-  CDI_COMPARE_AND_SET(cfg_.seg().wifi().hub().enable, configFd_, enabled, upd);
-  MAYBE_TRIGGER_UPDATE(upd);
-}
-
-bool ConfigurationManager::setLCCCan(bool enabled)
-{
-  if (csConfig[JSON_LCC_NODE][JSON_LCC_CAN_NODE] != enabled)
-  {
-    csConfig[JSON_LCC_NODE][JSON_LCC_CAN_NODE] = enabled;
-    persistConfig();
-    SCHEDULE_REBOOT();
-    return true;
-  }
-  return false;
-}
-
-bool ConfigurationManager::setWiFiMode(string mode)
-{
-  string current_mode = csConfig[JSON_WIFI_NODE][JSON_WIFI_MODE_NODE];
-  if (current_mode.compare(mode))
-  {
-    LOG(INFO
-      , "[Config] Updating WiFi mode from %s to %s, restart will be required."
-      , current_mode.c_str(), mode.c_str());
-    csConfig[JSON_WIFI_NODE][JSON_WIFI_MODE_NODE] = mode;
-    persistConfig();
-    SCHEDULE_REBOOT();
-    return true;
-  }
-  return false;
-}
-
-bool ConfigurationManager::setWiFiStationParams(string ssid, string password
-                                              , string ip, string gateway
-                                              , string subnet)
-{
-  bool reboot_needed = false;
-  string wifimode = csConfig[JSON_WIFI_NODE][JSON_WIFI_MODE_NODE];
-  if (!wifimode.compare(JSON_VALUE_WIFI_MODE_SOFTAP_ONLY))
-  {
-    LOG(INFO, "[Config] Current config is SoftAP only, enabling Station mode");
-    csConfig[JSON_WIFI_NODE][JSON_WIFI_MODE_NODE] = JSON_VALUE_WIFI_MODE_SOFTAP_STATION;
-    reboot_needed = true;
-  }
-  LOG(INFO, "[Config] Reconfiguring Station SSID to '%s'", ssid.c_str());
-  if (!ssid.empty())
-  {
-    csConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_SSID_NODE] = ssid;
-    csConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_PASSWORD_NODE] = password;
-    reboot_needed = true;
-  }
-  if (ip.empty())
-  {
-    auto station = csConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE];
-    if (!station.contains(JSON_WIFI_MODE_NODE) ||
-        (station[JSON_WIFI_MODE_NODE].is_string() &&
-         station[JSON_WIFI_MODE_NODE].get<string>().compare(JSON_VALUE_STATION_IP_MODE_DHCP)))
-    {
-      LOG(INFO, "[Config] Reconfiguring Station IP mode to DHCP");
-      csConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_MODE_NODE] = JSON_VALUE_STATION_IP_MODE_DHCP;
-      csConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_STATION_IP_NODE] = "";
-      csConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_STATION_GATEWAY_NODE] = "";
-      csConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_STATION_NETMASK_NODE] = "";
-      reboot_needed = true;
-    }
-  }
-  else
-  {
-    LOG(INFO
-      , "[Config] Reconfiguring Station IP mode to STATIC using:\n"
-        "ip: %s\n gateway: %s\nsubnet: %s"
-      , ip.c_str(), gateway.c_str(), subnet.c_str());
-    csConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_MODE_NODE] = JSON_VALUE_STATION_IP_MODE_STATIC;
-    csConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_STATION_IP_NODE] = ip;
-    csConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_STATION_GATEWAY_NODE] = gateway;
-    csConfig[JSON_WIFI_NODE][JSON_WIFI_STATION_NODE][JSON_WIFI_STATION_NETMASK_NODE] = subnet;
-    reboot_needed = true;
-  }
-  persistConfig();
-  if (reboot_needed)
-  {
-    SCHEDULE_REBOOT();
-  }
-  return reboot_needed;
-}
-
-void ConfigurationManager::setWiFiUplinkParams(SocketClientParams::SearchMode mode
-                                             , string uplink_service_name
-                                             , string manual_hostname
-                                             , uint16_t manual_port)
-{
-  auto wifi = cfg_.seg().wifi();
-  bool upd = false;
-  CDI_COMPARE_AND_SET(wifi.uplink().search_mode, configFd_, mode, upd);
-  CDI_COMPARE_AND_SET(wifi.uplink().auto_address().service_name, configFd_
-                    , uplink_service_name, upd);
-  CDI_COMPARE_AND_SET(wifi.uplink().manual_address().ip_address, configFd_
-                    , manual_hostname, upd);
-  CDI_COMPARE_AND_SET(wifi.uplink().manual_address().port, configFd_
-                    , manual_port, upd);
-
-  MAYBE_TRIGGER_UPDATE(upd);
-}
-
-void ConfigurationManager::setHBridgeEvents(uint8_t index
-                                          , string evt_short_on, string evt_short_off
-                                          , string evt_shutdown_on, string evt_shutdown_off
-                                          , string evt_thermal_on, string evt_thermal_off)
-{
-  bool upd = false;
-  auto hbridge = cfg_.seg().hbridge().entry(index);
-  CDI_COMPARE_AND_SET(hbridge.event_short, configFd_
-                    , string_to_uint64(evt_short_on), upd);
-  CDI_COMPARE_AND_SET(hbridge.event_short_cleared, configFd_
-                    , string_to_uint64(evt_short_off), upd);
-  CDI_COMPARE_AND_SET(hbridge.event_shutdown, configFd_
-                    , string_to_uint64(evt_shutdown_on), upd);
-  CDI_COMPARE_AND_SET(hbridge.event_shutdown_cleared, configFd_
-                    , string_to_uint64(evt_shutdown_off), upd);
-  // only OPS has the thermal pin
-  if (index == esp32cs::OPS_CDI_TRACK_OUTPUT_IDX)
-  {
-    CDI_COMPARE_AND_SET(hbridge.event_thermal_shutdown, configFd_
-                      , string_to_uint64(evt_thermal_on), upd);
-    CDI_COMPARE_AND_SET(hbridge.event_thermal_shutdown_cleared, configFd_
-                      , string_to_uint64(evt_thermal_off), upd);
-  }
-  MAYBE_TRIGGER_UPDATE(upd);
-}
-
 string ConfigurationManager::getFilePath(const string &name)
 {
   return StringPrintf("%s/%s", CS_CONFIG_DIR, name.c_str());
-}
-
-void ConfigurationManager::persistConfig()
-{
-  LOG(INFO, "[Config] Persisting configuration settings");
-  store(ESP32_CS_CONFIG_JSON, csConfig.dump());
-}
-
-bool ConfigurationManager::validateConfiguration()
-{
-  if (!csConfig.contains(JSON_WIFI_NODE))
-  {
-    LOG_ERROR("[Config] WiFi configuration not found.");
-    return false;
-  }
-  else if (!csConfig.contains(JSON_LCC_NODE))
-  {
-    LOG_ERROR("[Config] LCC configuration not found.");
-    return false;
-  }
-
-  auto wifiNode = csConfig[JSON_WIFI_NODE];
-  LOG(VERBOSE, "[Config] WiFi config: %s", wifiNode.dump().c_str());
-
-  // Verify that the wifi operating mode is one of the three supported
-  // modes.
-  string wifiMode = wifiNode[JSON_WIFI_MODE_NODE];
-  if (wifiMode.compare(JSON_VALUE_WIFI_MODE_SOFTAP_ONLY) &&
-      wifiMode.compare(JSON_VALUE_WIFI_MODE_SOFTAP_STATION) &&
-      wifiMode.compare(JSON_VALUE_WIFI_MODE_STATION_ONLY))
-  {
-    LOG_ERROR("[Config] Unknown WiFi operating mode: %s!", wifiMode.c_str());
-    return false;
-  }
-
-  // If we are not operating in AP only mode we should verify we have
-  // an SSID.
-  if (wifiMode.compare(JSON_VALUE_WIFI_MODE_SOFTAP_ONLY) &&
-    (!wifiNode[JSON_WIFI_STATION_NODE].contains(JSON_WIFI_SSID_NODE) ||
-     !wifiNode[JSON_WIFI_STATION_NODE].contains(JSON_WIFI_PASSWORD_NODE)))
-  {
-    LOG_ERROR("[Config] SSID/Password was not specified for Station mode!");
-    return false;
-  }
-
-  // If we are operating in SoftAP only we require a default SSID name
-  if (!wifiMode.compare(JSON_VALUE_WIFI_MODE_SOFTAP_ONLY) &&
-      !wifiNode[JSON_WIFI_SOFTAP_NODE].contains(JSON_WIFI_SSID_NODE))
-  {
-    LOG_ERROR("[Config] SSID was not specified for SoftAP mode!");
-    return false;
-  }
-
-  // verify LCC configuration
-  auto lccNode = csConfig[JSON_LCC_NODE];
-  LOG(VERBOSE, "[Config] LCC config: %s", lccNode.dump().c_str());
-
-  if (!lccNode.contains(JSON_LCC_NODE_ID_NODE) ||
-      !lccNode[JSON_LCC_NODE_ID_NODE].is_number_unsigned() ||
-      lccNode[JSON_LCC_NODE_ID_NODE].get<uint64_t>() == 0)
-  {
-    LOG_ERROR("[Config] Missing LCC node ID!");
-    return false;
-  }
-
-  if (!lccNode.contains(JSON_LCC_CAN_NODE) ||
-      !lccNode[JSON_LCC_CAN_NODE].is_boolean())
-  {
-    LOG_ERROR("[Config] LCC CAN enabled flag is missing or not a boolean!");
-    return false;
-  }
-
-  return true;
-}
-
-bool ConfigurationManager::seedDefaultConfigSections()
-{
-  bool config_updated{false};
-
-  // If LCC config is missing default it.
-  if (!csConfig.contains(JSON_LCC_NODE))
-  {
-    csConfig[JSON_LCC_NODE] =
-    {
-      { JSON_LCC_NODE_ID_NODE, UINT64_C(CONFIG_LCC_NODE_ID) },
-#if defined(CONFIG_LCC_CAN_ENABLED)
-      { JSON_LCC_CAN_NODE, true },
-#else
-      { JSON_LCC_CAN_NODE, false },
-#endif
-      { JSON_LCC_FORCE_RESET_NODE, false },
-    };
-    config_updated = true;
-  }
-  // If LCC config is missing default it.
-  if (!csConfig.contains(JSON_WIFI_NODE))
-  {
-    csConfig[JSON_WIFI_NODE] =
-    {
-#if defined(CONFIG_WIFI_MODE_SOFTAP)
-      { JSON_WIFI_MODE_NODE, JSON_VALUE_WIFI_MODE_SOFTAP_ONLY },
-      { JSON_WIFI_SOFTAP_NODE,
-        {
-          { JSON_WIFI_SSID_NODE, CONFIG_WIFI_SOFTAP_SSID },
-        },
-      },
-#elif defined(CONFIG_WIFI_MODE_SOFTAP_STATION)
-      { JSON_WIFI_MODE_NODE, JSON_VALUE_WIFI_MODE_SOFTAP_STATION },
-      { JSON_WIFI_SOFTAP_NODE,
-        {
-          { JSON_WIFI_SSID_NODE, "esp32cs" },
-        },
-      },
-#else
-      { JSON_WIFI_MODE_NODE, JSON_VALUE_WIFI_MODE_STATION_ONLY },
-#endif
-#if defined(CONFIG_WIFI_STATIC_IP_DNS)
-      { JSON_WIFI_DNS_NODE, CONFIG_WIFI_STATIC_IP_DNS },
-#endif
-#if defined(CONFIG_WIFI_MODE_SOFTAP_STATION) || defined(CONFIG_WIFI_MODE_STATION)
-      { JSON_WIFI_STATION_NODE, 
-        {
-#if defined(CONFIG_WIFI_IP_STATIC)
-          { JSON_WIFI_MODE_NODE, JSON_VALUE_STATION_IP_MODE_STATIC },
-          { JSON_WIFI_STATION_IP_NODE, CONFIG_WIFI_STATIC_IP_ADDRESS },
-          { JSON_WIFI_STATION_GATEWAY_NODE, CONFIG_WIFI_STATIC_IP_GATEWAY },
-          { JSON_WIFI_STATION_NETMASK_NODE, CONFIG_WIFI_STATIC_IP_SUBNET },
-#else
-          { JSON_WIFI_MODE_NODE, JSON_VALUE_STATION_IP_MODE_DHCP },
-#endif
-          { JSON_WIFI_SSID_NODE, CONFIG_WIFI_SSID },
-          { JSON_WIFI_PASSWORD_NODE, CONFIG_WIFI_PASSWORD },
-        }
-      },
-#endif
-    };
-    config_updated = true;
-  }
-  return config_updated;
-}
-
-void ConfigurationManager::parseWiFiConfig()
-{
-  auto wifiConfig = csConfig[JSON_WIFI_NODE];
-  string wifiMode = wifiConfig[JSON_WIFI_MODE_NODE];
-  if (!wifiMode.compare(JSON_VALUE_WIFI_MODE_SOFTAP_ONLY))
-  {
-    wifiMode_ =  WIFI_MODE_AP;
-  }
-  else if (!wifiMode.compare(JSON_VALUE_WIFI_MODE_SOFTAP_STATION))
-  {
-    wifiMode_ =  WIFI_MODE_APSTA;
-  }
-  else if (!wifiMode.compare(JSON_VALUE_WIFI_MODE_STATION_ONLY))
-  {
-    wifiMode_ =  WIFI_MODE_STA;
-  }
-  if (wifiMode_ != WIFI_MODE_AP)
-  {
-    auto stationConfig = wifiConfig[JSON_WIFI_STATION_NODE];
-    wifiSSID_ = stationConfig[JSON_WIFI_SSID_NODE];
-    wifiPassword_ = stationConfig[JSON_WIFI_PASSWORD_NODE];
-    string stationMode = stationConfig[JSON_WIFI_MODE_NODE];
-    if (!stationMode.compare(JSON_VALUE_STATION_IP_MODE_STATIC))
-    {
-      stationStaticIP_.reset(new tcpip_adapter_ip_info_t());
-      string value = stationConfig[JSON_WIFI_STATION_IP_NODE];
-      stationStaticIP_->ip.addr = ipaddr_addr(value.c_str());
-      value = stationConfig[JSON_WIFI_STATION_GATEWAY_NODE];
-      stationStaticIP_->gw.addr = ipaddr_addr(value.c_str());
-      value = stationConfig[JSON_WIFI_STATION_NETMASK_NODE];
-      stationStaticIP_->netmask.addr = ipaddr_addr(value.c_str());
-    }
-  }
-  else
-  {
-    wifiSSID_ = wifiConfig[JSON_WIFI_SOFTAP_NODE][JSON_WIFI_SSID_NODE];
-  }
-  if (wifiConfig.contains(JSON_WIFI_DNS_NODE))
-  {
-    string value = wifiConfig[JSON_WIFI_DNS_NODE];
-    stationDNSServer_.u_addr.ip4.addr = ipaddr_addr(value.c_str());
-  }
 }
 
 string ConfigurationManager::getCSConfig()
@@ -930,33 +336,6 @@ string ConfigurationManager::getCSConfig()
   };
   return clone.dump();
 }
-
-string ConfigurationManager::getCSFeatures()
-{
-  json features = 
-  {
-#if defined(CONFIG_GPIO_S88)
-    { JSON_S88_SENSOR_BASE_NODE, CONFIG_GPIO_S88_FIRST_SENSOR }
-  , { JSON_S88_NODE, JSON_VALUE_TRUE }
-#else
-    { JSON_S88_SENSOR_BASE_NODE, 0 }
-  , { JSON_S88_NODE, JSON_VALUE_FALSE }
-#endif
-#if defined(CONFIG_GPIO_OUTPUTS)
-  , { JSON_OUTPUTS_NODE, JSON_VALUE_TRUE }
-#else
-  , { JSON_OUTPUTS_NODE, JSON_VALUE_FALSE }
-#endif
-#if defined(CONFIG_GPIO_SENSORS)
-  , { JSON_SENSORS_NODE, JSON_VALUE_TRUE }
-#else
-  , { JSON_SENSORS_NODE, JSON_VALUE_FALSE }
-#endif
-  };
-  return features.dump();
-}
-
-
 
 #if defined(CONFIG_GPIO_OUTPUTS) || defined(CONFIG_GPIO_SENSORS)
 bool is_restricted_pin(int8_t pin)

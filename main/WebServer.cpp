@@ -18,13 +18,17 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 #include "ESP32CommandStation.h"
 
 #include <AllTrainNodes.hxx>
+#include <ConfigurationManager.h>
 #include <Dnsd.h>
 #include <DCCSignalVFS.h>
 #include <esp_log.h>
+#include <freertos_drivers/esp32/Esp32WiFiManager.hxx>
 #include <Httpd.h>
 #include <json.hpp>
-
+#include <LCCStackManager.h>
+#include <LCCWiFiManager.h>
 #include <utils/FileUtils.hxx>
+#include <utils/SocketClientParams.hxx>
 #include "OTAMonitor.h"
 
 #if CONFIG_GPIO_OUTPUTS
@@ -56,6 +60,7 @@ using http::MIME_TYPE_IMAGE_GIF;
 using http::MIME_TYPE_APPLICATION_JSON;
 using http::HTTP_ENCODING_GZIP;
 using http::WebSocketEvent;
+using openlcb::TcpClientDefaultParams;
 
 class WebSocketClient : public DCCPPProtocolConsumer
 {
@@ -137,12 +142,170 @@ extern const size_t ajaxLoader_size asm("ajax_loader_gif_length");
 
 MDNS mDNS;
 
-void init_webserver()
+// CDI Helper which sets the provided path if it is different than the value
+// passed in.
+#define CDI_COMPARE_AND_SET(PATH, fd, value, updated) \
+  {                                                   \
+    auto current = PATH().read(fd);                   \
+    if (current != value)                             \
+    {                                                 \
+      PATH().write(fd, value);                        \
+      updated = true;                                 \
+    }                                                 \
+  }
+
+// Helper which will trigger a config reload event to be queued when
+// updated is true.
+#define MAYBE_TRIGGER_UPDATE(updated)                         \
+  if (updated)                                                \
+  {                                                                                                    \
+    Singleton<esp32cs::LCCStackManager>::instance()->stack()->executor()->add(new CallbackExecutable([&]()      \
+    {                                                         \
+      Singleton<esp32cs::LCCStackManager>::instance()->stack()->config_service()->trigger_update();             \
+    }));                                                      \
+  }
+
+class WebConfigListener : public DefaultConfigUpdateListener
 {
+public:
+  WebConfigListener(const esp32cs::Esp32ConfigDef &cfg) : fd_(-1), cfg_(cfg)
+  {
+
+  }
+
+  UpdateAction apply_configuration(int fd, bool initial_load
+                                 , BarrierNotifiable *done) override
+  {
+    AutoNotify n(done);
+    // this is a no-op simply to capture the config FD.
+    fd_ = fd;
+    if (initial_load)
+    {
+      return UpdateAction::REINIT_NEEDED;
+    }
+    return UpdateAction::UPDATED;
+  }
+
+  void factory_reset(int fd) override
+  {
+    // no-op
+  }
+
+  void reconfigure_hbridge(uint8_t hbridge_index
+                         , string short_on, string short_off
+                         , string shutdown_on, string shutdown_off
+                         , string thermal_on = "", string thermal_off = "")
+  {
+    bool upd = false;
+    auto hbridge = cfg_.seg().hbridge().entry(hbridge_index);
+    CDI_COMPARE_AND_SET(hbridge.event_short, fd_
+                      , string_to_uint64(short_on), upd);
+    CDI_COMPARE_AND_SET(hbridge.event_short_cleared, fd_
+                      , string_to_uint64(short_off), upd);
+    CDI_COMPARE_AND_SET(hbridge.event_shutdown, fd_
+                      , string_to_uint64(shutdown_on), upd);
+    CDI_COMPARE_AND_SET(hbridge.event_shutdown_cleared, fd_
+                      , string_to_uint64(shutdown_off), upd);
+    // only OPS has the thermal pin
+    if (hbridge_index == esp32cs::OPS_CDI_TRACK_OUTPUT_IDX)
+    {
+      CDI_COMPARE_AND_SET(hbridge.event_thermal_shutdown, fd_
+                        , string_to_uint64(thermal_on), upd);
+      CDI_COMPARE_AND_SET(hbridge.event_thermal_shutdown_cleared, fd_
+                        , string_to_uint64(thermal_off), upd);
+    }
+    MAYBE_TRIGGER_UPDATE(upd);
+  }
+
+  void reconfigure_uplink(SocketClientParams::SearchMode mode
+                        , string uplink_service_name
+                        , string manual_hostname
+                        , uint16_t manual_port)
+  {
+    auto wifi = cfg_.seg().wifi();
+    bool upd = false;
+    CDI_COMPARE_AND_SET(wifi.uplink().search_mode, fd_, mode, upd);
+    CDI_COMPARE_AND_SET(wifi.uplink().auto_address().service_name, fd_
+                      , uplink_service_name, upd);
+    CDI_COMPARE_AND_SET(wifi.uplink().manual_address().ip_address, fd_
+                      , manual_hostname, upd);
+    CDI_COMPARE_AND_SET(wifi.uplink().manual_address().port, fd_
+                      , manual_port, upd);
+
+    MAYBE_TRIGGER_UPDATE(upd);
+  }
+
+  void reconfigure_lcc_hub(bool enabled)
+  {
+    bool upd = false;
+    CDI_COMPARE_AND_SET(cfg_.seg().wifi().hub().enable, fd_, enabled, upd);
+    MAYBE_TRIGGER_UPDATE(upd);
+  }
+
+  string get_config_json()
+  {
+    auto wifi = cfg_.seg().wifi();
+    auto ops = cfg_.seg().hbridge().entry(esp32cs::OPS_CDI_TRACK_OUTPUT_IDX);
+    auto prog = cfg_.seg().hbridge().entry(esp32cs::PROG_CDI_TRACK_OUTPUT_IDX);
+    
+    string config =
+      StringPrintf("\"hub\":%s,"
+                   "\"uplink\":{"
+                     "\"reconnect\":%s,"
+                     "\"auto_service\":\"%s\","
+                     "\"manual_host\":\"%s\","
+                     "\"manual_port\":%d,"
+                     "\"mode\":%d"
+                   "},"
+                   "\"hbridges\":["
+                     "{"
+                       "\"short\":\"%s\","
+                       "\"short_clear\":\"%s\","
+                       "\"shutdown\":\"%s\","
+                       "\"shutdown_clear\":\"%s\","
+                       "\"thermal\":\"%s\","
+                       "\"thermal_clear\":\"%s\""
+                     "},"
+                     "{"
+                       "\"short\":\"%s\","
+                       "\"short_clear\":\"%s\","
+                       "\"shutdown\":\"%s\","
+                       "\"shutdown_clear\":\"%s\""
+                     "}"
+                   "]"
+                 , CDI_READ_TRIMMED(wifi.hub().enable, fd_) ? "true" : "false"
+                 , CDI_READ_TRIMMED(wifi.uplink().reconnect, fd_) ? "true" : "false"
+                 , wifi.uplink().auto_address().service_name().read(fd_).c_str()
+                 , wifi.uplink().manual_address().ip_address().read(fd_).c_str()
+                 , CDI_READ_TRIMMED(wifi.uplink().manual_address().port, fd_)
+                 , CDI_READ_TRIMMED(wifi.uplink().search_mode, fd_)
+                 , uint64_to_string_hex(ops.event_short().read(fd_)).c_str()
+                 , uint64_to_string_hex(ops.event_short_cleared().read(fd_)).c_str()
+                 , uint64_to_string_hex(ops.event_shutdown().read(fd_)).c_str()
+                 , uint64_to_string_hex(ops.event_shutdown_cleared().read(fd_)).c_str()
+                 , uint64_to_string_hex(ops.event_thermal_shutdown().read(fd_)).c_str()
+                 , uint64_to_string_hex(ops.event_thermal_shutdown_cleared().read(fd_)).c_str()
+                 , uint64_to_string_hex(prog.event_short().read(fd_)).c_str()
+                 , uint64_to_string_hex(prog.event_short_cleared().read(fd_)).c_str()
+                 , uint64_to_string_hex(prog.event_shutdown().read(fd_)).c_str()
+                 , uint64_to_string_hex(prog.event_shutdown_cleared().read(fd_)).c_str());
+    return config;
+  }
+private:
+  int fd_;
+  const esp32cs::Esp32ConfigDef cfg_;
+};
+
+unique_ptr<WebConfigListener> configListener;
+
+void init_webserver(const esp32cs::Esp32ConfigDef &cfg)
+{
+  configListener.reset(new WebConfigListener(cfg));
+
   httpd.emplace(&mDNS);
   httpd->redirect_uri("/", "/index.html");
   // if the soft AP interface is enabled, setup the captive portal
-  if (Singleton<ConfigurationManager>::instance()->isAPEnabled())
+  if (Singleton<esp32cs::LCCWiFiManager>::instance()->is_softap_enabled())
   {
     httpd->captive_portal(
       StringPrintf(CAPTIVE_PORTAL_HTML
@@ -171,8 +334,26 @@ void init_webserver()
   httpd->uri("/update", HttpMethod::POST, nullptr, process_ota);
   httpd->uri("/features", [&](HttpRequest *req)
   {
-    return new StringResponse(Singleton<ConfigurationManager>::instance()->getCSFeatures()
-                            , MIME_TYPE_APPLICATION_JSON);
+    string features = StringPrintf("{");
+#if defined(CONFIG_GPIO_S88)
+    features += StringPrintf("\"%s\":%d,\"%s\":true", JSON_S88_SENSOR_BASE_NODE
+                          , CONFIG_GPIO_S88_FIRST_SENSOR, JSON_S88_NODE);
+#else
+    features += StringPrintf("\"%s\":%d,\"%s\":false", JSON_S88_SENSOR_BASE_NODE
+                          , 0, JSON_S88_NODE);
+#endif // CONFIG_GPIO_S88
+#if defined(CONFIG_GPIO_OUTPUTS)
+    features += StringPrintf(",\"%s\":true", JSON_OUTPUTS_NODE);
+#else
+    features += StringPrintf(",\"%s\":false", JSON_OUTPUTS_NODE);
+#endif // CONFIG_GPIO_OUTPUTS
+#if defined(CONFIG_GPIO_SENSORS)
+    features += StringPrintf(",\"%s\":true", JSON_SENSORS_NODE);
+#else
+    features += StringPrintf(",\"%s\":false", JSON_SENSORS_NODE);
+#endif // CONFIG_GPIO_SENSORS
+    features += "}";
+    return new StringResponse(features, MIME_TYPE_APPLICATION_JSON);
   });
   httpd->uri("/fs", HttpMethod::GET, [&](HttpRequest *req)
   {
@@ -227,15 +408,6 @@ void init_webserver()
           , process_s88);
 #endif // CONFIG_GPIO_S88
 #endif // CONFIG_GPIO_SENSORS
-}
-
-void to_json(nlohmann::json& j, const wifi_ap_record_t& t)
-{
-  j = nlohmann::json({
-    { JSON_WIFI_SSID_NODE, (char *)t.ssid },
-    { JSON_WIFI_RSSI_NODE, t.rssi },
-    { JSON_WIFI_AUTH_NODE, t.authmode },
-  });
 }
 
 WEBSOCKET_STREAM_HANDLER_IMPL(process_websocket_event, client, event, data
@@ -358,95 +530,85 @@ HTTP_HANDLER_IMPL(process_power, request)
 
 HTTP_HANDLER_IMPL(process_config, request)
 {
+  auto stackManager = Singleton<esp32cs::LCCStackManager>::instance();
+  auto wifiManager = Singleton<esp32cs::LCCWiFiManager>::instance();
   bool needReboot = false;
+
   if (request->has_param("reset"))
   {
-    Singleton<ConfigurationManager>::instance()->factory_reset();
+    stackManager->factory_reset();
+    wifiManager->factory_reset();
     needReboot = true;
   }
   else if (request->has_param("scan"))
   {
-    SyncNotifiable n;
-    Esp32WiFiManager *wifi_mgr = Singleton<Esp32WiFiManager>::instance();
-    wifi_mgr->start_ssid_scan(&n);
-    n.wait_for_notification();
-    size_t num_found = wifi_mgr->get_ssid_scan_result_count();
-    nlohmann::json ssid_list;
-    vector<string> seen_ssids;
-    for (int i = 0; i < num_found; i++)
-    {
-      auto entry = wifi_mgr->get_ssid_scan_result(i);
-      if (std::find_if(seen_ssids.begin(), seen_ssids.end()
-        , [entry](string &s)
-          {
-            return s == (char *)entry.ssid;
-          }) != seen_ssids.end())
-      {
-        // filter duplicate SSIDs
-        continue;
-      }
-      seen_ssids.push_back((char *)entry.ssid);
-      ssid_list.push_back(entry);
-    }
-    wifi_mgr->clear_ssid_scan_results();
-    return new StringResponse(ssid_list.dump(), MIME_TYPE_APPLICATION_JSON);
+    return new StringResponse(wifiManager->wifi_scan_json(true), MIME_TYPE_APPLICATION_JSON);
   }
-  if (request->has_param("ssid") &&
-      Singleton<ConfigurationManager>::instance()->setWiFiStationParams(request->param("ssid")
-                                      , request->param("password")))
+  if (request->has_param("ssid"))
   {
+    wifiManager->reconfigure_station(request->param("ssid"), request->param("password"));
     needReboot = true;
   }
-  if (request->has_param("mode") &&
-      Singleton<ConfigurationManager>::instance()->setWiFiMode(request->param("mode")))
+  if (request->has_param("mode"))
   {
+    wifiManager->reconfigure_mode(request->param("mode"));
     needReboot = true;
   }
   if (request->has_param("nodeid") &&
-      Singleton<ConfigurationManager>::instance()->setNodeID(request->param("nodeid")))
+      stackManager->set_node_id(request->param("nodeid")))
   {
     needReboot = true;
   }
   if (request->has_param("lcc-can") &&
-      Singleton<ConfigurationManager>::instance()->setLCCCan(request->param("lcc-can", false)))
+      stackManager->reconfigure_can(request->param("lcc-can", false)))
   {
     needReboot = true;
   }
   if (request->has_param("lcc-hub"))
   {
-    Singleton<ConfigurationManager>::instance()->setLCCHub(request->param("lcc-hub", false));
+    configListener->reconfigure_lcc_hub(request->param("lcc-hub", false));
   }
-  if (request->has_param("uplink-mode") && request->has_param("uplink-service") &&
-      request->has_param("uplink-manual") && request->has_param("uplink-manual-port"))
+  if (request->has_param("uplink-mode") &&
+      request->has_param("uplink-service") &&
+      request->has_param("uplink-manual") &&
+      request->has_param("uplink-manual-port"))
   {
     // WiFi uplink settings do not require a reboot
-    Singleton<ConfigurationManager>::instance()->setWiFiUplinkParams((SocketClientParams::SearchMode)request->param("uplink-mode"
-                                    , SocketClientParams::SearchMode::AUTO_MANUAL)
-                                    , request->param("uplink-service")
-                                    , request->param("uplink-manual")
-                                    , request->param("uplink-manual-port"
-                                                   , openlcb::TcpClientDefaultParams::DEFAULT_PORT));
+    SocketClientParams::SearchMode mode =
+      (SocketClientParams::SearchMode)request->param("uplink-mode"
+        , SocketClientParams::SearchMode::AUTO_MANUAL);
+    string uplink_service = request->param("uplink-service");
+    uint16_t manual_port =
+      request->param("uplink-manual-port", TcpClientDefaultParams::DEFAULT_PORT);
+    string manual_host = request->param("uplink-manual");
+    configListener->reconfigure_uplink(mode, uplink_service, manual_host
+                                     , manual_port);
   }
-  if (request->has_param("ops-short") && request->has_param("ops-short-clear") &&
-      request->has_param("ops-shutdown") && request->has_param("ops-shutdown-clear") &&
-      request->has_param("ops-thermal") && request->has_param("ops-thermal-clear"))
+  if (request->has_param("ops-short") &&
+      request->has_param("ops-short-clear") &&
+      request->has_param("ops-shutdown") &&
+      request->has_param("ops-shutdown-clear") &&
+      request->has_param("ops-thermal") &&
+      request->has_param("ops-thermal-clear"))
   {
-    Singleton<ConfigurationManager>::instance()->setHBridgeEvents(esp32cs::OPS_CDI_TRACK_OUTPUT_IDX
-                                , request->param("ops-short")
-                                , request->param("ops-short-clear")
-                                , request->param("ops-shutdown")
-                                , request->param("ops-shutdown-clear")
-                                , request->param("ops-thermal")
-                                , request->param("ops-thermal-clear"));
+    configListener->reconfigure_hbridge(esp32cs::OPS_CDI_TRACK_OUTPUT_IDX
+                                      , request->param("ops-short")
+                                      , request->param("ops-short-clear")
+                                      , request->param("ops-shutdown")
+                                      , request->param("ops-shutdown-clear")
+                                      , request->param("ops-thermal")
+                                      , request->param("ops-thermal-clear"));
   }
-  if (request->has_param("prog-short") && request->has_param("prog-short-clear") &&
-      request->has_param("prog-shutdown") && request->has_param("prog-shutdown-clear"))
+  if (request->has_param("prog-short") &&
+      request->has_param("prog-short-clear") &&
+      request->has_param("prog-shutdown") &&
+      request->has_param("prog-shutdown-clear"))
   {
-    Singleton<ConfigurationManager>::instance()->setHBridgeEvents(esp32cs::PROG_CDI_TRACK_OUTPUT_IDX
-                                , request->param("prog-short")
-                                , request->param("prog-short-clear")
-                                , request->param("prog-shutdown")
-                                , request->param("prog-shutdown-clear"));
+    configListener->reconfigure_hbridge(esp32cs::PROG_CDI_TRACK_OUTPUT_IDX
+                                      , request->param("prog-short")
+                                      , request->param("prog-short-clear")
+                                      , request->param("prog-shutdown")
+                                      , request->param("prog-shutdown-clear"));
   }
 
   if (needReboot)
@@ -457,8 +619,11 @@ HTTP_HANDLER_IMPL(process_config, request)
                             , MIME_TYPE_APPLICATION_JSON);
   }
 
-  return new StringResponse(Singleton<ConfigurationManager>::instance()->getCSConfig()
-                          , MIME_TYPE_APPLICATION_JSON);
+  string response =
+    StringPrintf("{%s,%s,%s}", stackManager->get_config_json().c_str()
+                , wifiManager->get_config_json().c_str()
+                , configListener->get_config_json().c_str());
+  return new StringResponse(response, MIME_TYPE_APPLICATION_JSON);
 }
 
 HTTP_HANDLER_IMPL(process_prog, request)
@@ -764,7 +929,7 @@ string convert_loco_to_json(openlcb::TrainImpl *t)
   openlcb::TrainImpl *NAME = nullptr;                                                 \
   {                                                                                   \
     SyncNotifiable n;                                                                 \
-    Singleton<ConfigurationManager>::instance()->getLCCStack()->executor()->add(      \
+    Singleton<esp32cs::LCCStackManager>::instance()->stack()->executor()->add(        \
     new CallbackExecutable([&]()                                                      \
     {                                                                                 \
       NAME = Singleton<commandstation::AllTrainNodes>::instance()->get_train_impl(    \
