@@ -18,6 +18,7 @@ COPYRIGHT (c) 2020 Mike Dunston
 #include "LCCStackManager.h"
 #include "CDIHelper.h"
 #include "ConfigurationManager.h"
+#include <freertos_drivers/esp32/Esp32HardwareCanAdapter.hxx>
 #include <openlcb/SimpleStack.hxx>
 #include <utils/AutoSyncFileFlow.hxx>
 
