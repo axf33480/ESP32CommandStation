@@ -26,6 +26,11 @@ namespace openlcb
 
 class AutoSyncFileFlow;
 
+namespace openmrn_arduino
+{
+  class Esp32HardwareCan;
+}
+
 namespace esp32cs
 {
 
@@ -36,17 +41,17 @@ public:
   openlcb::SimpleStackBase *stack();
   void start(bool is_sd);
   void shutdown();
-  bool set_node_id(std::string);
-  bool reconfigure_can(bool enable);
+  bool set_node_id(std::string, bool restart = true);
+  bool reconfigure_can(bool enable, bool restart = true);
   void factory_reset();
   std::string get_config_json();
 private:
   const Esp32ConfigDef cfg_;
   int fd_;
-  uint64_t nodeID_;
+  uint64_t nodeID_{0};
   openlcb::SimpleStackBase *stack_;
   Executable *canBridge_;
-  Executable *can_;
+  openmrn_arduino::Esp32HardwareCan *can_;
   AutoSyncFileFlow *configAutoSync_;
 };
 

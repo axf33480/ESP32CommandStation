@@ -99,3 +99,4 @@ These entries are items being tracked for a future release, these are not listed
 -   [ ] Web: Add strict validation of input parameter data.
 -   [ ] Web: Expose Loco Consist creation.
 -   [ ] Web: Auto-refresh tables when delete/edit completes.
+-   [ ] Web: Add urldecode to table rendering code.

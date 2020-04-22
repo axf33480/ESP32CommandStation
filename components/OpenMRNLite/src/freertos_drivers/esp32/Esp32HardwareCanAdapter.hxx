@@ -41,7 +41,10 @@
 #include "freertos_drivers/arduino/Can.hxx"
 #include <driver/can.h>
 #include <driver/gpio.h>
+#include <esp_task.h>
 #include <esp_task_wdt.h>
+
+#include "os/OS.hxx"
 
 namespace openmrn_arduino {
 
@@ -85,7 +88,7 @@ public:
             .alerts_enabled = CAN_ALERT_NONE,
             .clkout_divider = 0};
 
-        LOG(VERBOSE,
+        LOG(INFO,
             "ESP32-CAN driver configured using RX: %d, TX: %d, RX-Q: %d, "
             "TX-Q: %d",
             can_general_config.rx_io, can_general_config.tx_io,
@@ -94,10 +97,10 @@ public:
         ESP_ERROR_CHECK(can_driver_install(
             &can_general_config, &can_timing_config, &can_filter_config));
 
-        xTaskCreatePinnedToCore(rx_task, "ESP32-CAN RX", RX_TASK_STACK_SIZE,
-            this, RX_TASK_PRIORITY, &rxTaskHandle_, tskNO_AFFINITY);
-        xTaskCreatePinnedToCore(tx_task, "ESP32-CAN TX", TX_TASK_STACK_SIZE,
-            this, TX_TASK_PRIORITY, &txTaskHandle_, tskNO_AFFINITY);
+        os_thread_create(&rxTaskHandle_,  "CAN-RX", RX_TASK_PRIORITY,
+                         RX_TASK_STACK_SIZE, rx_task, this);
+        os_thread_create(&txTaskHandle_,  "CAN-TX", TX_TASK_PRIORITY,
+                         TX_TASK_STACK_SIZE, tx_task, this);
     }
 
     ~Esp32HardwareCan()
@@ -108,14 +111,14 @@ public:
     virtual void enable()
     {
         ESP_ERROR_CHECK(can_start());
-        LOG(VERBOSE, "ESP32-CAN driver enabled");
+        LOG(INFO, "ESP32-CAN driver enabled");
     }
 
     /// Disables the ESP32 CAN driver
     virtual void disable()
     {
         ESP_ERROR_CHECK(can_stop());
-        LOG(VERBOSE, "ESP32-CAN driver disabled");
+        LOG(INFO, "ESP32-CAN driver disabled");
     }
 
 protected:
@@ -138,11 +141,11 @@ private:
 
     /// Handle for the tx_task that converts and transmits can_frame to the
     /// native can driver.
-    TaskHandle_t txTaskHandle_;
+    os_thread_t txTaskHandle_;
 
     /// Handle for the rx_task that receives and converts the native can driver
     /// frames to can_frame.
-    TaskHandle_t rxTaskHandle_;
+    os_thread_t rxTaskHandle_;
 
     /// Interval at which to print the ESP32 CAN bus status.
     static constexpr TickType_t STATUS_PRINT_INTERVAL = pdMS_TO_TICKS(10000);
@@ -169,27 +172,19 @@ private:
     /// provided by the @ref txBuf into an ESP32 can_message_t which can be
     /// processed by the native CAN driver. This task also covers the periodic
     /// status reporting and BUS recovery when necessary.
-    static void tx_task(void *can)
+    static void* tx_task(void *can)
     {
         /// Get handle to our parent Esp32HardwareCan object to access the
         /// txBuf.
         Esp32HardwareCan *parent = reinterpret_cast<Esp32HardwareCan *>(can);
 
-#if CONFIG_TASK_WDT
-        // Add this task to the WDT
-        esp_task_wdt_add(parent->txTaskHandle_);
-#endif // CONFIG_TASK_WDT
+        LOG(INFO, "Esp32Can: TX startup");
 
         /// Tracks the last time that we displayed the CAN driver status.
         TickType_t next_status_display_tick_count = 0;
 
         while (true)
         {
-#if CONFIG_TASK_WDT
-            // Feed the watchdog so it doesn't reset the ESP32
-            esp_task_wdt_reset();
-#endif // CONFIG_TASK_WDT
-
             // periodic CAN driver monitoring and reporting, this takes care of
             // bus recovery when the CAN driver disables the bus due to error
             // conditions exceeding thresholds.
@@ -274,7 +269,7 @@ private:
             esp_err_t tx_res = can_transmit(&msg, pdMS_TO_TICKS(100));
             if (tx_res == ESP_OK)
             {
-                LOG(VERBOSE,
+                LOG(INFO,
                     "ESP32-CAN-TX OK id:%08x, flags:%04x, dlc:%02d, "
                     "data:%02x%02x%02x%02x%02x%02x%02x%02x",
                     msg.identifier, msg.flags, msg.data_length_code,
@@ -290,28 +285,21 @@ private:
                 vTaskDelay(TX_DEFAULT_DELAY);
             }
         } // loop on task
+        return nullptr;
     }
 
     /// Background task that takes care of receiving can_message_t objects from
     /// the ESP32 native CAN driver, when they are available, converting them to
     /// a @ref can_frame and pushing them to the @ref rxBuf.
-    static void rx_task(void *can)
+    static void* rx_task(void *can)
     {
         /// Get handle to our parent Esp32HardwareCan object to access the rxBuf
         Esp32HardwareCan *parent = reinterpret_cast<Esp32HardwareCan *>(can);
 
-#if CONFIG_TASK_WDT
-        // Add this task to the WDT
-        esp_task_wdt_add(parent->rxTaskHandle_);
-#endif // CONFIG_TASK_WDT
+        LOG(INFO, "Esp32Can: RX startup");
 
         while (true)
         {
-#if CONFIG_TASK_WDT
-            // Feed the watchdog so it doesn't reset the ESP32
-            esp_task_wdt_reset();
-#endif // CONFIG_TASK_WDT
-
             /// ESP32 native CAN driver frame
             can_message_t msg;
             bzero(&msg, sizeof(can_message_t));
@@ -329,7 +317,7 @@ private:
                     "dropped!");
                 continue;
             }
-            LOG(VERBOSE,
+            LOG(INFO,
                 "ESP32-CAN-RX id:%08x, flags:%04x, dlc:%02d, "
                 "data:%02x%02x%02x%02x%02x%02x%02x%02x",
                 msg.identifier, msg.flags, msg.data_length_code,
@@ -352,7 +340,7 @@ private:
                 continue;
             }
             // we have space in the rxBuf, start conversion
-            LOG(VERBOSE, "ESP32-CAN-RX: converting to can_frame");
+            LOG(INFO, "ESP32-CAN-RX: converting to can_frame");
             memset(can_frame, 0, sizeof(struct can_frame));
             can_frame->can_id = msg.identifier;
             can_frame->can_dlc = msg.data_length_code;
@@ -371,6 +359,7 @@ private:
             parent->rxBuf->advance(1);
             parent->rxBuf->signal_condition();
         }
+        return nullptr;
     }
     DISALLOW_COPY_AND_ASSIGN(Esp32HardwareCan);
 };

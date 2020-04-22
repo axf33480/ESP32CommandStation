@@ -18,7 +18,9 @@ COPYRIGHT (c) 2020 Mike Dunston
 #include "LCCStackManager.h"
 #include "CDIHelper.h"
 #include "ConfigurationManager.h"
-//#include <freertos_drivers/esp32/Esp32HardwareCanAdapter.hxx>
+#if defined(CONFIG_LCC_CAN_ENABLED)
+#include <freertos_drivers/esp32/Esp32HardwareCanAdapter.hxx>
+#endif // CONFIG_LCC_CAN_ENABLED
 #include <openlcb/SimpleStack.hxx>
 #include <utils/AutoSyncFileFlow.hxx>
 
@@ -70,23 +72,20 @@ LCCStackManager::LCCStackManager(const esp32cs::Esp32ConfigDef &cfg) : cfg_(cfg)
         LOG(WARNING, "[LCC] Forcing regeneration of %s", LCC_CDI_XML);
         ERRNOCHECK(LCC_CDI_XML, unlink(LCC_CDI_XML));
     }
+    cfg_mgr->remove(LCC_NODE_ID_FILE);
+    cfg_mgr->remove(LCC_CAN_MARKER_FILE);
   }
 
-  LOG(INFO, "[LCC] Loading configuration");
-  string node_id_str = uint64_to_string_hex(UINT64_C(CONFIG_LCC_NODE_ID));
   if (!cfg_mgr->exists(LCC_NODE_ID_FILE))
   {
     LOG(INFO, "[LCC] Initializing configuration data...");
-    cfg_mgr->store(LCC_NODE_ID_FILE, node_id_str);
+    set_node_id(uint64_to_string_hex(UINT64_C(CONFIG_LCC_NODE_ID)), false);
 #if defined(CONFIG_LCC_CAN_ENABLED)
-    cfg_mgr->store(LCC_CAN_MARKER_FILE, node_id_str);
+    reconfigure_can(true);
 #endif // CONFIG_LCC_CAN_ENABLED
   }
-  else
-  {
-    node_id_str = cfg_mgr->load(LCC_NODE_ID_FILE);
-  }
-
+  LOG(INFO, "[LCC] Loading configuration");
+  string node_id_str = cfg_mgr->load(LCC_NODE_ID_FILE);
   nodeID_ = string_to_uint64(node_id_str);
 
   LOG(INFO, "[LCC] Initializing Stack (node-id: %s)"
@@ -95,7 +94,7 @@ LCCStackManager::LCCStackManager(const esp32cs::Esp32ConfigDef &cfg) : cfg_(cfg)
   stack_ = new openlcb::SimpleTcpStack(nodeID_);
 #else
   stack_ = new openlcb::SimpleCanStack(nodeID_);
-/*#if defined(CONFIG_LCC_CAN_ENABLED)
+#if defined(CONFIG_LCC_CAN_ENABLED)
   if (cfg_mgr->exists(LCC_CAN_MARKER_FILE))
   {
     LOG(INFO, "[LCC] Enabling CAN interface (rx: %d, tx: %d)"
@@ -103,12 +102,11 @@ LCCStackManager::LCCStackManager(const esp32cs::Esp32ConfigDef &cfg) : cfg_(cfg)
     can_ = new Esp32HardwareCan("esp32can"
                               , (gpio_num_t)CONFIG_LCC_CAN_RX_PIN
                               , (gpio_num_t)CONFIG_LCC_CAN_TX_PIN
-                              , false));
-    canBridge_ = new CanBridge(can_, ((openlcb::SimpleCanStack *)stack_)->can_hub()));
-    stack_->executor()->add(can_);
+                              , false);
+    canBridge_ = new CanBridge((Can *)can_, ((openlcb::SimpleCanStack *)stack_)->can_hub());
     stack_->executor()->add(canBridge_);
   }
-#endif // CONFIG_LCC_CAN_ENABLED*/
+#endif // CONFIG_LCC_CAN_ENABLED
 #endif // CONFIG_LCC_TCP_STACK
 }
 
@@ -131,7 +129,7 @@ void LCCStackManager::start(bool is_sd)
     stack_->create_config_file_if_needed(cfg_.seg().internal_config()
                                        , CONFIG_ESP32CS_CDI_VERSION
                                        , openlcb::CONFIG_FILE_SIZE);
-  LOG(INFO, "[LCC] Config file FD: %d", fd_);
+  LOG(INFO, "[LCC] Config file opened using fd:%d", fd_);
 
   if (is_sd)
   {
@@ -175,40 +173,45 @@ void LCCStackManager::shutdown()
   }
 }
 
-bool LCCStackManager::set_node_id(string node_id)
+bool LCCStackManager::set_node_id(string node_id, bool restart)
 {
-  LOG(VERBOSE, "[LCC] Current NodeID: %s, updated NodeID: %s"
-    , uint64_to_string_hex(nodeID_).c_str(), node_id.c_str());
   uint64_t new_node_id = string_to_uint64(node_id);
   if (new_node_id != nodeID_)
   {
+    LOG(INFO, "[LCC] Persisting updated NodeID: %s", node_id.c_str());
     auto cfg = Singleton<ConfigurationManager>::instance();
     string node_id_str = uint64_to_string_hex(new_node_id);
-    LOG(INFO
-      , "[LCC] Persisting NodeID: %s and enabling forced factory_reset."
-      , node_id_str.c_str());
     cfg->store(LCC_NODE_ID_FILE, node_id_str);
-    cfg->store(LCC_RESET_MARKER_FILE, node_id_str);
-    // add callback to reboot the node
-    stack()->executor()->add(new CallbackExecutable([](){ reboot(); }));
-    return true;
+    if (restart)
+    {
+      factory_reset();
+      // add callback to reboot the node
+      stack()->executor()->add(new CallbackExecutable([](){ reboot(); }));
+      return true;
+    }
   }
   return false;
 }
 
-bool LCCStackManager::reconfigure_can(bool enable)
+bool LCCStackManager::reconfigure_can(bool enable, bool restart)
 {
 #if defined(CONFIG_LCC_CAN_ENABLED)
   auto cfg = Singleton<ConfigurationManager>::instance();
   if (cfg->exists(LCC_CAN_MARKER_FILE) && !enable)
   {
+    LOG(INFO, "[LCC] Disabling CAN interface, reinitialization required.");
     cfg->remove(LCC_CAN_MARKER_FILE);
-    return true;
   }
   else if (!cfg->exists(LCC_CAN_MARKER_FILE) && enable)
   {
+    LOG(INFO, "[LCC] Enabling CAN interface, reinitialization required.");
     string can_str = "true";
     cfg->store(LCC_CAN_MARKER_FILE, can_str);
+  }
+  if (restart)
+  {
+    // add callback to reboot the node
+    stack()->executor()->add(new CallbackExecutable([](){ reboot(); }));
     return true;
   }
 #endif // CONFIG_LCC_CAN_ENABLED
@@ -217,6 +220,7 @@ bool LCCStackManager::reconfigure_can(bool enable)
 
 void LCCStackManager::factory_reset()
 {
+  LOG(INFO, "[LCC] Enabling forced factory_reset.");
   auto cfg = Singleton<ConfigurationManager>::instance();
   string marker = uint64_to_string_hex(nodeID_);
   cfg->store(LCC_RESET_MARKER_FILE, marker);
