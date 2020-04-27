@@ -115,6 +115,26 @@ openlcb::SimpleStackBase *LCCStackManager::stack()
   return stack_;
 }
 
+Service *LCCStackManager::service()
+{
+  return stack_->service();
+}
+
+openlcb::Node *LCCStackManager::node()
+{
+  return stack_->node();
+}
+
+openlcb::SimpleInfoFlow *LCCStackManager::info_flow()
+{
+  return stack_->info_flow();
+}
+
+openlcb::MemoryConfigHandler *LCCStackManager::memory_config_handler()
+{
+  return stack_->memory_config_handler();
+}
+
 #ifndef CONFIG_LCC_SD_FSYNC_SEC
 #define CONFIG_LCC_SD_FSYNC_SEC 10
 #endif

@@ -22,9 +22,13 @@ COPYRIGHT (c) 2020 Mike Dunston
 namespace openlcb
 {
   class SimpleStackBase;
+  class Node;
+  class SimpleInfoFlow;
+  class MemoryConfigHandler;
 }
 
 class AutoSyncFileFlow;
+class Service;
 
 namespace openmrn_arduino
 {
@@ -39,6 +43,10 @@ class LCCStackManager : public Singleton<LCCStackManager>
 public:
   LCCStackManager(const esp32cs::Esp32ConfigDef &cfg);
   openlcb::SimpleStackBase *stack();
+  Service *service();
+  openlcb::Node *node();
+  openlcb::SimpleInfoFlow *info_flow();
+  openlcb::MemoryConfigHandler *memory_config_handler();
   void start(bool is_sd);
   void shutdown();
   bool set_node_id(std::string, bool restart = true);
