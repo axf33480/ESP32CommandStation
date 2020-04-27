@@ -41,6 +41,7 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 
 #include <LCCStackManager.h>
 #include <LCCWiFiManager.h>
+#include <Httpd.h>
 
 #if CONFIG_GPIO_SENSORS
 #include <Sensors.h>
@@ -240,15 +241,19 @@ extern "C" void app_main()
   esp32cs::LCCStackManager stackManager(cfg);
 
   esp32cs::LCCWiFiManager wifiManager(stackManager.stack(), cfg);
+  
+  // Initialize the Http server and mDNS instance
+  MDNS mDNS;
+  http::Httpd httpd(&mDNS);
 
   // Initialize the status display module (dependency of WiFi)
   StatusDisplay statusDisplay(stackManager.stack()
-                            , stackManager.stack()->service());
+                            , stackManager.service());
 
 #if CONFIG_NEXTION
   // Initialize the Nextion module (dependency of WiFi)
   LOG(INFO, "[Config] Enabling Nextion module");
-  nextionInterfaceInit(stackManager.stack()->service());
+  nextionInterfaceInit(stackManager.service());
 #endif // CONFIG_NEXTION
 
   init_webserver(cfg);
@@ -259,8 +264,8 @@ extern "C" void app_main()
 
   // Initialize the turnout manager and register it with the LCC stack to
   // process accessories packets.
-  TurnoutManager turnoutManager(stackManager.stack()->node()
-                              , stackManager.stack()->service());
+  TurnoutManager turnoutManager(stackManager.node()
+                              , stackManager.service());
 
 #if CONFIG_GPIO_OUTPUTS
   LOG(INFO, "[Config] Enabling GPIO Outputs");
@@ -272,7 +277,7 @@ extern "C" void app_main()
   SensorManager::init();
   RemoteSensorManager::init();
 #if CONFIG_GPIO_S88
-  S88BusManager s88(stackManager.stack()->node());
+  S88BusManager s88(stackManager.node());
 #endif // CONFIG_GPIO_S88
 #endif // CONFIG_GPIO_SENSORS
 
@@ -282,25 +287,25 @@ extern "C" void app_main()
 #endif // CONFIG_LOCONET
 
 #if CONFIG_HC12
-  esp32cs::HC12Radio hc12(stackManager.stack()->service()
+  esp32cs::HC12Radio hc12(stackManager.service()
                         , (uart_port_t)CONFIG_HC12_UART
                         , (gpio_num_t)CONFIG_HC12_RX_PIN
                         , (gpio_num_t)CONFIG_HC12_TX_PIN));
 #endif // CONFIG_HC12
 
 #if CONFIG_STATUS_LED
-  StatusLED statusLED(stackManager.stack()->service());
+  StatusLED statusLED(stackManager.service());
 #endif // CONFIG_STATUS_LED
 
   // cppcheck-suppress UnusedVar
-  OTAMonitorFlow ota(stackManager.stack()->service());
+  OTAMonitorFlow ota(stackManager.service());
 
   // Initialize the factory reset helper for the CS.
   FactoryResetHelper resetHelper;
 
   // Initialize the DCC VFS adapter, this will also initialize the DCC signal
   // generation code.
-  esp32cs::init_dcc_vfs(stackManager.stack()->node(), stackManager.stack()->service()
+  esp32cs::init_dcc_vfs(stackManager.node(), stackManager.service()
                       , cfg.seg().hbridge().entry(esp32cs::OPS_CDI_TRACK_OUTPUT_IDX)
                       , cfg.seg().hbridge().entry(esp32cs::PROG_CDI_TRACK_OUTPUT_IDX));
 
@@ -313,15 +318,15 @@ extern "C" void app_main()
   HASSERT(prog_track > 0);
 
   // Initialize Local Track inteface.
-  esp32cs::DuplexedTrackIf track(stackManager.stack()->service()
+  esp32cs::DuplexedTrackIf track(stackManager.service()
                                , CONFIG_DCC_PACKET_POOL_SIZE
                                , ops_track, prog_track);
 
   // Initialize the DCC Update Loop.
-  dcc::SimpleUpdateLoop dccUpdateLoop(stackManager.stack()->service(), &track);
+  dcc::SimpleUpdateLoop dccUpdateLoop(stackManager.service(), &track);
 
   // Attach the DCC update loop to the track interface
-  PoolToQueueFlow<Buffer<dcc::Packet>> dccPacketFlow(stackManager.stack()->service()
+  PoolToQueueFlow<Buffer<dcc::Packet>> dccPacketFlow(stackManager.service()
                                                    , track.pool()
                                                    , &dccUpdateLoop);
 
@@ -342,14 +347,14 @@ extern "C" void app_main()
   // Initialize the Train Search and Train Manager.
   commandstation::AllTrainNodes trainNodes(&trainDb
                                          , &trainService
-                                         , stackManager.stack()->info_flow()
-                                         , stackManager.stack()->memory_config_handler()
+                                         , stackManager.info_flow()
+                                         , stackManager.memory_config_handler()
                                          , trainDb.get_readonly_train_cdi()
                                          , trainDb.get_readonly_temp_train_cdi());
 
   // Task Monitor, periodically dumps runtime state to STDOUT.
   LOG(VERBOSE, "Starting FreeRTOS Task Monitor");
-  FreeRTOSTaskMonitor taskMon(stackManager.stack()->service());
+  FreeRTOSTaskMonitor taskMon(stackManager.service());
 
   LOG(INFO, "\n\nESP32 Command Station Startup complete!\n");
   Singleton<StatusDisplay>::instance()->status("ESP32-CS Started");

@@ -101,7 +101,6 @@ static constexpr const char * const CAPTIVE_PORTAL_HTML = R"!^!(
  </body>
 </html>)!^!";
 
-uninitialized<Httpd> httpd;
 OSMutex webSocketLock;
 vector<unique_ptr<WebSocketClient>> webSocketClients;
 WEBSOCKET_STREAM_HANDLER(process_websocket_event);
@@ -139,8 +138,6 @@ extern const size_t jqClockGz_size asm("jqClock_lite_min_js_gz_length");
 
 extern const uint8_t ajaxLoader[] asm("_binary_ajax_loader_gif_start");
 extern const size_t ajaxLoader_size asm("ajax_loader_gif_length");
-
-MDNS mDNS;
 
 // CDI Helper which sets the provided path if it is different than the value
 // passed in.
@@ -302,7 +299,7 @@ void init_webserver(const esp32cs::Esp32ConfigDef &cfg)
 {
   configListener.reset(new WebConfigListener(cfg));
 
-  httpd.emplace(&mDNS);
+  auto httpd = Singleton<Httpd>::instance();
   httpd->redirect_uri("/", "/index.html");
   // if the soft AP interface is enabled, setup the captive portal
   if (Singleton<esp32cs::LCCWiFiManager>::instance()->is_softap_enabled())
