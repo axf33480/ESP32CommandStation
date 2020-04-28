@@ -145,15 +145,6 @@ menu "DCC Signal"
                 This pin should be connected to the H-Bridge BRAKE pin
                 input and is used to put the H-Bridge into a "coast" mode.
 
-        config OPS_RAILCOM_SHORT_PIN
-            int "RailCom detector short pin"
-            range 0 39
-            depends on OPS_RAILCOM
-            help
-                The RailCom detector circuitry should pull this input to
-                HIGH to indicate a short has been detected via the RailCom
-                detector.
-
         choice OPS_RAILCOM_UART
             bool "RailCom UART"
             default OPS_RAILCOM_UART1

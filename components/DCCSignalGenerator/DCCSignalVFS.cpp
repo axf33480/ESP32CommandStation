@@ -62,9 +62,6 @@ GPIO_PIN(OPS_RAILCOM_BRAKE, GpioInputPU, CONFIG_OPS_RAILCOM_BRAKE_PIN);
 /// RailCom detector enable pin, active HIGH.
 GPIO_PIN(OPS_RAILCOM_ENABLE, GpioInputPD, CONFIG_OPS_RAILCOM_ENABLE_PIN);
 
-/// RailCom detector short pin, active LOW.
-GPIO_PIN(OPS_RAILCOM_SHORT, GpioInputPU, CONFIG_OPS_RAILCOM_SHORT_PIN);
-
 /// RailCom detector UART.
 static constexpr uart_port_t RAILCOM_UART_NUM =
   (uart_port_t)CONFIG_OPS_RAILCOM_UART;
@@ -77,9 +74,6 @@ typedef DummyPinWithReadHigh OPS_RAILCOM_BRAKE_Pin;
 
 /// RailCom detector enable pin, active HIGH.
 typedef DummyPinWithRead OPS_RAILCOM_ENABLE_Pin;
-
-/// RailCom detector short pin, active LOW.
-typedef DummyPinWithReadHigh OPS_RAILCOM_SHORT_Pin;
 
 /// RailCom detector UART, unused.
 static constexpr uart_port_t RAILCOM_UART_NUM = UART_NUM_1;
@@ -102,7 +96,7 @@ GPIO_PIN(PROG_ENABLE, GpioOutputSafeLow, CONFIG_PROG_ENABLE_PIN);
 typedef GpioInitializer<
   OPS_SIGNAL_Pin, OPS_ENABLE_Pin, OPS_THERMAL_Pin
 , PROG_SIGNAL_Pin, PROG_ENABLE_Pin
-, OPS_RAILCOM_BRAKE_Pin, OPS_RAILCOM_ENABLE_Pin, OPS_RAILCOM_SHORT_Pin
+, OPS_RAILCOM_BRAKE_Pin, OPS_RAILCOM_ENABLE_Pin
 > DCCGpioInitializer;
 
 static std::unique_ptr<openlcb::RefreshLoop> dcc_poller;
