@@ -711,13 +711,13 @@ function initPage() {
    complete: hideSpinner,
    success : function (data, status, xhr) {
     connectWebSocket();
-    if(data.sensors === 'false') {
+    if(data.sensors === false) {
      $('[id^=cs-sensors]').hide();
     }
-    if(data.outputs === 'false') {
+    if(data.outputs === false) {
      $('[id^=cs-outputs]').hide();
     }
-    if(data.s88 === 'false') {
+    if(data.s88 === false) {
      $('[id^=cs-sensors-s88]').hide();
     } else {
      s88SensorIDBase = data.sensorIDBase;
