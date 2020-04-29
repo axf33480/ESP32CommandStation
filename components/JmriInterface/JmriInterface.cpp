@@ -48,7 +48,7 @@ void init_jmri_interface()
                     // instance rather than the default executor.
                     new JmriClientFlow(fd, ntohl(source.sin_addr.s_addr)
                                      , Singleton<http::Httpd>::instance());
-                    }));
+                    }, "jmri"));
                 Singleton<Esp32WiFiManager>::instance()->mdns_publish(
                     CONFIG_JMRI_MDNS_SERVICE_NAME, CONFIG_JMRI_LISTENER_PORT);
             }

@@ -65,19 +65,20 @@ static void* accept_thread_start(void* arg) {
 
 #ifdef ESP32
 /// Stack size to use for the accept_thread_.
-static constexpr size_t listener_stack_size = 4096;
+static constexpr size_t listener_stack_size = 2048;
 #else
 /// Stack size to use for the accept_thread_.
 static constexpr size_t listener_stack_size = 1000;
 #endif // ESP32
 
-SocketListener::SocketListener(int port, connection_callback_t callback)
+SocketListener::SocketListener(int port, connection_callback_t callback,
+                               const char *thread_name)
     : startupComplete_(0),
       shutdownRequested_(0),
       shutdownComplete_(0),
       port_(port),
       callback_(callback),
-      accept_thread_("accept_thread", 0, listener_stack_size,
+      accept_thread_(thread_name, 0, listener_stack_size,
         accept_thread_start, this)
 {
 #if OPENMRN_FEATURE_BSD_SOCKETS_IGNORE_SIGPIPE

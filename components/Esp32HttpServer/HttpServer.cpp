@@ -211,7 +211,7 @@ void Httpd::start_http_listener()
     return;
   }
   LOG(INFO, "[%s] Starting HTTP listener on port %d", name_.c_str(), port_);
-  listener_.emplace(port_, incoming_http_connection);
+  listener_.emplace(port_, incoming_http_connection, "httpd");
   http_active_ = true;
   if (mdns_)
   {
