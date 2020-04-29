@@ -20,6 +20,10 @@ set(COMPONENT_REQUIRES "mdns" )
 
 register_component()
 
+###############################################################################
+# Add required compilation flags for customization of OpenMRNLite
+###############################################################################
+
 target_compile_options(${COMPONENT_LIB} PUBLIC -DESP32 -DLOCKED_LOGGING)
 
 set_source_files_properties(src/utils/FileUtils.cpp PROPERTIES COMPILE_FLAGS -Wno-type-limits)

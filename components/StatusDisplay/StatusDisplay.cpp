@@ -193,7 +193,7 @@ StatusDisplay::StatusDisplay(openlcb::SimpleStackBase *stack, Service *service)
                         , std::bind(&StatusDisplay::node_pong, this
                                   , std::placeholders::_1));
   clear();
-  info("ESP32-CS: v%s", esp_ota_get_app_description()->version);
+  info("ESP32-CS: v%s", CONFIG_ESP32CS_SW_VERSION);
   wifi("IP:Pending");
   Singleton<Esp32WiFiManager>::instance()->add_event_callback(
     std::bind(&StatusDisplay::wifi_event, this, std::placeholders::_1));

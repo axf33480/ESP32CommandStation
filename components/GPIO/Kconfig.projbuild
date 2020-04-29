@@ -126,6 +126,7 @@ menu "GPIO"
     endchoice
     config GPIO_OUTPUT_LOG_LEVEL
         int
+        depends on GPIO_OUTPUTS
         default 4 if GPIO_OUTPUT_LOGGING_MINIMAL
         default 3 if GPIO_OUTPUT_LOGGING_VERBOSE
         default 5
@@ -141,6 +142,7 @@ menu "GPIO"
     endchoice
     config GPIO_SENSOR_LOG_LEVEL
         int
+        depends on GPIO_SENSORS
         default 4 if GPIO_SENSOR_LOGGING_MINIMAL
         default 3 if GPIO_SENSOR_LOGGING_VERBOSE
         default 5
@@ -156,6 +158,7 @@ menu "GPIO"
     endchoice
     config GPIO_S88_SENSOR_LOG_LEVEL
         int
+        depends on GPIO_S88
         default 4 if GPIO_S88_SENSOR_LOGGING_MINIMAL
         default 3 if GPIO_S88_SENSOR_LOGGING_VERBOSE
         default 5

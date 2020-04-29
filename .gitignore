@@ -4,8 +4,6 @@ sdkconfig.old
 .clang_complete
 .gcc-flags.json
 .vscode
-utils/*.pyc
-utils/__pycache__
 *.code-workspace
 docs/html
 docs/esp32cs.tag

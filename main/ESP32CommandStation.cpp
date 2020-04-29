@@ -200,7 +200,7 @@ extern "C" void app_main()
 
   const esp_app_desc_t *app_data = esp_ota_get_app_description();
 
-  LOG(INFO, "\n\nESP32 Command Station v%s starting up...", app_data->version);
+  LOG(INFO, "\n\nESP32 Command Station v%s (%s) starting up...", CONFIG_ESP32CS_SW_VERSION, app_data->version);
   LOG(INFO, "Compiled on %s %s using IDF %s", app_data->date, app_data->time
     , app_data->idf_ver);
   LOG(INFO, "Running from: %s", esp_ota_get_running_partition()->label);
