@@ -719,10 +719,19 @@ void Esp32WiFiManager::process_wifi_event(system_event_t *event)
     }
 }
 
+// Set configuration flag that enables the verbose logging.
+// Note: this should be called as early as possible to ensure proper logging
+// from all esp-wifi code paths.
 void Esp32WiFiManager::enable_verbose_logging()
 {
-    esp32VerboseLogging_ = true;
+    verboseLogging_ = true;
     enable_esp_wifi_logging();
+}
+
+// Set configuration flag controlling SSID connection checking behavior.
+void Esp32WiFiManager::wait_for_ssid_connect(bool enable)
+{
+    waitForStationConnect_ = enable;
 }
 
 // If the Esp32WiFiManager is setup to manage the WiFi system, the following
@@ -782,7 +791,7 @@ void Esp32WiFiManager::start_wifi_system()
 
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
 
-    if (esp32VerboseLogging_)
+    if (verboseLogging_)
     {
         enable_esp_wifi_logging();
     }
@@ -856,11 +865,13 @@ void Esp32WiFiManager::start_wifi_system()
     LOG(INFO, "[WiFi] Starting WiFi stack");
     ESP_ERROR_CHECK(esp_wifi_start());
 
-    // If we are using the STATION interface, this will block until the ESP32
-    // starts the connection process, note it may not have an IP address
-    // immediately thus the need to check the connection result a few times
-    // before giving up with a FATAL error.
-    if (wifiMode_ == WIFI_MODE_APSTA || wifiMode_ == WIFI_MODE_STA)
+    // If we need the STATION interface *AND* configured to wait until 
+    // successfully connected to the SSID this code block will wait for up to
+    // approximately three minutes for an IP address to be assigned. In most
+    // cases this completes in under thirty seconds. If there is a connection
+    // failure the esp32 will be restarted via a FATAL error being logged.
+    if (waitForStationConnect_ &&
+       (wifiMode_ == WIFI_MODE_APSTA || wifiMode_ == WIFI_MODE_STA))
     {
         uint8_t attempt = 0;
         EventBits_t bits = 0;
@@ -1275,7 +1286,6 @@ void split_mdns_service_name(string *service_name, string *protocol_name)
         service_name->resize(split_loc);
     }
 }
-
 
 // EAI_AGAIN may not be defined on the ESP32
 #ifndef EAI_AGAIN

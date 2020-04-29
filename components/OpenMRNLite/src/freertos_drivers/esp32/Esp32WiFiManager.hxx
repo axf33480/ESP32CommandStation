@@ -226,6 +226,15 @@ public:
     /// @param service is the service name to remove from advertising.
     void mdns_unpublish(std::string service);
 
+    /// Forces the Esp32WiFiManager to wait until SSID connection completes.
+    ///
+    /// By default the ESP32 will be restarted if the SSID connection attempt
+    /// has not completed after approximately three minutes. When the SoftAP
+    /// interface is also active an application may opt to disable this
+    /// functionality to allow a configuration portal to be displayed instead
+    /// of requiring the firmware to be rebuilt with a new SSID/PW.
+    void wait_for_ssid_connect(bool enable);
+
 private:
     /// Default constructor.
     Esp32WiFiManager();
@@ -335,8 +344,13 @@ private:
     /// Internal flag to request the wifi_manager_task reload configuration.
     bool configReloadRequested_{true};
 
-    /// if true, request esp32 wifi to do verbose logging.
-    bool esp32VerboseLogging_{false};
+    /// If true, request esp32 wifi to do verbose logging.
+    bool verboseLogging_{false};
+
+    /// If true, the esp32 will block startup until the SSID connection has
+    /// successfully completed and upon failure (or timeout) the esp32 will be
+    /// restarted.
+    bool waitForStationConnect_{true};
 
     /// @ref GcTcpHub for this node's hub if enabled.
     std::unique_ptr<GcTcpHub> hub_;

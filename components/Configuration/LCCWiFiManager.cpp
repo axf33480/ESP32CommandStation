@@ -163,6 +163,14 @@ LCCWiFiManager::LCCWiFiManager(openlcb::SimpleStackBase *stack
                        , cfg_.seg().wifi(), CONFIG_HOSTNAME_PREFIX, mode_
                        , stationIP_.get(), stationDNS_
                        , CONFIG_WIFI_SOFT_AP_CHANNEL));
+
+  // When operating as both SoftAP and Station mode it is not necessary to wait
+  // for the station to be UP during CS startup.
+  if (mode_ == WIFI_MODE_APSTA)
+  {
+    wifi_->wait_for_ssid_connect(false);
+  }
+
 }
 
 void LCCWiFiManager::shutdown()
