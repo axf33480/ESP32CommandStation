@@ -918,12 +918,24 @@ StateFlowBase::Action HttpRequestFlow::send_response_body_split()
 
 StateFlowBase::Action HttpRequestFlow::request_complete()
 {
-  uint32_t proc_time = USEC_TO_MSEC(esp_timer_get_time() - start_time_);
+#if CONFIG_HTTP_REQ_FLOW_LOG_LEVEL == VERBOSE
   if (!req_.uri().empty())
   {
-    LOG(INFO, "[Httpd fd:%d,uri:%s] Processed in %d ms (%d).", fd_
-      , req_.uri().c_str(), proc_time, res_->code_);
+    uint32_t proc_time = USEC_TO_MSEC(esp_timer_get_time() - start_time_);
+    if (res_->get_body_length())
+    {
+      LOG(CONFIG_HTTP_REQ_FLOW_LOG_LEVEL
+        , "[Httpd fd:%d,uri:%s] Processed in %d ms (%d, %zu bytes).", fd_
+        , req_.uri().c_str(), proc_time, res_->code_, res_->get_body_length());
+    }
+    else
+    {
+      LOG(CONFIG_HTTP_REQ_FLOW_LOG_LEVEL
+        , "[Httpd fd:%d,uri:%s] Processed in %d ms (%d).", fd_
+        , req_.uri().c_str(), proc_time, res_->code_);
+    }
   }
+#endif // CONFIG_HTTP_REQ_FLOW_LOG_LEVEL == VERBOSE
   req_count_++;
   // If the connection setting is not keep-alive, or there was an error during
   // processing, or we have processed more than the configured number of
