@@ -289,7 +289,7 @@ public:
                      , const std::string &mime_type=MIME_TYPE_TEXT_PLAIN);
 
   /// Destructor.
-  virtual ~AbstractHttpResponse();
+  ~AbstractHttpResponse();
 
   /// Encodes the HTTP response headers for transmission to the client.
   ///
@@ -398,13 +398,13 @@ public:
   }
 
   /// @return the pre-formatted body of this response.
-  virtual const uint8_t *get_body() override final
+  const uint8_t *get_body() override
   {
     return (const uint8_t *)(body_.c_str());
   }
 
   /// @return the size of the pre-formatted body of this response.
-  virtual size_t get_body_length() override final
+  size_t get_body_length() override
   {
     return body_.length();
   }
@@ -445,13 +445,13 @@ public:
                , const std::string encoding = HTTP_ENCODING_NONE);
 
   /// @return the pre-formatted body of this response.
-  virtual const uint8_t *get_body() override final
+  const uint8_t *get_body() override
   {
     return payload_;
   }
 
   /// @return the size of the pre-formatted body of this response.
-  virtual size_t get_body_length() override final
+  size_t get_body_length() override
   {
     return length_;
   }
@@ -480,13 +480,13 @@ public:
   StringResponse(const std::string &response, const std::string &mime_type);
 
   /// @return the pre-formatted body of this response.
-  virtual const uint8_t *get_body() override final
+  const uint8_t *get_body() override
   {
     return (uint8_t *)response_.c_str();
   }
 
   /// @return the size of the pre-formatted body of this response.
-  virtual size_t get_body_length() override final
+  size_t get_body_length() override
   {
     return response_.length();
   }
@@ -732,7 +732,7 @@ public:
       , const std::string service_name = "_http._tcp");
   
   /// Destructor.
-  virtual ~Httpd();
+  ~Httpd();
 
   /// Registers a URI with the provided handler.
   ///
@@ -1004,7 +1004,8 @@ public:
   HttpRequestFlow(Httpd *server, int fd, uint32_t remote_ip);
 
   /// Destructor.
-  virtual ~HttpRequestFlow();
+  ~HttpRequestFlow();
+
 private:
   /// @ref StateFlowTimedSelectHelper which assists in reading/writing of the
   /// request data stream.
