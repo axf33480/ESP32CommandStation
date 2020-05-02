@@ -56,6 +56,10 @@
 #include "utils/macros.h"
 #include "utils/logging.h"
 
+#ifndef SOCKET_LISTENER_CONNECT_LOG_LEVEL
+#define SOCKET_LISTENER_CONNECT_LOG_LEVEL INFO
+#endif // SOCKET_LISTENER_CONNECT_LOG_LEVEL
+
 
 static void* accept_thread_start(void* arg) {
   SocketListener* l = static_cast<SocketListener*>(arg);
@@ -168,7 +172,8 @@ void SocketListener::AcceptThreadBody() {
                setsockopt(connfd, IPPROTO_TCP, TCP_NODELAY,
                           &val, sizeof(val)));
 
-    LOG(INFO, "Incoming connection from %s, fd %d.", inet_ntoa(addr.sin_addr),
+    LOG(SOCKET_LISTENER_CONNECT_LOG_LEVEL,
+        "Incoming connection from %s, fd %d.", inet_ntoa(addr.sin_addr),
         connfd);
 
     callback_(connfd);

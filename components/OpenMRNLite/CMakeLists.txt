@@ -78,3 +78,4 @@ set_source_files_properties(src/utils/GridConnectHub.cpp PROPERTIES COMPILE_FLAG
 set_source_files_properties(src/utils/HubDevice.cpp PROPERTIES COMPILE_FLAGS -Wno-ignored-qualifiers)
 set_source_files_properties(src/utils/HubDeviceSelect.cpp PROPERTIES COMPILE_FLAGS -Wno-ignored-qualifiers)
 set_source_files_properties(src/utils/SocketClient.cpp PROPERTIES COMPILE_FLAGS -Wno-ignored-qualifiers)
+set_source_files_properties(src/utils/socket_listener.cpp PROPERTIES COMPILE_FLAGS -DSOCKET_LISTENER_CONNECT_LOG_LEVEL=VERBOSE)
