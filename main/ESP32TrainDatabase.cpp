@@ -296,6 +296,7 @@ void Esp32TrainDatabase::load_idle_trains()
 }
 
 std::shared_ptr<TrainDbEntry> Esp32TrainDatabase::create_if_not_found(unsigned address
+                                                                    , string name
                                                                     , DccMode mode)
 {
   OSMutexLock l(&knownTrainsLock_);
@@ -313,7 +314,7 @@ std::shared_ptr<TrainDbEntry> Esp32TrainDatabase::create_if_not_found(unsigned a
   }
   auto index = knownTrains_.size();
   knownTrains_.emplace_back(
-    new Esp32TrainDbEntry(Esp32PersistentTrainData(address, mode)));
+    new Esp32TrainDbEntry(Esp32PersistentTrainData(address, name, mode)));
   LOG(VERBOSE, "[TrainDB] No entry was found, created new entry:%s."
     , knownTrains_[index]->identifier().c_str());
   return knownTrains_[index];
@@ -322,6 +323,16 @@ std::shared_ptr<TrainDbEntry> Esp32TrainDatabase::create_if_not_found(unsigned a
 void Esp32TrainDatabase::delete_entry(unsigned address)
 {
   OSMutexLock l(&knownTrainsLock_);
+  auto entry = std::find_if(knownTrains_.begin(), knownTrains_.end(),
+    [address](const shared_ptr<Esp32TrainDbEntry> &train)
+    {
+      return train->get_legacy_address() == (uint16_t)address;
+    });
+  if (entry != knownTrains_.end())
+  {
+    knownTrains_.erase(entry);
+    entryDeleted_ = true;
+  }
 }
 
 shared_ptr<TrainDbEntry> Esp32TrainDatabase::get_entry(unsigned train_id)
@@ -386,7 +397,7 @@ unsigned Esp32TrainDatabase::add_dynamic_entry(TrainDbEntry* temp_entry)
   // auto-create feature is not enabled the entry will not be persisted and is
   // not marked dirty.
   knownTrains_.emplace_back(
-    new Esp32TrainDbEntry(Esp32PersistentTrainData(address, mode)
+    new Esp32TrainDbEntry(Esp32PersistentTrainData(address, "unknown", mode)
 #if !CONFIG_ROSTER_AUTO_CREATE_ENTRIES
                         , false
 #endif
@@ -523,7 +534,7 @@ void Esp32TrainDatabase::persist()
     {
       return train->is_dirty() && train->is_persisted();
     });
-  if (ent != knownTrains_.end() || legacyEntriesFound_)
+  if (ent != knownTrains_.end() || legacyEntriesFound_ || entryDeleted_)
   {
     LOG(VERBOSE, "[TrainDB] At least one entry requires persistence.");
     json j;
@@ -547,6 +558,7 @@ void Esp32TrainDatabase::persist()
       Singleton<ConfigurationManager>::instance()->remove(LEGACY_ROSTER_JSON_FILE);
     }
     legacyEntriesFound_ = false;
+    entryDeleted_ = false;
   }
   else
   {

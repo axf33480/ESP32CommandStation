@@ -973,34 +973,27 @@ HTTP_HANDLER_IMPL(process_loco, request)
     }
     else if (request->has_param(JSON_ADDRESS_NODE))
     {
+      uint16_t address = request->param(JSON_ADDRESS_NODE, 0);
       if (request->method() == HttpMethod::DELETE)
       {
-        traindb->delete_entry(request->param(JSON_ADDRESS_NODE, 0));
+        traindb->delete_entry(address);
         request->set_status(HttpStatusCode::STATUS_OK);
       }
       else
       {
-        uint16_t address = request->param(JSON_ADDRESS_NODE, 0);
-        traindb->create_if_not_found(address);
-        if (request->method() == HttpMethod::PUT ||
-            request->method() == HttpMethod::POST)
+        string name = request->param(JSON_NAME_NODE);
+        if (!name.compare(""))
         {
-          if (request->has_param(JSON_NAME_NODE))
-          {
-            string name = request->param(JSON_NAME_NODE);
-            traindb->set_train_name(address, name);
-          }
-          if (request->has_param(JSON_IDLE_ON_STARTUP_NODE))
-          {
-            traindb->set_train_auto_idle(address
-                                       , request->param(JSON_IDLE_ON_STARTUP_NODE
-                                                      , false));
-          }
-          if (request->has_param(JSON_DEFAULT_ON_THROTTLE_NODE))
-          {
-            bool value = request->param(JSON_DEFAULT_ON_THROTTLE_NODE, false);
-            traindb->set_train_show_on_limited_throttle(address, value);
-          }
+          name = "unknown";
+        }
+        traindb->create_if_not_found(address, name);
+        if (request->param(JSON_IDLE_ON_STARTUP_NODE, false))
+        {
+          traindb->set_train_auto_idle(address, true);
+        }
+        if (request->param(JSON_DEFAULT_ON_THROTTLE_NODE, false))
+        {
+          traindb->set_train_show_on_limited_throttle(address, true);
         }
         return new StringResponse(traindb->get_entry_as_json(address)
                                 , MIME_TYPE_APPLICATION_JSON);

@@ -17,10 +17,12 @@ These are must have features/bug fixes for v1.5.0:
 -   [ ] LCC: Rewrite ESP32 Hardware CAN adapter code.
 -   [x] LCC: Add fallback option for Esp32WiFiManager to not reboot the node when SSID connect fails and SoftAP is active.
 -   [ ] Nextion: rewrite from scratch.
--   [-] Convert to use openlcb::Polling model rather than tasks.
-    -   [x] S88 migrated
-    -   [ ] Sensors migrated
+-   [x] Roster: Implement delete loco.
+-   [ ] Roster: Implement auto-idle loco.
+-   [-] S88: Convert to use openlcb::Polling model rather than tasks.
+-   [-] Sensors: Convert to use openlcb::Polling model rather than tasks.
 -   [x] Web: Entering loco name as "loco #3" results in "loco 33" being registered.
+-   [ ] Web: Delete of roster entry doesn't force refresh of section.
 -   [ ] Web: Test all endpoints to ensure proper functionality after httpd rework.
 
 ### Completed for v1.5.0

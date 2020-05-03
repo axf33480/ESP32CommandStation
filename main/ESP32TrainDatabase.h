@@ -47,10 +47,11 @@ namespace esp32cs
     Esp32PersistentTrainData()
     {
     }
-    Esp32PersistentTrainData(uint16_t address, DccMode mode=DccMode::DCC_128)
+    Esp32PersistentTrainData(uint16_t address, std::string name="unknown"
+                           , DccMode mode=DccMode::DCC_128)
     {
       this->address = address;
-      this->name = "unknown";
+      this->name = name;
       this->mode = mode;
       this->automatic_idle = false;
       this->show_on_limited_throttles = false;
@@ -222,7 +223,8 @@ namespace esp32cs
     }
 
     std::shared_ptr<commandstation::TrainDbEntry> create_if_not_found(
-      unsigned address, DccMode mode=DccMode::DCC_128);
+      unsigned address, std::string name="unknown"
+    , DccMode mode=DccMode::DCC_128);
 
     void delete_entry(unsigned address);
 
@@ -259,6 +261,7 @@ namespace esp32cs
   private:
     openlcb::SimpleStackBase *stack_;
     bool legacyEntriesFound_{false};
+    bool entryDeleted_{false};
     OSMutex knownTrainsLock_;
     std::vector<shared_ptr<Esp32TrainDbEntry>> knownTrains_;
     std::unique_ptr<openlcb::MemorySpace> trainCdiFile_;
