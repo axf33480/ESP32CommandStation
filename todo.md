@@ -20,7 +20,7 @@ These are must have features/bug fixes for v1.5.0:
 -   [-] Convert to use openlcb::Polling model rather than tasks.
     -   [x] S88 migrated
     -   [ ] Sensors migrated
--   [ ] Web: Entering loco name as "loco #3" results in "loco 33" being registered.
+-   [x] Web: Entering loco name as "loco #3" results in "loco 33" being registered.
 -   [ ] Web: Test all endpoints to ensure proper functionality after httpd rework.
 
 ### Completed for v1.5.0

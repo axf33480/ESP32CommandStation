@@ -130,6 +130,45 @@ static inline string string_join(const vector<string>::iterator first
   return string_join(vec, delimeter);
 }
 
+/// Helper which decodes urlencoded strings as described in RFC-1738 sec. 2.2.
+///
+/// @param source is the string to be decoded.
+/// @return the decoded string.
+///
+/// NOTE: only two portions of RFC-1738 section 2.2 are currently implemented:
+/// 1. '+' replaced by ' ' (space).
+/// 2. '%HH' replaced by the hex decoded character HH.
+static inline string url_decode(const string source)
+{
+  string decoded = source;
+
+  // replace + with space
+  std::replace(decoded.begin(), decoded.end(), '+', ' ');
+
+  // search and replace %{hex}{hex} with hex decoded character
+  while (decoded.find("%") != string::npos)
+  {
+    // find the % character
+    auto pos = decoded.find("%");
+    if (pos + 2 < decoded.size())
+    {
+      // decode the character
+      auto sub = decoded.substr(pos + 1, 2);
+      char ch = std::stoi(sub, nullptr, 16);
+      // insert the replacement
+      decoded.insert(pos, 1, ch);
+      // remove the decoded piece
+      decoded.erase(pos + 1, 3);
+    }
+    else
+    {
+      // the % is not followed by at least two characters.
+      break;
+    }
+  }
+  return decoded;
+}
+
 } // namespace http
 
 #endif // STRINGUTILS_H_

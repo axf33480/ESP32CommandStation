@@ -236,8 +236,17 @@ StateFlowBase::Action HttpRequestFlow::parse_header_data()
     }
     else
     {
-      // it appears to be a header entry, break it and store it in the request
-      req_.header(break_string(line, ": "));
+      // it appears to be a header entry
+
+      // split header into name/value pair
+      auto h = break_string(line, ": ");
+
+      // URL decode the header name and value
+      h.first = url_decode(h.first);
+      h.second = url_decode(h.second);
+
+      // stash the header for later retrieval
+      req_.header(h);
     }
   }
 
@@ -793,28 +802,12 @@ StateFlowBase::Action HttpRequestFlow::parse_form_data()
   {
     auto p = break_string(param, "=");
 
+    // URL decode the parameter name and value
+    p.first = url_decode(p.first);
+    p.second = url_decode(p.second);
+
     LOG(CONFIG_HTTP_REQ_FLOW_LOG_LEVEL
       , "param: %s, value: %s", p.first.c_str(), p.second.c_str());
-
-    // replace + with space
-    std::replace(p.second.begin(), p.second.end(), '+', ' ');
-
-    // replace %XX with char XX
-    while (p.second.find("%") != string::npos)
-    {
-      auto pos = p.second.find("%");
-      if (pos < p.second.length() - 3)
-      {
-        // decode the character
-        char ch = std::stoi(p.second.substr(pos + 1, pos + 3), nullptr, 16);
-        p.second.erase(pos, 3);
-        p.second.insert(pos, 1, ch);
-      }
-      else
-      {
-        break;
-      }
-    }
     // add the parameter to the request
     req_.param(p);
   }
