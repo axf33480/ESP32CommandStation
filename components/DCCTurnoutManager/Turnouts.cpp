@@ -23,6 +23,10 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 
 #include <json.hpp>
 
+#ifdef CONFIG_TURNOUT_LOGGING_VERBOSE
+#include <dcc/DccDebug.hxx>
+#endif
+
 using nlohmann::json;
 
 std::unique_ptr<TurnoutManager> turnoutManager;
@@ -449,6 +453,10 @@ string Turnout::get_state_for_dccpp()
 void Turnout::get_next_packet(unsigned code, dcc::Packet* packet)
 {
   packet->add_dcc_basic_accessory(_address, _thrown);
+
+#ifdef CONFIG_TURNOUT_LOGGING_VERBOSE
+  LOG(INFO, "[Turnout %d] Packet: %s", _turnoutID, packet_to_string(*packet).c_str());
+#endif
 
   // remove ourselves as turnouts are single fire sources
   packet_processor_remove_refresh_source(this);
