@@ -40,27 +40,15 @@ uint16_t decodeDCCAccessoryAddress(uint16_t boardAddress, int8_t boardIndex);
 class Turnout : public dcc::NonTrainPacketSource
 {
 public:
-  Turnout(uint16_t, uint16_t, int8_t, bool=false, TurnoutType=TurnoutType::LEFT);
+  Turnout(uint16_t, bool=false, TurnoutType=TurnoutType::LEFT);
   virtual ~Turnout() {}
-  void update(uint16_t, int8_t, TurnoutType);
+  void update(uint16_t, TurnoutType);
   void set(bool=false, bool=true);
   std::string toJson(bool=false);
-  std::string get_state_for_dccpp();
-  uint16_t getID()
-  {
-    return _turnoutID;
-  }
+  std::string get_state_for_dccpp(bool include_board_index=false);
   uint16_t getAddress()
   {
     return _address;
-  }
-  uint16_t getBoardAddress()
-  {
-    return _boardAddress;
-  }
-  uint8_t getIndex()
-  {
-    return _index;
   }
   bool isThrown()
   {
@@ -80,10 +68,7 @@ public:
   }
   void get_next_packet(unsigned code, dcc::Packet* packet) override;
 private:
-  uint16_t _turnoutID;
   uint16_t _address;
-  int8_t _index;
-  uint16_t _boardAddress;
   bool _thrown;
   TurnoutType _type;
 };
@@ -98,19 +83,15 @@ public:
     persistFlow_.stop();
   }
   void clear();
-  std::string setByID(uint16_t, bool=false, bool=true);
-  std::string setByAddress(uint16_t, bool=false, bool=true);
-  std::string toggleByID(uint16_t);
-  std::string toggleByAddress(uint16_t);
+  std::string set(uint16_t, bool=false, bool=true);
+  std::string toggle(uint16_t);
   std::string getStateAsJson(bool=true);
   std::string get_state_for_dccpp();
-  Turnout *createOrUpdate(const uint16_t, const uint16_t, const int8_t, const TurnoutType=TurnoutType::LEFT);
-  bool removeByID(const uint16_t);
-  bool removeByAddress(const uint16_t);
-  Turnout *getTurnoutByIndex(const uint16_t);
-  Turnout *getTurnoutByID(const uint16_t);
-  Turnout *getTurnoutByAddress(const uint16_t);
-  uint16_t getTurnoutCount();
+  Turnout *createOrUpdate(const uint16_t, const TurnoutType=TurnoutType::LEFT);
+  bool remove(const uint16_t);
+  Turnout *getByIndex(const uint16_t);
+  Turnout *get(const uint16_t);
+  uint16_t count();
   void send(Buffer<dcc::Packet> *, unsigned);
 private:
   std::string get_state_as_json(bool);

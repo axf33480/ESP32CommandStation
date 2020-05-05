@@ -14,13 +14,14 @@ These are must have features/bug fixes for v1.5.0:
 -   [ ] LCC: TrainSearch protocol.
     -   [x] Basic integration is functional (loco request works for dynamic locos)
     -   [ ] Persisted locos that are not active can not be requested from UWT-100.
--   [ ] LCC: Rewrite ESP32 Hardware CAN adapter code.
 -   [x] LCC: Add fallback option for Esp32WiFiManager to not reboot the node when SSID connect fails and SoftAP is active.
+-   [ ] Misc: Scrub code for TODO comments or unimplemented methods.
 -   [ ] Nextion: rewrite from scratch.
 -   [x] Roster: Implement delete loco.
 -   [ ] Roster: Implement auto-idle loco.
--   [-] S88: Convert to use openlcb::Polling model rather than tasks.
--   [-] Sensors: Convert to use openlcb::Polling model rather than tasks.
+-   [x] S88: Convert to use openlcb::Polling model rather than tasks.
+-   [ ] Sensors: Convert to use openlcb::Polling model rather than tasks.
+-   [x] Turnouts: Switch fully to DCC address only support, for DCC++ compatibility decode the data and convert.
 -   [x] Web: Entering loco name as "loco #3" results in "loco 33" being registered.
 -   [ ] Web: Delete of roster entry doesn't force refresh of section.
 -   [ ] Web: Test all endpoints to ensure proper functionality after httpd rework.
@@ -50,7 +51,7 @@ These tasks have been completed and integrated for v1.5.0:
 -   [x] LCC: Traction Protocol integration.
 -   [x] Misc: Remove usage of log_X macros in favor of LOG, some places use ets_printf().
 -   [x] Nextion: Lock to title screen until WiFi connects.
--   [x] Nextion: Dwitch to timer based speed increment/decrement on the nextion mcu side.
+-   [x] Nextion: Switch to timer based speed increment/decrement on the nextion mcu side.
 -   [x] Status: Move InfoScreen to StateFlow interface.
 -   [x] Status: Status LED output for WiFi, OPS and PROG, EXT_1 and EXT_2. EXT_1 and EXT_2 unused currently.
 -   [x] S88: Add delay in s88SensorTask so that it gives time for other tasks to execute between updates.

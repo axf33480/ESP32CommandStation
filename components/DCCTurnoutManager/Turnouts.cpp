@@ -54,9 +54,7 @@ TurnoutManager::TurnoutManager(openlcb::Node *node, Service *service)
   for (auto turnout : root)
   {
     turnouts_.push_back(
-      std::make_unique<Turnout>(turnout[JSON_ID_NODE].get<int>()
-                              , turnout[JSON_ADDRESS_NODE].get<int>()
-                              , turnout[JSON_SUB_ADDRESS_NODE].get<int>()
+      std::make_unique<Turnout>(turnout[JSON_ADDRESS_NODE].get<int>()
                               , turnout[JSON_STATE_NODE].get<int>()
                               , (TurnoutType)turnout[JSON_TYPE_NODE].get<int>()));
   }
@@ -74,22 +72,7 @@ void TurnoutManager::clear()
   dirty_ = true;
 }
 
-string TurnoutManager::setByID(uint16_t id, bool thrown, bool sendDCC)
-{
-  OSMutexLock h(&mux_);
-  for (auto & turnout : turnouts_)
-  {
-    if (turnout->getID() == id)
-    {
-      turnout->set(thrown, sendDCC);
-      return turnout->get_state_for_dccpp();
-    }
-  }
-  return COMMAND_FAILED_RESPONSE;
-}
-
-string TurnoutManager::setByAddress(uint16_t address, bool thrown
-                                  , bool sendDCC)
+string TurnoutManager::set(uint16_t address, bool thrown, bool sendDCC)
 {
   OSMutexLock h(&mux_);
   for (auto & turnout : turnouts_)
@@ -102,27 +85,12 @@ string TurnoutManager::setByAddress(uint16_t address, bool thrown
   }
 
   // we didn't find it, create it and set it
-  turnouts_.push_back(std::make_unique<Turnout>(turnouts_.size() + 1, address
-                                              , -1));
+  turnouts_.push_back(std::make_unique<Turnout>(turnouts_.size() + 1, address));
   dirty_ = true;
-  return setByAddress(address, thrown, sendDCC);
+  return set(address, thrown, sendDCC);
 }
 
-string TurnoutManager::toggleByID(uint16_t id)
-{
-  OSMutexLock h(&mux_);
-  for (auto & turnout : turnouts_)
-  {
-    if (turnout->getID() == id)
-    {
-      turnout->toggle();
-      return turnout->get_state_for_dccpp();
-    }
-  }
-  return COMMAND_FAILED_RESPONSE;
-}
-
-string TurnoutManager::toggleByAddress(uint16_t address)
+string TurnoutManager::toggle(uint16_t address)
 {
   OSMutexLock h(&mux_);
   auto const &elem = std::find_if(turnouts_.begin(), turnouts_.end(),
@@ -138,10 +106,9 @@ string TurnoutManager::toggleByAddress(uint16_t address)
   }
 
   // we didn't find it, create it and throw it
-  turnouts_.push_back(std::make_unique<Turnout>(turnouts_.size() + 1, address
-                                              , -1));
+  turnouts_.push_back(std::make_unique<Turnout>(address, -1));
   dirty_ = true;
-  return toggleByAddress(address);
+  return toggle(address);
 }
 
 string TurnoutManager::getStateAsJson(bool readable)
@@ -160,55 +127,33 @@ string TurnoutManager::get_state_for_dccpp()
   string status;
   for (auto& turnout : turnouts_)
   {
-    status += turnout->get_state_for_dccpp();
+    status += turnout->get_state_for_dccpp(true);
   }
   return status;
 }
 
-Turnout *TurnoutManager::createOrUpdate(const uint16_t id
-                                      , const uint16_t address
-                                      , const int8_t index
+Turnout *TurnoutManager::createOrUpdate(const uint16_t address
                                       , const TurnoutType type)
 {
   OSMutexLock h(&mux_);
   auto const &elem = std::find_if(turnouts_.begin(), turnouts_.end(),
-    [id](std::unique_ptr<Turnout> & turnout) -> bool
+    [address](std::unique_ptr<Turnout> & turnout) -> bool
     {
-      return (turnout->getID() == id);
+      return (turnout->getAddress() == address);
     }
   );
   if (elem != turnouts_.end())
   {
-    elem->get()->update(address, index, type);
+    elem->get()->update(address, type);
     return elem->get();
   }
   // we didn't find it, create it!
-  turnouts_.push_back(std::make_unique<Turnout>(id, address, index, false
-                                              , type));
+  turnouts_.push_back(std::make_unique<Turnout>(address, false, type));
   dirty_ = true;
   return turnouts_.back().get();
 }
 
-bool TurnoutManager::removeByID(const uint16_t id)
-{
-  OSMutexLock h(&mux_);
-  auto const &elem = std::find_if(turnouts_.begin(), turnouts_.end(),
-    [id](std::unique_ptr<Turnout> & turnout) -> bool
-    {
-      return (turnout->getID() == id);
-    }
-  );
-  if (elem != turnouts_.end())
-  {
-    LOG(CONFIG_TURNOUT_LOG_LEVEL, "[Turnout %d] Deleted", elem->get()->getID());
-    turnouts_.erase(elem);
-    dirty_ = true;
-    return true;
-  }
-  return false;
-}
-
-bool TurnoutManager::removeByAddress(const uint16_t address)
+bool TurnoutManager::remove(const uint16_t address)
 {
   OSMutexLock h(&mux_);
   auto const &elem = std::find_if(turnouts_.begin(), turnouts_.end(),
@@ -220,8 +165,7 @@ bool TurnoutManager::removeByAddress(const uint16_t address)
   if (elem != turnouts_.end())
   {
     LOG(CONFIG_TURNOUT_LOG_LEVEL
-      , "[Turnout %d] Deleted as it used address %d", elem->get()->getID()
-      , address);
+      , "[Turnout %d] Deleted", address);
     turnouts_.erase(elem);
     dirty_ = true;
     return true;
@@ -229,7 +173,7 @@ bool TurnoutManager::removeByAddress(const uint16_t address)
   return false;
 }
 
-Turnout *TurnoutManager::getTurnoutByIndex(const uint16_t index)
+Turnout *TurnoutManager::getByIndex(const uint16_t index)
 {
   OSMutexLock h(&mux_);
   if (index < turnouts_.size())
@@ -239,22 +183,7 @@ Turnout *TurnoutManager::getTurnoutByIndex(const uint16_t index)
   return nullptr;
 }
 
-Turnout *TurnoutManager::getTurnoutByID(const uint16_t id)
-{
-  OSMutexLock h(&mux_);
-  auto const &elem = std::find_if(turnouts_.begin(), turnouts_.end(),
-    [id](std::unique_ptr<Turnout> & turnout) -> bool
-    {
-      return (turnout->getID() == id);
-    }
-  );
-  if (elem != turnouts_.end()) {
-    return elem->get();
-  }
-  return nullptr;
-}
-
-Turnout *TurnoutManager::getTurnoutByAddress(const uint16_t address)
+Turnout *TurnoutManager::get(const uint16_t address)
 {
   OSMutexLock h(&mux_);
   auto const &elem = std::find_if(turnouts_.begin(), turnouts_.end(),
@@ -270,7 +199,7 @@ Turnout *TurnoutManager::getTurnoutByAddress(const uint16_t address)
   return nullptr;
 }
 
-uint16_t TurnoutManager::getTurnoutCount()
+uint16_t TurnoutManager::count()
 {
   OSMutexLock h(&mux_);
   return turnouts_.size();
@@ -296,7 +225,7 @@ void TurnoutManager::send(Buffer<dcc::Packet> *b, unsigned prio)
     uint8_t boardIndex = ((onesComplementByteTwo >> 1) % 4);
     bool state = onesComplementByteTwo & 0x01;
     // Set the turnout to the requested state, don't send a DCC packet.
-    setByAddress(decodeDCCAccessoryAddress(boardAddress, boardIndex), state);
+    set(decodeDCCAccessoryAddress(boardAddress, boardIndex), state);
   }
   b->unref();
 }
@@ -320,9 +249,7 @@ string TurnoutManager::get_state_as_json(bool readableStrings)
 
 void TurnoutManager::persist()
 {
-  // Note we only check if the dirty flag has been set, it does not need to be
-  // reset in this method as it will automatically be cleared as part of
-  // getStateAsJson execution. By checking this here though we can avoid the
+  // Check if we have any changes to persist, if not exit early to reduce
   // unnecessary wear on the flash when running on SPIFFS.
   OSMutexLock h(&mux_);
   if (!dirty_)
@@ -345,79 +272,26 @@ uint16_t decodeDCCAccessoryAddress(uint16_t boardAddress, int8_t boardIndex)
   return (boardAddress * 4 + boardIndex) - 3;
 }
 
-Turnout::Turnout(uint16_t turnoutID
-               , uint16_t address
-               , int8_t index
-               , bool thrown
-               , TurnoutType type) :
-                 _turnoutID(turnoutID)
-               , _address(address)
-               , _index(index)
-               , _boardAddress(0)
-               , _thrown(thrown)
-               , _type(type)
+Turnout::Turnout(uint16_t address, bool thrown, TurnoutType type)
+               : _address(address), _thrown(thrown), _type(type)
 {
-  if (index == -1)
-  {
-    // convert the provided decoder address to a board address and accessory index
-    encodeDCCAccessoryAddress(&_boardAddress, &_index, _address);
-    LOG(INFO
-      , "[Turnout %d] Using DCC address %d as type %s and initial state of %s"
-      , _turnoutID
-      , _address
-      , TURNOUT_TYPE_STRINGS[_type]
-      , _thrown ? JSON_VALUE_THROWN : JSON_VALUE_CLOSED);
-  }
-  else
-  {
-    LOG(INFO
-      , "[Turnout %d] Using address %d:%d as type %s and initial state of %s"
-      , _turnoutID
-      , _address
-      , _index
-      , TURNOUT_TYPE_STRINGS[_type]
-      , _thrown ? JSON_VALUE_THROWN : JSON_VALUE_CLOSED);
-  }
+  LOG(INFO, "[Turnout %d] Registered as type %s and initial state of %s"
+    , _address, TURNOUT_TYPE_STRINGS[_type]
+    , _thrown ? JSON_VALUE_THROWN : JSON_VALUE_CLOSED);
 }
 
-void Turnout::update(uint16_t address, int8_t index, TurnoutType type)
+void Turnout::update(uint16_t address, TurnoutType type)
 {
   _address = address;
-  _index = index;
   _type = type;
-  if (index == -1)
-  {
-    // convert the provided decoder address to a board address and accessory
-    // index
-    encodeDCCAccessoryAddress(&_boardAddress, &_index, _address);
-    LOG(CONFIG_TURNOUT_LOG_LEVEL
-      , "[Turnout %d] Updated to use DCC address %d and type %s"
-      , _turnoutID
-      , _address
-      , TURNOUT_TYPE_STRINGS[_type]);
-  }
-#if CONFIG_TURNOUT_LOG_LEVEL == VERBOSE
-  else
-  {
-    LOG(CONFIG_TURNOUT_LOG_LEVEL
-      , "[Turnout %d] Updated to address %d:%d and type %s"
-      , _turnoutID
-      , _address
-      , _index
-      , TURNOUT_TYPE_STRINGS[_type]);
-  }
-#endif // CONFIG_TURNOUT_LOG_LEVEL == VERBOSE
+  LOG(CONFIG_TURNOUT_LOG_LEVEL, "[Turnout %d] Updated type %s", _address
+    , TURNOUT_TYPE_STRINGS[_type]);
 }
 
 string Turnout::toJson(bool readableStrings)
 {
-  string serialized = StringPrintf(
-    "{\"%s\":%d,\"%s\":%d,\"%s\":%d,\"%s\":%d,\"%s\":%d,\"%s\":"
-  , JSON_ID_NODE, _turnoutID, JSON_ADDRESS_NODE, _address
-  , JSON_BOARD_ADDRESS_NODE, _boardAddress
-  , JSON_SUB_ADDRESS_NODE, _boardAddress ? _index : -1
-  , JSON_TYPE_NODE, _type
-  , JSON_STATE_NODE);
+  string serialized = StringPrintf("{\"%s\":%d,\"%s\":%d,\"%s\":"
+  , JSON_ADDRESS_NODE, _address, JSON_TYPE_NODE, _type, JSON_STATE_NODE);
   if (readableStrings)
   {
     serialized += StringPrintf("\"%s\"", _thrown ? JSON_VALUE_THROWN
@@ -438,16 +312,20 @@ void Turnout::set(bool thrown, bool sendDCCPacket)
   {
     packet_processor_add_refresh_source(this);
   }
-  LOG(CONFIG_TURNOUT_LOG_LEVEL
-    , "[Turnout %d] Set to %s"
-    , _turnoutID
+  LOG(CONFIG_TURNOUT_LOG_LEVEL, "[Turnout %d] Set to %s", _address
     , _thrown ? JSON_VALUE_THROWN : JSON_VALUE_CLOSED);
 }
 
-string Turnout::get_state_for_dccpp()
+string Turnout::get_state_for_dccpp(bool include_board_index)
 {
-  return StringPrintf("<H %d %d %d %d>", _turnoutID, _address, _index
-                    , _thrown);
+  if (include_board_index)
+  {
+    int8_t index;
+    uint16_t board;
+    encodeDCCAccessoryAddress(&board, &index, _address);
+    return StringPrintf("<H %d %d %d %d>", _address, board, index, _thrown);
+  }
+  return StringPrintf("<H %d %d>", _address, _thrown);
 }
 
 void Turnout::get_next_packet(unsigned code, dcc::Packet* packet)
@@ -455,7 +333,8 @@ void Turnout::get_next_packet(unsigned code, dcc::Packet* packet)
   packet->add_dcc_basic_accessory(_address, _thrown);
 
 #ifdef CONFIG_TURNOUT_LOGGING_VERBOSE
-  LOG(INFO, "[Turnout %d] Packet: %s", _turnoutID, packet_to_string(*packet).c_str());
+  LOG(INFO, "[Turnout %d] Packet: %s", _address
+    , packet_to_string(*packet).c_str());
 #endif
 
   // remove ourselves as turnouts are single fire sources

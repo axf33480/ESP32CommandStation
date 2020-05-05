@@ -144,7 +144,6 @@
        <table id="cs-table-turnouts" data-role="table" class="ui-body-d ui-shadow table-stripe ui-responsive">
         <thead>
          <tr>
-          <th>ID</th>
           <th>Address</th>
           <th>Type</th>
           <th>State</th>
@@ -482,20 +481,8 @@
    <div data-role="header">Turnout Editor</div>
    <div data-role="main" class="ui-content">
     <div class="ui-field-contain">
-     <label for="cs-turnout-id">Turnout ID:</label>
-     <input type="number" pattern="[0-9]*" id="cs-turnout-id" value="1" min="1" max="32767">
-    </div>
-    <div class="ui-field-contain">
-     <label for="cs-turnout-address-mode">Address Mode:</label>
-     <select id="cs-turnout-address-mode"><option value="dcc">DCC Address Only</option><option value="address-index">Board Address and Index</option></select>
-    </div>
-    <div class="ui-field-contain">
      <label for="cs-turnout-address">Address:</label>
      <input type="number" pattern="[0-9]*" id="cs-turnout-address" value="1" min="1" max="2044">
-    </div>
-    <div class="ui-field-contain" id="cs-turnout-editor-index">
-     <label for="cs-turnout-index">Index:</label>
-     <select id="cs-turnout-index"><option>0</option><option>1</option><option>2</option><option>3</option></select>
     </div>
     <div class="ui-field-contain">
      <label for="cs-turnout-type">Type:</label>
@@ -903,41 +890,18 @@ function setupBaseStation() {
 function setupBSStatus() {
 }
 function setupBSTurnout() {
- $('#cs-turnout-address-mode').on('change', function(event, ui) {
-  if($('#cs-turnout-address-mode').val() === 'dcc') {
-   $('#cs-turnout-editor-index').hide();
-  } else {
-   $('#cs-turnout-editor-index').show();
-  }
- });
  // default to dcc addressing only.
- $('#cs-turnout-address-mode').change();
  $('#cs-turnout-dialog-save').on('vclick', function(event, ui) {
-  if($('#cs-turnout-address-mode').val() === 'dcc') {
-   console.log('Creating/Updating turnout', $('#cs-turnout-id').val(), 'using address', $('#cs-turnout-address').val(), 'and type', $('#cs-turnout-type').val());
-   $.post('/turnouts', {
-    'id': $('#cs-turnout-id').val(),
-    'address' : $('#cs-turnout-address').val(),
-    'subAddress' : -1,
-    'type' : $('#cs-turnout-type').val()
-   });
-  } else {
-   console.log('Creating/Updating turnout', $('#cs-turnout-id').val(), 'using address', $('#cs-turnout-address').val(), 'and index', $('#cs-turnout-index').val(), 'with type', $('#cs-turnout-type').val());
-   $.post('/turnouts', {
-    'id': $('#cs-turnout-id').val(),
-    'address' : $('#cs-turnout-address').val(),
-    'subAddress' : $('#cs-turnout-index').val(),
-    'type' : $('#cs-turnout-type').val()
-   });
-  }
+  console.log('Creating/Updating turnout using address', $('#cs-turnout-address').val(), 'and type', $('#cs-turnout-type').val());
+  $.post('/turnouts', {
+   'address' : $('#cs-turnout-address').val(),
+   'type' : $('#cs-turnout-type').val()
+  });
   BSTabRefresh('Turnouts');
  });
  $('#cs-turnout-create').on('vclick', function(event, ui) {
-  $('#cs-turnout-id').val($('#cs-table-turnouts tbody tr').length + 1);
   $('#cs-turnout-address').val(1);
-  $('#cs-turnout-index').val(-1);
   $('#cs-turnout-type').val(0).change();
-  $('#cs-turnout-address-mode').val('dcc').change();
   $('#cs-turnout-editor').popup('open', {positionTo:'window'});
  });
  $('#cs-turnout-refresh').on('vclick', function(event, ui) {
@@ -1336,25 +1300,18 @@ function BSTabRefresh(section) {
   });
  } else if(section === 'Turnouts') {
   refreshTable({table: '#cs-table-turnouts', url: '/turnouts',
-   fields: ['id',
-    function(record) { // convert address
-     if(record.subAddress == -1) {
-      return record.address;
-     } else {
-      return String.format("address:{0},index:{1}", record.address, record.subAddress);
-     }
-    },
+   fields: ['address',
     function(record) { // convert type
      var typeStrings = ["Left", "Right", "Wye", "Multi"];
      return typeStrings[record.type];
     }, 'state', function(record) {
     var buttons = '';
-    buttons += createButton({type:'delete', id:String.format("turnout-{0}-delete", record.id)});
-    buttons += createButton({type:'edit', id:String.format("turnout-{0}-edit", record.id)});
+    buttons += createButton({type:'delete', id:String.format("turnout-{0}-delete", record.address)});
+    buttons += createButton({type:'edit', id:String.format("turnout-{0}-edit", record.address)});
     if(record.state === 'Closed') {
-     buttons += createButton({type:'action', id:String.format("turnout-{0}-throw", record.id), title:'Throw'});
+     buttons += createButton({type:'action', id:String.format("turnout-{0}-throw", record.address), title:'Throw'});
     } else {
-     buttons += createButton({type:'action', id:String.format("turnout-{0}-close", record.id), title:'Close'});
+     buttons += createButton({type:'action', id:String.format("turnout-{0}-close", record.address), title:'Close'});
     }
     return buttons;
    }],
@@ -1363,21 +1320,13 @@ function BSTabRefresh(section) {
     $('#cs-table-turnouts tr td [id^=turnout-]').on('vclick', function(event, ui) {
      var idParts = $(this).attr('id').split('-');
      if(idParts[2] === 'delete') {
-      $.ajax({method: 'DELETE',url: String.format('/turnouts?id={0}', idParts[1]),success: function() {BSTabRefresh('Turnouts');}});
+      $.ajax({method: 'DELETE',url: String.format('/turnouts?address={0}', idParts[1]),success: function() {BSTabRefresh('Turnouts');}});
      } else if(idParts[2] === 'edit') {
-      $.ajax({url: String.format('/turnouts?id={0}', idParts[1]),
+      $.ajax({url: String.format('/turnouts?address={0}', idParts[1]),
        success:function(data, status, jqxhr) {
         console.log('Edit turnout', data);
-        $('#cs-turnout-id').val(data.id);
         $('#cs-turnout-address').val(data.address);
-        $('#cs-turnout-index').val(data.subAddress);
         $('#cs-turnout-type').val(data.type).change();
-        if(data.subAddress != -1) {
-         $('#cs-turnout-address-mode').val('address-index').change();
-        } else {
-         // default to dcc addressing only.
-         $('#cs-turnout-address-mode').val('dcc').change();
-        }
         $('#cs-turnout-editor').popup('open', {positionTo:'window'});
        },
        error:function(req, status) {showErrorDialog(String.format('Unable to edit turnout {0}', idParts[1]), status);}

@@ -452,9 +452,9 @@ DCC_PROTOCOL_COMMAND_HANDLER(TurnoutCommandAdapter,
   }
   else
   {
-    uint16_t turnoutID = std::stoi(arguments[0]);
+    uint16_t address = std::stoi(arguments[0]);
     if (arguments.size() == 1 &&
-        Singleton<TurnoutManager>::instance()->removeByID(turnoutID))
+        Singleton<TurnoutManager>::instance()->remove(address))
     {
       // delete turnout
       return COMMAND_SUCCESSFUL_RESPONSE;
@@ -462,13 +462,12 @@ DCC_PROTOCOL_COMMAND_HANDLER(TurnoutCommandAdapter,
     else if (arguments.size() == 2)
     {
       // throw turnout
-      return Singleton<TurnoutManager>::instance()->setByID(turnoutID, arguments[1][0] == '1');
+      return Singleton<TurnoutManager>::instance()->set(address, arguments[1][0] == '1');
     }
     else if (arguments.size() == 3)
     {
       // create/update turnout
-      Singleton<TurnoutManager>::instance()->createOrUpdate(turnoutID, std::stoi(arguments[1])
-                                   , std::stoi(arguments[2]));
+      Singleton<TurnoutManager>::instance()->createOrUpdate(address);
       return COMMAND_SUCCESSFUL_RESPONSE;
     }
   }
@@ -476,14 +475,11 @@ DCC_PROTOCOL_COMMAND_HANDLER(TurnoutCommandAdapter,
 })
 
 /*
-  <Tex ID>:              Toggle turnout by ID.
-  <Tex ID ADDRESS TYPE>: Creates a Turnout by DCC address
-  <Tex ADDRESS TYPE>:    Create a Turnout by DCC address with automatic
-                         assignment of ID
+  <Tex ADDRESS>:         Toggle turnout.
+  <Tex ADDRESS TYPE>:    Create/Update a Turnout
   all will return : <O> if successful and <X> if unsuccessful.
 
 where
-  ID:         the numeric ID (0-32767) of the turnout to control
   ADDRESS:    the DCC decoder address for the turnout
   TYPE:       turnout type:
               0 : LEFT
@@ -497,37 +493,15 @@ DCC_PROTOCOL_COMMAND_HANDLER(TurnoutExCommandAdapter,
 {
   if (!arguments.empty())
   {
-    if (std::stoi(arguments[0]) >= 0)
+    uint16_t address = std::stoi(arguments[0]);
+    if (arguments.size() == 1)
     {
-      if (arguments.size() == 1)
-      {
-        return Singleton<TurnoutManager>::instance()->toggleByID(std::stoi(arguments[0]));
-      }
-      else if (arguments.size() == 3 &&
-               Singleton<TurnoutManager>::instance()->createOrUpdate(std::stoi(arguments[0])
-                                            , std::stoi(arguments[1])
-                                            , -1
-                                            , (TurnoutType)std::stoi(arguments[2])))
-      {
-        return COMMAND_SUCCESSFUL_RESPONSE;
-      }
+      return Singleton<TurnoutManager>::instance()->toggle(address);
     }
-    else
+    TurnoutType type = (TurnoutType)std::stoi(arguments[1]);
+    if (Singleton<TurnoutManager>::instance()->createOrUpdate(address, type))
     {
-      auto turnout = Singleton<TurnoutManager>::instance()->getTurnoutByAddress(std::stoi(arguments[1]));
-      if (turnout)
-      {
-        turnout->setType((TurnoutType)std::stoi(arguments[2]));
-        return COMMAND_SUCCESSFUL_RESPONSE;
-      }
-      else if (Singleton<TurnoutManager>::instance()->createOrUpdate(
-                Singleton<TurnoutManager>::instance()->getTurnoutCount() + 1
-                                            , std::stoi(arguments[1])
-                                            , -1
-                                            , (TurnoutType)std::stoi(arguments[2])))
-      {
-        return COMMAND_SUCCESSFUL_RESPONSE;
-      }
+      return COMMAND_SUCCESSFUL_RESPONSE;
     }
   }
   return COMMAND_FAILED_RESPONSE;
@@ -549,7 +523,7 @@ DECLARE_DCC_PROTOCOL_COMMAND_CLASS(AccessoryCommand, "a")
 DCC_PROTOCOL_COMMAND_HANDLER(AccessoryCommand,
 [](const vector<string> arguments)
 {
-  return Singleton<TurnoutManager>::instance()->setByAddress(
+  return Singleton<TurnoutManager>::instance()->set(
       decodeDCCAccessoryAddress(std::stoi(arguments[0])
                               , std::stoi(arguments[1]))
     , std::stoi(arguments[2])
@@ -580,7 +554,7 @@ DCC_PROTOCOL_COMMAND_HANDLER(ConfigStore,
 [](const vector<string> arguments)
 {
   return StringPrintf("<e %d %d %d>"
-                    , Singleton<TurnoutManager>::instance()->getTurnoutCount()
+                    , Singleton<TurnoutManager>::instance()->count()
 #if CONFIG_GPIO_SENSORS
                     , SensorManager::store()
 #if CONFIG_GPIO_S88

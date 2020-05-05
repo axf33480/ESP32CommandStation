@@ -803,71 +803,42 @@ HTTP_HANDLER_IMPL(process_prog, request)
 // GET /turnouts - full list of turnouts, note that turnout state is STRING type for display
 // GET /turnouts?readbleStrings=[0,1] - full list of turnouts, turnout state will be returned as true/false (boolean) when readableStrings=0.
 // GET /turnouts?address=<address> - retrieve turnout by DCC address
-// GET /turnouts?id=<id> - retrieve turnout by ID
 // PUT /turnouts?address=<address> - toggle turnout by DCC address
-// PUT /turnouts?id=<id> - toggle turnout by ID
-// POST /turnouts?id=<id>&address=<address>&subAddress=<subAddress>&type=<type> - creates a new turnout
-//      when id is -1 it will be auto-assigned as number of defined turnouts + 1.
-//      if subAddress is -1 the turnout will be defined as DCC address only.
-// DELETE /turnouts?id=<id> - delete turnout by ID
+// POST /turnouts?address=<address>&type=<type> - creates a new turnout
 // DELETE /turnouts?address=<address> - delete turnout by DCC address
 //
 // For successful requests the result code will be 200 and either an array of turnouts or single turnout will be returned.
-// For unsuccessful requests the result code will be 400 (bad request, missing args), 401 (not found), 500 (server failure).
+// For unsuccessful requests the result code will be 400 (bad request, missing args), 404 (not found), 500 (server failure).
 //
 HTTP_HANDLER_IMPL(process_turnouts, request)
 {
   request->set_status(HttpStatusCode::STATUS_SERVER_ERROR);
   if (request->method() == HttpMethod::GET &&
-     !request->has_param(JSON_ID_NODE) &&
      !request->has_param(JSON_ADDRESS_NODE))
   {
-    bool readable = true;
-    if (request->has_param(JSON_TURNOUTS_READABLE_STRINGS_NODE))
-    {
-      readable = request->param(JSON_TURNOUTS_READABLE_STRINGS_NODE, 0);
-    }
-    return new StringResponse(Singleton<TurnoutManager>::instance()->getStateAsJson(readable)
-                            , MIME_TYPE_APPLICATION_JSON);
+    bool readable = request->param(JSON_TURNOUTS_READABLE_STRINGS_NODE, false);
+    return new StringResponse(
+      Singleton<TurnoutManager>::instance()->getStateAsJson(readable)
+    , MIME_TYPE_APPLICATION_JSON);
   }
 
-  int16_t id = request->param(JSON_ID_NODE, -1);
   uint16_t address = request->param(JSON_ADDRESS_NODE, 0);
-  uint16_t subaddress = request->param(JSON_SUB_ADDRESS_NODE, 0);
   if (request->method() == HttpMethod::GET)
   {
-    if (request->has_param(JSON_ID_NODE))
+    auto turnout = Singleton<TurnoutManager>::instance()->get(address);
+    if (turnout)
     {
-      auto turnout = Singleton<TurnoutManager>::instance()->getTurnoutByID(id);
-      if (turnout)
-      {
-        return new StringResponse(turnout->toJson()
-                                , MIME_TYPE_APPLICATION_JSON);
-      }
-      request->set_status(HttpStatusCode::STATUS_NOT_FOUND);
+      return new StringResponse(turnout->toJson()
+                              , MIME_TYPE_APPLICATION_JSON);
     }
-    else
-    {
-      auto turnout = Singleton<TurnoutManager>::instance()->getTurnoutByID(address);
-      if (turnout)
-      {
-        return new StringResponse(turnout->toJson()
-                                , MIME_TYPE_APPLICATION_JSON);
-      }
-      request->set_status(HttpStatusCode::STATUS_NOT_FOUND);
-    }
+    request->set_status(HttpStatusCode::STATUS_NOT_FOUND);
   }
   else if (request->method() == HttpMethod::POST)
   {
     TurnoutType type = (TurnoutType)request->param(JSON_TYPE_NODE
                                                  , TurnoutType::LEFT);
-    // auto generate ID
-    if (id == -1)
-    {
-      id = Singleton<TurnoutManager>::instance()->getTurnoutCount() + 1;
-    }
-    auto turnout = Singleton<TurnoutManager>::instance()->createOrUpdate((uint16_t)id, address
-                                                , subaddress, type);
+    auto turnout =
+      Singleton<TurnoutManager>::instance()->createOrUpdate( address, type);
     if (turnout)
     {
       return new StringResponse(turnout->toJson(), MIME_TYPE_APPLICATION_JSON);
@@ -876,25 +847,14 @@ HTTP_HANDLER_IMPL(process_turnouts, request)
   }
   else if (request->method() == HttpMethod::DELETE)
   {
-    if (request->has_param(JSON_ID_NODE) && Singleton<TurnoutManager>::instance()->removeByID(id))
-    {
-      request->set_status(HttpStatusCode::STATUS_OK);
-    }
-    else if (Singleton<TurnoutManager>::instance()->removeByAddress(address))
+    if (Singleton<TurnoutManager>::instance()->remove(address))
     {
       request->set_status(HttpStatusCode::STATUS_OK);
     }
   }
   else if (request->method() == HttpMethod::PUT)
   {
-    if (request->has_param(JSON_ID_NODE))
-    {
-      Singleton<TurnoutManager>::instance()->toggleByID(id);
-    }
-    else
-    {
-      Singleton<TurnoutManager>::instance()->toggleByAddress(address);
-    }
+    Singleton<TurnoutManager>::instance()->toggle(address);
     request->set_status(HttpStatusCode::STATUS_OK);
   }
   return nullptr;
