@@ -330,7 +330,7 @@ string Turnout::get_state_for_dccpp(bool include_board_index)
 
 void Turnout::get_next_packet(unsigned code, dcc::Packet* packet)
 {
-  packet->add_dcc_basic_accessory(_address, _thrown);
+  packet->add_dcc_basic_accessory(_address + _thrown, true);
 
 #ifdef CONFIG_TURNOUT_LOGGING_VERBOSE
   LOG(INFO, "[Turnout %d] Packet: %s", _address
