@@ -920,7 +920,7 @@ function setupBSSensor() {
  $('#cs-sensor-create').on('vclick', function(event, ui) {
   $('#cs-sensor-id').val($('#cs-table-sensors tbody tr').length + 1);
   $('#cs-sensor-pin').val(1);
-  $('#cs-sensor-pullUp').prop('checked', false);
+  $('#cs-sensor-pullUp').prop('checked', false).flipswitch('refresh');
   $('#cs-sensor-editor').popup('open', {positionTo:'window'});
  });
  $('#cs-sensor-refresh').on('vclick', function(event, ui) {
@@ -968,9 +968,9 @@ function setupBSOutput() {
  $('#cs-output-create').on('vclick', function() {
   $('#cs-output-id').val($('#cs-table-outputs tbody tr').length + 1);
   $('#cs-output-pin').val(1);
-  $('#cs-output-logic').val(0);
-  $('#cs-output-startup-state').val(0);
-  $('#cs-output-default-state').val(0);
+  $('#cs-output-logic').prop('checked', false).flipswitch('refresh');
+  $('#cs-output-startup-state').prop('checked', false).flipswitch('refresh');
+  $('#cs-output-default-state').prop('checked', false).flipswitch('refresh');
   $('#cs-output-editor').popup('open', {positionTo:'window'});
  });
  $('#cs-output-refresh').on('vclick', function() {
@@ -1002,8 +1002,8 @@ function setupBSRoster() {
  $('#cs-loco-create').on('vclick', function() {
   $('#cs-loco-addr').val(1);
   $('#cs-loco-name').val("");
-  $('#cs-loco-idle').prop('checked', false);
-  $('#cs-loco-default').prop('checked', true);
+  $('#cs-loco-idle').prop('checked', false).flipswitch('refresh');
+  $('#cs-loco-default').prop('checked', true).flipswitch('refresh');
   $('#cs-loco-editor').popup('open', {positionTo:'window'});
  });
  $('#cs-loco-refresh').on('vclick', function() {
@@ -1360,7 +1360,7 @@ function BSTabRefresh(section) {
         console.log('Edit sensor', data);
         $('#cs-sensor-id').val(data.id);
         $('#cs-sensor-pin').val(data.pin);
-        $('#cs-sensor-pullUp').prop('checked', data.pullUp === 'true');
+        $('#cs-sensor-pullUp').prop('checked', data.pullUp).flipswitch('refresh');
         $('#cs-sensor-editor').popup('open', {positionTo:'window'});
        },
        error:function(req, status) {showErrorDialog(String.format('Unable to edit sensor {0}', idParts[1]), status);}
@@ -1440,9 +1440,9 @@ function BSTabRefresh(section) {
         console.log('Edit output', data);
         $('#cs-output-id').val(data.id);
         $('#cs-output-pin').val(data.pin);
-        $('#cs-output-logic').prop('checked', data.flags.includes('activeLow'));
-        $('#cs-output-startup-state').prop('checked', data.flags.includes('force'));
-        $('#cs-output-default-state').prop('checked', data.flags.includes('force(on)'));
+        $('#cs-output-logic').prop('checked', data.flags.includes('activeLow')).flipswitch('refresh');
+        $('#cs-output-startup-state').prop('checked', data.flags.includes('force')).flipswitch('refresh');
+        $('#cs-output-default-state').prop('checked', data.flags.includes('force(on)')).flipswitch('refresh');
         $('#cs-output-editor').popup('open', {positionTo:'window'});
        },
        error:function(req, status) {showErrorDialog(String.format('Unable to edit output {0}', idParts[1]), status);}
@@ -1460,12 +1460,12 @@ function BSTabRefresh(section) {
     var buttons = '';
     buttons += createButton({type:'delete', id:String.format("roster-{0}-delete", record.address)});
     buttons += createButton({type:'edit', id:String.format("roster-{0}-edit", record.address)});
-    if(record.idleOnStartup === 'true') {
+    if(record.idleOnStartup === true) {
      buttons += createButton({type:'power', id:String.format("roster-{0}-idle-off", record.address), title:'Disable Idle'});
     } else {
      buttons += createButton({type:'power', id:String.format("roster-{0}-idle-on", record.address), title:'Enable Idle'});
     }
-    if(record.defaultOnThrottles === 'true') {
+    if(record.defaultOnThrottles === true) {
      buttons += createButton({type:'action', id:String.format("roster-{0}-default-off", record.address), title:'Disable default on Throttles'});
     } else {
      buttons += createButton({type:'action', id:String.format("roster-{0}-default-on", record.address), title:'Enable default on Throttles'});
@@ -1484,8 +1484,8 @@ function BSTabRefresh(section) {
         console.log('Edit roster entry', data);
         $('#cs-loco-addr').val(data.address);
         $('#cs-loco-name').val(data.name);
-        $('#cs-loco-idle').prop('checked', data.idleOnStartup === 'true');
-        $('#cs-loco-default').prop('checked', data.defaultOnThrottles === 'true');
+        $('#cs-loco-idle').prop('checked', data.idleOnStartup).flipswitch('refresh');
+        $('#cs-loco-default').prop('checked', data.defaultOnThrottles).flipswitch('refresh');
         $('#cs-loco-editor').popup('open', {positionTo:'window'});
        },
        error:function(req, status) {showErrorDialog(String.format('Unable to edit roster entry {0}', idParts[1]), status);}

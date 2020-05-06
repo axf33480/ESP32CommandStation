@@ -260,7 +260,6 @@ namespace esp32cs
 
   private:
     openlcb::SimpleStackBase *stack_;
-    bool legacyEntriesFound_{false};
     bool entryDeleted_{false};
     OSMutex knownTrainsLock_;
     std::vector<shared_ptr<Esp32TrainDbEntry>> knownTrains_;

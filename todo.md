@@ -18,7 +18,7 @@ These are must have features/bug fixes for v1.5.0:
 -   [ ] Misc: Scrub code for TODO comments or unimplemented methods.
 -   [ ] Nextion: rewrite from scratch.
 -   [x] Roster: Implement delete loco.
--   [ ] Roster: Implement auto-idle loco.
+-   [x] Roster: Implement auto-idle loco.
 -   [x] S88: Convert to use openlcb::Polling model rather than tasks.
 -   [ ] Sensors: Convert to use openlcb::Polling model rather than tasks.
 -   [x] Turnouts: Switch fully to DCC address only support, for DCC++ compatibility decode the data and convert.

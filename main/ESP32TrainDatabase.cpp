@@ -18,12 +18,11 @@ COPYRIGHT (c) 2019-2020 Mike Dunston
 #include "ESP32CommandStation.h"
 #include "ESP32TrainDatabase.h"
 
+#include <AllTrainNodes.hxx>
 #include <CDIHelper.h>
-
 #include <json.hpp>
+#include <TrainDbCdi.hxx>
 #include <utils/FileUtils.hxx>
-
-#include "TrainDbCdi.hxx"
 
 namespace commandstation
 {
@@ -78,6 +77,8 @@ namespace esp32cs
 {
 
 using nlohmann::json;
+using commandstation::DccMode;
+using commandstation::AllTrainNodes;
 
 static constexpr char TRAIN_CDI_FILE[] = "/cfg/LCC/train.xml";
 static constexpr char TEMP_TRAIN_CDI_FILE[] = "/cfg/LCC/tmptrain.xml";
@@ -115,7 +116,7 @@ Esp32TrainDbEntry::Esp32TrainDbEntry(Esp32PersistentTrainData data
   : data_(data), dirty_(true), persist_(persist)
 {
   recalcuate_max_fn();
-  LOG(INFO, "[Loco:%s] Locomotive '%s' created", identifier().c_str()
+  LOG(VERBOSE, "[Loco:%s] Locomotive '%s' created", identifier().c_str()
     , data_.name.c_str());
 }
 
@@ -197,7 +198,6 @@ void Esp32TrainDbEntry::recalcuate_max_fn()
 }
 
 static constexpr const char * TRAIN_DB_JSON_FILE = "trains.json";
-static constexpr const char * LEGACY_ROSTER_JSON_FILE = "roster.json";
 
 Esp32TrainDatabase::Esp32TrainDatabase(openlcb::SimpleStackBase *stack)
 {
@@ -243,42 +243,6 @@ Esp32TrainDatabase::Esp32TrainDatabase(openlcb::SimpleStackBase *stack)
     }
   }
 
-  if (Singleton<ConfigurationManager>::instance()->exists(LEGACY_ROSTER_JSON_FILE))
-  {
-    LOG(INFO, "[TrainDB] Loading Legacy roster file...");
-    auto legacy_roster =
-      Singleton<ConfigurationManager>::instance()->load(LEGACY_ROSTER_JSON_FILE);
-    json roster = json::parse(legacy_roster);
-    for (auto &entry : roster)
-    {
-      Esp32PersistentTrainData data;
-      entry.at(JSON_ADDRESS_NODE).get_to(data.address);
-      entry.at(JSON_DESCRIPTION_NODE).get_to(data.name);
-      string auto_idle = entry[JSON_IDLE_ON_STARTUP_NODE];
-      string limited_throttle = entry[JSON_DEFAULT_ON_THROTTLE_NODE];
-      data.automatic_idle = (auto_idle == JSON_VALUE_TRUE);
-      data.show_on_limited_throttles = (limited_throttle == JSON_VALUE_TRUE);
-      auto ent = std::find_if(knownTrains_.begin(), knownTrains_.end(),
-      [data](const shared_ptr<Esp32TrainDbEntry> &train)
-      {
-        return train->get_legacy_address() == data.address;
-      });
-      if (ent == knownTrains_.end())
-      {
-        LOG(INFO, "[TrainDB] Registering %u - %s (idle: %s, limited: %s)"
-          , data.address, data.name.c_str()
-          , data.automatic_idle ? JSON_VALUE_ON : JSON_VALUE_OFF
-          , data.show_on_limited_throttles ? JSON_VALUE_ON : JSON_VALUE_OFF);
-        knownTrains_.emplace_back(new Esp32TrainDbEntry(data));
-      }
-      else
-      {
-        LOG_ERROR("[TrainDB] Duplicate roster entry detected for loco addr %u."
-                , data.address);
-      }
-    }
-    legacyEntriesFound_ = true;
-  }
   LOG(INFO, "[TrainDB] There are %d entries in the database."
     , knownTrains_.size());
 
@@ -292,7 +256,26 @@ Esp32TrainDatabase::Esp32TrainDatabase(openlcb::SimpleStackBase *stack)
 
 void Esp32TrainDatabase::load_idle_trains()
 {
-  // TBD
+  vector<uint16_t> idle_trains;
+  // scan the known trains for any automatic idle entries, collecting them in
+  // the vector above since we need a lock on the knownTrains_ collection.
+  {
+    OSMutexLock l(&knownTrainsLock_);
+    for (auto &train : knownTrains_)
+    {
+      if (train->is_auto_idle())
+      {
+        idle_trains.push_back(train->get_legacy_address());
+      }
+    }
+  }
+  // load any trains that were identified as needed
+  auto trainMgr = Singleton<AllTrainNodes>::instance();
+  for (auto address : idle_trains)
+  {
+    LOG(VERBOSE, "[TrainDB] Creating loco %d", address);
+    trainMgr->allocate_node(DccMode::DCC_128_LONG_ADDRESS, address);
+  }
 }
 
 std::shared_ptr<TrainDbEntry> Esp32TrainDatabase::create_if_not_found(unsigned address
@@ -330,6 +313,7 @@ void Esp32TrainDatabase::delete_entry(unsigned address)
     });
   if (entry != knownTrains_.end())
   {
+    LOG(VERBOSE, "[TrainDB] Removing persistent entry for address %u", address);
     knownTrains_.erase(entry);
     entryDeleted_ = true;
   }
@@ -376,6 +360,8 @@ unsigned Esp32TrainDatabase::add_dynamic_entry(TrainDbEntry* temp_entry)
   DccMode mode = temp_entry->get_legacy_drive_mode();
   OSMutexLock l(&knownTrainsLock_);
   delete temp_entry;
+  size_t index = 0;
+  LOG(VERBOSE, "[TrainDB] Searching for loco %d", address);
 
   // prevent duplicate entries in the roster
   auto ent = std::find_if(knownTrains_.begin(), knownTrains_.end(),
@@ -385,23 +371,27 @@ unsigned Esp32TrainDatabase::add_dynamic_entry(TrainDbEntry* temp_entry)
     });
   if (ent != knownTrains_.end())
   {
-    return std::distance(knownTrains_.begin(), ent);
+    index = std::distance(knownTrains_.begin(), ent);
+    LOG(VERBOSE, "[TrainDB] Found existing entry (%zu)", index);
   }
-  LOG(INFO, "[TrainDB] Creating roster entry for locomotive %u (mode:%d)."
-    , address, mode);
+  else
+  {
+    LOG(VERBOSE, "[TrainDB] Creating roster entry for locomotive %u (mode:%d)."
+      , address, mode);
 
-  // track the index for the new train entry
-  size_t index = knownTrains_.size();
-  // create the new entry, by default the entry will be marked as dirty so that
-  // it will be persisted as part of the next persistence check. If the
-  // auto-create feature is not enabled the entry will not be persisted and is
-  // not marked dirty.
-  knownTrains_.emplace_back(
-    new Esp32TrainDbEntry(Esp32PersistentTrainData(address, "unknown", mode)
+    // track the index for the new train entry
+    index = knownTrains_.size();
+    // create the new entry, by default the entry will be marked as dirty so that
+    // it will be persisted as part of the next persistence check. If the
+    // auto-create feature is not enabled the entry will not be persisted and is
+    // not marked dirty.
+    knownTrains_.emplace_back(
+      new Esp32TrainDbEntry(Esp32PersistentTrainData(address, "unknown", mode)
 #if !CONFIG_ROSTER_AUTO_CREATE_ENTRIES
-                        , false
+                          , false
 #endif
-  ));
+    ));
+  }
   return index;
 }
 
@@ -534,7 +524,7 @@ void Esp32TrainDatabase::persist()
     {
       return train->is_dirty() && train->is_persisted();
     });
-  if (ent != knownTrains_.end() || legacyEntriesFound_ || entryDeleted_)
+  if (ent != knownTrains_.end() || entryDeleted_)
   {
     LOG(VERBOSE, "[TrainDB] At least one entry requires persistence.");
     json j;
@@ -551,13 +541,6 @@ void Esp32TrainDatabase::persist()
     Singleton<ConfigurationManager>::instance()->store(TRAIN_DB_JSON_FILE
                                                      , j.dump());
     LOG(INFO, "[TrainDB] Persisted %zu entries.", count);
-
-    // if we loaded legacy entries we need to clean up the old file
-    if (legacyEntriesFound_)
-    {
-      Singleton<ConfigurationManager>::instance()->remove(LEGACY_ROSTER_JSON_FILE);
-    }
-    legacyEntriesFound_ = false;
     entryDeleted_ = false;
   }
   else
