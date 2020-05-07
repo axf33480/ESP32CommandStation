@@ -947,13 +947,13 @@ HTTP_HANDLER_IMPL(process_loco, request)
           name = "unknown";
         }
         traindb->create_if_not_found(address, name);
-        if (request->param(JSON_IDLE_ON_STARTUP_NODE, false))
+        if (request->has_param(JSON_IDLE_ON_STARTUP_NODE))
         {
-          traindb->set_train_auto_idle(address, true);
+          traindb->set_train_auto_idle(address, request->param(JSON_IDLE_ON_STARTUP_NODE, false));
         }
-        if (request->param(JSON_DEFAULT_ON_THROTTLE_NODE, false))
+        if (request->has_param(JSON_DEFAULT_ON_THROTTLE_NODE))
         {
-          traindb->set_train_show_on_limited_throttle(address, true);
+          traindb->set_train_show_on_limited_throttle(address, request->param(JSON_DEFAULT_ON_THROTTLE_NODE, false));
         }
         return new StringResponse(traindb->get_entry_as_json(address)
                                 , MIME_TYPE_APPLICATION_JSON);

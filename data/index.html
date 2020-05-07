@@ -1491,12 +1491,12 @@ function BSTabRefresh(section) {
        error:function(req, status) {showErrorDialog(String.format('Unable to edit roster entry {0}', idParts[1]), status);}
       });
      } else if(idParts[2] === 'idle') {
-      $.ajax({method: 'PUT',url: String.format('/locomotive/roster?address={0}&idleOnStartup={1}', idParts[1], idParts[3] === 'off'),
+      $.ajax({method: 'PUT',url: String.format('/locomotive/roster?address={0}&idleOnStartup={1}', idParts[1], idParts[3] === 'on'),
        success:function() {BSTabRefresh('Locomotive Roster');},
        error: function(req, status) {showErrorDialog(String.format('Failed to update loco {0}', idPArts[1]), status);}
       });
      } else if(idParts[2] === 'default') {
-      $.ajax({method: 'PUT',url: String.format('/locomotive/roster?address={0}&defaultOnThrottles={1}', idParts[1], idParts[3] === 'off'),
+      $.ajax({method: 'PUT',url: String.format('/locomotive/roster?address={0}&defaultOnThrottles={1}', idParts[1], idParts[3] === 'on'),
        success:function() {BSTabRefresh('Locomotive Roster');},
        error: function(req, status) {showErrorDialog(String.format('Failed to update loco {0}', idPArts[1]), status);}
       });
