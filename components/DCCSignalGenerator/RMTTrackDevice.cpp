@@ -176,8 +176,7 @@ RMTTrackDevice::RMTTrackDevice(const char *name
                              , const uint8_t dccPreambleBitCount
                              , size_t packet_queue_len
                              , gpio_num_t pin
-                             , RailcomDriver *railcomDriver
-                             )
+                             , RailcomDriver *railcomDriver)
                              : name_(name)
                              , channel_(channel)
                              , dccPreambleBitCount_(dccPreambleBitCount)
@@ -195,7 +194,6 @@ RMTTrackDevice::RMTTrackDevice(const char *name
   uint8_t memoryBlocks = (maxBitCount / RMT_MEM_ITEM_NUM) + 1;
   HASSERT(memoryBlocks <= MAX_RMT_MEMORY_BLOCKS);
 
-  LOG(INFO, "[%s] Signal pin: %d", name_, pin);
   LOG(INFO
     , "[%s] DCC config: zero: %duS, one: %duS, preamble-bits: %d, wave: %s"
     , name_, CONFIG_DCC_RMT_TICKS_ZERO_PULSE, CONFIG_DCC_RMT_TICKS_ONE_PULSE
@@ -212,9 +210,16 @@ RMTTrackDevice::RMTTrackDevice(const char *name
     , name_, MARKLIN_ZERO_BIT_PULSE_HIGH_USEC, MARKLIN_ZERO_BIT_PULSE_LOW_USEC
     , MARKLIN_ONE_BIT_PULSE_HIGH_USEC, MARKLIN_ONE_BIT_PULSE_LOW_USEC
     , MARKLIN_PREAMBLE_BIT_PULSE_HIGH_USEC + MARKLIN_PREAMBLE_BIT_PULSE_LOW_USEC);*/
-  LOG(INFO, "[%s] RMT(%d) config: memory: %d blocks (%d/%d DCC bits), div: %d"
-    , name_, channel_, memoryBlocks, maxBitCount
-    , (memoryBlocks * RMT_MEM_ITEM_NUM), CONFIG_DCC_RMT_CLOCK_DIVIDER);
+  LOG(INFO
+    , "[%s] signal pin: %d, RMT(ch:%d,mem:%d[%d],clk-div:%d,clk-src:%s)"
+    , name_, pin, channel_, maxBitCount, memoryBlocks
+    , CONFIG_DCC_RMT_CLOCK_DIVIDER
+#if defined(CONFIG_DCC_RMT_USE_REF_CLOCK)
+    , "REF"
+#else
+    , "APB"
+#endif // CONFIG_DCC_RMT_USE_REF_CLOCK
+  );
   rmt_config_t config =
   {
     .rmt_mode = RMT_MODE_TX,
