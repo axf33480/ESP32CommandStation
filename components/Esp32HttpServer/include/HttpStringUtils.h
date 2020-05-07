@@ -130,14 +130,11 @@ static inline string string_join(const vector<string>::iterator first
   return string_join(vec, delimeter);
 }
 
-/// Helper which decodes urlencoded strings as described in RFC-1738 sec. 2.2.
+/// Helper which URL decodes a string as described in RFC-1738 sec. 2.2.
 ///
 /// @param source is the string to be decoded.
 /// @return the decoded string.
-///
-/// NOTE: only two portions of RFC-1738 section 2.2 are currently implemented:
-/// 1. '+' replaced by ' ' (space).
-/// 2. '%HH' replaced by the hex decoded character HH.
+/// RFC: https://www.ietf.org/rfc/rfc1738.txt
 static inline string url_decode(const string source)
 {
   string decoded = source;
@@ -167,6 +164,52 @@ static inline string url_decode(const string source)
     }
   }
   return decoded;
+}
+
+/// Helper which URL encodes a string as described in RFC-1738 sec. 2.2.
+///
+/// @param source is the string to be encoded.
+/// @return the encoded string.
+///
+/// NOTE: this method does not take into account the encoding of a URI with
+/// query parameters after the "?". This should be handled by the caller by
+/// passing the path and query portions seperately at this time.
+/// RFC: https://www.ietf.org/rfc/rfc1738.txt
+static inline string url_encode(const string source)
+{
+  const string reserved_characters = "?#/:;+@&=";
+  const string illegal_characters = "%<>{}|\\\"^`!*'()$,[]";
+  string encoded = "";
+
+  // reserve the size of the source string plus 25%, this space will be
+  // reclaimed if the final string length is shorter.
+  encoded.reserve(source.length() + (source.length() / 4));
+
+  // process the source string character by character checking for any that
+  // are outside the ASCII printable character range, in the reserve character
+  // list or illegal character list. For accepted characters it will be added
+  // to the encoded string directly, any that require encoding will be hex
+  // encoded before being added to the encoded string.
+  for (auto ch : source)
+  {
+    if (ch <= 0x20 || ch >= 0x7F ||
+        reserved_characters.find(ch) != string::npos ||
+        illegal_characters.find(ch) != string::npos)
+    {
+      // if it is outside the printable ASCII character *OR* is in either the
+      // reserved or illegal characters we need to encode it as %HH.
+      // NOTE: space will be encoded as "%20" and not as "+", either is an
+      // acceptable option per the RFC.
+      encoded += StringPrintf("%%%02x", ch);
+    }
+    else
+    {
+      encoded += ch;
+    }
+  }
+  // shrink the buffer to the actual length
+  encoded.shrink_to_fit();
+  return encoded;
 }
 
 } // namespace http
