@@ -62,6 +62,8 @@ class FindProtocolServer : public openlcb::SimpleEventHandler {
     if (event && event->dst_node) {
       // Identify addressed
       if (!parent_->is_valid_train_node(event->dst_node)) {
+        LOG(VERBOSE, "not a valid train node: %s, ignoring"
+          , uint64_to_string_hex(event->dst_node->node_id()).c_str());
         return;
       }
       static_assert(((FindProtocolDefs::TRAIN_FIND_BASE >>
@@ -80,6 +82,7 @@ class FindProtocolServer : public openlcb::SimpleEventHandler {
       if (pendingGlobalIdentify_) {
         // We have not started processing the global identify yet. Swallow this
         // one.
+        LOG(VERBOSE, "discarding duplicate global identify");
         return;
       }
       // We do a synchronous alloc here but there isn't a much better choice.
@@ -134,22 +137,26 @@ class FindProtocolServer : public openlcb::SimpleEventHandler {
       release();
       if (eventId_ == REQUEST_GLOBAL_IDENTIFY) {
         if (!parent_->pendingGlobalIdentify_) {
+          LOG(VERBOSE, "duplicate global identify");
           // Duplicate global identify, or the previous one was already handled.
           return exit();
         }
         parent_->pendingGlobalIdentify_ = false;
       }
+      LOG(VERBOSE, "starting iteration");
       nextTrainId_ = 0;
       hasMatches_ = false;
       return call_immediately(STATE(iterate));
     }
 
     Action iterate() {
+      LOG(VERBOSE, "iterate nextTrainId: %d", nextTrainId_);
       if (nextTrainId_ >= nodes()->size()) {
         return call_immediately(STATE(iteration_done));
       }
       if (eventId_ == REQUEST_GLOBAL_IDENTIFY) {
         if (parent_->pendingGlobalIdentify_) {
+          LOG(VERBOSE, "restart iteration (new event)");
           // Another notification arrived. Start iteration from 0.
           nextTrainId_ = 0;
           parent_->pendingGlobalIdentify_ = false;
@@ -162,6 +169,7 @@ class FindProtocolServer : public openlcb::SimpleEventHandler {
       auto db_entry = nodes()->get_traindb_entry(nextTrainId_);
       if (!db_entry) return call_immediately(STATE(next_iterate));
       if (FindProtocolDefs::match_query_to_node(eventId_, db_entry.get())) {
+        LOG(VERBOSE, "found match %s / %s", uint64_to_string_hex(eventId_).c_str(), uint64_to_string_hex(db_entry->get_traction_node()).c_str());
         hasMatches_ = true;
         return allocate_and_call(
             tractionService_->iface()->global_message_write_flow(),
@@ -198,7 +206,9 @@ class FindProtocolServer : public openlcb::SimpleEventHandler {
     }
 
     Action iteration_done() {
+      LOG(VERBOSE, "iteration_done");
       if (!hasMatches_ && (eventId_ & FindProtocolDefs::ALLOCATE)) {
+        LOG(VERBOSE, "no match, allocating");
         // TODO: we should wait some time, maybe 200 msec for any responses
         // from other nodes, possibly a deadrail train node, before we actually
         // allocate a new train node.
@@ -212,6 +222,7 @@ class FindProtocolServer : public openlcb::SimpleEventHandler {
         }
         return call_immediately(STATE(wait_for_new_node));
       }
+      LOG(VERBOSE, "no match, no allocate");
       return exit();
     }
 

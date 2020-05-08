@@ -24,6 +24,8 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 #include <freertos_drivers/esp32/Esp32WiFiManager.hxx>
 #include <LCCWiFiManager.h>
 
+using commandstation::AllTrainNodes;
+
 static constexpr uint8_t STATUS_DISPLAY_LINE_COUNT = 5;
 
 static constexpr TickType_t DISPLAY_I2C_TIMEOUT =
@@ -317,8 +319,7 @@ void StatusDisplay::node_pong(openlcb::NodeID id)
 #endif
   // If it is a train node and we recognize it as one we manage then it is
   // considered a local node.
-  if ((id & openlcb::TractionDefs::NODE_ID_MASK) == openlcb::TractionDefs::NODE_ID_DCC &&
-      Singleton<commandstation::AllTrainNodes>::instance()->is_valid_train_node(id))
+  if (Singleton<AllTrainNodes>::instance()->is_valid_train_node(id, false))
   {
 #if CONFIG_DISPLAY_LCC_LOGGING_VERBOSE
     ets_printf("Train");

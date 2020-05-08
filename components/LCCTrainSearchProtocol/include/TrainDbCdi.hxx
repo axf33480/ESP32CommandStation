@@ -35,20 +35,11 @@
 #ifndef _BRACZ_COMMANDSTATION_TRAINDBCDI_HXX_
 #define _BRACZ_COMMANDSTATION_TRAINDBCDI_HXX_
 
-// TEMPORARY define to limit to *ONE* stored DB since the CDI interface
-// is not used currently.
-#define TRAINDB_TRAIN_COUNT 1
-
 #include <openlcb/ConfigRepresentation.hxx>
 #include "TrainDbDefs.hxx"
 #include "ProgrammingTrackSpaceConfig.hxx"
 
 namespace commandstation {
-
-#ifndef TRAINDB_TRAIN_COUNT
-#error must define TRAINDB_TRAIN_COUNT in your headers
-#endif
-static constexpr unsigned STORED_TRAIN_COUNT = TRAINDB_TRAIN_COUNT;
 
 static const char MOMENTARY_MAP[] =
     "<relation><property>0</property><value>Latching</value></relation>"
@@ -98,7 +89,6 @@ CDI_GROUP(TrainDbCdiAllFunctionGroup);
 CDI_GROUP_ENTRY(f0, F0Group);
 CDI_GROUP_ENTRY(all_functions, TrainDbCdiRepFunctionGroup, RepName("Fn"));
 CDI_GROUP_END();
-
 
 static const char DCC_DRIVE_MODE_MAP[] =
     "<relation><property>0</property><value>Unused</value></relation>"
@@ -154,12 +144,6 @@ CDI_GROUP_ENTRY(train, TmpTrainSegment);
 CDI_GROUP_ENTRY(cv, ProgrammingTrackSpaceConfig);
 CDI_GROUP_END();
 
-using TrainDbConfig =
-    openlcb::RepeatedGroup<TrainDbCdiEntry, STORED_TRAIN_COUNT>;
-
 }  // namespace commandstation
-
-//RENDER_CDI(commandstation, TrainConfigDef, "TRAINCDI", 3);
-//RENDER_CDI(commandstation, TrainTmpConfigDef, "TRAINTMPCDI", 4);
 
 #endif  // _BRACZ_COMMANDSTATION_TRAINDBCDI_HXX_

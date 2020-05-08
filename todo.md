@@ -11,9 +11,9 @@ These are must have features/bug fixes for v1.5.0:
 -   [ ] DCC: Rewrite/Test RailCom detector code.
 -   [ ] DOC: Write migration guide for building, what has changed since v1.2.3, future of legacy protocols (DCC++, non-LCC JMRI)
 -   [ ] LCC: Rewrite HW Can driver.
--   [ ] LCC: TrainSearch protocol.
+-   [x] LCC: TrainSearch protocol.
     -   [x] Basic integration is functional (loco request works for dynamic locos)
-    -   [ ] Persisted locos that are not active can not be requested from UWT-100.
+    -   [x] Persisted locos that are not active can not be requested from UWT-100.
 -   [x] LCC: Add fallback option for Esp32WiFiManager to not reboot the node when SSID connect fails and SoftAP is active.
 -   [ ] Misc: Scrub code for TODO comments or unimplemented methods.
 -   [ ] Nextion: rewrite from scratch.
@@ -23,7 +23,7 @@ These are must have features/bug fixes for v1.5.0:
 -   [ ] Sensors: Convert to use openlcb::Polling model rather than tasks.
 -   [x] Turnouts: Switch fully to DCC address only support, for DCC++ compatibility decode the data and convert.
 -   [x] Web: Entering loco name as "loco #3" results in "loco 33" being registered.
--   [ ] Web: Delete of roster entry doesn't force refresh of section.
+-   [ ] Web: Delete of roster entry doesn't always force refresh of section.
 -   [ ] Web: Test all endpoints to ensure proper functionality after httpd rework.
 
 ### Completed for v1.5.0
@@ -81,9 +81,10 @@ These entries are items being tracked for a future release, these are not listed
 -   [ ] GPIO: Expose Outputs, Sensors, S88 events on LCC.
 -   [ ] LCC: Broadcast events for turnout state change.
 -   [ ] LCC: Discard turnout events when turnout already in expected state (drop duplicate events).
--   [ ] LCC: Expose PROG track via CDI.
+-   [ ] LCC: Expose PROG track via CDI (needed for UWT-100 support).
 -   [ ] LCC: Reimplement Loco Consist leveraging LCC Traction Consist functionality.
 -   [ ] LCC: Update Esp32WiFiManager to use SimpleStackBase instead of SimpleCanStack.
+-   [ ] LCC: TrainSearch sometimes errors out with 80000 or 81000 (timeout).
 -   [ ] Misc: Switch to shared_ptr instead of raw pointers.
 -   [ ] Misc: WiThrottle support (https://github.com/atanisoft/ESP32CommandStation/issues/15)
 -   [ ] Misc: Combine usages of openlcb::RefreshLoop.
@@ -98,8 +99,10 @@ These entries are items being tracked for a future release, these are not listed
 -   [ ] OTA: OTA support via JMRI / LCC using OpenMRN Bootloader.
 -   [ ] OTA: Return to normal mode on Nextion when OTA fails.
 -   [ ] Roster: Roster Entries should contain function id mappings.
+-   [ ] Roster: Expose db entries via R/W CDI.
 -   [ ] S88: Add S88 sensor data to InfoScreen status line, 16 sensor output rotation.
 -   [ ] Web: Add strict validation of input parameter data.
 -   [ ] Web: Expose Loco Consist creation.
 -   [ ] Web: Auto-refresh tables when delete/edit completes.
 -   [ ] Web: Add urldecode to table rendering code.
+-   [ ] Web: active locos capped at 28 speed steps instead of 128.

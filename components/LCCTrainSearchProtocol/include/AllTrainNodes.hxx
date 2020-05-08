@@ -43,23 +43,27 @@
 
 #include "TrainDb.hxx"
 
-namespace openlcb {
+namespace openlcb
+{
 class Node;
 class TrainService;
 class TrainImpl;
 class MemoryConfigHandler;
+class IncomingMessageStateFlow;
 }
 
-namespace commandstation {
+namespace commandstation
+{
 class FindProtocolServer;
 
-class AllTrainNodes : public Singleton<AllTrainNodes> {
+class AllTrainNodes : public Singleton<AllTrainNodes>
+{
  public:
   AllTrainNodes(TrainDb* db, openlcb::TrainService* traction_service,
                 openlcb::SimpleInfoFlow* info_flow,
                 openlcb::MemoryConfigHandler* memory_config,
-                openlcb::MemorySpace* ro_train_cdi,
-                openlcb::MemorySpace* ro_tmp_train_cdi);
+                openlcb::MemorySpace* train_cdi,
+                openlcb::MemorySpace* tmp_train_cdi);
   ~AllTrainNodes();
 
   /// Removes a TrainImpl for the requested address if it exists.
@@ -84,18 +88,14 @@ class AllTrainNodes : public Singleton<AllTrainNodes> {
   /// @return 0 if the allocation fails (invalid arguments)
   openlcb::NodeID allocate_node(DccMode drive_type, int address);
 
-  size_t size() { return trains_.size(); }
+  /// Return the maximum number of locomotives currently being serviced.
+  size_t size();
 
-  // For testing.
-  bool find_flow_is_idle();
-
-  bool is_valid_train_node(openlcb::Node *node) {
-    return find_node(node) != nullptr;
-  }
+  /// @return true if the provided node is a known/active train.
+  bool is_valid_train_node(openlcb::Node *node);
   
-  bool is_valid_train_node(openlcb::NodeID node_id) {
-    return find_node(node_id) != nullptr;
-  }
+  /// @return true if the provided node id is a known/active train.
+  bool is_valid_train_node(openlcb::NodeID node_id, bool allocate=true);
 
  private:
   // ==== Interface for children ====
@@ -105,15 +105,11 @@ class AllTrainNodes : public Singleton<AllTrainNodes> {
   /// Impl structure will be returned. If the node is not known (or not a train
   /// node maintained by this object), we return nullptr.
   Impl* find_node(openlcb::Node* node);
-  Impl* find_node(openlcb::NodeID node_id);
+  Impl* find_node(openlcb::NodeID node_id, bool allocate=true);
 
   /// Helper function to create lok objects. Adds a new Impl structure to
   /// impl_.
   Impl* create_impl(int train_id, DccMode mode, int address);
-
-  /// Callback from the updater to notify that the traindb config should be
-  /// consulted.
-  void update_config();
 
   // Externally owned.
   TrainDb* db_;
@@ -124,15 +120,12 @@ class AllTrainNodes : public Singleton<AllTrainNodes> {
 
   /// All train nodes that we know about.
   std::vector<Impl*> trains_;
+  
+  /// Lock to protect trains_.
+  OSMutex trainsLock_;
 
   friend class FindProtocolServer;
   std::unique_ptr<FindProtocolServer> findProtocolServer_;
-
-  // Listens to configuration update done commands coming in, and checks if the
-  // train database has changed.
-  class TrainNodesUpdater;
-  friend class TrainNodesUpdater;
-  std::unique_ptr<TrainNodesUpdater> trainUpdater_;
 
   // Implementation objects that we carry for various protocols.
   class TrainSnipHandler;
@@ -154,6 +147,10 @@ class AllTrainNodes : public Singleton<AllTrainNodes> {
   class TrainCDISpace;
   friend class TrainCDISpace;
   std::unique_ptr<TrainCDISpace> cdiSpace_;
+
+  class TrainIdentifyHandler;
+  friend class TrainIdentifyHandler;
+  std::unique_ptr<TrainIdentifyHandler> trainIdentHandler_;
 };
 
 openlcb::TrainImpl *create_train_node_helper(DccMode mode, int address);

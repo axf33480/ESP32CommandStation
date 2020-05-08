@@ -349,8 +349,8 @@ extern "C" void app_main()
                                          , &trainService
                                          , stackManager.info_flow()
                                          , stackManager.memory_config_handler()
-                                         , trainDb.get_readonly_train_cdi()
-                                         , trainDb.get_readonly_temp_train_cdi());
+                                         , trainDb.get_train_cdi()
+                                         , trainDb.get_temp_train_cdi());
 
   // Task Monitor, periodically dumps runtime state to STDOUT.
   LOG(VERBOSE, "Starting FreeRTOS Task Monitor");

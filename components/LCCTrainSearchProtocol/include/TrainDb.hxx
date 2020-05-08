@@ -41,18 +41,11 @@
 #include "TrainDbDefs.hxx"
 #include "TrainDbCdi.hxx"
 
-namespace commandstation {
+namespace commandstation
+{
 
-struct const_traindb_entry_t {
-  const uint16_t address;
-  // MoSta function definition, parallel to function_mapping.
-  const uint8_t function_labels[DCC_MAX_FN];
-  // Any zero character ends, but preferable to pad it with zeroes.
-  const char name[16];
-  const uint8_t mode;
-};
-
-class TrainDbEntry {
+class TrainDbEntry
+{
 public:
   virtual ~TrainDbEntry() {}
 
@@ -91,25 +84,24 @@ public:
   virtual void start_read_functions() = 0;
 };
 
-class TrainDb {
+class TrainDb
+{
  public:
-  /** @return true if this traindb is backed by a file. */
-  virtual bool has_file() = 0;
-  /** Loads the train database from the given file. The file must stay open so
-   * long as *this is alive.
-   * @returns the size of the backing file (i.e. end of the traindb
-   * configuration). */
-  virtual size_t load_from_file(int fd, bool initial_load) =0;
-
   /** @returns the number of traindb entries. The valid train IDs will then be
    * 0 <= id < size(). */
   virtual size_t size() = 0;
 
   /** Returns true if a train of a specific identifier is known to the
    * traindb.
-   * @param id is the train identifier. Valid values: anything. Typical values:
+   * @param train_id is the train identifier. Valid values: anything. Typical values:
    * 0..NUM_TRAINS*/
   virtual bool is_train_id_known(unsigned train_id) = 0;
+
+  /** Returns true if a train of a specific identifier is known to the
+   * traindb.
+   * @param train_id is the node id of the train being queried.
+   */
+  virtual bool is_train_id_known(openlcb::NodeID train_id) = 0;
 
   /** Returns a train DB entry if the train ID is known, otherwise nullptr. The
       ownership of the entry is not transferred. */
@@ -118,37 +110,13 @@ class TrainDb {
   /** Searches for an entry by the traction node ID. Returns nullptr if not
    * found. @param hint is a train_id that might be a match. */
   virtual std::shared_ptr<TrainDbEntry> find_entry(openlcb::NodeID traction_node_id,
-                                           unsigned hint = 0) = 0;
+                                                   unsigned hint = 0) = 0;
 
-  /** Inserts a given entry into the train database. @param entry is the new
-      traindb entry. Transfers ownership to the TrainDb class. @returns the
-      new train_id for the given entry. */
-  virtual unsigned add_dynamic_entry(TrainDbEntry* entry) = 0;
-};
-
-class TrainDbFactoryResetHelper : public DefaultConfigUpdateListener {
-public:
-  TrainDbFactoryResetHelper(const TrainDbConfig cfg) : cfg_(cfg.offset()) {}
-
-  UpdateAction apply_configuration(int fd, bool initial_load,
-                                   BarrierNotifiable *done) override {
-    AutoNotify an(done);
-    return UPDATED;
-  }
-
-  void factory_reset(int fd) override {
-    // Clears out all train entries with zeros.
-    char block[cfg_.entry<0>().size()];
-    memset(block, 0, sizeof(block));
-    for (unsigned i = 0; i < cfg_.num_repeats(); ++i) {
-      const auto& p = cfg_.entry(i);
-      lseek(fd, p.offset(), SEEK_SET);
-      ::write(fd, block, sizeof(block));
-    }
-  }
-
- private:
-  TrainDbConfig cfg_;
+  /** Inserts a given entry into the train database.
+   * @param address the locomotive address to create.
+   * @param mode the operating mode for the new locomotive.
+   * @returns the new train_id for the given entry. */
+  virtual unsigned add_dynamic_entry(uint16_t address, DccMode mode) = 0;
 };
 
 }  // namespace commandstation

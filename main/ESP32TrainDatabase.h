@@ -53,7 +53,7 @@ namespace esp32cs
       this->address = address;
       this->name = name;
       this->mode = mode;
-      this->automatic_idle = false;
+      this->automatic_idle = true;
       this->show_on_limited_throttles = false;
       // set some defaults
       if (this->mode & DccMode::DCC_ANY)
@@ -139,6 +139,8 @@ namespace esp32cs
       return maxFn_;
     }
 
+    int file_offset() override;
+
     void start_read_functions() override
     {
     }
@@ -199,28 +201,20 @@ namespace esp32cs
       persistFlow_->stop();
     }
 
-    // not supported/used.
-    bool has_file() override
-    {
-      return false;
-    }
-
-    // not supported/used.
-    size_t load_from_file(int fd, bool initial_load) override
-    {
-      return 0;
-    }
-
     // number of known trains
     size_t size() override
     {
       return knownTrains_.size();
     }
 
+    int get_index(unsigned address);
+
     bool is_train_id_known(unsigned train_id) override
     {
       return get_entry(train_id) != nullptr;
     }
+
+    bool is_train_id_known(openlcb::NodeID train_id) override;
 
     std::shared_ptr<commandstation::TrainDbEntry> create_if_not_found(
       unsigned address, std::string name="unknown"
@@ -233,7 +227,7 @@ namespace esp32cs
     std::shared_ptr<commandstation::TrainDbEntry> find_entry(
       openlcb::NodeID traction_node_id, unsigned hint = 0) override;
 
-    unsigned add_dynamic_entry(commandstation::TrainDbEntry* entry) override;
+    unsigned add_dynamic_entry(uint16_t address, DccMode mode) override;
 
     std::set<uint16_t> get_default_train_addresses(uint16_t limit);
 
@@ -244,19 +238,17 @@ namespace esp32cs
     std::string get_all_entries_as_json();
     std::string get_entry_as_json(unsigned address);
 
-    openlcb::MemorySpace *get_readonly_train_cdi()
+    openlcb::MemorySpace *get_train_cdi()
     {
       return trainCdiFile_.get();
     }
 
-    openlcb::MemorySpace *get_readonly_temp_train_cdi()
+    openlcb::MemorySpace *get_temp_train_cdi()
     {
       return tempTrainCdiFile_.get();
     }
 
     void persist();
-
-    void load_idle_trains();
 
   private:
     openlcb::SimpleStackBase *stack_;
