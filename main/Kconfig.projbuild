@@ -82,6 +82,7 @@ menu "LCC Configuration"
 
     config LCC_GC_NEWLINES
         bool "Add newline to GridConnect packets"
+        default y if LCC_PRINT_ALL_PACKETS
         default n
         depends on !LCC_TCP_STACK
         help

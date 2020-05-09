@@ -50,6 +50,9 @@
 namespace commandstation
 {
 
+using openlcb::Defs;
+using openlcb::TractionDefs;
+
 struct AllTrainNodes::Impl
 {
  public:
@@ -164,13 +167,15 @@ AllTrainNodes::Impl* AllTrainNodes::find_node(openlcb::NodeID node_id, bool allo
   // found.
   dcc::TrainAddressType type;
   uint32_t addr =  0;
-  if (openlcb::TractionDefs::legacy_address_from_train_node_id(node_id, &type, &addr))
+  if (TractionDefs::legacy_address_from_train_node_id(node_id, &type, &addr))
   {
-    LOG(VERBOSE, "searching db for train that should have node id: %s"
+    LOG(CONFIG_LCC_TSP_LOG_LEVEL, "[TrainSearch] Checking db for node id: %s"
       , uint64_to_string_hex(node_id).c_str());
     auto train = db_->find_entry(node_id, addr);
     if (train != nullptr)
     {
+      LOG(CONFIG_LCC_TSP_LOG_LEVEL, "[TrainSearch] Matched %s, creating node"
+        , train->identifier().c_str());
       return create_impl(train->file_offset()
                       , train->get_legacy_drive_mode()
                       , train->get_legacy_address());
@@ -178,7 +183,8 @@ AllTrainNodes::Impl* AllTrainNodes::find_node(openlcb::NodeID node_id, bool allo
   }
   else
   {
-    LOG(VERBOSE, "node id %s doesn't look like a train node, ignoring"
+    LOG(CONFIG_LCC_TSP_LOG_LEVEL
+      , "[TrainSearch] node id %s doesn't look like a train node, ignoring"
       , uint64_to_string_hex(node_id).c_str());
   }
 
@@ -203,19 +209,22 @@ openlcb::NodeID AllTrainNodes::get_train_node_id(int id)
     }
   }
 
-  LOG(VERBOSE, "no active train with index %d, checking db", id);
+  LOG(CONFIG_LCC_TSP_LOG_LEVEL
+    , "[TrainSearch] no active train with index %d, checking db", id);
   auto db_entry = db_->get_entry(id);
   if (db_entry != nullptr)
   {
-    LOG(VERBOSE
-      , "found existing db entry for id %d, returning node id %s (new node)"
-      , id, uint64_to_string_hex(db_entry->get_traction_node()).c_str());
+    LOG(CONFIG_LCC_TSP_LOG_LEVEL
+      , "[TrainSearch] found existing db entry %s, creating node %s"
+      , db_entry->identifier().c_str()
+      , uint64_to_string_hex(db_entry->get_traction_node()).c_str());
     create_impl(id, db_entry->get_legacy_drive_mode()
               , db_entry->get_legacy_address());
     return db_entry->get_traction_node();
   }
 
-  LOG(VERBOSE, "no train node found, giving up");
+  LOG(CONFIG_LCC_TSP_LOG_LEVEL
+    , "[TrainSearch] no train node found for index %d, giving up", id);
   return 0;
 }
 
@@ -228,12 +237,12 @@ class AllTrainNodes::TrainSnipHandler : public openlcb::IncomingMessageStateFlow
         responseFlow_(info_flow)
   {
     iface()->dispatcher()->register_handler(
-        this, openlcb::Defs::MTI::MTI_IDENT_INFO_REQUEST, openlcb::Defs::MTI::MTI_EXACT);
+        this, Defs::MTI::MTI_IDENT_INFO_REQUEST, Defs::MTI::MTI_EXACT);
   }
   ~TrainSnipHandler()
   {
     iface()->dispatcher()->unregister_handler(
-        this, openlcb::Defs::MTI::MTI_IDENT_INFO_REQUEST, openlcb::Defs::MTI::MTI_EXACT);
+        this, Defs::MTI::MTI_IDENT_INFO_REQUEST, Defs::MTI::MTI_EXACT);
   }
 
   Action entry() override
@@ -257,8 +266,7 @@ class AllTrainNodes::TrainSnipHandler : public openlcb::IncomingMessageStateFlow
       snipName_.clear();
     }
     snipResponse_[6].data = snipName_.c_str();
-    b->data()->reset(nmsg(), snipResponse_,
-                     openlcb::Defs::MTI_IDENT_INFO_REPLY);
+    b->data()->reset(nmsg(), snipResponse_, Defs::MTI_IDENT_INFO_REPLY);
     // We must wait for the data to be sent out because we have a static member
     // that we are changing constantly.
     b->set_done(n_.reset(this));
@@ -304,15 +312,13 @@ class AllTrainNodes::TrainPipHandler : public openlcb::IncomingMessageStateFlow
         parent_(parent)
   {
     iface()->dispatcher()->register_handler(
-        this, openlcb::Defs::MTI::MTI_PROTOCOL_SUPPORT_INQUIRY,
-        openlcb::Defs::MTI::MTI_EXACT);
+        this, Defs::MTI::MTI_PROTOCOL_SUPPORT_INQUIRY, Defs::MTI::MTI_EXACT);
   }
 
   ~TrainPipHandler()
   {
     iface()->dispatcher()->unregister_handler(
-        this, openlcb::Defs::MTI::MTI_PROTOCOL_SUPPORT_INQUIRY,
-        openlcb::Defs::MTI::MTI_EXACT);
+        this, Defs::MTI::MTI_PROTOCOL_SUPPORT_INQUIRY, Defs::MTI::MTI_EXACT);
   }
 
  private:
@@ -331,7 +337,7 @@ class AllTrainNodes::TrainPipHandler : public openlcb::IncomingMessageStateFlow
     auto reply = pipReply_;
     // Fills in response. We use node_id_to_buffer because that converts a
     // 48-bit value to a big-endian byte string.
-    b->data()->reset(openlcb::Defs::MTI_PROTOCOL_SUPPORT_REPLY,
+    b->data()->reset(Defs::MTI_PROTOCOL_SUPPORT_REPLY,
                      nmsg()->dstNode->node_id(), nmsg()->src,
                      openlcb::node_id_to_buffer(reply));
 
@@ -343,10 +349,10 @@ class AllTrainNodes::TrainPipHandler : public openlcb::IncomingMessageStateFlow
 
   AllTrainNodes* parent_;
   static constexpr uint64_t pipReply_ =
-      openlcb::Defs::SIMPLE_PROTOCOL_SUBSET | openlcb::Defs::DATAGRAM |
-      openlcb::Defs::MEMORY_CONFIGURATION | openlcb::Defs::EVENT_EXCHANGE |
-      openlcb::Defs::SIMPLE_NODE_INFORMATION | openlcb::Defs::TRACTION_CONTROL |
-      openlcb::Defs::TRACTION_FDI | openlcb::Defs::CDI;
+      Defs::SIMPLE_PROTOCOL_SUBSET | Defs::DATAGRAM |
+      Defs::MEMORY_CONFIGURATION | Defs::EVENT_EXCHANGE |
+      Defs::SIMPLE_NODE_INFORMATION | Defs::TRACTION_CONTROL |
+      Defs::TRACTION_FDI | Defs::CDI;
 };
 
 class AllTrainNodes::TrainFDISpace : public openlcb::MemorySpace
@@ -386,11 +392,13 @@ class AllTrainNodes::TrainFDISpace : public openlcb::MemorySpace
     ssize_t result = gen_.read(source, dst, len);
     if (result < 0)
     {
-      *error = openlcb::Defs::ERROR_PERMANENT;
+      LOG_ERROR("[TrainCDI] Read failure: %u, %zu: %zu", source, len, result);
+      *error = Defs::ERROR_PERMANENT;
       return 0;
     }
     if (result == 0)
     {
+      LOG(WARNING, "[TrainCDI] Out-of-bounds read: %u, %zu", source, len);
       *error = openlcb::MemoryConfigDefs::ERROR_OUT_OF_BOUNDS;
     }
     else
@@ -531,15 +539,13 @@ public:
     , parent_(parent)
   {
     iface()->dispatcher()->register_handler(
-            this, openlcb::Defs::MTI::MTI_VERIFY_NODE_ID_GLOBAL, 
-            openlcb::Defs::MTI::MTI_EXACT);
+            this, Defs::MTI::MTI_VERIFY_NODE_ID_GLOBAL, Defs::MTI::MTI_EXACT);
   }
 
   ~TrainIdentifyHandler()
   {
     iface()->dispatcher()->unregister_handler(
-            this, openlcb::Defs::MTI_VERIFY_NODE_ID_GLOBAL,
-            openlcb::Defs::MTI::MTI_EXACT);
+            this, Defs::MTI_VERIFY_NODE_ID_GLOBAL, Defs::MTI::MTI_EXACT);
   }
 
   /// Handler callback for incoming messages.
@@ -549,15 +555,17 @@ public:
     if (!m->payload.empty() && m->payload.size() == 6)
     {
       target_ = openlcb::buffer_to_node_id(m->payload);
-      LOG(VERBOSE, "received global identify for node %s"
+      LOG(CONFIG_LCC_TSP_LOG_LEVEL
+        , "[TrainIdent] received global identify for node %s"
         , uint64_to_string_hex(target_).c_str());
-      openlcb::NodeID masked = target_ & openlcb::TractionDefs::NODE_ID_MASK;
-      if ((masked == openlcb::TractionDefs::NODE_ID_DCC ||
-           masked == openlcb::TractionDefs::NODE_ID_MARKLIN_MOTOROLA ||
-           masked == 0x050100000000ULL) &&
+      openlcb::NodeID masked = target_ & TractionDefs::NODE_ID_MASK;
+      if ((masked == TractionDefs::NODE_ID_DCC ||
+           masked == TractionDefs::NODE_ID_MARKLIN_MOTOROLA ||
+           masked == 0x050100000000ULL) && // TODO: move this constant into TractionDefs
           parent_->find_node(target_) != nullptr)
       {
-        LOG(VERBOSE, "matched a known train db entry");
+        LOG(CONFIG_LCC_TSP_LOG_LEVEL
+          , "[TrainIdent] matched a known train db entry");
         release();
         return allocate_and_call(iface()->global_message_write_flow(),
                                 STATE(send_train_ident));
@@ -574,7 +582,7 @@ private:
     auto *b =
         get_allocation_result(iface()->global_message_write_flow());
     openlcb::GenMessage *m = b->data();
-    m->reset(openlcb::Defs::MTI_VERIFIED_NODE_ID_NUMBER, target_
+    m->reset(Defs::MTI_VERIFIED_NODE_ID_NUMBER, target_
            , openlcb::node_id_to_buffer(target_));
     iface()->global_message_write_flow()->send(b);
     return exit();
@@ -615,7 +623,7 @@ AllTrainNodes::Impl* AllTrainNodes::create_impl(int train_id, DccMode mode,
   impl->id = train_id;
   switch (mode) {
     case MARKLIN_OLD: {
-      LOG(VERBOSE, "New Marklin (old) train %d", address);
+      LOG(CONFIG_LCC_TSP_LOG_LEVEL, "New Marklin (old) train %d", address);
       impl->train_ = new dcc::MMOldTrain(dcc::MMAddress(address));
       break;
     }
@@ -623,7 +631,7 @@ AllTrainNodes::Impl* AllTrainNodes::create_impl(int train_id, DccMode mode,
     case MARKLIN_NEW:
       /// @todo (balazs.racz) implement marklin twoaddr train drive mode.
     case MARKLIN_TWOADDR: {
-      LOG(VERBOSE, "New Marklin (new) train %d", address);
+      LOG(CONFIG_LCC_TSP_LOG_LEVEL, "New Marklin (new) train %d", address);
       impl->train_ = new dcc::MMNewTrain(dcc::MMAddress(address));
       break;
     }
@@ -632,7 +640,7 @@ AllTrainNodes::Impl* AllTrainNodes::create_impl(int train_id, DccMode mode,
     case DCC_14_LONG_ADDRESS:
     case DCC_28:
     case DCC_28_LONG_ADDRESS: {
-      LOG(VERBOSE, "New DCC-14/28 train %d", address);
+      LOG(CONFIG_LCC_TSP_LOG_LEVEL, "New DCC-14/28 train %d", address);
       if ((mode & DCC_LONG_ADDRESS) || address >= 128) {
         impl->train_ = new dcc::Dcc28Train(dcc::DccLongAddress(address));
       } else {
@@ -642,7 +650,7 @@ AllTrainNodes::Impl* AllTrainNodes::create_impl(int train_id, DccMode mode,
     }
     case DCC_128:
     case DCC_128_LONG_ADDRESS: {
-      LOG(VERBOSE, "New DCC-128 train %d", address);
+      LOG(CONFIG_LCC_TSP_LOG_LEVEL, "New DCC-128 train %d", address);
       if ((mode & DCC_LONG_ADDRESS) || address >= 128) {
         impl->train_ = new dcc::Dcc128Train(dcc::DccLongAddress(address));
       } else {
