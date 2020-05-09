@@ -47,6 +47,7 @@ menu "LCC Configuration"
     config LCC_PRINT_ALL_PACKETS
         bool "Print all packets"
         default n
+        depends on !LCC_TCP_STACK
         help
             Enabling this option will cause all LCC packets to be printed to
             the serial console.
@@ -82,6 +83,7 @@ menu "LCC Configuration"
     config LCC_GC_NEWLINES
         bool "Add newline to GridConnect packets"
         default n
+        depends on !LCC_TCP_STACK
         help
             Enabling this option will generate a newline character after
             every GridConnect packet that is sent out. This is generally
@@ -91,6 +93,7 @@ menu "LCC Configuration"
         int "GridConnect packet delay (microseconds)"
         default 1500 if LCC_HUB_USE_SELECT
         default 500
+        depends on !LCC_TCP_STACK
         help
             How long (in microseconds) to buffer generated gridconnect data
             before sending off to the lowlevel system (such as a TCP socket).
@@ -98,6 +101,7 @@ menu "LCC Configuration"
     config LCC_GC_OUTBOUND_PACKET_LIMIT
         int "GridConnect packet count limit"
         default 2
+        depends on !LCC_TCP_STACK
         help
             Number of pending buffers (of type string) in the outgoing hub on a
             per-connection basis. This limit ensures that we don't leak memory

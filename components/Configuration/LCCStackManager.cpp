@@ -162,9 +162,9 @@ void LCCStackManager::start(bool is_sd)
       new AutoSyncFileFlow(stack_->service(), fd_
                          , SEC_TO_USEC(CONFIG_LCC_SD_FSYNC_SEC));
   }
-#if defined(CONFIG_LCC_PRINT_ALL_PACKETS)
+#if defined(CONFIG_LCC_PRINT_ALL_PACKETS) && !defined(CONFIG_LCC_TCP_STACK)
   LOG(INFO, "[LCC] Configuring LCC packet printer");
-  stack_->print_all_packets();
+  ((openlcb::SimpleCanStack *)stack_)->print_all_packets();
 #endif
 }
 
