@@ -392,13 +392,14 @@ class AllTrainNodes::TrainFDISpace : public openlcb::MemorySpace
     ssize_t result = gen_.read(source, dst, len);
     if (result < 0)
     {
-      LOG_ERROR("[TrainCDI] Read failure: %u, %zu: %zu", source, len, result);
+      LOG_ERROR("[TrainFDI] Read failure: %u, %zu: %zu (%s)", source, len
+              , result, strerror(errno));
       *error = Defs::ERROR_PERMANENT;
       return 0;
     }
     if (result == 0)
     {
-      LOG(WARNING, "[TrainCDI] Out-of-bounds read: %u, %zu", source, len);
+      LOG(VERBOSE, "[TrainFDI] Out-of-bounds read: %u, %zu", source, len);
       *error = openlcb::MemoryConfigDefs::ERROR_OUT_OF_BOUNDS;
     }
     else
