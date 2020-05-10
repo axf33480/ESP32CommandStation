@@ -53,12 +53,9 @@
 
 #include "utils/socket_listener.hxx"
 
+#include "nmranet_config.h"
 #include "utils/macros.h"
 #include "utils/logging.h"
-
-#ifndef SOCKET_LISTENER_CONNECT_LOG_LEVEL
-#define SOCKET_LISTENER_CONNECT_LOG_LEVEL INFO
-#endif // SOCKET_LISTENER_CONNECT_LOG_LEVEL
 
 
 static void* accept_thread_start(void* arg) {
@@ -67,14 +64,6 @@ static void* accept_thread_start(void* arg) {
   return NULL;
 }
 
-#ifdef ESP32
-/// Stack size to use for the accept_thread_.
-static constexpr size_t listener_stack_size = 2048;
-#else
-/// Stack size to use for the accept_thread_.
-static constexpr size_t listener_stack_size = 1000;
-#endif // ESP32
-
 SocketListener::SocketListener(int port, connection_callback_t callback,
                                const char *thread_name)
     : startupComplete_(0),
@@ -82,7 +71,7 @@ SocketListener::SocketListener(int port, connection_callback_t callback,
       shutdownComplete_(0),
       port_(port),
       callback_(callback),
-      accept_thread_(thread_name, 0, listener_stack_size,
+      accept_thread_(thread_name, 0, config_socket_listener_stack_size(),
         accept_thread_start, this)
 {
 #if OPENMRN_FEATURE_BSD_SOCKETS_IGNORE_SIGPIPE
@@ -172,8 +161,7 @@ void SocketListener::AcceptThreadBody() {
                setsockopt(connfd, IPPROTO_TCP, TCP_NODELAY,
                           &val, sizeof(val)));
 
-    LOG(SOCKET_LISTENER_CONNECT_LOG_LEVEL,
-        "Incoming connection from %s, fd %d.", inet_ntoa(addr.sin_addr),
+    LOG(INFO, "Incoming connection from %s, fd %d.", inet_ntoa(addr.sin_addr),
         connfd);
 
     callback_(connfd);

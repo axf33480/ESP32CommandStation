@@ -152,3 +152,9 @@ DEFAULT_CONST(gridconnect_bridge_max_incoming_packets, 1);
 DEFAULT_CONST(gridconnect_bridge_max_outgoing_packets, 1);
 
 DEFAULT_CONST_FALSE(gridconnect_tcp_use_select);
+
+#ifdef ESP32
+DEFAULT_CONST(socket_listener_stack_size, 2048);
+#else
+DEFAULT_CONST(socket_listener_stack_size, 1000);
+#endif
