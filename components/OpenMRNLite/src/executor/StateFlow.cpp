@@ -99,7 +99,7 @@ void StateFlowBase::notify()
     service()->executor()->add(this);
 }
 
-#if OPENMRN_FEATURE_RTOS_FROM_ISR 
+#if OPENMRN_FEATURE_RTOS_FROM_ISR
 void StateFlowBase::notify_from_isr()
 {
     service()->executor()->add_from_isr(this, 0);

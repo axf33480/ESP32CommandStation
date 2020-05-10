@@ -1,5 +1,5 @@
 /** \copyright
- * Copyright (c) 2015, Stuart W Baker
+ * Copyright (c) 2014, Balazs Racz
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -24,42 +24,64 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  *
- * \file DeviceBuffer.hxx
- * This file provides a buffer class that is useful in the construction of
- * FreeRTOS device drivers.
+ * \file SimpleLog.hxx
  *
- * @author Stuart W. Baker
- * @date 2 March 2015
+ * A very simple logging mechanism of driver events that is capable of logging
+ * a few entries of an 8-byte enum value, in a gdb-friendly way.
+ *
+ * @author Balazs Racz
+ * @date 14 September 2014
  */
 
-#include "DeviceBuffer.hxx"
+#ifndef _FREERTOS_DRIVERS_COMMON_SIMPLELOG_HXX_
+#define _FREERTOS_DRIVERS_COMMON_SIMPLELOG_HXX_
 
-#include "openmrn_features.h"
-#if OPENMRN_FEATURE_DEVTAB
-
-#include <sys/select.h>
-
-/** Block until the wait condition is true.  The condition is defined by
- * the user of the buffer and could be that there is data in the buffer or
- * it could be that there is room in the buffer.  In any case, this method
- * should be called only when the buffer is locked within a critical
- * section.
- *
- * Internally the lock is released before blocking to prevent
- * deadlock.  The lock is grabbed once again before the method returns.
- * If multiple threads are waiting on the same condition, there is a race
- * between them as to who will consume the condition first.  Any thread(s)
- * loosing that race would typically make another call to
- * @ref block_until_condition() until another wakeup condition occurs.
- */
-void DeviceBufferBase::block_until_condition(File *file, bool read)
+/// A very simple logging mechanism of driver events that is capable of logging
+/// a few entries of an 8-bit enum value, in a gdb-friendly way.
+///
+/// C is typically uint64_t.
+template <typename C> class SimpleLog
 {
-    fd_set fds;
-    FD_ZERO(&fds);
-    int fd = Device::fd_lookup(file);
-    FD_SET(fd, &fds);
+public:
+    SimpleLog()
+        : log_(0)
+    {
+    }
 
-    ::select(fd + 1, read ? &fds : NULL, read ? NULL : &fds, NULL, NULL);
-}
+    /// Append a byte worth of data to the end of the log buffer. Rotates out
+    /// some old data.
+    void log(uint8_t value)
+    {
+        log_ <<= 8;
+        log_ |= value;
+    }
 
-#endif // OPENMRN_FEATURE_DEVTAB
+private:
+    /// The raw log buffer.
+    C log_;
+};
+
+/// Actual class that keeps 8 log entries of one byte each.
+typedef SimpleLog<uint64_t> LogBuffer;
+
+
+/// Alternative for hundreds of entries.
+template<class T, int N> class LogRing {
+public:
+    void add(T data) {
+        data_[next_] = data;
+        last_ = data_ + next_;
+        if (next_) {
+            --next_;
+        } else {
+            next_ = N-1;
+        }
+    }
+    
+private:
+    T data_[N];
+    unsigned next_{N};
+    T* last_{data_};
+};
+
+#endif // _FREERTOS_DRIVERS_COMMON_SIMPLELOG_HXX_

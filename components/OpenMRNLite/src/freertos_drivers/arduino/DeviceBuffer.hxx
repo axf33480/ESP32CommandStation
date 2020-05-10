@@ -40,11 +40,12 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include "utils/macros.h"
+
 #include "openmrn_features.h"
 
 #if OPENMRN_FEATURE_DEVTAB
 #include "Devtab.hxx"
-#endif // OPENMRN_FEATURE_DEVTAB
+#endif
 
 /** Helper for DeviceBuffer which allows for methods to not be inlined.
  */

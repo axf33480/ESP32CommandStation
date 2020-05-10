@@ -54,7 +54,7 @@
 #include <sys/select.h>
 #endif
 
-#if ESP32
+#ifdef ESP32
 #include <esp_vfs.h>
 #endif // ESP32
 
@@ -92,8 +92,7 @@ public:
         thread_ = os_thread_self();
 #ifdef ESP32
         esp_allocate_vfs_fd();
-#endif
-#if OPENMRN_FEATURE_DEVICE_SELECT
+#elif OPENMRN_FEATURE_DEVICE_SELECT
         Device::select_insert(&selectInfo_);
 #elif OPENMRN_HAVE_PSELECT
         // Blocks SIGUSR1 in the signal mask of the current thread.
@@ -228,7 +227,7 @@ public:
         {
             nfds = vfsFd_ + 1;
         }
-#endif //ESP32
+#endif // ESP32
         struct timeval timeout;
         timeout.tv_sec = NSEC_TO_SEC(deadline_nsec);
         timeout.tv_usec = NSEC_TO_USEC(deadline_nsec) % SEC_TO_USEC(1);
@@ -261,7 +260,7 @@ public:
 #else
     void esp_start_select(void* signal_sem);
     void esp_end_select();
-#endif
+#endif // IDF v4+
 
 private:
     /// FD for waking up select in ESP32 VFS implementation.
@@ -272,13 +271,16 @@ private:
     /// ESP32 early from the select() call.
     esp_vfs_select_sem_t espSem_{false, nullptr};
 #else
+    /// Semaphore for waking up LWIP select.
+    void* lwipSem_{nullptr};
     /// Semaphore for waking up ESP32 select.
     void* espSem_{nullptr};
-#endif
+#endif // IDF v4+
 
     /// true if we have already woken up select. protected by Atomic *this.
     bool woken_{true};
-#endif
+#endif // ESP32
+
 #if OPENMRN_HAVE_PSELECT
     /** This signal is used for the wakeup kill in a pthreads OS. */
     static const int WAKEUP_SIG = SIGUSR1;

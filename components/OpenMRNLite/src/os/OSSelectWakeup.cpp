@@ -224,8 +224,6 @@ void OSSelectWakeup::esp_wakeup()
     woken_ = true;
 #if defined(ESP_IDF_VERSION_MAJOR)
     LOG(VERBOSE, "wakeup es %p %u", espSem_.sem, *(unsigned*)espSem_.sem);
-    // If we have a valid semaphore send it to the VFS layer to wake up any
-    // pending select() call.
     if (espSem_.sem)
     {
         esp_vfs_select_triggered(espSem_);
@@ -271,8 +269,6 @@ void OSSelectWakeup::esp_wakeup_from_isr()
     woken_ = true;
     BaseType_t woken = pdFALSE;
 #if defined(ESP_IDF_VERSION_MAJOR)
-    // If we have a valid semaphore send it to the VFS layer to wake up any
-    // pending select() call.
     if (espSem_.sem)
     {
         esp_vfs_select_triggered_isr(espSem_, &woken);

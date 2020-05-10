@@ -889,7 +889,7 @@ public:
         }
         return result;
     }
-#endif // OPENMRN_FEATURE_SEM_TIMEDWAIT
+#endif
 
     /** Wakeup anyone waiting on the wait queue.
      */
