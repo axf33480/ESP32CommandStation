@@ -941,12 +941,11 @@ HTTP_HANDLER_IMPL(process_loco, request)
       }
       else
       {
-        string name = request->param(JSON_NAME_NODE);
-        if (!name.compare(""))
+        traindb->create_if_not_found(address, std::to_string(address));
+        if (request->has_param(JSON_NAME_NODE))
         {
-          name = "unknown";
+          traindb->set_train_name(address, request->param(JSON_NAME_NODE));
         }
-        traindb->create_if_not_found(address, name);
         if (request->has_param(JSON_IDLE_ON_STARTUP_NODE))
         {
           traindb->set_train_auto_idle(address, request->param(JSON_IDLE_ON_STARTUP_NODE, false));

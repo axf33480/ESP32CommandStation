@@ -449,7 +449,7 @@ set<uint16_t> Esp32TrainDatabase::get_default_train_addresses(uint16_t limit)
   return results;
 }
 
-void Esp32TrainDatabase::set_train_name(unsigned address, std::string &name)
+void Esp32TrainDatabase::set_train_name(unsigned address, std::string name)
 {
   OSMutexLock l(&knownTrainsLock_);
   LOG(VERBOSE, "[TrainDB] Searching for train with address %u", address);

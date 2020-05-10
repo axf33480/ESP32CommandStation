@@ -97,7 +97,7 @@ namespace esp32cs
       return data_.name;
     }
 
-    void set_train_name(std::string &name)
+    void set_train_name(std::string name)
     {
       data_.name = std::move(name);
       dirty_ = true;
@@ -231,7 +231,7 @@ namespace esp32cs
 
     std::set<uint16_t> get_default_train_addresses(uint16_t limit);
 
-    void set_train_name(unsigned address, std::string &name);
+    void set_train_name(unsigned address, std::string name);
     void set_train_auto_idle(unsigned address, bool idle);
     void set_train_show_on_limited_throttle(unsigned address, bool show);
 
