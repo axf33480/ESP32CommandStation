@@ -60,9 +60,6 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 
 const char * buildTime = __DATE__ " " __TIME__;
 
-// GCC pre-compiler trick to expand the value from a #define constant
-#define OVERRIDE_CONST_EXPAND_VALUE(var, value) OVERRIDE_CONST(var, value)
-
 #if CONFIG_LCC_GC_NEWLINES
 ///////////////////////////////////////////////////////////////////////////////
 // This will generate newlines after GridConnect each packet being sent.
@@ -74,20 +71,20 @@ OVERRIDE_CONST_TRUE(gc_generate_newlines);
 // Increase the number of memory spaces available at runtime to account for the
 // Traction protocol CDI/FDI needs.
 ///////////////////////////////////////////////////////////////////////////////
-OVERRIDE_CONST_EXPAND_VALUE(num_memory_spaces, CONFIG_LCC_MEMORY_SPACES);
+OVERRIDE_CONST_DEFERRED(num_memory_spaces, CONFIG_LCC_MEMORY_SPACES);
 
 ///////////////////////////////////////////////////////////////////////////////
 // Increase the GridConnect buffer size to improve performance by bundling more
 // than one GridConnect packet into the same send() call to the socket.
 ///////////////////////////////////////////////////////////////////////////////
-OVERRIDE_CONST_EXPAND_VALUE(gridconnect_buffer_size, CONFIG_TCP_MSS);
+OVERRIDE_CONST_DEFERRED(gridconnect_buffer_size, (CONFIG_LWIP_TCP_MSS / 2));
 
 ///////////////////////////////////////////////////////////////////////////////
 // Increase the time for the buffer to fill up before sending it out over the
 // socket connection.
 ///////////////////////////////////////////////////////////////////////////////
-OVERRIDE_CONST_EXPAND_VALUE(gridconnect_buffer_delay_usec
-                          , CONFIG_LCC_GC_DELAY_USEC);
+OVERRIDE_CONST_DEFERRED(gridconnect_buffer_delay_usec
+                      , CONFIG_LCC_GC_DELAY_USEC);
 
 #if CONFIG_LCC_USE_SELECT
 ///////////////////////////////////////////////////////////////////////////////
@@ -100,23 +97,22 @@ OVERRIDE_CONST_TRUE(gridconnect_tcp_use_select);
 // This limites the number of outbound GridConnect packets which limits the
 // memory used by the BufferPort.
 ///////////////////////////////////////////////////////////////////////////////
-OVERRIDE_CONST_EXPAND_VALUE(gridconnect_bridge_max_outgoing_packets
-                          , CONFIG_LCC_GC_OUTBOUND_PACKET_LIMIT);
+OVERRIDE_CONST_DEFERRED(gridconnect_bridge_max_outgoing_packets
+                      , CONFIG_LCC_GC_OUTBOUND_PACKET_LIMIT);
 
 ///////////////////////////////////////////////////////////////////////////////
 // This increases number of state flows to invoke before checking for any FDs
 // that have pending data.
 ///////////////////////////////////////////////////////////////////////////////
-OVERRIDE_CONST_EXPAND_VALUE(executor_select_prescaler
-                          , LCC_EXECUTOR_SELECT_PRESCALER);
+OVERRIDE_CONST_DEFERRED(executor_select_prescaler
+                      , LCC_EXECUTOR_SELECT_PRESCALER);
 
 ///////////////////////////////////////////////////////////////////////////////
 // This increases the number of local nodes and aliases available for the LCC
 // stack. This is needed to allow for virtual train nodes.
 ///////////////////////////////////////////////////////////////////////////////
-OVERRIDE_CONST_EXPAND_VALUE(local_nodes_count, CONFIG_LCC_LOCAL_NODE_COUNT);
-OVERRIDE_CONST_EXPAND_VALUE(local_alias_cache_size
-                          , CONFIG_LCC_LOCAL_NODE_COUNT);
+OVERRIDE_CONST_DEFERRED(local_nodes_count, CONFIG_LCC_LOCAL_NODE_COUNT);
+OVERRIDE_CONST_DEFERRED(local_alias_cache_size, CONFIG_LCC_LOCAL_NODE_COUNT);
 
 unique_ptr<openlcb::SimpleStackBase> lccStack;
 
