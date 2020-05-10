@@ -20,7 +20,6 @@ These are must have features/bug fixes for v1.5.0:
 -   [x] Roster: Implement delete loco.
 -   [x] Roster: Implement auto-idle loco.
 -   [x] S88: Convert to use openlcb::Polling model rather than tasks.
--   [ ] Sensors: Convert to use openlcb::Polling model rather than tasks.
 -   [x] Turnouts: Switch fully to DCC address only support, for DCC++ compatibility decode the data and convert.
 -   [x] Web: Entering loco name as "loco #3" results in "loco 33" being registered.
 -   [ ] Web: Delete of roster entry doesn't always force refresh of section.
@@ -84,7 +83,7 @@ These entries are items being tracked for a future release, these are not listed
 -   [ ] LCC: Expose PROG track via CDI (needed for UWT-100 support).
 -   [ ] LCC: Reimplement Loco Consist leveraging LCC Traction Consist functionality.
 -   [ ] LCC: Update Esp32WiFiManager to use SimpleStackBase instead of SimpleCanStack.
--   [ ] LCC: TrainSearch sometimes errors out with 80000 or 81000 (timeout).
+-   [ ] LCC: Connect Loco CDI to TrainDB.
 -   [ ] Misc: Switch to shared_ptr instead of raw pointers.
 -   [ ] Misc: WiThrottle support (https://github.com/atanisoft/ESP32CommandStation/issues/15)
 -   [ ] Misc: Combine usages of openlcb::RefreshLoop.
@@ -101,8 +100,10 @@ These entries are items being tracked for a future release, these are not listed
 -   [ ] Roster: Roster Entries should contain function id mappings.
 -   [ ] Roster: Expose db entries via R/W CDI.
 -   [ ] S88: Add S88 sensor data to InfoScreen status line, 16 sensor output rotation.
+-   [ ] Sensors: Convert to use openlcb::Polling model rather than tasks.
 -   [ ] Web: Add strict validation of input parameter data.
 -   [ ] Web: Expose Loco Consist creation.
+-   [ ] Web: Expose Loco function map names.
 -   [ ] Web: Auto-refresh tables when delete/edit completes.
 -   [ ] Web: Add urldecode to table rendering code.
 -   [ ] Web: active locos capped at 28 speed steps instead of 128.
