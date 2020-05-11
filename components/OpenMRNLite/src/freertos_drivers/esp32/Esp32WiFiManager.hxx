@@ -344,6 +344,9 @@ private:
     /// Internal flag to request the wifi_manager_task reload configuration.
     bool configReloadRequested_{true};
 
+    /// Internal flag to request the wifi_manager_task to shutdown.
+    bool shutdownRequested_{false};
+
     /// If true, request esp32 wifi to do verbose logging.
     bool verboseLogging_{false};
 

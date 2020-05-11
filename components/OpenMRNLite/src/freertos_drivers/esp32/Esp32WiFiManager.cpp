@@ -88,7 +88,7 @@ using std::unique_ptr;
 // be visible in the MDNS.cxx code.
 
 /// Advertises an mDNS service name. This is a hook point for the MDNS class
-/// and is used as part of the Esp32 WiFi HUB support.
+/// and is used as part of the Esp32 WiFi hub support.
 void mdns_publish(const char *name, const char *service, uint16_t port);
 
 /// Removes advertisement of an mDNS service name. This is not currently
@@ -111,8 +111,8 @@ namespace openmrn_arduino
 
 /// Priority to use for the wifi_manager_task. This is currently set to one
 /// level higher than the arduino-esp32 loopTask. The task will be in a sleep
-/// state until woken up by Esp32WiFiManager::process_wifi_event or
-/// Esp32WiFiManager::apply_configuration.
+/// state until woken up by Esp32WiFiManager::process_wifi_event,
+/// Esp32WiFiManager::apply_configuration or shutdown via destructor.
 static constexpr UBaseType_t WIFI_TASK_PRIORITY = 2;
 
 /// Stack size for the wifi_manager_task.
@@ -123,6 +123,9 @@ static constexpr TickType_t WIFI_CONNECT_CHECK_INTERVAL = pdMS_TO_TICKS(5000);
 
 /// Interval at which to check if the GcTcpHub has started or not.
 static constexpr uint32_t HUB_STARTUP_DELAY_USEC = MSEC_TO_USEC(50);
+
+/// Interval at which to check if the WiFi task has shutdown or not.
+static constexpr uint32_t TASK_SHUTDOWN_DELAY_USEC = MSEC_TO_USEC(1);
 
 /// Bit designator for wifi_status_event_group which indicates we are connected
 /// to the SSID.
@@ -345,12 +348,18 @@ Esp32WiFiManager::~Esp32WiFiManager()
         esp_event_loop_set_cb(nullptr, nullptr);
     }
 
-    // shutdown the WiFi background task
-    vTaskDelete(wifiTaskHandle_);
+    // set flag to shutdown WiFi background task and wake it up
+    shutdownRequested_ = true;
+    xTaskNotifyGive(wifiTaskHandle_);
 
-    // Stop the hub and uplink (if they are active)
-    stop_hub();
-    stop_uplink();
+    // wait for WiFi background task shutdown to complete
+    while (shutdownRequested_)
+    {
+        usleep(TASK_SHUTDOWN_DELAY_USEC);
+    }
+
+    // cleanup event group
+    vEventGroupDelete(wifiStatusEventGroup_);
 
     // cleanup internal vectors/maps
     ssidScanResults_.clear();
@@ -941,7 +950,7 @@ void *Esp32WiFiManager::wifi_manager_task(void *param)
     // Start the WiFi system before proceeding with remaining tasks.
     wifi->start_wifi_system();
 
-    while (true)
+    while (!wifi->shutdownRequested_)
     {
         EventBits_t bits = xEventGroupGetBits(wifi->wifiStatusEventGroup_);
         if (bits & WIFI_GOTIP_BIT)
@@ -964,6 +973,12 @@ void *Esp32WiFiManager::wifi_manager_task(void *param)
             // Make sure we don't try and reload configuration since we can't
             // create outbound connections at this time.
             wifi->configReloadRequested_ = false;
+        }
+
+        if (wifi->shutdownRequested_)
+        {
+            LOG(INFO, "[WiFi] Shutdown requested, stopping background thread.");
+            break;
         }
 
         // Check if there are configuration changes to pick up.
@@ -993,7 +1008,7 @@ void *Esp32WiFiManager::wifi_manager_task(void *param)
 
             if (CDI_READ_TRIMMED(wifi->cfg_.hub().enable, wifi->configFd_))
             {
-                // Since hub mode is enabled start the HUB creation process.
+                // Since hub mode is enabled start the hub creation process.
                 wifi->start_hub();
             }
             // Start the uplink connection process in the background.
@@ -1006,6 +1021,13 @@ void *Esp32WiFiManager::wifi_manager_task(void *param)
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
     }
 
+    // Stop the hub and uplink (if they are active)
+    wifi->stop_hub();
+    wifi->stop_uplink();
+
+    // reset flag to indicate we have shutdown
+    wifi->shutdownRequested_ = false;
+
     return nullptr;
 }
 
@@ -1015,7 +1037,7 @@ void Esp32WiFiManager::stop_hub()
     if (hub_)
     {
         mdns_unpublish(hubServiceName_);
-        LOG(INFO, "[HUB] Shutting down TCP/IP listener");
+        LOG(INFO, "[Hub] Shutting down TCP/IP listener");
         hub_.reset(nullptr);
     }
 }
@@ -1026,7 +1048,7 @@ void Esp32WiFiManager::start_hub()
     hubServiceName_ = cfg_.hub().service_name().read(configFd_);
     uint16_t hub_port = CDI_READ_TRIMMED(cfg_.hub().port, configFd_);
 
-    LOG(INFO, "[HUB] Starting TCP/IP listener on port %d", hub_port);
+    LOG(INFO, "[Hub] Starting TCP/IP listener on port %d", hub_port);
     hub_.reset(new GcTcpHub(stack_->can_hub(), hub_port));
 
     // wait for the hub to complete it's startup tasks
@@ -1063,7 +1085,7 @@ void Esp32WiFiManager::start_uplink()
 // Converts the passed fd into a GridConnect port and adds it to the stack.
 void Esp32WiFiManager::on_uplink_created(int fd, Notifiable *on_exit)
 {
-    LOG(INFO, "[UPLINK] Connected to hub, configuring GridConnect port.");
+    LOG(INFO, "[Uplink] Connected to hub, configuring GridConnect port.");
 
     const bool use_select =
         (config_gridconnect_tcp_use_select() == CONSTANT_TRUE);
