@@ -42,6 +42,8 @@ void *node_reboot(void *arg)
 #endif
   Singleton<TurnoutManager>::instance()->stop();
   Singleton<esp32cs::Esp32TrainDatabase>::instance()->stop();
+  // sleep for 1 sec to give time for restart broadcast (if needed)
+  usleep(1000);
   Singleton<http::Httpd>::instance()->executor()->shutdown();
   Singleton<esp32cs::LCCWiFiManager>::instance()->shutdown();
   Singleton<esp32cs::LCCStackManager>::instance()->shutdown();

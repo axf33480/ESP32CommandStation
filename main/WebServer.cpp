@@ -612,7 +612,7 @@ HTTP_HANDLER_IMPL(process_config, request)
   {
     // send a string back to the client rather than SEND_GENERIC_RESPONSE
     // so we don't return prior to calling reboot.
-    return new StringResponse("{restart:\"ESP32CommandStation Restarting!\"}"
+    return new StringResponse("{\"restart\":\"ESP32CommandStation Restarting!\"}"
                             , MIME_TYPE_APPLICATION_JSON);
   }
 
