@@ -22,13 +22,13 @@ COPYRIGHT (c) 2019-2020 Mike Dunston
 #include <StatusLED.h>
 
 HBridgeShortDetector::HBridgeShortDetector(openlcb::Node *node
-                                 , const adc1_channel_t senseChannel
-                                 , const Gpio *enablePin
-                                 , const uint32_t limitMilliAmps
-                                 , const uint32_t maxMilliAmps
-                                 , const string &name
-                                 , const string &bridgeType
-                                 , const esp32cs::TrackOutputConfig &cfg)
+                                         , const adc1_channel_t senseChannel
+                                         , const Gpio *enablePin
+                                         , const uint32_t limitMilliAmps
+                                         , const uint32_t maxMilliAmps
+                                         , const string &name
+                                         , const string &bridgeType
+                                         , const esp32cs::TrackOutputConfig &cfg)
   : DefaultConfigUpdateListener()
   , channel_(senseChannel)
   , enablePin_(enablePin)
@@ -52,12 +52,12 @@ HBridgeShortDetector::HBridgeShortDetector(openlcb::Node *node
 }
 
 HBridgeShortDetector::HBridgeShortDetector(openlcb::Node *node
-                                 , const adc1_channel_t senseChannel
-                                 , const Gpio *enablePin
-                                 , const uint32_t maxMilliAmps
-                                 , const string &name
-                                 , const string &bridgeType
-                                 , const esp32cs::TrackOutputConfig &cfg)
+                                         , const adc1_channel_t senseChannel
+                                         , const Gpio *enablePin
+                                         , const uint32_t maxMilliAmps
+                                         , const string &name
+                                         , const string &bridgeType
+                                         , const esp32cs::TrackOutputConfig &cfg)
   : DefaultConfigUpdateListener()
   , channel_(senseChannel)
   , enablePin_(enablePin)
@@ -173,6 +173,26 @@ void HBridgeShortDetector::poll_33hz(openlcb::WriteHelper *helper, Notifiable *d
   // average the collected samples
   lastReading_ = (std::accumulate(samples.begin(), samples.end(), 0) / samples.size());
 
+  // if this is the PROG track check up front if we have a short or ACK.
+  if (isProgTrack_ && lastReading_ > 0)
+  {
+    LOG(VERBOSE, "[%s] reading: %d", name_.c_str(), lastReading_);
+    auto backend = Singleton<ProgrammingTrackBackend>::instance();
+    if (lastReading_ >= overCurrentLimit_)
+    {
+      // note that only over current is checked here since this should be
+      // triggered before the shutdown current has been reached.
+      backend->notify_service_mode_short();
+    }
+    else if (lastReading_ >= progAckLimit_)
+    {
+      // send the ack over to the backend since it is over the limit.
+      backend->notify_service_mode_ack();
+    }
+  }
+
+  uint8_t previous_state = state_;
+
   if (lastReading_ >= shutdownLimit_)
   {
     // If the average sample exceeds the shutdown limit (~90% typically)
@@ -184,17 +204,10 @@ void HBridgeShortDetector::poll_33hz(openlcb::WriteHelper *helper, Notifiable *d
             , shutdownLimit_);
     enablePin_->clr();
     state_ = STATE_SHUTDOWN;
-    shutdownProducer_.SendEventReport(helper, done);
 #if CONFIG_STATUS_LED
     Singleton<StatusLED>::instance()->setStatusLED((StatusLED::LED)targetLED_
                                                  , StatusLED::COLOR::RED_BLINK);
 #endif // CONFIG_STATUS_LED
-    if (isProgTrack_)
-    {
-      // If this is the programming track notify the ProgrammingTrackBackend of
-      // a possible short condition.
-      Singleton<ProgrammingTrackBackend>::instance()->notify_service_mode_short();
-    }
   }
   else if (lastReading_ >= overCurrentLimit_)
   {
@@ -210,33 +223,18 @@ void HBridgeShortDetector::poll_33hz(openlcb::WriteHelper *helper, Notifiable *d
               , lastReading_
               , overCurrentLimit_);
       state_ = STATE_OVERCURRENT;
-      shortProducer_.SendEventReport(helper, done);
 #if CONFIG_STATUS_LED
       Singleton<StatusLED>::instance()->setStatusLED((StatusLED::LED)targetLED_
                                                    , StatusLED::COLOR::RED);
 #endif // CONFIG_STATUS_LED
-      if (isProgTrack_)
-      {
-        // If this is the programming track notify the ProgrammingTrackBackend of
-        // a possible short condition.
-        Singleton<ProgrammingTrackBackend>::instance()->notify_service_mode_short();
-      }
     }
   }
   else
   {
-    AutoNotify n(done);
     if (enablePin_->is_set())
     {
       overCurrentCheckCount_ = 0;
       state_ = STATE_ON;
-      if (isProgTrack_ && lastReading_ >= progAckLimit_)
-      {
-        // If this is the programming track and the average reading is at least the
-        // configured ack level, send a notification to the ProgrammingTrackBackend
-        // to wake it up.
-        Singleton<ProgrammingTrackBackend>::instance()->notify_service_mode_ack();
-      }
 #if CONFIG_STATUS_LED
       // check if we are over the warning limit and update the LED accordingly.
       if (lastReading_ >= warnLimit_)
@@ -256,12 +254,34 @@ void HBridgeShortDetector::poll_33hz(openlcb::WriteHelper *helper, Notifiable *d
       state_ = STATE_OFF;
     }
   }
-
   if (state_ == STATE_ON &&
      (esp_timer_get_time() - lastReport_) >= currentReportInterval_)
   {
     lastReport_ = esp_timer_get_time();
     LOG(INFO, "[%s] %6.0f mA / %d mA", name_.c_str(), getUsage() / 1000.0f
       , maxMilliAmps_);
+  }
+
+  // if our state has changed send out applicable events
+  if (previous_state != state_)
+  {
+    if (previous_state == STATE_SHUTDOWN || state_ == STATE_SHUTDOWN)
+    {
+      shutdownProducer_.SendEventReport(helper, done);
+    }
+    else if (previous_state == STATE_OVERCURRENT || state_ == STATE_OVERCURRENT)
+    {
+      shortProducer_.SendEventReport(helper, done);
+    }
+    else
+    {
+      // no event necessary
+      done->notify();
+    }
+  }
+  else
+  {
+    // no event necessary
+    done->notify();
   }
 }
