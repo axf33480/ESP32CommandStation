@@ -533,8 +533,8 @@ HTTP_HANDLER_IMPL(process_config, request)
 
   if (request->has_param("reset"))
   {
-    stackManager->factory_reset();
-    wifiManager->factory_reset();
+    // this will wipe all persistent config
+    Singleton<ConfigurationManager>::instance()->force_factory_reset();
     needReboot = true;
   }
   else if (request->has_param("scan"))

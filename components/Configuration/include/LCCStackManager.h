@@ -53,6 +53,7 @@ public:
   bool reconfigure_can(bool enable, bool restart = true);
   void factory_reset();
   std::string get_config_json();
+  void reboot_node();
 private:
   const Esp32ConfigDef cfg_;
   int fd_;

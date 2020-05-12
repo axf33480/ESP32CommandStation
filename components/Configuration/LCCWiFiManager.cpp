@@ -178,13 +178,6 @@ void LCCWiFiManager::shutdown()
   wifi_.reset(nullptr);
 }
 
-void LCCWiFiManager::factory_reset()
-{
-  auto cfg_mgr = Singleton<ConfigurationManager>::instance();
-  cfg_mgr->remove(WIFI_STATION_CFG);
-  cfg_mgr->remove(WIFI_SOFTAP_CFG);
-}
-
 void LCCWiFiManager::reconfigure_mode(string mode, bool restart)
 {
   auto cfg_mgr = Singleton<ConfigurationManager>::instance();

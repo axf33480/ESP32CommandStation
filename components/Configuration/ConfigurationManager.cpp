@@ -38,6 +38,7 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 using nlohmann::json;
 
 static constexpr const char ESP32_CS_CONFIG_JSON[] = "esp32cs-config.json";
+static constexpr const char FACTORY_RESET_MARKER_FILE[] = "resetcfg.txt";
 
 #if defined(CONFIG_ESP32CS_FORCE_FACTORY_RESET_PIN) && CONFIG_ESP32CS_FORCE_FACTORY_RESET_PIN >= 0
 #include <freertos_drivers/esp32/Esp32Gpio.hxx>
@@ -49,14 +50,6 @@ typedef DummyPinWithReadHigh FACTORY_RESET_Pin;
 
 // holder of the parsed configuration.
 json csConfig;
-
-// Helper which will trigger a config reload event to be queued when
-// updated is true.
-#define SCHEDULE_REBOOT()                               \
-  Singleton<esp32cs::LCCStackManager>::instance()->stack()->executor()->add(new CallbackExecutable([]()   \
-  {                                                     \
-    reboot();                                           \
-  }));
 
 // Helper which converts a string to a uint64 value.
 uint64_t string_to_uint64(string value)
@@ -182,6 +175,11 @@ ConfigurationManager::ConfigurationManager(const esp32cs::Esp32ConfigDef &cfg)
       LOG_ERROR("[Config] Unable to retrieve SPIFFS utilization statistics.");
     }
     LOG(INFO, "[Config] SPIFFS will be used for persistent storage.");
+  }
+
+  if (exists(FACTORY_RESET_MARKER_FILE))
+  {
+    factory_reset_config = true;
   }
 
   if (factory_reset_config)
@@ -335,6 +333,14 @@ string ConfigurationManager::getCSConfig()
     },
   };
   return clone.dump();
+}
+
+void ConfigurationManager::force_factory_reset()
+{
+  LOG(INFO, "[Config] Enabling forced factory_reset.");
+  string marker = "force factory reset";
+  store(FACTORY_RESET_MARKER_FILE, marker);
+  Singleton<esp32cs::LCCStackManager>::instance()->reboot_node();
 }
 
 #if defined(CONFIG_GPIO_OUTPUTS) || defined(CONFIG_GPIO_SENSORS)

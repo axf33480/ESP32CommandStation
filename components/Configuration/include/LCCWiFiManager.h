@@ -36,7 +36,6 @@ public:
   LCCWiFiManager(openlcb::SimpleStackBase *stack
                , const esp32cs::Esp32ConfigDef &cfg);
   void shutdown();
-  void factory_reset();
   void reconfigure_mode(std::string mode, bool restart = true);
   void reconfigure_station(std::string ssid, std::string password
                          , std::string ip = "", std::string gateway = ""

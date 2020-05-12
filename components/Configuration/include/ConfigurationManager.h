@@ -50,6 +50,7 @@ public:
   std::string load(const std::string &);
   void store(const char *, const std::string &);
   std::string getCSConfig();
+  void force_factory_reset();
 private:
   std::string getFilePath(const std::string &);
 

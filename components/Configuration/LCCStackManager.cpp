@@ -205,8 +205,7 @@ bool LCCStackManager::set_node_id(string node_id, bool restart)
     if (restart)
     {
       factory_reset();
-      // add callback to reboot the node
-      stack()->executor()->add(new CallbackExecutable([](){ reboot(); }));
+      reboot_node();
       return true;
     }
   }
@@ -230,8 +229,7 @@ bool LCCStackManager::reconfigure_can(bool enable, bool restart)
   }
   if (restart)
   {
-    // add callback to reboot the node
-    stack()->executor()->add(new CallbackExecutable([](){ reboot(); }));
+    reboot_node();
     return true;
   }
 #endif // CONFIG_LCC_CAN_ENABLED
@@ -252,6 +250,11 @@ std::string LCCStackManager::get_config_json()
   return StringPrintf("\"lcc\":{\"id\":\"%s\", \"can\":%s}"
                     , uint64_to_string_hex(nodeID_).c_str()
                     , cfg->exists(LCC_CAN_MARKER_FILE) ? "true" : "false");
+}
+
+void LCCStackManager::reboot_node()
+{
+  stack_->executor()->add(new CallbackExecutable([](){ reboot(); }));
 }
 
 } // namespace esp32cs
