@@ -35,9 +35,7 @@ menu "DCC Signal"
             default "BTS7960B" if OPS_HBRIDGE_BTS7960B_10A
 
         config OPS_HBRIDGE_MAX_MILLIAMPS
-            int "H-Bridge maximum milliamps"
-            help
-                This is the rated maximum milliamps for the H-Bridge IC.
+            int
             default 2000 if OPS_HBRIDGE_L298
             default 3000 if OPS_HBRIDGE_LMD18200
             default 2500 if OPS_HBRIDGE_POLOLU
@@ -45,7 +43,7 @@ menu "DCC Signal"
             default 43000 if OPS_HBRIDGE_BTS7960B_10A
 
         config OPS_HBRIDGE_LIMIT_MILLIAMPS
-            int "H-Bridge limit milliamps"
+            int "H-Bridge over-current trigger milliamps"
             default 2000 if OPS_HBRIDGE_L298
             default 3000 if OPS_HBRIDGE_LMD18200
             default 2500 if OPS_HBRIDGE_POLOLU
@@ -238,7 +236,7 @@ menu "DCC Signal"
             default "BTS7960B" if PROG_HBRIDGE_BTS7960B_10A
 
         config PROG_HBRIDGE_MAX_MILLIAMPS
-            int "H-Bridge maximum milliamps"
+            int
             default 2000 if PROG_HBRIDGE_L298
             default 3000 if PROG_HBRIDGE_LMD18200
             default 2500 if PROG_HBRIDGE_POLOLU
@@ -246,7 +244,7 @@ menu "DCC Signal"
             default 43000 if PROG_HBRIDGE_BTS7960B_10A
 
         config PROG_HBRIDGE_LIMIT_MILLIAMPS
-            int "H-Bridge limit milliamps"
+            int "H-Bridge over-current trigger milliamps"
             default 2000 if PROG_HBRIDGE_L298
             default 3000 if PROG_HBRIDGE_LMD18200
             default 2500 if PROG_HBRIDGE_POLOLU
