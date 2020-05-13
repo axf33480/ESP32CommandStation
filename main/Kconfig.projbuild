@@ -200,7 +200,7 @@ menu "LocoNet"
         
     choice LOCONET_UART
         bool "Hardware UART to use for LocoNet"
-        default HC12_UART_UART1
+        default LOCONET_UART_UART1
         depends on LOCONET
         config LOCONET_UART_UART1
             bool "UART1"
