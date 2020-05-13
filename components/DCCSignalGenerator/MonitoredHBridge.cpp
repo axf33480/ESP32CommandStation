@@ -263,25 +263,23 @@ void HBridgeShortDetector::poll_33hz(openlcb::WriteHelper *helper, Notifiable *d
   }
 
   // if our state has changed send out applicable events
+  bool async_event_req = false;
   if (previous_state != state_)
   {
     if (previous_state == STATE_SHUTDOWN || state_ == STATE_SHUTDOWN)
     {
       shutdownProducer_.SendEventReport(helper, done);
+      async_event_req = true;
     }
     else if (previous_state == STATE_OVERCURRENT || state_ == STATE_OVERCURRENT)
     {
       shortProducer_.SendEventReport(helper, done);
-    }
-    else
-    {
-      // no event necessary
-      done->notify();
+      async_event_req = true;
     }
   }
-  else
+
+  if (!async_event_req)
   {
-    // no event necessary
     done->notify();
   }
 }
