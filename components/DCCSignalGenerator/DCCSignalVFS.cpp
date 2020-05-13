@@ -345,12 +345,6 @@ void init_dcc_vfs(openlcb::Node *node, Service *service
                            , CONFIG_PROG_HBRIDGE_TYPE_NAME
                            , prog_cfg));
 
-  dcc_poller.reset(new openlcb::RefreshLoop(node,
-    { ops_thermal_mon->polling()
-    , track_mon[OPS_RMT_CHANNEL].get()
-    , track_mon[PROG_RMT_CHANNEL].get()
-  }));
-
   // initialize the RMT using the second core so that the ISR is bound to that
   // core instead of this core.
   // TODO: should this block until the RMT is running?
@@ -373,6 +367,13 @@ void init_dcc_vfs(openlcb::Node *node, Service *service
     new ProgrammingTrackBackend(service
                               , &enable_prog_track_output
                               , &disable_prog_track_output));
+
+  // Configure h-bridge polling
+  dcc_poller.reset(new openlcb::RefreshLoop(node,
+    { ops_thermal_mon->polling()
+    , track_mon[OPS_RMT_CHANNEL].get()
+    , track_mon[PROG_RMT_CHANNEL].get()
+  }));
 
   update_status_display();
 }
