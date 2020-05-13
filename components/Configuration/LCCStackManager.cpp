@@ -81,7 +81,7 @@ LCCStackManager::LCCStackManager(const esp32cs::Esp32ConfigDef &cfg) : cfg_(cfg)
     LOG(INFO, "[LCC] Initializing configuration data...");
     set_node_id(uint64_to_string_hex(UINT64_C(CONFIG_LCC_NODE_ID)), false);
 #if defined(CONFIG_LCC_CAN_ENABLED)
-    reconfigure_can(true);
+    reconfigure_can(true, false);
 #endif // CONFIG_LCC_CAN_ENABLED
   }
   LOG(INFO, "[LCC] Loading configuration");
