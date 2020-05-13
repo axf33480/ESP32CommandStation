@@ -57,7 +57,7 @@ python "${IDF_PATH}/tools/kconfig_new/confgen.py" \
     --kconfig "${IDF_PATH}/Kconfig" \
     --config "${RUN_DIR}/sdkconfig" \
     --sdkconfig-rename "${IDF_PATH}/sdkconfig.rename" \
-    "${SDKCONFIG_DEFAULTS}" \
+    ${SDKCONFIG_DEFAULTS} \
     --env-file "${BUILD_DIR}/config.env" \
     --output header "${BUILD_DIR}/config/sdkconfig.h" \
     --output cmake "${BUILD_DIR}/config/sdkconfig.cmake" \
