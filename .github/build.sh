@@ -78,12 +78,17 @@ python "${IDF_PATH}/tools/idf_size.py" "${BUILD_DIR}/ESP32CommandStation.map"
 mkdir -p "${BINARIES_DIR}"
 cat > "${BINARIES_DIR}/readme.txt" << README_EOF
 The binaries can be sent to the ESP32 via esptool.py similar to the following:
-python esptool.py -p (PORT) -b 460800 --before default_reset --after hard_reset write_flash 
-    --flash_mode dio --flash_size detect --flash_freq 40m
-    0x1000 bootloader.bin
-    0x8000 partition-table.bin
-    0xe000 ota_data_initial.bin
-    0x10000 ESP32CommandStation.bin
+python esptool.py -p (PORT) -b 460800 --before default_reset --after hard_reset
+    write_flash 0x1000 bootloader.bin
+    write_flash 0x8000 partition-table.bin
+    write_flash 0xe000 ota_data_initial.bin
+    write_flash 0x10000 ESP32CommandStation.bin
+
+Note: The esptool.py command above should be all on one line.
+
+If you prefer a graphical utility for flashing you can use the Flash Download Tool
+available from https://www.espressif.com/en/support/download/other-tools to write
+the four binary files listed above at the listed offsets.
 README_EOF
 
 cp "${BUILD_DIR}/partition_table/partition-table.bin" \
