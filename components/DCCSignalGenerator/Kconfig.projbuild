@@ -4,6 +4,13 @@ menu "DCC Signal"
             string "Name"
             default "OPS"
 
+        config OPS_ENERGIZE_ON_STARTUP
+            bool "Energize track upon startup"
+            default n
+            help
+                Enabling this option will energize the OPS track
+                automatically upon startup of the command station.
+    
         choice OPS_HBRIDGE_TYPE
             bool "H-Bridge type"
             default OPS_HBRIDGE_L298
@@ -43,7 +50,7 @@ menu "DCC Signal"
             default 43000 if OPS_HBRIDGE_BTS7960B_10A
 
         config OPS_HBRIDGE_LIMIT_MILLIAMPS
-            int "H-Bridge over-current trigger milliamps"
+            int
             default 2000 if OPS_HBRIDGE_L298
             default 3000 if OPS_HBRIDGE_LMD18200
             default 2500 if OPS_HBRIDGE_POLOLU
@@ -59,17 +66,6 @@ menu "DCC Signal"
                 enabled and will be LOW when it should be disabled. This
                 pin should typically be connected to the PWM input of the
                 H-Bridge IC.
-
-        config OPS_THERMAL_PIN
-            int "LMD18200 Thermal Alert pin"
-            range 0 39
-            depends on OPS_HBRIDGE_LMD18200
-            help
-                The LMD18200 has a thermal alert pin that will be HIGH if
-                the IC is too HOT for normal operation. When the command
-                station detects this condition it will shutdown the track
-                output and re-enable it once the thermal alert has been
-                cleared.
 
         config OPS_SIGNAL_PIN
             int "H-Bridge signal/direction pin"
@@ -119,6 +115,17 @@ menu "DCC Signal"
             default 6 if OPS_ADC_CHANNEL_6
             default 7 if OPS_ADC_CHANNEL_7
 
+        config OPS_THERMAL_PIN
+            int "LMD18200 Thermal Alert pin"
+            range 0 39
+            depends on OPS_HBRIDGE_LMD18200
+            help
+                The LMD18200 has a thermal alert pin that will be HIGH if
+                the IC is too HOT for normal operation. When the command
+                station detects this condition it will shutdown the track
+                output and re-enable it once the thermal alert has been
+                cleared.
+
         config OPS_RAILCOM
             bool "Enable RailCom detector"
             default n
@@ -160,7 +167,7 @@ menu "DCC Signal"
             depends on OPS_RAILCOM
 
         config OPS_RAILCOM_UART_RX_PIN
-            int "H-Bridge enable/pwm pin"
+            int "RailCom UART RX pin"
             range 0 39
             depends on OPS_RAILCOM
             help
@@ -183,13 +190,6 @@ menu "DCC Signal"
                 this must be at least 16, when RailCom is not enabled this
                 can be as few as 11.
     
-        config OPS_ENERGIZE_ON_STARTUP
-            bool "Energize track upon startup"
-            default n
-            help
-                Enabling this option will energize the OPS track
-                automatically upon startup of the command station.
-
         config OPS_PACKET_QUEUE_SIZE
             int "Number of packets to queue for the OPS track"
             default 5
@@ -244,7 +244,7 @@ menu "DCC Signal"
             default 43000 if PROG_HBRIDGE_BTS7960B_10A
 
         config PROG_HBRIDGE_LIMIT_MILLIAMPS
-            int "H-Bridge over-current trigger milliamps"
+            int
             default 2000 if PROG_HBRIDGE_L298
             default 3000 if PROG_HBRIDGE_LMD18200
             default 2500 if PROG_HBRIDGE_POLOLU
@@ -350,13 +350,13 @@ menu "DCC Signal"
             6 dB attenuation gives full-scale voltage 2.2V
             11 dB attenuation gives full-scale voltage 3.9V
         config ADC_ATTEN_DB_0
-            bool "0 db (1.1V max)"
+            bool "0 dB (1.1V max)"
         config ADC_ATTEN_DB_2_5
-            bool "2.5 db (1.5V max)"
+            bool "2.5 dB (1.5V max)"
         config ADC_ATTEN_DB_6
-            bool "6 db (2.2V max)"
+            bool "6 dB (2.2V max)"
         config ADC_ATTEN_DB_11
-            bool "11 db (3.9V max)"
+            bool "11 dB (3.9V max)"
     endchoice
 
     config ADC_ATTENUATION
@@ -432,7 +432,7 @@ menu "DCC Signal"
 # the LEDs. If this is not slow enough the pulse lengths can be increased.
 #
 ###############################################################################
-    menu "Advanced Debug options"
+    menu "Advanced options"
         config DCC_RMT_HIGH_FIRST
             bool "Generate HIGH,LOW signal"
             default y

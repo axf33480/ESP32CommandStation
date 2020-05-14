@@ -1,4 +1,4 @@
-menu "JMRI Interface"
+menu "JMRI DCC++ Interface"
     config JMRI
         bool "Enable JMRI listener"
         default y

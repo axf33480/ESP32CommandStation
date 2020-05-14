@@ -29,6 +29,24 @@ menu "LCC Configuration"
         help
             This is the ESP32 pin connected to the SN6565HVD23x/MCP2551 D (TX) pin.
 
+    config LCC_PRINT_ALL_PACKETS
+        bool "Print all packets"
+        default n
+        depends on !LCC_TCP_STACK
+        help
+            Enabling this option will cause all LCC packets to be printed to
+            the serial console.
+
+    config LCC_GC_NEWLINES
+        bool "Add newline to GridConnect packets"
+        default y if LCC_PRINT_ALL_PACKETS
+        default n
+        depends on !LCC_TCP_STACK
+        help
+            Enabling this option will generate a newline character after
+            every GridConnect packet that is sent out. This is generally
+            only needed for debug purposes.
+        
     config LCC_FACTORY_RESET
         bool "Perform LCC Factory reset on startup"
         default n
@@ -43,14 +61,6 @@ menu "LCC Configuration"
         help
             Maximum number of memory spaces that can be registered for the
             MemoryConfig datagram handler.
-
-    config LCC_PRINT_ALL_PACKETS
-        bool "Print all packets"
-        default n
-        depends on !LCC_TCP_STACK
-        help
-            Enabling this option will cause all LCC packets to be printed to
-            the serial console.
 
     config LCC_EXECUTOR_SELECT_PRESCALER
         int "StateFlows to execute between select() calls"
@@ -79,16 +89,6 @@ menu "LCC Configuration"
             cache and not be persisted to the SD card without a call to fsync()
             or close(). In the case of the LCC CDI file, the CDI file remains
             open for the lifetime of the application.
-
-    config LCC_GC_NEWLINES
-        bool "Add newline to GridConnect packets"
-        default y if LCC_PRINT_ALL_PACKETS
-        default n
-        depends on !LCC_TCP_STACK
-        help
-            Enabling this option will generate a newline character after
-            every GridConnect packet that is sent out. This is generally
-            only needed for debug purposes.
 
     config LCC_GC_DELAY_USEC
         int "GridConnect packet delay (microseconds)"
