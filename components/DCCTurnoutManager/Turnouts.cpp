@@ -269,10 +269,10 @@ void encodeDCCAccessoryAddress(uint16_t *boardAddress, int8_t *boardIndex
 
 uint16_t decodeDCCAccessoryAddress(uint16_t boardAddress, int8_t boardIndex)
 {
-  int16_t address = (boardAddress * 4 + boardIndex) - 3;
-  if (address < 0)
+  uint16_t address = (boardAddress * 4 + boardIndex) - 3;
+  if (boardAddress <= 0)
   {
-    address = 1;
+    address = boardIndex << 1;
   }
   return address;
 }
