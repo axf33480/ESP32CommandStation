@@ -269,7 +269,12 @@ void encodeDCCAccessoryAddress(uint16_t *boardAddress, int8_t *boardIndex
 
 uint16_t decodeDCCAccessoryAddress(uint16_t boardAddress, int8_t boardIndex)
 {
-  return (boardAddress * 4 + boardIndex) - 3;
+  int16_t address = (boardAddress * 4 + boardIndex) - 3;
+  if (address < 0)
+  {
+    address = 1;
+  }
+  return address;
 }
 
 Turnout::Turnout(uint16_t address, bool thrown, TurnoutType type)
