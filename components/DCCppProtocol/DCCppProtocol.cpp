@@ -445,29 +445,40 @@ DECLARE_DCC_PROTOCOL_COMMAND_CLASS(TurnoutCommandAdapter, "T")
 DCC_PROTOCOL_COMMAND_HANDLER(TurnoutCommandAdapter,
 [](const vector<string> arguments)
 {
+  auto turnoutManager = Singleton<TurnoutManager>::instance();
   if (arguments.empty())
   {
     // list all turnouts
-    return Singleton<TurnoutManager>::instance()->get_state_for_dccpp();
+    return turnoutManager->get_state_for_dccpp();
   }
   else
   {
     uint16_t address = std::stoi(arguments[0]);
-    if (arguments.size() == 1 &&
-        Singleton<TurnoutManager>::instance()->remove(address))
+    if (arguments.size() == 1)
     {
-      // delete turnout
-      return COMMAND_SUCCESSFUL_RESPONSE;
+      auto turnout = turnoutManager->getByIndex(address);
+      if (turnout && turnoutManager->remove(turnout->getAddress()))
+      {
+        // delete turnout
+        return COMMAND_SUCCESSFUL_RESPONSE;
+      }
     }
     else if (arguments.size() == 2)
     {
       // throw turnout
-      return Singleton<TurnoutManager>::instance()->set(address, arguments[1][0] == '1');
+      auto turnout = turnoutManager->getByIndex(address);
+      if (turnout)
+      {
+        turnout->set(std::stoi(arguments[1]));
+        return COMMAND_SUCCESSFUL_RESPONSE;
+      }
     }
     else if (arguments.size() == 3)
     {
       // create/update turnout
-      Singleton<TurnoutManager>::instance()->createOrUpdate(address);
+      address = decodeDCCAccessoryAddress(std::stoi(arguments[1])
+                                        , std::stoi(arguments[2]));
+      turnoutManager->createOrUpdate(address);
       return COMMAND_SUCCESSFUL_RESPONSE;
     }
   }
