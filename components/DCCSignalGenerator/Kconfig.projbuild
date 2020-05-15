@@ -459,14 +459,14 @@ menu "DCC Signal"
                 1usec time factor for the RMT pulses.
 
         config DCC_RMT_TICKS_ZERO_PULSE
-            int "RMT ticks for DCC Zero"
+            int "RMT ticks for DCC zero"
             default 96
             help
                 This is how many ticks the RMT should use for each half of a
                 DCC ZERO bit.
 
         config DCC_RMT_TICKS_ONE_PULSE
-            int "RMT ticks for DCC One"
+            int "RMT ticks for DCC one"
             default 58
             help
                 This is how many ticks the RMT should use for each half of a

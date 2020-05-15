@@ -71,7 +71,7 @@ menu "GPIO"
                 current state for reading.
 
         config GPIO_S88_FIRST_SENSOR
-            int "First sensor ID"
+            int "First S88 sensor ID"
             range 0 512
             default 512
             help
@@ -80,7 +80,7 @@ menu "GPIO"
                 is defined by the sensors per bus count below.
 
         config GPIO_S88_SENSORS_PER_BUS
-            int "Maximum number of sensors per bus"
+            int "S88 sensors per bus"
             range 8 512
             default 512
             help

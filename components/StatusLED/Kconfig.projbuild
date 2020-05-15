@@ -1,13 +1,14 @@
+config STATUS_LED
+    bool "Enable Status LED"
+    default n
+
 menu "Status LED"
-    config STATUS_LED
-        bool "Enable status LED functionality"
-        default n
+    depends on STATUS_LED
     
     config STATUS_LED_DATA_PIN
         int "LED data pin"
         range 0 32
         default 22
-        depends on STATUS_LED
 
     config STATUS_LED_BRIGHTNESS
         int "LED brightness"
@@ -16,12 +17,10 @@ menu "Status LED"
             Controls how bright the LEDs will appear. The lower the value the darker the LED will appear.
             Recommended value is 128.
         range 0 255
-        depends on STATUS_LED
 
     choice STATUS_LED_TYPE
         bool "LED type"
         default STATUS_LED_TYPE_WS281X
-        depends on STATUS_LED
         help
             This defines the type of LED, the following types are supported:
             STATUS_LED_TYPE  RESET PULSE  LED TYPES
@@ -52,7 +51,6 @@ menu "Status LED"
     choice STATUS_LED_COLOR
         bool "LED color order"
         default STATUS_LED_COLOR_RGB
-        depends on STATUS_LED
         config STATUS_LED_COLOR_RGB
             bool "Red, Green, Blue"
         config STATUS_LED_COLOR_BRG
@@ -66,7 +64,6 @@ menu "Status LED"
     endchoice
 
     config STATUS_LED_UPDATE_INTERVAL_MSEC
-        int "Number of milliseconds between LED updates"
+        int "LED update frequency (milliseconds)"
         default 450
-        depends on STATUS_LED
 endmenu

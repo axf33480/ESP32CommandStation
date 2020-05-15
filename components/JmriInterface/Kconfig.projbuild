@@ -6,6 +6,6 @@ menu "JMRI DCC++ Interface"
         int "JMRI Listener port"
         default 2560
     config JMRI_MDNS_SERVICE_NAME
-        string "mDNS service name to advertise"
+        string "mDNS service name"
         default "_esp32cs._tcp"
 endmenu

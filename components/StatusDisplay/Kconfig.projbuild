@@ -1,6 +1,6 @@
 menu "Status Display"
     choice DISPLAY_TYPE
-        bool "Type of display connected to the Command Station"
+        bool "Type of display"
         default DISPLAY_TYPE_NONE
         config DISPLAY_TYPE_NONE
             bool "None"
@@ -36,6 +36,14 @@ menu "Status Display"
             bool "16 columns, 2 lines"
     endchoice
 
+    config DISPLAY_LCD_BACKLIGHT
+        bool "Enable LCD Backlight"
+        help
+            Enabling this option will set the backlight bitmask to ON. Some
+            LCD displays require this to be LOW.
+        default y
+        depends on DISPLAY_TYPE_LCD
+
     config DISPLAY_LCD_ENABLE_BITMASK
         hex "LCD Enable bitmask"
         help
@@ -48,14 +56,6 @@ menu "Status Display"
         help
             Bit to set for the Register Select pin
         default 0x01
-        depends on DISPLAY_TYPE_LCD
-
-    config DISPLAY_LCD_BACKLIGHT
-        bool "Enable Backlight"
-        help
-            Enabling this option will set the backlight bitmask to ON. Some
-            LCD displays require this to be LOW.
-        default y
         depends on DISPLAY_TYPE_LCD
 
     config DISPLAY_LCD_BACKLIGHT_BITMASK
