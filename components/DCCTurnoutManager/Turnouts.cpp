@@ -18,14 +18,10 @@ COPYRIGHT (c) 2017-2019 Mike Dunston
 #include "Turnouts.h"
 
 #include <ConfigurationManager.h>
+#include <dcc/DccDebug.hxx>
 #include <dcc/UpdateLoop.hxx>
 #include <JsonConstants.h>
-
 #include <json.hpp>
-
-#ifdef CONFIG_TURNOUT_LOGGING_VERBOSE
-#include <dcc/DccDebug.hxx>
-#endif
 
 using nlohmann::json;
 
@@ -289,7 +285,7 @@ uint16_t decodeDCCAccessoryAddress(uint16_t boardAddress, int8_t boardIndex)
     return boardIndex + 1;
   }
   // convert the address:index to a single address for the decoder.
-  return ((boardAddress - 1) << 1) + boardIndex + 1;
+  return ((boardAddress << 2) | boardIndex) + 1;
 }
 
 Turnout::Turnout(uint16_t address, bool thrown, TurnoutType type)
@@ -355,7 +351,7 @@ void Turnout::get_next_packet(unsigned code, dcc::Packet* packet)
 
 #ifdef CONFIG_TURNOUT_LOGGING_VERBOSE
   LOG(INFO, "[Turnout %d] Packet: %s", _address
-    , packet_to_string(*packet).c_str());
+    , packet_to_string(*packet, true).c_str());
 #endif
 
   // remove ourselves as turnouts are single fire sources

@@ -478,6 +478,8 @@ DCC_PROTOCOL_COMMAND_HANDLER(TurnoutCommandAdapter,
       // create/update turnout
       address = decodeDCCAccessoryAddress(std::stoi(arguments[1])
                                         , std::stoi(arguments[2]));
+      LOG(VERBOSE, "board: %d, index: %d: %d", std::stoi(arguments[1])
+        , std::stoi(arguments[2]), address);
       turnoutManager->createOrUpdate(address);
       return COMMAND_SUCCESSFUL_RESPONSE;
     }
