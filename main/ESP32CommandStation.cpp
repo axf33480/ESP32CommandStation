@@ -105,7 +105,7 @@ OVERRIDE_CONST_DEFERRED(gridconnect_bridge_max_outgoing_packets
 // that have pending data.
 ///////////////////////////////////////////////////////////////////////////////
 OVERRIDE_CONST_DEFERRED(executor_select_prescaler
-                      , LCC_EXECUTOR_SELECT_PRESCALER);
+                      , CONFIG_LCC_EXECUTOR_SELECT_PRESCALER);
 
 ///////////////////////////////////////////////////////////////////////////////
 // This increases the number of local nodes and aliases available for the LCC
