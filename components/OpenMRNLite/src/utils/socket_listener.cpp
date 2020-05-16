@@ -123,7 +123,7 @@ void SocketListener::AcceptThreadBody() {
 
   // FreeRTOS+TCP uses the parameter to listen to set the maximum number of
   // connections to the given socket, so allow some room
-  ERRNOCHECK("listen", listen(listenfd, 5));
+  ERRNOCHECK("listen", listen(listenfd, config_socket_listener_backlog()));
 
   LOG(INFO, "Listening on port %d, fd %d", ntohs(addr.sin_port), listenfd);
 
