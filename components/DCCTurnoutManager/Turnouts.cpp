@@ -216,14 +216,27 @@ void TurnoutManager::send(Buffer<dcc::Packet> *b, unsigned prio)
       pkt->payload[0] & 0x80 &&
       pkt->payload[1] & 0x80)
   {
-    // the second byte of the payload contains part of the address and is
-    // stored in ones complement format.
-    uint8_t onesComplementByteTwo = (pkt->payload[1] ^ 0xF8);
-    // decode the accessories decoder address from the packet payload.
-    uint16_t boardAddress = (pkt->payload[0] & 0x3F) +
-                            ((onesComplementByteTwo >> 4) & 0x07);
-    uint8_t boardIndex = ((onesComplementByteTwo >> 1) % 4);
-    bool state = onesComplementByteTwo & 0x01;
+    // packet data format:
+    // payload[0]  payload[1]
+    // 10aaaaaa    1AAACDDD
+    // ^ ^^^^^^    ^^^^^^^^ 
+    // | |         ||  || |
+    // | |         ||  || \-state bit
+    // | |         ||  |\-output index
+    // | |         ||  \-activate/deactivate output flag (ignored)
+    // | |         |\-board address most significant three bits
+    // | |         |  stored in 1s complement (1=0, 0=1)
+    // | |         \-accessory packet flag
+    // | \-board address (least significant six bits)
+    // \-accessory packet flag
+    // converting back to a single address using the following: AAAaaaaaaDDD
+    // note that only the output index is used in calculation of the final
+    // address since only the base address is stored in the CS.
+    uint16_t boardAddress = ((~pkt->payload[1] & 0b01110000) << 2) |
+                            (pkt->payload[0] & 0b00111111);
+    uint8_t boardIndex = (pkt->payload[1] & 0b00000110) >> 1;
+    // least significant bit of the second byte is thrown/closed indicator.
+    bool state = pkt->payload[1] & 0b00000001;
     // Set the turnout to the requested state, don't send a DCC packet.
     set(decodeDCCAccessoryAddress(boardAddress, boardIndex), state);
   }
@@ -263,18 +276,20 @@ void TurnoutManager::persist()
 void encodeDCCAccessoryAddress(uint16_t *boardAddress, int8_t *boardIndex
                              , uint16_t address)
 {
-  *boardAddress = (address + 3) / 4;
-  *boardIndex = (address - (*boardAddress * 4)) + 3;
+  // DCC address starts at 1, board address is 0-511 and index is 0-3.
+  *boardAddress = ((address - 1) / 4) + 1;
+  *boardIndex = (address - 1) % 4;
 }
 
 uint16_t decodeDCCAccessoryAddress(uint16_t boardAddress, int8_t boardIndex)
 {
-  uint16_t address = (boardAddress * 4 + boardIndex) - 3;
-  if (boardAddress <= 0)
+  // when board address is zero we need to only use the index.
+  if (boardAddress == 0)
   {
-    address = boardIndex << 1;
+    return boardIndex + 1;
   }
-  return address;
+  // convert the address:index to a single address for the decoder.
+  return ((boardAddress - 1) << 1) + boardIndex + 1;
 }
 
 Turnout::Turnout(uint16_t address, bool thrown, TurnoutType type)
@@ -335,7 +350,8 @@ string Turnout::get_state_for_dccpp(bool include_board_index)
 
 void Turnout::get_next_packet(unsigned code, dcc::Packet* packet)
 {
-  packet->add_dcc_basic_accessory(_address + _thrown, true);
+  // shift the address to make room for the thrown flag.
+  packet->add_dcc_basic_accessory((_address << 1) + _thrown, true);
 
 #ifdef CONFIG_TURNOUT_LOGGING_VERBOSE
   LOG(INFO, "[Turnout %d] Packet: %s", _address
