@@ -870,7 +870,9 @@ string convert_loco_to_json(openlcb::TrainImpl *t)
   {
     { JSON_ADDRESS_NODE, t->legacy_address() },
     { JSON_SPEED_NODE, t->get_speed().get_dcc_128() & 0x7F },
-    { JSON_DIRECTION_NODE, t->get_speed().direction() ? JSON_VALUE_REVERSE : JSON_VALUE_FORWARD},
+    { JSON_DIRECTION_NODE
+    , t->get_speed().direction() == dcc::SpeedType::REVERSE ? JSON_VALUE_REVERSE
+                                                            : JSON_VALUE_FORWARD},
   };
   for (uint8_t funcID = 0; funcID < DCC_MAX_FN; funcID++)
   {
