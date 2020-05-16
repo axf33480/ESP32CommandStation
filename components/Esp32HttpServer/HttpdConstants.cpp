@@ -31,7 +31,7 @@ DEFAULT_CONST(httpd_body_chunk_size, 3072);
 DEFAULT_CONST(httpd_response_chunk_size, 2048);
 DEFAULT_CONST(httpd_max_header_size, 1024);
 DEFAULT_CONST(httpd_max_req_size, 4194304);
-DEFAULT_CONST(httpd_max_req_per_connection, 2);
+DEFAULT_CONST(httpd_max_req_per_connection, 5);
 DEFAULT_CONST(httpd_req_timeout_ms, 5);
 DEFAULT_CONST(httpd_socket_timeout_ms, 50);
 DEFAULT_CONST(httpd_websocket_timeout_ms, 200);
