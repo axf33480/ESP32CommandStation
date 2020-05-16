@@ -84,7 +84,8 @@ WebSocketFlow::WebSocketFlow(Httpd *server, int fd, uint32_t remote_ip
     }
   }
   LOG_ERROR("[WebSocket fd:%d] Error estabilishing connection, aborting", fd_);
-  start_flow(STATE(delete_this));
+  WebSocketFlow *flow = this;
+  server_->executor()->add(new CallbackExecutable([flow](){delete flow;}));
 }
 
 WebSocketFlow::~WebSocketFlow()
@@ -92,7 +93,7 @@ WebSocketFlow::~WebSocketFlow()
   // remove ourselves from the server so we don't get called again
   server_->remove_websocket(fd_);
 
-  LOG(INFO, "[WebSocket fd:%d] Disconnected", fd_);
+  LOG(CONFIG_HTTP_WS_LOG_LEVEL, "[WebSocket fd:%d] Disconnected", fd_);
   ::close(fd_);
 
   if (data_)
@@ -347,7 +348,9 @@ StateFlowBase::Action WebSocketFlow::recv_frame_data()
 StateFlowBase::Action WebSocketFlow::shutdown_connection()
 {
   handler_(this, WebSocketEvent::WS_EVENT_DISCONNECT, nullptr, 0);
-  return delete_this();
+  WebSocketFlow *flow = this;
+  server_->executor()->add(new CallbackExecutable([flow](){delete flow;}));
+  return exit();
 }
 
 StateFlowBase::Action WebSocketFlow::send_frame_header()

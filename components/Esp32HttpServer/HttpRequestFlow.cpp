@@ -942,7 +942,9 @@ StateFlowBase::Action HttpRequestFlow::request_complete()
       res_->code_ == HttpStatusCode::STATUS_MOVED_PERMANENTLY)
   {
     req_.reset();
-    return delete_this();
+    HttpRequestFlow *flow = this;
+    server_->executor()->add(new CallbackExecutable([flow](){delete flow;}));
+    return exit();
   }
 
   return call_immediately(STATE(start_request));
@@ -958,7 +960,9 @@ StateFlowBase::Action HttpRequestFlow::upgrade_to_websocket()
                   , req_.header(HttpHeader::WS_VERSION)
                   , server_->ws_handler(req_.uri()));
   req_.reset();
-  return delete_this();
+  HttpRequestFlow *flow = this;
+  server_->executor()->add(new CallbackExecutable([flow](){delete flow;}));
+  return exit();
 }
 
 StateFlowBase::Action HttpRequestFlow::abort_request_with_response()
