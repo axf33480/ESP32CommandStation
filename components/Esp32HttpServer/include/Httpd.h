@@ -496,6 +496,26 @@ private:
   std::string response_;
 };
 
+/// Specialized @ref StringResponse type for json payloads.
+class JsonResponse : public StringResponse
+{
+public:
+  /// Constructor.
+  ///
+  /// @param response is the response string to send as the HTTP response body.
+  ///
+  /// This calls into @ref StringResponse passing in
+  /// @ref MIME_TYPE_APPLICATION_JSON as mime_type.
+  ///
+  /// Note: The ownership of the response object passed into this method will
+  /// be transfered to this class instance and will be cleaned up after it has
+  /// been sent to the client.
+  JsonResponse(const std::string &response)
+  : StringResponse(response, MIME_TYPE_APPLICATION_JSON)
+  {
+  }
+};
+
 /// Runtime state of an HTTP Request.
 class HttpRequest
 {
