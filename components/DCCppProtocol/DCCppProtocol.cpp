@@ -453,10 +453,11 @@ DCC_PROTOCOL_COMMAND_HANDLER(TurnoutCommandAdapter,
   }
   else
   {
-    uint16_t address = std::stoi(arguments[0]);
+    // index starts at one, reduce the index parameter by one.
+    uint16_t index = std::stoi(arguments[0]) - 1;
     if (arguments.size() == 1)
     {
-      auto turnout = turnoutManager->getByIndex(address);
+      auto turnout = turnoutManager->getByIndex(index);
       if (turnout && turnoutManager->remove(turnout->getAddress()))
       {
         // delete turnout
@@ -466,7 +467,7 @@ DCC_PROTOCOL_COMMAND_HANDLER(TurnoutCommandAdapter,
     else if (arguments.size() == 2)
     {
       // throw turnout
-      auto turnout = turnoutManager->getByIndex(address);
+      auto turnout = turnoutManager->getByIndex(index);
       if (turnout)
       {
         turnout->set(std::stoi(arguments[1]));
@@ -475,12 +476,25 @@ DCC_PROTOCOL_COMMAND_HANDLER(TurnoutCommandAdapter,
     }
     else if (arguments.size() == 3)
     {
+      // board can be 0-511 and port 0-3, however board 0 is problematic
+      int16_t board = std::stoi(arguments[1]);
+      int8_t port = std::stoi(arguments[2]);
+      // validate input parameters and reject values that are out of range
+      if (board <= 0 || board > 511 || port < 0 || port > 3)
+      {
+        LOG_ERROR("[DCC++ T] Rejecting invalid board(%d), port(%d)", board
+                , port);
+        return COMMAND_FAILED_RESPONSE;
+      }
       // create/update turnout
-      address = decodeDCCAccessoryAddress(std::stoi(arguments[1])
-                                        , std::stoi(arguments[2]));
-      LOG(VERBOSE, "board: %d, index: %d: %d", std::stoi(arguments[1])
-        , std::stoi(arguments[2]), address);
-      turnoutManager->createOrUpdate(address);
+      uint16_t addr = decodeDCCAccessoryAddress(board, port);
+      if (addr == 0 || addr > 2044)
+      {
+        LOG_ERROR("[DCC++ T] Address %d is out of range, rejecting", addr);
+        return COMMAND_FAILED_RESPONSE;
+      }
+      LOG(VERBOSE, "[DCC++ T] decoded %d:%d to %d", board, port, addr);
+      turnoutManager->createOrUpdate(addr);
       return COMMAND_SUCCESSFUL_RESPONSE;
     }
   }
@@ -506,13 +520,18 @@ DCC_PROTOCOL_COMMAND_HANDLER(TurnoutExCommandAdapter,
 {
   if (!arguments.empty())
   {
-    uint16_t address = std::stoi(arguments[0]);
+    uint16_t addr = std::stoi(arguments[0]);
+    if (addr == 0 || addr > 2044)
+    {
+      LOG_ERROR("[DCC++ Turnout] Address %d is out of range, rejecting", addr);
+      return COMMAND_FAILED_RESPONSE;
+    }
     if (arguments.size() == 1)
     {
-      return Singleton<TurnoutManager>::instance()->toggle(address);
+      return Singleton<TurnoutManager>::instance()->toggle(addr);
     }
     TurnoutType type = (TurnoutType)std::stoi(arguments[1]);
-    if (Singleton<TurnoutManager>::instance()->createOrUpdate(address, type))
+    if (Singleton<TurnoutManager>::instance()->createOrUpdate(addr, type))
     {
       return COMMAND_SUCCESSFUL_RESPONSE;
     }

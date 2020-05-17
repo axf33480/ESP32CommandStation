@@ -68,20 +68,29 @@ void TurnoutManager::clear()
   dirty_ = true;
 }
 
+#define FIND_TURNOUT(address) \
+  std::find_if(turnouts_.begin(), turnouts_.end(),        \
+    [address](std::unique_ptr<Turnout> & turnout) -> bool \
+    {                                                     \
+      return (turnout->getAddress() == address);          \
+    }                                                     \
+  )
+
 string TurnoutManager::set(uint16_t address, bool thrown, bool sendDCC)
 {
   OSMutexLock h(&mux_);
-  for (auto & turnout : turnouts_)
+  auto const &elem = FIND_TURNOUT(address);
+  if (elem != turnouts_.end())
   {
-    if (turnout->getAddress() == address)
-    {
-      turnout->set(thrown, sendDCC);
-      return turnout->get_state_for_dccpp();
-    }
+    elem->get()->set(thrown, sendDCC);
+    return StringPrintf("<H %d %d>"
+                      , std::distance(turnouts_.begin(), elem) + 1
+                      , elem->get()->isThrown());
   }
 
   // we didn't find it, create it and set it
-  turnouts_.push_back(std::make_unique<Turnout>(turnouts_.size() + 1, address));
+  turnouts_.push_back(std::make_unique<Turnout>(turnouts_.size() + 1
+                                              , address));
   dirty_ = true;
   return set(address, thrown, sendDCC);
 }
@@ -89,16 +98,13 @@ string TurnoutManager::set(uint16_t address, bool thrown, bool sendDCC)
 string TurnoutManager::toggle(uint16_t address)
 {
   OSMutexLock h(&mux_);
-  auto const &elem = std::find_if(turnouts_.begin(), turnouts_.end(),
-    [address](std::unique_ptr<Turnout> & turnout) -> bool
-    {
-      return (turnout->getAddress() == address);
-    }
-  );
+  auto const &elem = FIND_TURNOUT(address);
   if (elem != turnouts_.end())
   {
     elem->get()->toggle();
-    return elem->get()->get_state_for_dccpp();
+    return StringPrintf("<H %d %d>"
+                      , std::distance(turnouts_.begin(), elem)
+                      , elem->get()->isThrown());
   }
 
   // we didn't find it, create it and throw it
@@ -121,9 +127,14 @@ string TurnoutManager::get_state_for_dccpp()
     return COMMAND_FAILED_RESPONSE;
   }
   string status;
+  uint16_t index = 0;
   for (auto& turnout : turnouts_)
   {
-    status += turnout->get_state_for_dccpp(true);
+    uint16_t board;
+    int8_t port;
+    encodeDCCAccessoryAddress(&board, &port, turnout->getAddress());
+    status += StringPrintf("<H %d %d %d %d>", index++, board, port
+                         , turnout->isThrown());
   }
   return status;
 }
@@ -132,12 +143,7 @@ Turnout *TurnoutManager::createOrUpdate(const uint16_t address
                                       , const TurnoutType type)
 {
   OSMutexLock h(&mux_);
-  auto const &elem = std::find_if(turnouts_.begin(), turnouts_.end(),
-    [address](std::unique_ptr<Turnout> & turnout) -> bool
-    {
-      return (turnout->getAddress() == address);
-    }
-  );
+  auto const &elem = FIND_TURNOUT(address);
   if (elem != turnouts_.end())
   {
     elem->get()->update(address, type);
@@ -152,20 +158,15 @@ Turnout *TurnoutManager::createOrUpdate(const uint16_t address
 bool TurnoutManager::remove(const uint16_t address)
 {
   OSMutexLock h(&mux_);
-  auto const &elem = std::find_if(turnouts_.begin(), turnouts_.end(),
-    [address](std::unique_ptr<Turnout> & turnout) -> bool
-    {
-      return (turnout->getAddress() == address);
-    }
-  );
+  auto const &elem = FIND_TURNOUT(address);
   if (elem != turnouts_.end())
   {
-    LOG(CONFIG_TURNOUT_LOG_LEVEL
-      , "[Turnout %d] Deleted", address);
+    LOG(CONFIG_TURNOUT_LOG_LEVEL, "[Turnout %d] Deleted", address);
     turnouts_.erase(elem);
     dirty_ = true;
     return true;
   }
+  LOG(WARNING, "[Turnout %d] not found", address);
   return false;
 }
 
@@ -176,22 +177,20 @@ Turnout *TurnoutManager::getByIndex(const uint16_t index)
   {
     return turnouts_[index].get();
   }
+  LOG(WARNING, "[Turnout] index %d not found (max: %d)", index
+    , turnouts_.size());
   return nullptr;
 }
 
 Turnout *TurnoutManager::get(const uint16_t address)
 {
   OSMutexLock h(&mux_);
-  auto const &elem = std::find_if(turnouts_.begin(), turnouts_.end(),
-    [address](std::unique_ptr<Turnout> & turnout) -> bool
-    {
-      return (turnout->getAddress() == address);
-    }
-  );
+  auto const &elem = FIND_TURNOUT(address);
   if (elem != turnouts_.end())
   {
     return elem->get();
   }
+  LOG(WARNING, "[Turnout %d] not found", address);
   return nullptr;
 }
 
@@ -265,27 +264,28 @@ void TurnoutManager::persist()
   {
     return;
   }
-  Singleton<ConfigurationManager>::instance()->store(TURNOUTS_JSON_FILE, get_state_as_json(false));
+  Singleton<ConfigurationManager>::instance()->store(TURNOUTS_JSON_FILE
+                                                   , get_state_as_json(false));
   dirty_ = false;
 }
 
-void encodeDCCAccessoryAddress(uint16_t *boardAddress, int8_t *boardIndex
+void encodeDCCAccessoryAddress(uint16_t *board, int8_t *port
                              , uint16_t address)
 {
   // DCC address starts at 1, board address is 0-511 and index is 0-3.
-  *boardAddress = ((address - 1) / 4) + 1;
-  *boardIndex = (address - 1) % 4;
+  *board = ((address - 1) / 4) + 1;
+  *port = (address - 1) % 4;
 }
 
-uint16_t decodeDCCAccessoryAddress(uint16_t boardAddress, int8_t boardIndex)
+uint16_t decodeDCCAccessoryAddress(uint16_t board, int8_t port)
 {
-  // when board address is zero we need to only use the index.
-  if (boardAddress == 0)
+  if (board == 0)
   {
-    return boardIndex + 1;
+    return 0;
   }
-  // convert the address:index to a single address for the decoder.
-  return ((boardAddress << 2) | boardIndex) + 1;
+  uint32_t addr = ((board - 1) << 2);
+  addr += port + 1;
+  return (uint16_t)(addr & 0xFFFF);
 }
 
 Turnout::Turnout(uint16_t address, bool thrown, TurnoutType type)
@@ -332,27 +332,17 @@ void Turnout::set(bool thrown, bool sendDCCPacket)
     , _thrown ? JSON_VALUE_THROWN : JSON_VALUE_CLOSED);
 }
 
-string Turnout::get_state_for_dccpp(bool include_board_index)
-{
-  if (include_board_index)
-  {
-    int8_t index;
-    uint16_t board;
-    encodeDCCAccessoryAddress(&board, &index, _address);
-    return StringPrintf("<H %d %d %d %d>", _address, board, index, _thrown);
-  }
-  return StringPrintf("<H %d %d>", _address, _thrown);
-}
-
 void Turnout::get_next_packet(unsigned code, dcc::Packet* packet)
 {
-  // shift the address to make room for the thrown flag.
-  packet->add_dcc_basic_accessory((_address << 1) + _thrown, true);
+  // shift address by one to account for the output pair state bit (thrown).
+  uint16_t addr = ((_address << 1) | _thrown);
+  // always send activate as true (sets C to 1)
+  packet->add_dcc_basic_accessory(addr, true);
 
-#ifdef CONFIG_TURNOUT_LOGGING_VERBOSE
+//#ifdef CONFIG_TURNOUT_LOGGING_VERBOSE
   LOG(INFO, "[Turnout %d] Packet: %s", _address
     , packet_to_string(*packet, true).c_str());
-#endif
+//#endif
 
   // remove ourselves as turnouts are single fire sources
   packet_processor_remove_refresh_source(this);

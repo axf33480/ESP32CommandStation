@@ -34,8 +34,8 @@ enum TurnoutType
   MAX_TURNOUT_TYPES // NOTE: this must be the last entry in the enum.
 };
 
-void encodeDCCAccessoryAddress(uint16_t *boardAddress, int8_t *boardIndex, uint16_t address);
-uint16_t decodeDCCAccessoryAddress(uint16_t boardAddress, int8_t boardIndex);
+void encodeDCCAccessoryAddress(uint16_t *board, int8_t *port, uint16_t address);
+uint16_t decodeDCCAccessoryAddress(uint16_t board, int8_t port);
 
 class Turnout : public dcc::NonTrainPacketSource
 {
@@ -45,7 +45,6 @@ public:
   void update(uint16_t, TurnoutType);
   void set(bool=false, bool=true);
   std::string toJson(bool=false);
-  std::string get_state_for_dccpp(bool include_board_index=false);
   uint16_t getAddress()
   {
     return _address;
