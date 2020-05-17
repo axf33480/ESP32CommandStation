@@ -1274,7 +1274,9 @@ function BSTabRefresh(section) {
     $('#cs-table-power tr td [id^=cs-power-]').button();
     $('#cs-table-power tr td [id^=cs-power-]').on('vclick', function(event, ui) {
      var idParts = $(this).attr('id').split('-');
-     $.ajax({method: 'PUT',url: String.format('/power?name={0}&state={1}', idParts[2], idParts[3]),success:function() {BSTabRefresh('Status');}});
+     $.ajax({method:'PUT',url:String.format('/power?name={0}&state={1}',idParts[2],idParts[3]),
+      dataType:'text',
+      complete:function(){BSTabRefresh('Status');}});
     });
    }
   });
@@ -1290,7 +1292,10 @@ function BSTabRefresh(section) {
     $('#cs-table-locomotives tr td [id^=loco-]').on('vclick', function(event, ui) {
      var idParts = $(this).attr('id').split('-');
      if(idParts[2] === 'delete') {
-      $.ajax({method: 'DELETE',url: String.format('/locomotive?address={0}', idParts[1]),success:function() {BSTabRefresh('Status');}});
+      $.ajax({method:'DELETE',url:String.format('/locomotive?address={0}',idParts[1]),
+       dataType:'text',
+       beforeSend:function(){showSpinner(String.format("Deleting locomotive {0}",idParts[1]));},
+       complete:function(){hideSpinner();BSTabRefresh('Status');}});
      } else if(idParts[2] === 'stop') {
       sendCommand(String.format('<tex {0} 0 -1>', idParts[1]));
       BSTabRefresh('Status');
@@ -1308,7 +1313,7 @@ function BSTabRefresh(section) {
     var buttons = '';
     buttons += createButton({type:'delete', id:String.format("turnout-{0}-delete", record.address)});
     buttons += createButton({type:'edit', id:String.format("turnout-{0}-edit", record.address)});
-    if(record.state === 'Closed') {
+    if(record.state) {
      buttons += createButton({type:'action', id:String.format("turnout-{0}-throw", record.address), title:'Throw'});
     } else {
      buttons += createButton({type:'action', id:String.format("turnout-{0}-close", record.address), title:'Close'});
@@ -1320,7 +1325,10 @@ function BSTabRefresh(section) {
     $('#cs-table-turnouts tr td [id^=turnout-]').on('vclick', function(event, ui) {
      var idParts = $(this).attr('id').split('-');
      if(idParts[2] === 'delete') {
-      $.ajax({method: 'DELETE',url: String.format('/turnouts?address={0}', idParts[1]),success: function() {BSTabRefresh('Turnouts');}});
+      $.ajax({method:'DELETE',url:String.format('/turnouts?address={0}',idParts[1]),
+       dataType:'text',
+       beforeSend:function(){showSpinner(String.format("Deleting Turnout {0}",idParts[1]));},
+       complete:function() {hideSpinner();BSTabRefresh('Turnouts');}});
      } else if(idParts[2] === 'edit') {
       $.ajax({url: String.format('/turnouts?address={0}', idParts[1]),
        success:function(data, status, jqxhr) {
@@ -1332,8 +1340,10 @@ function BSTabRefresh(section) {
        error:function(req, status) {showErrorDialog(String.format('Unable to edit turnout {0}', idParts[1]), status);}
       });
      } else {
-      sendCommand(String.format('<Tex {0}>', idParts[1]));
-      BSTabRefresh('Turnouts');
+      $.ajax({method:'PUT',url:String.format('/turnouts?address={0}',idParts[1]),
+       dataType:'text',
+       beforeSend:function(){showSpinner(String.format("Toggling Turnout {0}",idParts[1]));},
+       complete:function() {hideSpinner();BSTabRefresh('Turnouts');}});
      }
     });
    }
@@ -1353,9 +1363,12 @@ function BSTabRefresh(section) {
     $('#cs-table-sensors tr td [id^=sensor-]').on('vclick', function(event, ui) {
      var idParts = $(this).attr('id').split('-');
      if(idParts[2] === 'delete') {
-      $.ajax({method: 'DELETE',url: String.format('/sensors?id={0}', idParts[1]),success:function() {BSTabRefresh('Sensors');}});
+      $.ajax({method:'DELETE',url:String.format('/sensors?id={0}',idParts[1]),
+       dataType:'text',
+       beforeSend:function(){showSpinner(String.format("Deleting Sensor {0}",idParts[1]));},
+       complete:function() {hideSpinner();BSTabRefresh('Sensors');}});
      } else if(idParts[2] === 'edit') {
-      $.ajax({url: String.format('/sensors?id={0}', idParts[1]),
+      $.ajax({url:String.format('/sensors?id={0}',idParts[1]),
        success:function(data, status, jqxhr) {
         console.log('Edit sensor', data);
         $('#cs-sensor-id').val(data.id);
@@ -1398,7 +1411,10 @@ function BSTabRefresh(section) {
     $('#cs-table-sensors-s88 tr td [id^=s88sensor-]').on('vclick', function(event, ui) {
      var idParts = $(this).attr('id').split('-');
      if(idParts[2] === 'delete') {
-      $.ajax({method: 'DELETE',url: String.format('/s88sensors?id={0}', idParts[1]),success:function() {BSTabRefresh('Sensors (S88)');}});
+      $.ajax({method:'DELETE',url:String.format('/s88sensors?id={0}',idParts[1]),
+       dataType:'text',
+       beforeSend:function(){showSpinner(String.format("Deleting S88 Bus {0}",idParts[1]));},
+       complete:function(){hideSpinner();BSTabRefresh('Sensors (S88)');}});
      } else if(idParts[2] === 'edit') {
       $.ajax({url: String.format('/s88sensors?id={0}', idParts[1]),
        success:function(data, status, jqxhr) {
@@ -1433,7 +1449,10 @@ function BSTabRefresh(section) {
     $('#cs-table-outputs tr td [id^=output-]').on('vclick', function(event, ui) {
      var idParts = $(this).attr('id').split('-');
      if(idParts[2] === 'delete') {
-      $.ajax({method: 'DELETE',url: String.format('/outputs?id={0}', idParts[1]),success:function() {BSTabRefresh('Outputs');}});
+      $.ajax({method: 'DELETE',url: String.format('/outputs?id={0}', idParts[1]),
+       dataType:'text',
+       beforeSend:function(){showSpinner(String.format("Deleting Output {0}", idParts[1]));},
+       complete:function(){hideSpinner();BSTabRefresh('Outputs');}});
      } else if(idParts[2] === 'edit') {
       $.ajax({url: String.format('/outputs?id={0}', idParts[1]),
        success:function(data, status, jqxhr) {
@@ -1477,7 +1496,10 @@ function BSTabRefresh(section) {
     $('#cs-table-loco-roster tr td [id^=roster-]').on('vclick', function(event, ui) {
      var idParts = $(this).attr('id').split('-');
      if(idParts[2] === 'delete') {
-      $.ajax({method: 'DELETE',url: String.format('/locomotive/roster?address={0}', idParts[1]),success: function() {BSTabRefresh('Locomotive Roster');}});
+      $.ajax({method: 'DELETE',url: String.format('/locomotive/roster?address={0}', idParts[1]),
+       dataType:'text',
+       beforeSend:function(){showSpinner(String.format("Deleting locomotive {0}", idParts[1]));},
+       complete:function(){hideSpinner();BSTabRefresh('Locomotive Roster');}});
      } else if(idParts[2] === 'edit') {
       $.ajax({url: String.format('/locomotive/roster?address={0}', idParts[1]),
        success:function(data, status, jqxhr) {
@@ -1497,8 +1519,9 @@ function BSTabRefresh(section) {
       });
      } else if(idParts[2] === 'default') {
       $.ajax({method: 'PUT',url: String.format('/locomotive/roster?address={0}&defaultOnThrottles={1}', idParts[1], idParts[3] === 'on'),
+       dataType:'text',
        success:function() {BSTabRefresh('Locomotive Roster');},
-       error: function(req, status) {showErrorDialog(String.format('Failed to update loco {0}', idPArts[1]), status);}
+       error: function(req, status){showErrorDialog(String.format('Failed to update loco {0}', idPArts[1]), status);}
       });
      }
     });
@@ -1517,7 +1540,9 @@ function changeLocomotive(newAddress) {
  if(newAddress !== "") {
   console.log("selected loco:", newAddress);
   $.ajax({url: '/locomotive?address=' + newAddress,
-   success : function (data, status, xhr) {
+   beforeSend:function(){showSpinner(String.format("Loading locomotive {0}", newAddress));},
+   complete:hideSpinner,
+   success:function(data, status, xhr){
     console.log(data);
     fireLocoEvents = false;
     $("#selected-loco-address").val(newAddress);
@@ -1530,15 +1555,15 @@ function changeLocomotive(newAddress) {
     fireLocoEvents = true;
     enableTrackPower();
    },
-   error : function(xhr, status, error) {showErrorDialog(String.format('Unable to acquire locomotive: {0}', newAddress), error);}
+   error:function(xhr, status, error) {showErrorDialog(String.format('Unable to acquire locomotive: {0}', newAddress), error);}
   });
  }
 }
 function refreshTable({table, url, fields, filter=function() {return true;}, failureHandler=function(xhr, status) {showErrorDialog(String.format('Failed to load url:{0}', url), status);}, refreshCallback=function() {}} = {}) {
  console.log('refreshing table:', table, 'using url:', url, 'and fields:', fields)
  $.ajax({url: url, dataType:'json',error: failureHandler, complete: hideSpinner,
-  beforeSend: function() {showSpinner('Refreshing data');$(table + ' tbody').empty();},
-  success: function(data, status, jqxhr) {
+  beforeSend:function(){showSpinner('Refreshing data');$(table + ' tbody').empty();},
+  success:function(data, status, jqxhr) {
    var tableBody = $(table + ' tbody');
    $.each(data, function(id, record) {
     if (filter(record)) {

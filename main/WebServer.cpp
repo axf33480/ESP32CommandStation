@@ -49,6 +49,7 @@ using http::HttpRequest;
 using http::HttpStatusCode;
 using http::AbstractHttpResponse;
 using http::StringResponse;
+using http::JsonResponse;
 using http::WebSocketFlow;
 using http::MIME_TYPE_TEXT_HTML;
 using http::MIME_TYPE_TEXT_JAVASCRIPT;
@@ -57,7 +58,6 @@ using http::MIME_TYPE_TEXT_XML;
 using http::MIME_TYPE_TEXT_CSS;
 using http::MIME_TYPE_IMAGE_PNG;
 using http::MIME_TYPE_IMAGE_GIF;
-using http::MIME_TYPE_APPLICATION_JSON;
 using http::HTTP_ENCODING_GZIP;
 using http::WebSocketEvent;
 using openlcb::TcpClientDefaultParams;
@@ -350,7 +350,7 @@ void init_webserver(const esp32cs::Esp32ConfigDef &cfg)
     features += StringPrintf(",\"%s\":false", JSON_SENSORS_NODE);
 #endif // CONFIG_GPIO_SENSORS
     features += "}";
-    return new StringResponse(features, MIME_TYPE_APPLICATION_JSON);
+    return new JsonResponse(features);
   });
   httpd->uri("/fs", HttpMethod::GET, [&](HttpRequest *req)
   {
@@ -363,7 +363,7 @@ void init_webserver(const esp32cs::Esp32ConfigDef &cfg)
     }
     else if (path.find(".json") != string::npos)
     {
-      mimetype = MIME_TYPE_APPLICATION_JSON;
+      mimetype = http::MIME_TYPE_APPLICATION_JSON;
     }
     return new StringResponse(data, mimetype);
   });
@@ -522,7 +522,7 @@ HTTP_HANDLER_IMPL(process_power, request)
       esp32cs::disable_track_outputs();
     }
   }
-  return new StringResponse(response, MIME_TYPE_APPLICATION_JSON);
+  return new JsonResponse(response);
 }
 
 HTTP_HANDLER_IMPL(process_config, request)
@@ -539,7 +539,7 @@ HTTP_HANDLER_IMPL(process_config, request)
   }
   else if (request->has_param("scan"))
   {
-    return new StringResponse(wifiManager->wifi_scan_json(true), MIME_TYPE_APPLICATION_JSON);
+    return new JsonResponse(wifiManager->wifi_scan_json(true));
   }
   if (request->has_param("ssid"))
   {
@@ -612,15 +612,14 @@ HTTP_HANDLER_IMPL(process_config, request)
   {
     // send a string back to the client rather than SEND_GENERIC_RESPONSE
     // so we don't return prior to calling reboot.
-    return new StringResponse("{\"restart\":\"ESP32CommandStation Restarting!\"}"
-                            , MIME_TYPE_APPLICATION_JSON);
+    return new JsonResponse("{\"restart\":\"ESP32CommandStation Restarting!\"}");
   }
 
   string response =
     StringPrintf("{%s,%s,%s}", stackManager->get_config_json().c_str()
                 , wifiManager->get_config_json().c_str()
                 , configListener->get_config_json().c_str());
-  return new StringResponse(response, MIME_TYPE_APPLICATION_JSON);
+  return new JsonResponse(response);
 }
 
 HTTP_HANDLER_IMPL(process_prog, request)
@@ -723,7 +722,7 @@ HTTP_HANDLER_IMPL(process_prog, request)
           traindb->create_if_not_found(decoderAddress);
         }
         response += "}";
-        return new StringResponse(response, MIME_TYPE_APPLICATION_JSON);
+        return new JsonResponse(response);
       }
       else
       {
@@ -747,11 +746,9 @@ HTTP_HANDLER_IMPL(process_prog, request)
         }
         else
         {
-          return new StringResponse(
-            StringPrintf("{\"%s\":%d,\"%s\":%d}"
-                      , JSON_CV_NODE, cvNumber
-                      , JSON_VALUE_NODE, cvValue)
-          , MIME_TYPE_APPLICATION_JSON);
+          return new JsonResponse(
+            StringPrintf("{\"%s\":%d,\"%s\":%d}", JSON_CV_NODE, cvNumber
+                      , JSON_VALUE_NODE, cvValue));
         }
       }
     }
@@ -812,24 +809,21 @@ HTTP_HANDLER_IMPL(process_prog, request)
 //
 HTTP_HANDLER_IMPL(process_turnouts, request)
 {
-  request->set_status(HttpStatusCode::STATUS_SERVER_ERROR);
+  auto turnoutMgr = Singleton<TurnoutManager>::instance();
   if (request->method() == HttpMethod::GET &&
      !request->has_param(JSON_ADDRESS_NODE))
   {
     bool readable = request->param(JSON_TURNOUTS_READABLE_STRINGS_NODE, false);
-    return new StringResponse(
-      Singleton<TurnoutManager>::instance()->getStateAsJson(readable)
-    , MIME_TYPE_APPLICATION_JSON);
+    return new JsonResponse(turnoutMgr->getStateAsJson(readable));
   }
 
   uint16_t address = request->param(JSON_ADDRESS_NODE, 0);
   if (request->method() == HttpMethod::GET)
   {
-    auto turnout = Singleton<TurnoutManager>::instance()->get(address);
+    auto turnout = turnoutMgr->get(address);
     if (turnout)
     {
-      return new StringResponse(turnout->toJson()
-                              , MIME_TYPE_APPLICATION_JSON);
+      return new JsonResponse(turnout->toJson());
     }
     request->set_status(HttpStatusCode::STATUS_NOT_FOUND);
   }
@@ -837,25 +831,28 @@ HTTP_HANDLER_IMPL(process_turnouts, request)
   {
     TurnoutType type = (TurnoutType)request->param(JSON_TYPE_NODE
                                                  , TurnoutType::LEFT);
-    auto turnout =
-      Singleton<TurnoutManager>::instance()->createOrUpdate( address, type);
+    auto turnout = turnoutMgr->createOrUpdate(address, type);
     if (turnout)
     {
-      return new StringResponse(turnout->toJson(), MIME_TYPE_APPLICATION_JSON);
+      return new JsonResponse(turnout->toJson());
     }
     request->set_status(HttpStatusCode::STATUS_NOT_FOUND);
   }
   else if (request->method() == HttpMethod::DELETE)
   {
-    if (Singleton<TurnoutManager>::instance()->remove(address))
+    if (turnoutMgr->remove(address))
     {
-      request->set_status(HttpStatusCode::STATUS_OK);
+      request->set_status(HttpStatusCode::STATUS_NO_CONTENT);
+    }
+    else
+    {
+      request->set_status(HttpStatusCode::STATUS_NOT_FOUND);
     }
   }
   else if (request->method() == HttpMethod::PUT)
   {
-    Singleton<TurnoutManager>::instance()->toggle(address);
-    request->set_status(HttpStatusCode::STATUS_OK);
+    turnoutMgr->toggle(address);
+    request->set_status(HttpStatusCode::STATUS_NO_CONTENT);
   }
   return nullptr;
 }
@@ -929,9 +926,7 @@ HTTP_HANDLER_IMPL(process_loco, request)
     if (request->method() == HttpMethod::GET &&
        !request->has_param(JSON_ADDRESS_NODE))
     {
-      return new StringResponse(
-        Singleton<esp32cs::Esp32TrainDatabase>::instance()->get_all_entries_as_json()
-      , MIME_TYPE_APPLICATION_JSON);
+      return new JsonResponse(traindb->get_all_entries_as_json());
     }
     else if (request->has_param(JSON_ADDRESS_NODE))
     {
@@ -939,7 +934,7 @@ HTTP_HANDLER_IMPL(process_loco, request)
       if (request->method() == HttpMethod::DELETE)
       {
         traindb->delete_entry(address);
-        request->set_status(HttpStatusCode::STATUS_OK);
+        request->set_status(HttpStatusCode::STATUS_NO_CONTENT);
       }
       else
       {
@@ -956,8 +951,7 @@ HTTP_HANDLER_IMPL(process_loco, request)
         {
           traindb->set_train_show_on_limited_throttle(address, request->param(JSON_DEFAULT_ON_THROTTLE_NODE, false));
         }
-        return new StringResponse(traindb->get_entry_as_json(address)
-                                , MIME_TYPE_APPLICATION_JSON);
+        return new JsonResponse(traindb->get_entry_as_json(address));
       }
     }
   }
@@ -986,7 +980,7 @@ HTTP_HANDLER_IMPL(process_loco, request)
         }
       }
       res += "]";
-      return new StringResponse(res, MIME_TYPE_APPLICATION_JSON);
+      return new JsonResponse(res);
     }
     else if (request->has_param(JSON_ADDRESS_NODE))
     {
@@ -1021,8 +1015,7 @@ HTTP_HANDLER_IMPL(process_loco, request)
             loco->set_fn(funcID, request->param(fArg, false));
           }
         }
-        return new StringResponse(convert_loco_to_json(loco)
-                                , MIME_TYPE_APPLICATION_JSON);
+        return new JsonResponse(convert_loco_to_json(loco));
       }
       else if (request->method() == HttpMethod::DELETE)
       {
@@ -1036,8 +1029,7 @@ HTTP_HANDLER_IMPL(process_loco, request)
       else
       {
         GET_LOCO_VIA_EXECUTOR(loco, address);
-        return new StringResponse(convert_loco_to_json(loco)
-                                , MIME_TYPE_APPLICATION_JSON);
+        return new JsonResponse(convert_loco_to_json(loco));
       }
     }
   }
@@ -1049,8 +1041,7 @@ HTTP_HANDLER_IMPL(process_outputs, request)
 {
   if (request->method() == HttpMethod::GET && !request->params())
   {
-    return new StringResponse(OutputManager::getStateAsJson()
-                            , MIME_TYPE_APPLICATION_JSON);
+    return new JsonResponse(OutputManager::getStateAsJson());
   }
   request->set_status(HttpStatusCode::STATUS_OK);
   int16_t output_id = request->param(JSON_ID_NODE, -1);
@@ -1063,7 +1054,7 @@ HTTP_HANDLER_IMPL(process_outputs, request)
     auto output = OutputManager::getOutput(output_id);
     if (output)
     {
-      return new StringResponse(output->toJson(), MIME_TYPE_APPLICATION_JSON);
+      return new JsonResponse(output->toJson());
     }
     request->set_status(HttpStatusCode::STATUS_NOT_FOUND);
   }
@@ -1116,8 +1107,7 @@ HTTP_HANDLER_IMPL(process_sensors, request)
   if (request->method() == HttpMethod::GET &&
      !request->has_param(JSON_ID_NODE))
   {
-    return new StringResponse(SensorManager::getStateAsJson()
-                            , MIME_TYPE_APPLICATION_JSON);
+    return new JsonResponse(SensorManager::getStateAsJson());
   }
   else if (!request->has_param(JSON_ID_NODE))
   {
@@ -1135,8 +1125,7 @@ HTTP_HANDLER_IMPL(process_sensors, request)
       auto sensor = SensorManager::getSensor(id);
       if (sensor)
       {
-        return new StringResponse(sensor->toJson()
-                                , MIME_TYPE_APPLICATION_JSON);
+        return new JsonResponse(sensor->toJson());
       }
       request->set_status(HttpStatusCode::STATUS_NOT_FOUND);
     }
@@ -1170,7 +1159,7 @@ HTTP_HANDLER_IMPL(process_sensors, request)
       }
       else
       {
-        request->set_status(HttpStatusCode::STATUS_OK);
+        request->set_status(HttpStatusCode::STATUS_NO_CONTENT);
       }
     }
   }
@@ -1183,8 +1172,7 @@ HTTP_HANDLER_IMPL(process_remote_sensors, request)
   request->set_status(HttpStatusCode::STATUS_OK);
   if (request->method() == HttpMethod::GET)
   {
-    return new StringResponse(RemoteSensorManager::getStateAsJson()
-                            , MIME_TYPE_APPLICATION_JSON);
+    return new JsonResponse(RemoteSensorManager::getStateAsJson());
   }
   else if (request->method() == HttpMethod::POST)
   {
@@ -1204,8 +1192,7 @@ HTTP_HANDLER_IMPL(process_s88, request)
   request->set_status(HttpStatusCode::STATUS_OK);
   if (request->method() == HttpMethod::GET)
   {
-    return new StringResponse(S88BusManager::instance()->get_state_as_json()
-                            , MIME_TYPE_APPLICATION_JSON);
+    return new JsonResponse(S88BusManager::instance()->get_state_as_json());
   }
   else if (request->method() == HttpMethod::POST)
   {
