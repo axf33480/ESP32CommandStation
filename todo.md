@@ -10,7 +10,6 @@ These are must have features/bug fixes for v1.5.0:
 
 -   [ ] DCC: Rewrite/Test RailCom detector code.
 -   [ ] DOC: Write migration guide for building, what has changed since v1.2.3, future of legacy protocols (DCC++, non-LCC JMRI)
--   [ ] LCC: Rewrite HW Can driver.
 -   [x] LCC: TrainSearch protocol.
     -   [x] Basic integration is functional (loco request works for dynamic locos)
     -   [x] Persisted locos that are not active can not be requested from UWT-100.
@@ -78,6 +77,7 @@ These entries are items being tracked for a future release, these are not listed
 -   [ ] DCC: Reimplement DCC Prog Track interface so it supports multiple requests (serialized).
 -   [ ] DCC: Introduced priority queue mechanism for DCC packets.
 -   [ ] GPIO: Expose Outputs, Sensors, S88 events on LCC.
+-   [ ] LCC: Rewrite HW Can driver.
 -   [ ] LCC: Broadcast events for turnout state change.
 -   [ ] LCC: Discard turnout events when turnout already in expected state (drop duplicate events).
 -   [ ] LCC: Expose PROG track via CDI (needed for UWT-100 support).
@@ -99,6 +99,7 @@ These entries are items being tracked for a future release, these are not listed
 -   [ ] OTA: Return to normal mode on Nextion when OTA fails.
 -   [ ] Roster: Roster Entries should contain function id mappings.
 -   [ ] Roster: Expose db entries via R/W CDI.
+-   [ ] Roster: Expire locos that are not auto-idle and have not been "used" within a configurable period.
 -   [ ] S88: Add S88 sensor data to InfoScreen status line, 16 sensor output rotation.
 -   [ ] Sensors: Convert to use openlcb::Polling model rather than tasks.
 -   [ ] Web: Add strict validation of input parameter data.
