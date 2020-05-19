@@ -174,7 +174,7 @@ void HBridgeShortDetector::poll_33hz(openlcb::WriteHelper *helper, Notifiable *d
   lastReading_ = (std::accumulate(samples.begin(), samples.end(), 0) / samples.size());
 
   // if this is the PROG track check up front if we have a short or ACK.
-  if (isProgTrack_ && lastReading_ > 0)
+  if (isProgTrack_ && progEnable_)
   {
     LOG(VERBOSE, "[%s] reading: %d", name_.c_str(), lastReading_);
     auto backend = Singleton<ProgrammingTrackBackend>::instance();

@@ -149,6 +149,11 @@ public:
 
   void poll_33hz(openlcb::WriteHelper *helper, Notifiable *done) override;
 
+  void enable_prog_response(bool enable)
+  {
+    progEnable_ = enable;
+  }
+
 private:
   const adc1_channel_t channel_;
   const Gpio *enablePin_;
@@ -174,6 +179,7 @@ private:
   uint32_t lastReading_{0};
   uint8_t state_{STATE_OFF};
   uint8_t overCurrentCheckCount_{0};
+  bool progEnable_{false};
 
   void configure();
 };

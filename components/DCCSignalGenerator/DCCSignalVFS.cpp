@@ -161,6 +161,7 @@ static void enable_prog_track_output()
   {
     LOG(INFO, "[Track] Enabling track output: %s", CONFIG_PROG_TRACK_NAME);
     PROG_ENABLE_Pin::instance()->set();
+    track_mon[PROG_RMT_CHANNEL]->enable_prog_response(true);
 #if CONFIG_STATUS_LED
     Singleton<StatusLED>::instance()->setStatusLED(
           StatusLED::LED::PROG_TRACK, StatusLED::COLOR::GREEN);
@@ -176,6 +177,7 @@ static void disable_prog_track_output()
   {
     LOG(INFO, "[Track] Disabling track output: %s", CONFIG_PROG_TRACK_NAME);
     PROG_ENABLE_Pin::instance()->clr();
+    track_mon[PROG_RMT_CHANNEL]->enable_prog_response(false);
 #if CONFIG_STATUS_LED
     Singleton<StatusLED>::instance()->setStatusLED(
           StatusLED::LED::PROG_TRACK, StatusLED::COLOR::OFF);
