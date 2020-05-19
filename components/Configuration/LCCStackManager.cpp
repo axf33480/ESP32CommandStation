@@ -31,6 +31,25 @@ static constexpr const char LCC_NODE_ID_FILE[] = "lcc-node";
 static constexpr const char LCC_RESET_MARKER_FILE[] = "lcc-rst";
 static constexpr const char LCC_CAN_MARKER_FILE[] = "lcc-can";
 
+#if defined(CONFIG_LCC_CAN_ENABLED)
+static std::unique_ptr<CanBridge> canBridge;
+bool can_run = true;
+bool can_running = false;
+
+static void* can_bridge_task(void *param)
+{
+  can_running = true;
+  while (can_run)
+  {
+    canBridge->run();
+    vTaskDelay(pdMS_TO_TICKS(1));
+  }
+  canBridge.reset(nullptr);
+  can_running = false;
+  return nullptr;
+}
+#endif // CONFIG_LCC_CAN_ENABLED
+
 LCCStackManager::LCCStackManager(const esp32cs::Esp32ConfigDef &cfg) : cfg_(cfg)
 {
 #if defined(CONFIG_LCC_FACTORY_RESET) || defined(CONFIG_ESP32CS_FORCE_FACTORY_RESET)
@@ -103,8 +122,10 @@ LCCStackManager::LCCStackManager(const esp32cs::Esp32ConfigDef &cfg) : cfg_(cfg)
                               , (gpio_num_t)CONFIG_LCC_CAN_RX_PIN
                               , (gpio_num_t)CONFIG_LCC_CAN_TX_PIN
                               , false);
-    canBridge_ = new CanBridge((Can *)can_, ((openlcb::SimpleCanStack *)stack_)->can_hub());
-    stack_->executor()->add(canBridge_);
+    canBridge.reset(
+        new CanBridge((Can *)can_
+                    , ((openlcb::SimpleCanStack *)stack_)->can_hub()));
+    os_thread_create(nullptr,  "CAN-BRIDGE", -1, 4096, can_bridge_task, nullptr);
   }
 #endif // CONFIG_LCC_CAN_ENABLED
 #endif // CONFIG_LCC_TCP_STACK
@@ -170,6 +191,18 @@ void LCCStackManager::start(bool is_sd)
 
 void LCCStackManager::shutdown()
 {
+#if defined(CONFIG_LCC_CAN_ENABLED)
+  if (canBridge.get() != nullptr)
+  {
+    can_run = false;
+    // wait for can task shutdown
+    while (can_running)
+    {
+      vTaskDelay(pdMS_TO_TICKS(1));
+    }
+  }
+#endif // CONFIG_LCC_CAN_ENABLED
+
   // Shutdown the auto-sync handler if it is running before unmounting the FS.
   if (configAutoSync_ != nullptr)
   {

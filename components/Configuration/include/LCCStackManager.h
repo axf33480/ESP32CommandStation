@@ -59,7 +59,6 @@ private:
   int fd_;
   uint64_t nodeID_{0};
   openlcb::SimpleStackBase *stack_;
-  Executable *canBridge_;
   openmrn_arduino::Esp32HardwareCan *can_;
   AutoSyncFileFlow *configAutoSync_;
 };

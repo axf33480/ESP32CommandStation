@@ -88,7 +88,7 @@ public:
             .alerts_enabled = CAN_ALERT_NONE,
             .clkout_divider = 0};
 
-        LOG(INFO,
+        LOG(VERBOSE,
             "ESP32-CAN driver configured using RX: %d, TX: %d, RX-Q: %d, "
             "TX-Q: %d",
             can_general_config.rx_io, can_general_config.tx_io,
@@ -111,14 +111,14 @@ public:
     virtual void enable()
     {
         ESP_ERROR_CHECK(can_start());
-        LOG(INFO, "ESP32-CAN driver enabled");
+        LOG(VERBOSE, "ESP32-CAN driver enabled");
     }
 
     /// Disables the ESP32 CAN driver
     virtual void disable()
     {
         ESP_ERROR_CHECK(can_stop());
-        LOG(INFO, "ESP32-CAN driver disabled");
+        LOG(VERBOSE, "ESP32-CAN driver disabled");
     }
 
 protected:
@@ -178,7 +178,7 @@ private:
         /// txBuf.
         Esp32HardwareCan *parent = reinterpret_cast<Esp32HardwareCan *>(can);
 
-        LOG(INFO, "Esp32Can: TX startup");
+        LOG(VERBOSE, "Esp32Can: TX startup");
 
         /// Tracks the last time that we displayed the CAN driver status.
         TickType_t next_status_display_tick_count = 0;
@@ -269,7 +269,7 @@ private:
             esp_err_t tx_res = can_transmit(&msg, pdMS_TO_TICKS(100));
             if (tx_res == ESP_OK)
             {
-                LOG(INFO,
+                LOG(VERBOSE,
                     "ESP32-CAN-TX OK id:%08x, flags:%04x, dlc:%02d, "
                     "data:%02x%02x%02x%02x%02x%02x%02x%02x",
                     msg.identifier, msg.flags, msg.data_length_code,
@@ -296,7 +296,7 @@ private:
         /// Get handle to our parent Esp32HardwareCan object to access the rxBuf
         Esp32HardwareCan *parent = reinterpret_cast<Esp32HardwareCan *>(can);
 
-        LOG(INFO, "Esp32Can: RX startup");
+        LOG(VERBOSE, "Esp32Can: RX startup");
 
         while (true)
         {
@@ -317,7 +317,7 @@ private:
                     "dropped!");
                 continue;
             }
-            LOG(INFO,
+            LOG(VERBOSE,
                 "ESP32-CAN-RX id:%08x, flags:%04x, dlc:%02d, "
                 "data:%02x%02x%02x%02x%02x%02x%02x%02x",
                 msg.identifier, msg.flags, msg.data_length_code,
@@ -340,7 +340,7 @@ private:
                 continue;
             }
             // we have space in the rxBuf, start conversion
-            LOG(INFO, "ESP32-CAN-RX: converting to can_frame");
+            LOG(VERBOSE, "ESP32-CAN-RX: converting to can_frame");
             memset(can_frame, 0, sizeof(struct can_frame));
             can_frame->can_id = msg.identifier;
             can_frame->can_dlc = msg.data_length_code;
