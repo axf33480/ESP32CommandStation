@@ -30,6 +30,12 @@ COPYRIGHT (c) 2019-2020 Mike Dunston
 
 #include <AutoPersistCallbackFlow.h>
 
+#include "sdkconfig.h"
+
+#ifndef CONFIG_ROSTER_AUTO_IDLE_NEW_LOCOS
+#define CONFIG_ROSTER_AUTO_IDLE_NEW_LOCOS false
+#endif
+
 namespace esp32cs
 {
   using namespace commandstation;
@@ -53,7 +59,7 @@ namespace esp32cs
       this->address = address;
       this->name = name;
       this->mode = mode;
-      this->automatic_idle = true;
+      this->automatic_idle = CONFIG_ROSTER_AUTO_IDLE_NEW_LOCOS;
       this->show_on_limited_throttles = false;
       // set some defaults
       if (this->mode & DccMode::DCC_ANY)
