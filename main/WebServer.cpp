@@ -217,7 +217,8 @@ public:
   void reconfigure_uplink(SocketClientParams::SearchMode mode
                         , string uplink_service_name
                         , string manual_hostname
-                        , uint16_t manual_port)
+                        , uint16_t manual_port
+                        , bool reconnect)
   {
     auto wifi = cfg_.seg().wifi();
     bool upd = false;
@@ -228,6 +229,7 @@ public:
                       , manual_hostname, upd);
     CDI_COMPARE_AND_SET(wifi.uplink().manual_address().port, fd_
                       , manual_port, upd);
+    CDI_COMPARE_AND_SET(wifi.uplink().reconnect, fd_, reconnect, upd);
 
     MAYBE_TRIGGER_UPDATE(upd);
   }
@@ -568,7 +570,8 @@ HTTP_HANDLER_IMPL(process_config, request)
   if (request->has_param("uplink-mode") &&
       request->has_param("uplink-service") &&
       request->has_param("uplink-manual") &&
-      request->has_param("uplink-manual-port"))
+      request->has_param("uplink-manual-port") &&
+      request->has_param("uplink-reconnect"))
   {
     // WiFi uplink settings do not require a reboot
     SocketClientParams::SearchMode mode =
@@ -578,8 +581,9 @@ HTTP_HANDLER_IMPL(process_config, request)
     uint16_t manual_port =
       request->param("uplink-manual-port", TcpClientDefaultParams::DEFAULT_PORT);
     string manual_host = request->param("uplink-manual");
+    bool reconnect = request->param("uplink-reconnect", true);
     configListener->reconfigure_uplink(mode, uplink_service, manual_host
-                                     , manual_port);
+                                     , manual_port, reconnect);
   }
   if (request->has_param("ops-short") &&
       request->has_param("ops-short-clear") &&

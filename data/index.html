@@ -892,6 +892,10 @@ function setupBSStatus() {
 function setupBSTurnout() {
  // default to dcc addressing only.
  $('#cs-turnout-dialog-save').on('vclick', function(event, ui) {
+  if($('#cs-turnout-address').val() < 1 || $('#cs-turnout-address').val() > 2044){
+   alert(String.format('{0} is not a valid address for an accessory decoder', $('#cs-turnout-address').val()));
+   return;
+  }
   console.log('Creating/Updating turnout using address', $('#cs-turnout-address').val(), 'and type', $('#cs-turnout-type').val());
   $.post('/turnouts', {
    'address' : $('#cs-turnout-address').val(),
@@ -1197,7 +1201,7 @@ function setupConfig() {
   } else if (tablist[section] == "LCC") {
    url = String.format("/config?nodeid={0}&lcc-hub={1}&lcc-can={2}", $('#cs-lcc-node-id').val(), $('#cs-lcc-hub').prop('checked'), $('#cs-lcc-can').prop('checked'));
   } else if (tablist[section] == "Uplink") {
-   url = String.format("/config?uplink-mode={0}&uplink-service={1}&uplink-manual={2}&uplink-manual-port={3}", $('#cs-lcc-uplink-mode').val(), $('#cs-lcc-uplink-auto-service').val(), $('#cs-lcc-uplink-manual-host').val(), $('#cs-lcc-uplink-manual-port').val());
+   url = String.format("/config?uplink-mode={0}&uplink-service={1}&uplink-manual={2}&uplink-manual-port={3}&uplink-reconnect={4}", $('#cs-lcc-uplink-mode').val(), $('#cs-lcc-uplink-auto-service').val(), $('#cs-lcc-uplink-manual-host').val(), $('#cs-lcc-uplink-manual-port').val(), $('#cs-lcc-uplink-reconnect').val());
   } else if (tablist[section] == "OPS") {
    url = String.format("/config?ops-short={0}&ops-short-clear={1}&ops-shutdown={2}&ops-shutdown-clear={3}&ops-thermal={4}&ops-thermal-clear={5}", $('#cs-cdi-ops-short').val(), $('#cs-cdi-ops-short-clear').val(), $('#cs-cdi-ops-shutdown').val(), $('#cs-cdi-ops-shutdown-clear').val(), $('#cs-cdi-ops-thermal').val(), $('#cs-cdi-ops-thermal-clear').val());
   } else if (tablist[section] == "PROG") {
