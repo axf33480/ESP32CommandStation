@@ -121,7 +121,7 @@ ConfigurationManager::ConfigurationManager(const esp32cs::Esp32ConfigDef &cfg)
   esp_vfs_fat_sdmmc_mount_config_t sd_cfg =
   {
     .format_if_mount_failed = true,
-    .max_files = 5,
+    .max_files = 10,
     .allocation_unit_size = 16 * 1024
   };
   esp_err_t err = esp_vfs_fat_sdmmc_mount(CFG_MOUNT, &sd_host, &sd_slot
@@ -158,7 +158,7 @@ ConfigurationManager::ConfigurationManager(const esp32cs::Esp32ConfigDef &cfg)
     {
       .base_path = CFG_MOUNT,
       .partition_label = NULL,
-      .max_files = 5,
+      .max_files = 10,
       .format_if_mount_failed = true
     };
     // Attempt to mount the partition
