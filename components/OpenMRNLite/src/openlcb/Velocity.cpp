@@ -87,7 +87,7 @@ void Velocity::set_dcc_128(uint8_t value)
         velocity /= MPH_FACTOR;
     }
     
-    if ((value & 0x80) == 0)
+    if ((value & 0x80) == 1)
     {
         velocity = -velocity;
     }

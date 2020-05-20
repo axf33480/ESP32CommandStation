@@ -213,14 +213,10 @@ DCC_PROTOCOL_COMMAND_HANDLER(ThrottleCommandAdapter,
   uint8_t req_dir = std::stoi(arguments[3]);
 
   GET_LOCO_VIA_EXECUTOR(impl, loco_addr);
-
-  dcc::SpeedType speed(impl->get_speed());
   LOG(INFO, "[DCC++ loco %d] Set speed to %d", loco_addr, req_speed);
-  speed.set_dcc_128(req_speed);
   LOG(INFO, "[DCC++ loco %d] Set direction to %s", loco_addr
       , req_dir ? "FWD" : "REV");
-  speed.set_direction(req_dir ? dcc::SpeedType::FORWARD : dcc::SpeedType::REVERSE);
-  impl->set_speed(speed);
+  impl->set_speed(dcc::SpeedType(req_dir ? req_speed : -req_speed));
   return convert_loco_to_dccpp_state(impl, reg_num);
 });
 

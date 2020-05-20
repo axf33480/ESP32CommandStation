@@ -993,24 +993,31 @@ HTTP_HANDLER_IMPL(process_loco, request)
           request->method() == HttpMethod::POST)
       {
         GET_LOCO_VIA_EXECUTOR(loco, address);
-        auto upd_speed = loco->get_speed();
         // Creation / Update of active locomotive
         if (request->has_param(JSON_IDLE_NODE))
         {
-          upd_speed.set_dcc_128(0);
+          loco->set_speed(dcc::SpeedType(0));
         }
         if (request->has_param(JSON_SPEED_NODE))
         {
-          upd_speed.set_dcc_128(request->param(JSON_SPEED_NODE, 0));
+          bool forward = true;
+          if (request->has_param(JSON_DIRECTION_NODE))
+          {
+            forward = !request->param(JSON_DIRECTION_NODE).compare(JSON_VALUE_FORWARD);
+          }
+          uint8_t speed = request->param(JSON_SPEED_NODE, 0);
+          loco->set_speed(dcc::SpeedType(forward ? speed : -speed));
         }
-        if (request->has_param(JSON_DIRECTION_NODE))
+        else if (request->has_param(JSON_DIRECTION_NODE))
         {
           bool forward =
             !request->param(JSON_DIRECTION_NODE).compare(JSON_VALUE_FORWARD);
+          auto upd_speed = loco->get_speed();
           upd_speed.set_direction(forward ? dcc::SpeedType::FORWARD
                                           : dcc::SpeedType::REVERSE);
+          loco->set_speed(upd_speed);
         }
-        loco->set_speed(upd_speed);
+        
         for (uint8_t funcID = 0; funcID <=28 ; funcID++)
         {
           string fArg = StringPrintf("f%d", funcID);
