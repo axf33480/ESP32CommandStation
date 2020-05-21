@@ -437,7 +437,7 @@ void RMTTrackDevice::encode_next_packet()
   // the RMT
   packet_[pktLength_++].val = DCC_RMT_ONE_BIT.val;
   // record the repeat count
-  pktRepeatCount_ = packet.packet_header.rept_count + 1;
+  pktRepeatCount_ = packet.packet_header.rept_count;
 
   railcomDriver_->set_feedback_key(packet.feedback_key);
 }
