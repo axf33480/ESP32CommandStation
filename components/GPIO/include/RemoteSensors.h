@@ -19,7 +19,11 @@ COPYRIGHT (c) 2018 Dan Worth
 #ifndef REMOTE_SENSORS_H_
 #define REMOTE_SENSORS_H_
 
+#include <DCCppProtocol.h>
+
 #include "Sensors.h"
+
+DECLARE_DCC_PROTOCOL_COMMAND_CLASS(RemoteSensorsCommandAdapter, "RS", 0)
 
 class RemoteSensor : public Sensor
 {

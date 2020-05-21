@@ -1006,7 +1006,7 @@ HTTP_HANDLER_IMPL(process_loco, request)
             forward = !request->param(JSON_DIRECTION_NODE).compare(JSON_VALUE_FORWARD);
           }
           uint8_t speed = request->param(JSON_SPEED_NODE, 0);
-          loco->set_speed(dcc::SpeedType(forward ? speed : -speed));
+          loco->set_speed(dcc::SpeedType::from_mph(forward ? speed : -speed));
         }
         else if (request->has_param(JSON_DIRECTION_NODE))
         {

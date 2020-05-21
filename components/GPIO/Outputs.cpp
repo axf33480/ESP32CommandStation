@@ -355,18 +355,11 @@ DCC_PROTOCOL_COMMAND_HANDLER(OutputCommandAdapter,
 DCC_PROTOCOL_COMMAND_HANDLER(OutputExCommandAdapter,
 [](const vector<string> arguments)
 {
-  if(arguments.empty())
+  uint16_t outputID = std::stoi(arguments[0]);
+  auto output = OutputManager::getOutput(outputID);
+  if (output)
   {
-    return COMMAND_FAILED_RESPONSE;
-  }
-  else
-  {
-    uint16_t outputID = std::stoi(arguments[0]);
-    auto output = OutputManager::getOutput(outputID);
-    if (output)
-    {
-      return output->set(!output->isActive());
-    }
+    return output->set(!output->isActive());
   }
   return COMMAND_FAILED_RESPONSE;
 })

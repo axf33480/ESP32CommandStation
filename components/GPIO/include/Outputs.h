@@ -20,6 +20,10 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 
 #include <DCCppProtocol.h>
 #include <driver/gpio.h>
+#include <utils/StringPrintf.hxx>
+
+DECLARE_DCC_PROTOCOL_COMMAND_CLASS(OutputCommandAdapter, "Z", 0)
+DECLARE_DCC_PROTOCOL_COMMAND_CLASS(OutputExCommandAdapter, "Zex", 1)
 
 const uint8_t OUTPUT_IFLAG_INVERT = BIT0;
 const uint8_t OUTPUT_IFLAG_RESTORE_STATE = BIT1;

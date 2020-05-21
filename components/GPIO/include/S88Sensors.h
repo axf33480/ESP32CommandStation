@@ -18,6 +18,7 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 #ifndef S88_SENSORS_H_
 #define S88_SENSORS_H_
 
+#include <DCCppProtocol.h>
 #include <driver/gpio.h>
 
 #include <openlcb/RefreshLoop.hxx>
@@ -25,6 +26,8 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
 #include <utils/Singleton.hxx>
 
 #include "Sensors.h"
+
+DECLARE_DCC_PROTOCOL_COMMAND_CLASS(S88BusCommandAdapter, "S88", 0)
 
 class S88Sensor : public Sensor {
 public:

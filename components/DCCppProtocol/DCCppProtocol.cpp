@@ -53,7 +53,7 @@ std::vector<std::unique_ptr<DCCPPProtocolCommand>> registeredCommands;
 // to read a CV value from the PROGRAMMING track. The returned value will be
 // the actual CV value or -1 when there is a failure reading or verifying the
 // CV.
-DECLARE_DCC_PROTOCOL_COMMAND_CLASS(ReadCVCommand, "R")
+DECLARE_DCC_PROTOCOL_COMMAND_CLASS(ReadCVCommand, "R", 3)
 DCC_PROTOCOL_COMMAND_HANDLER(ReadCVCommand,
 [](const vector<string> arguments)
 {
@@ -72,7 +72,7 @@ DCC_PROTOCOL_COMMAND_HANDLER(ReadCVCommand,
 // attempts to write a CV value on the PROGRAMMING track. The returned value
 // is either the actual CV value written or -1 if there is a failure writing or
 // verifying the CV value.
-DECLARE_DCC_PROTOCOL_COMMAND_CLASS(WriteCVByteProgCommand, "W")
+DECLARE_DCC_PROTOCOL_COMMAND_CLASS(WriteCVByteProgCommand, "W", 4)
 DCC_PROTOCOL_COMMAND_HANDLER(WriteCVByteProgCommand,
 [](const vector<string> arguments)
 {
@@ -92,7 +92,7 @@ DCC_PROTOCOL_COMMAND_HANDLER(WriteCVByteProgCommand,
 // command attempts to write a single bit value for a CV on the PROGRAMMING
 // track. The returned value is either the actual bit value of the CV or -1 if
 // there is a failure writing or verifying the CV value.
-DECLARE_DCC_PROTOCOL_COMMAND_CLASS(WriteCVBitProgCommand, "B")
+DECLARE_DCC_PROTOCOL_COMMAND_CLASS(WriteCVBitProgCommand, "B", 5)
 DCC_PROTOCOL_COMMAND_HANDLER(WriteCVBitProgCommand,
 [](const vector<string> arguments)
 {
@@ -112,7 +112,7 @@ DCC_PROTOCOL_COMMAND_HANDLER(WriteCVBitProgCommand,
 
 // <w {LOCO} {CV} {VALUE}> command handler, this command sends a CV write packet
 // on the MAIN OPERATIONS track for a given LOCO. No verification is attempted.
-DECLARE_DCC_PROTOCOL_COMMAND_CLASS(WriteCVByteOpsCommand, "w")
+DECLARE_DCC_PROTOCOL_COMMAND_CLASS(WriteCVByteOpsCommand, "w", 3)
 DCC_PROTOCOL_COMMAND_HANDLER(WriteCVByteOpsCommand,
 [](const vector<string> arguments)
 {
@@ -121,10 +121,10 @@ DCC_PROTOCOL_COMMAND_HANDLER(WriteCVByteOpsCommand,
   return COMMAND_SUCCESSFUL_RESPONSE;
 })
 
-// <w {LOCO} {CV} {BIT} {VALUE}> command handler, this command sends a CV bit
+// <b {LOCO} {CV} {BIT} {VALUE}> command handler, this command sends a CV bit
 // write packet on the MAIN OPERATIONS track for a given LOCO. No verification
 // is attempted.
-DECLARE_DCC_PROTOCOL_COMMAND_CLASS(WriteCVBitOpsCommand, "b")
+DECLARE_DCC_PROTOCOL_COMMAND_CLASS(WriteCVBitOpsCommand, "b", 4)
 DCC_PROTOCOL_COMMAND_HANDLER(WriteCVBitOpsCommand,
 [](const vector<string> arguments)
 {
@@ -136,12 +136,17 @@ DCC_PROTOCOL_COMMAND_HANDLER(WriteCVBitOpsCommand,
 string convert_loco_to_dccpp_state(openlcb::TrainImpl *impl, size_t id)
 {
   dcc::SpeedType speed(impl->get_speed());
-  return StringPrintf("<T %d %d %d>", id, (speed.get_dcc_128() & 0x7F)
+  if (speed.mph())
+  {
+    return StringPrintf("<T %d %d %d>", id, (int)speed.mph() + 1
+                      , speed.direction() == dcc::SpeedType::FORWARD);
+  }
+  return StringPrintf("<T %d 0 %d>", id
                     , speed.direction() == dcc::SpeedType::FORWARD);
 }
 
 // <F> command handler, this command sends the current free heap space as response.
-DECLARE_DCC_PROTOCOL_COMMAND_CLASS(FreeHeapCommand, "F")
+DECLARE_DCC_PROTOCOL_COMMAND_CLASS(FreeHeapCommand, "F", 0)
 DCC_PROTOCOL_COMMAND_HANDLER(FreeHeapCommand,
 [](const vector<string> arguments)
 {
@@ -150,7 +155,7 @@ DCC_PROTOCOL_COMMAND_HANDLER(FreeHeapCommand,
 
 // <estop> command handler, this command sends an estop packet to all active
 // locomotives.
-DECLARE_DCC_PROTOCOL_COMMAND_CLASS(EStopCommand, "estop")
+DECLARE_DCC_PROTOCOL_COMMAND_CLASS(EStopCommand, "estop", 0)
 DCC_PROTOCOL_COMMAND_HANDLER(EStopCommand,
 [](const vector<string> arguments)
 {
@@ -158,14 +163,14 @@ DCC_PROTOCOL_COMMAND_HANDLER(EStopCommand,
   return COMMAND_SUCCESSFUL_RESPONSE;
 })
 
-DECLARE_DCC_PROTOCOL_COMMAND_CLASS(CurrentDrawCommand, "c")
+DECLARE_DCC_PROTOCOL_COMMAND_CLASS(CurrentDrawCommand, "c", 0)
 DCC_PROTOCOL_COMMAND_HANDLER(CurrentDrawCommand,
 [](const vector<string> arguments)
 {
   return esp32cs::get_track_state_for_dccpp();
 })
 
-DECLARE_DCC_PROTOCOL_COMMAND_CLASS(PowerOnCommand, "1")
+DECLARE_DCC_PROTOCOL_COMMAND_CLASS(PowerOnCommand, "1", 0)
 DCC_PROTOCOL_COMMAND_HANDLER(PowerOnCommand,
 [](const vector<string> arguments)
 {
@@ -175,7 +180,7 @@ DCC_PROTOCOL_COMMAND_HANDLER(PowerOnCommand,
   return StringPrintf("<p1 %s>", CONFIG_OPS_TRACK_NAME);
 })
 
-DECLARE_DCC_PROTOCOL_COMMAND_CLASS(PowerOffCommand, "0")
+DECLARE_DCC_PROTOCOL_COMMAND_CLASS(PowerOffCommand, "0", 0)
 DCC_PROTOCOL_COMMAND_HANDLER(PowerOffCommand,
 [](const vector<string> arguments)
 {
@@ -203,7 +208,7 @@ DCC_PROTOCOL_COMMAND_HANDLER(PowerOffCommand,
 // <t {REGISTER} {LOCO} {SPEED} {DIRECTION}> command handler, this command
 // converts the provided locomotive control command into a compatible DCC
 // locomotive control packet.
-DECLARE_DCC_PROTOCOL_COMMAND_CLASS(ThrottleCommandAdapter, "t")
+DECLARE_DCC_PROTOCOL_COMMAND_CLASS(ThrottleCommandAdapter, "t", 4)
 DCC_PROTOCOL_COMMAND_HANDLER(ThrottleCommandAdapter,
 [](const vector<string> arguments)
 {
@@ -216,14 +221,14 @@ DCC_PROTOCOL_COMMAND_HANDLER(ThrottleCommandAdapter,
   LOG(INFO, "[DCC++ loco %d] Set speed to %d", loco_addr, req_speed);
   LOG(INFO, "[DCC++ loco %d] Set direction to %s", loco_addr
       , req_dir ? "FWD" : "REV");
-  impl->set_speed(dcc::SpeedType(req_dir ? req_speed : -req_speed));
+  impl->set_speed(dcc::SpeedType::from_mph(req_dir ? req_speed : -req_speed));
   return convert_loco_to_dccpp_state(impl, reg_num);
 });
 
 // <tex {LOCO} {SPEED} {DIRECTION}> command handler, this command
 // converts the provided locomotive control command into a compatible DCC
 // locomotive control packet.
-DECLARE_DCC_PROTOCOL_COMMAND_CLASS(ThrottleExCommandAdapter, "tex")
+DECLARE_DCC_PROTOCOL_COMMAND_CLASS(ThrottleExCommandAdapter, "tex", 3)
 DCC_PROTOCOL_COMMAND_HANDLER(ThrottleExCommandAdapter,
 [](const vector<string> arguments)
 {
@@ -233,25 +238,30 @@ DCC_PROTOCOL_COMMAND_HANDLER(ThrottleExCommandAdapter,
 
   GET_LOCO_VIA_EXECUTOR(impl, loco_addr);
 
-  dcc::SpeedType speed(impl->get_speed());
   if (req_speed >= 0)
   {
-    LOG(INFO, "[DCC++ loco %d] Set speed to %d", loco_addr, req_speed);
-    speed.set_dcc_128(req_speed);
+    if (req_dir == 0)
+    {
+      req_speed = -req_speed;
+    }
+    LOG(INFO, "[DCC++ loco %d] Set speed to %d (%s)", loco_addr, abs(req_speed)
+      , req_speed > 0 ? "FWD" : "REV");
+    impl->set_speed(dcc::SpeedType::from_mph(req_speed));
   }
-  if (req_dir >= 0)
+  else if (req_dir >= 0)
   {
+    dcc::SpeedType speed(impl->get_speed());
     LOG(INFO, "[DCC++ loco %d] Set direction to %s", loco_addr
       , req_dir ? "FWD" : "REV");
     speed.set_direction(req_dir ? dcc::SpeedType::FORWARD : dcc::SpeedType::REVERSE);
+    impl->set_speed(speed);
   }
-  impl->set_speed(speed);
   return convert_loco_to_dccpp_state(impl, 0);
 })
 
 // <f {LOCO} {BYTE} [{BYTE2}]> command handler, this command converts a
 // locomotive function update into a compatible DCC function control packet.
-DECLARE_DCC_PROTOCOL_COMMAND_CLASS(FunctionCommandAdapter, "f")
+DECLARE_DCC_PROTOCOL_COMMAND_CLASS(FunctionCommandAdapter, "f", 2)
 DCC_PROTOCOL_COMMAND_HANDLER(FunctionCommandAdapter,
 [](const vector<string> arguments)
 {
@@ -309,7 +319,7 @@ DCC_PROTOCOL_COMMAND_HANDLER(FunctionCommandAdapter,
 
 // <fex {LOCO} {FUNC} {STATE}]> command handler, this command converts a
 // locomotive function update into a compatible DCC function control packet.
-DECLARE_DCC_PROTOCOL_COMMAND_CLASS(FunctionExCommandAdapter, "fex")
+DECLARE_DCC_PROTOCOL_COMMAND_CLASS(FunctionExCommandAdapter, "fex", 3)
 DCC_PROTOCOL_COMMAND_HANDLER(FunctionExCommandAdapter,
 [](const vector<string> arguments)
 {
@@ -330,7 +340,7 @@ DCC_PROTOCOL_COMMAND_HANDLER(FunctionExCommandAdapter,
 // DELETE: <C {ID}>
 // QUERY : <C 0 {LOCO}>
 // SHOW  : <C>
-DECLARE_DCC_PROTOCOL_COMMAND_CLASS(ConsistCommandAdapter, "C")
+DECLARE_DCC_PROTOCOL_COMMAND_CLASS(ConsistCommandAdapter, "C", 0)
 DCC_PROTOCOL_COMMAND_HANDLER(ConsistCommandAdapter,
 [](const vector<string> arguments)
 {
@@ -437,7 +447,7 @@ where
   INDEX:      the subaddress of the decoder controlling this turnout (0-3)
   THROW:      0 (unthrown) or 1 (thrown)
 */
-DECLARE_DCC_PROTOCOL_COMMAND_CLASS(TurnoutCommandAdapter, "T")
+DECLARE_DCC_PROTOCOL_COMMAND_CLASS(TurnoutCommandAdapter, "T", 0)
 DCC_PROTOCOL_COMMAND_HANDLER(TurnoutCommandAdapter,
 [](const vector<string> arguments)
 {
@@ -510,7 +520,7 @@ where
               2 : WYE
               3 : MULTI
 */
-DECLARE_DCC_PROTOCOL_COMMAND_CLASS(TurnoutExCommandAdapter, "Tex")
+DECLARE_DCC_PROTOCOL_COMMAND_CLASS(TurnoutExCommandAdapter, "Tex", 1)
 DCC_PROTOCOL_COMMAND_HANDLER(TurnoutExCommandAdapter,
 [](const vector<string> arguments)
 {
@@ -547,7 +557,7 @@ where
   INDEX:      the subaddress of the decoder controlling this turnout (0-3)
   THROW:      0 (unthrown) or 1 (thrown)
 */
-DECLARE_DCC_PROTOCOL_COMMAND_CLASS(AccessoryCommand, "a")
+DECLARE_DCC_PROTOCOL_COMMAND_CLASS(AccessoryCommand, "a", 3)
 DCC_PROTOCOL_COMMAND_HANDLER(AccessoryCommand,
 [](const vector<string> arguments)
 {
@@ -559,6 +569,10 @@ DCC_PROTOCOL_COMMAND_HANDLER(AccessoryCommand,
 })
 
 
+// <e> command handler, this command will clear all stored Turnouts, Outputs,
+// Sensors and S88 Sensors (if enabled) after sending this command. Note, when
+// running with the PCB configuration only turnouts will be cleared.
+DECLARE_DCC_PROTOCOL_COMMAND_CLASS(ConfigErase, "e", 0)
 DCC_PROTOCOL_COMMAND_HANDLER(ConfigErase,
 [](const vector<string> arguments)
 {
@@ -578,6 +592,11 @@ DCC_PROTOCOL_COMMAND_HANDLER(ConfigErase,
   return COMMAND_SUCCESSFUL_RESPONSE;
 })
 
+// <E> command handler, this command stores all currently defined Turnouts,
+// Sensors, S88 Sensors (if enabled) and Outputs to persistent storage for use
+// by the Command Station in subsequent startups. Note, when running with the
+// PCB configuration only turnouts will be stored.
+DECLARE_DCC_PROTOCOL_COMMAND_CLASS(ConfigStore, "E", 0)
 DCC_PROTOCOL_COMMAND_HANDLER(ConfigStore,
 [](const vector<string> arguments)
 {
@@ -599,6 +618,10 @@ DCC_PROTOCOL_COMMAND_HANDLER(ConfigStore,
     );
 })
 
+// <s> command handler, this command sends the current status for all parts of
+// the ESP32 Command Station. JMRI uses this command as a keep-alive heartbeat
+// command.
+DECLARE_DCC_PROTOCOL_COMMAND_CLASS(StatusCommand, "s", 0)
 DCC_PROTOCOL_COMMAND_HANDLER(StatusCommand,
 [](const vector<string> arguments)
 {
@@ -691,7 +714,17 @@ string DCCPPProtocolHandler::process(const string &commandString)
   auto handler = getCommandHandler(commandID);
   if (handler)
   {
-    return handler->process(parts);
+    if (parts.size() >= handler->getMinArgCount())
+    {
+      return handler->process(parts);
+    }
+    else
+    {
+      LOG_ERROR("%s requires (at least) %zu args but %zu args were provided, "
+                "reporting failure", commandID.c_str()
+              , handler->getMinArgCount(), parts.size());
+      return COMMAND_FAILED_RESPONSE;
+    }
   }
   LOG_ERROR("No command handler for [%s]", commandID.c_str());
   return COMMAND_FAILED_RESPONSE;
