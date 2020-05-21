@@ -124,10 +124,16 @@ void initiate_estop()
   estop_handler->set_state(true);
 }
 
+/// Returns true if the OPS track output is enabled
+bool is_ops_track_output_enabled()
+{
+  return OPS_ENABLE_Pin::instance()->is_set();
+}
+
 /// Enables the OPS track output
 void enable_ops_track_output()
 {
-  if (OPS_ENABLE_Pin::instance()->is_clr())
+  if (!is_ops_track_output_enabled())
   {
     LOG(INFO, "[Track] Enabling track output: %s", CONFIG_OPS_TRACK_NAME);
     OPS_ENABLE_Pin::instance()->set();
@@ -142,7 +148,7 @@ void enable_ops_track_output()
 /// Enables the OPS track output
 void disable_ops_track_output()
 {
-  if (OPS_ENABLE_Pin::instance()->is_set())
+  if (is_ops_track_output_enabled())
   {
     LOG(INFO, "[Track] Disabling track output: %s", CONFIG_OPS_TRACK_NAME);
     OPS_ENABLE_Pin::instance()->clr();

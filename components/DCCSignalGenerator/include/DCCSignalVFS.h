@@ -31,6 +31,8 @@ void shutdown_dcc_vfs();
 
 void initiate_estop();
 
+bool is_ops_track_output_enabled();
+
 void enable_ops_track_output();
 
 void disable_track_outputs();

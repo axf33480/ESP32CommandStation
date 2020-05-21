@@ -69,10 +69,9 @@ void BaseNextionPage::refresh() {
 
 void BaseNextionPage::setTrackPower(bool on) {
   if (on) {
-    Singleton<RMTTrackDevice>::instance()->enable_ops_output();
+    enable_ops_track_output();
   } else {
-    Singleton<RMTTrackDevice>::instance()->disable_ops_output();
-    Singleton<RMTTrackDevice>::instance()->disable_prog_output();
+    disable_track_outputs();
   }
   refreshPowerButtons();
 }
@@ -92,7 +91,7 @@ void BaseNextionPage::displayPreviousPage(bool invokeCallback) {
 }
 
 void BaseNextionPage::refreshPowerButtons() {
-  if(Singleton<RMTTrackDevice>::instance()->is_enabled()) {
+  if(is_ops_track_output_enabled()) {
     _onButton.setPictureID(ON_PIC_ON);
     _offButton.setPictureID(OFF_PIC_OFF);
   } else {
