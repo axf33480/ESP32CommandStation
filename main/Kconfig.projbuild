@@ -176,62 +176,6 @@ menu "Nextion HMI Configuration"
 
 endmenu
 
-# LocoNet will not be supported in v1.5.0 so it must remain disabled.
-if 0
-menu "LocoNet"
-    config LOCONET
-        bool "Enable LocoNet interface"
-        default n
-        help
-            The LocoNet interface allows using many of the available
-            LocoNet sensors, throttles, accessories, etc with the ESP32
-            Command Station. It is still under active development, if you
-            find a device that does not work please let us know.
-
-    config LOCONET_RX_PIN
-        int "Pin connected to the LocoNet RX pin"
-        range 0 39
-        depends on LOCONET
-
-    config LOCONET_TX_PIN
-        int "Pin connected to the LocoNet TX pin"
-        range 0 32
-        depends on LOCONET
-        
-    choice LOCONET_UART
-        bool "Hardware UART to use for LocoNet"
-        default LOCONET_UART_UART1
-        depends on LOCONET
-        config LOCONET_UART_UART1
-            bool "UART1"
-            depends on !OPS_RAILCOM_UART1 && !HC12_UART_UART1 && !NEXTION_UART_UART1
-        config LOCONET_UART_UART2
-            bool "UART2"
-            depends on !OPS_RAILCOM_UART2 && !HC12_UART_UART2 && !NEXTION_UART_UART2
-    endchoice
-
-    config LOCONET_INVERTED_LOGIC
-        bool "Use inverted logic"
-        default y
-        help
-            If you are using the LM311 circuit as defined on the ESP32
-            Command Station website it is necessary to invert the logic.
-            If you are using a different circuit you might be able to
-            disable this option.
-            
-    config LOCONET_RX_PULLUP
-        bool "Use pull-up resistor on RX pin"
-        default y
-        help
-            If you are using the LM311 circuit as defined in the ESP32
-            Command Station website and do not have a resistor connected
-            between 3v3 (VCC) and the LOCONET_RX_PIN it is necessary to
-            enable the internal pull up for the RX pin to ensure proper
-            logic. If you have an external pull-up resistor this option can
-            be disabled.
-endmenu
-endif
-
 # TODO: move this to LocoRoster component when created.
 menu "Locomotive Roster"
 

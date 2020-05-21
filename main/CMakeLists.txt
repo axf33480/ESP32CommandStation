@@ -44,7 +44,6 @@ set(COMPONENT_SRCS
     "ESP32TrainDatabase.cpp"
     "OpenMRNEsp32Overrides.cpp"
     "WebServer.cpp"
-    "Interfaces/LocoNetInterface.cpp"
     "Interfaces/nextion/NextionInterface.cpp"
     "Interfaces/nextion/NextionInterfaceAddressPage.cpp"
     "Interfaces/nextion/NextionInterfaceBasePage.cpp"
@@ -61,7 +60,6 @@ set_source_files_properties(ESP32CommandStation.cpp PROPERTIES COMPILE_FLAGS "-W
 set_source_files_properties(ESP32TrainDatabase.cpp PROPERTIES COMPILE_FLAGS -Wno-ignored-qualifiers)
 set_source_files_properties(OpenMRNEsp32Overrides.cpp PROPERTIES COMPILE_FLAGS -Wno-ignored-qualifiers)
 set_source_files_properties(WebServer.cpp PROPERTIES COMPILE_FLAGS "-Wno-implicit-fallthrough -Wno-ignored-qualifiers")
-set_source_files_properties(Interfaces/LocoNetInterface.cpp PROPERTIES COMPILE_FLAGS -Wno-ignored-qualifiers)
 set_source_files_properties(Interfaces/nextion/NextionInterface.cpp PROPERTIES COMPILE_FLAGS -Wno-ignored-qualifiers)
 set_source_files_properties(Interfaces/nextion/NextionInterfaceAddressPage.cpp PROPERTIES COMPILE_FLAGS -Wno-ignored-qualifiers)
 set_source_files_properties(Interfaces/nextion/NextionInterfaceBasePage.cpp PROPERTIES COMPILE_FLAGS -Wno-ignored-qualifiers)
