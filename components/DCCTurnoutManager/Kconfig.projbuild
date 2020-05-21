@@ -10,7 +10,7 @@
 #
 # Note that FATAL will cause the MCU to reboot!
 
-menu "DCC Turnout Manager"
+menu "DCC Turnout"
 
     config TURNOUT_PERSISTENCE_INTERVAL_SEC
         int "Number of seconds between automatic persistence of turnout list"
