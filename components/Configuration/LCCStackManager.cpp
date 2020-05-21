@@ -125,7 +125,7 @@ LCCStackManager::LCCStackManager(const esp32cs::Esp32ConfigDef &cfg) : cfg_(cfg)
     canBridge.reset(
         new CanBridge((Can *)can_
                     , ((openlcb::SimpleCanStack *)stack_)->can_hub()));
-    os_thread_create(nullptr,  "CAN-BRIDGE", -1, 4096, can_bridge_task, nullptr);
+    os_thread_create(nullptr,  "CAN-BRIDGE", -1, 2048, can_bridge_task, nullptr);
   }
 #endif // CONFIG_LCC_CAN_ENABLED
 #endif // CONFIG_LCC_TCP_STACK
