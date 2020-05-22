@@ -98,8 +98,7 @@ const uint8_t FG3_PIC_ON=76;
     [&]()                                                                             \
     {                                                                                 \
       NAME = Singleton<commandstation::AllTrainNodes>::instance()->get_train_impl(    \
-                                        commandstation::DccMode::DCC_128_LONG_ADDRESS \
-                                      , address);                                     \
+                                        commandstation::DccMode::DCC_128, address);   \
       n.notify();                                                                     \
     }));                                                                              \
     n.wait_for_notification();                                                        \
@@ -108,8 +107,7 @@ const uint8_t FG3_PIC_ON=76;
 #define GET_LOCO_VIA_EXECUTOR(NAME, address)                                          \
   openlcb::TrainImpl *NAME =
     Singleton<commandstation::AllTrainNodes>::instance()->get_train_impl(             \
-                                        commandstation::DccMode::DCC_128_LONG_ADDRESS \
-                                      , address);
+                                        commandstation::DccMode::DCC_128, address);
 #endif
 //
 /************************************************************************************************************/

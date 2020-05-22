@@ -250,7 +250,7 @@ Esp32TrainDatabase::Esp32TrainDatabase(openlcb::SimpleStackBase *stack)
           stack->executor()->add(new CallbackExecutable([address]()
           {
             auto trainMgr = Singleton<AllTrainNodes>::instance();
-            trainMgr->allocate_node(DccMode::DCC_128_LONG_ADDRESS, address);
+            trainMgr->allocate_node(DccMode::DCC_128, address);
           }));
         }
         knownTrains_.emplace_back(train);

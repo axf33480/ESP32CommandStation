@@ -893,8 +893,7 @@ string convert_loco_to_json(openlcb::TrainImpl *t)
     new CallbackExecutable([&]()                                                      \
     {                                                                                 \
       NAME = Singleton<commandstation::AllTrainNodes>::instance()->get_train_impl(    \
-                                        commandstation::DccMode::DCC_128_LONG_ADDRESS \
-                                      , address);                                     \
+                                        commandstation::DccMode::DCC_128, address);   \
       n.notify();                                                                     \
     }));                                                                              \
     n.wait_for_notification();                                                        \
