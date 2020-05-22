@@ -118,17 +118,19 @@ ConfigurationManager::ConfigurationManager(const esp32cs::Esp32ConfigDef &cfg)
 
   sdmmc_host_t sd_host = SDSPI_HOST_DEFAULT();
   sdspi_slot_config_t sd_slot = SDSPI_SLOT_CONFIG_DEFAULT();
-  esp_vfs_fat_sdmmc_mount_config_t sd_cfg =
+  esp_vfs_fat_mount_config_t sd_cfg =
   {
     .format_if_mount_failed = true,
     .max_files = 10,
-    .allocation_unit_size = 16 * 1024
+    .allocation_unit_size = 0
   };
   esp_err_t err = esp_vfs_fat_sdmmc_mount(CFG_MOUNT, &sd_host, &sd_slot
                                         , &sd_cfg, &sd_);
   if (err == ESP_OK)
   {
-    LOG(INFO, "[Config] SD card mounted successfully.");
+    LOG(INFO, "[Config] SD card (%s %.2f MB) mounted successfully."
+      , sd_->cid.name
+      , (float)(((uint64_t)sd_->csd.capacity) * sd_->csd.sector_size) / 1048576);
     FATFS *fsinfo;
     DWORD clusters;
     if (f_getfree("0:", &clusters, &fsinfo) == FR_OK)
@@ -139,12 +141,6 @@ ConfigurationManager::ConfigurationManager(const esp32cs::Esp32ConfigDef &cfg)
                   fsinfo->ssize) / 1048576L,
           (float)(((uint64_t)fsinfo->csize * (fsinfo->n_fatent - 2)) *
                   fsinfo->ssize) / 1048576L);
-    }
-    else
-    {
-      LOG(INFO, "[Config] SD capacity %.2f MB",
-          (float)(((uint64_t)sd_->csd.capacity) *
-                  sd_->csd.sector_size) / 1048576);
     }
     LOG(INFO, "[Config] SD will be used for persistent storage.");
   }
