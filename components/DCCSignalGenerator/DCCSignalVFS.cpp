@@ -57,10 +57,10 @@ typedef DummyPinWithReadHigh OPS_THERMAL_Pin;
 
 #if defined(CONFIG_OPS_RAILCOM)
 /// OPS Track h-bridge brake pin, active HIGH.
-GPIO_PIN(OPS_RAILCOM_BRAKE, GpioInputPU, CONFIG_OPS_RAILCOM_BRAKE_PIN);
+GPIO_PIN(OPS_RAILCOM_BRAKE, GpioOutputSafeHigh, CONFIG_OPS_RAILCOM_BRAKE_PIN);
 
 /// RailCom detector enable pin, active HIGH.
-GPIO_PIN(OPS_RAILCOM_ENABLE, GpioInputPD, CONFIG_OPS_RAILCOM_ENABLE_PIN);
+GPIO_PIN(OPS_RAILCOM_ENABLE, GpioOutputSafeLow, CONFIG_OPS_RAILCOM_ENABLE_PIN);
 
 /// RailCom detector UART.
 static constexpr uart_port_t RAILCOM_UART_NUM =
@@ -70,13 +70,10 @@ static constexpr uart_port_t RAILCOM_UART_NUM =
 NoRailcomDriver opsRailComDriver;
 #else
 /// OPS Track h-bridge brake pin, active HIGH.
-typedef DummyPinWithReadHigh OPS_RAILCOM_BRAKE_Pin;
+typedef DummyPin OPS_RAILCOM_BRAKE_Pin;
 
 /// RailCom detector enable pin, active HIGH.
-typedef DummyPinWithRead OPS_RAILCOM_ENABLE_Pin;
-
-/// RailCom detector UART, unused.
-static constexpr uart_port_t RAILCOM_UART_NUM = UART_NUM_1;
+typedef DummyPin OPS_RAILCOM_ENABLE_Pin;
 
 /// RailCom driver instance for the OPS track.
 NoRailcomDriver opsRailComDriver;
@@ -142,6 +139,7 @@ void enable_ops_track_output()
           StatusLED::LED::OPS_TRACK, StatusLED::COLOR::GREEN);
 #endif // CONFIG_STATUS_LED
     update_status_display();
+    OPS_RAILCOM_BRAKE_Pin::instance()->clr();
   }
 }
 
@@ -157,6 +155,7 @@ void disable_ops_track_output()
           StatusLED::LED::OPS_TRACK, StatusLED::COLOR::OFF);
 #endif // CONFIG_STATUS_LED
     update_status_display();
+    OPS_RAILCOM_BRAKE_Pin::instance()->set();
   }
 }
 
