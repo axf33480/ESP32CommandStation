@@ -32,7 +32,6 @@ set(optional_deps
     "GPIO"
     "HC12"
     "JmriInterface"
-    "NeoNextion"
     "StatusLED"
     "StatusDisplay"
 )
@@ -44,12 +43,6 @@ set(COMPONENT_SRCS
     "ESP32TrainDatabase.cpp"
     "OpenMRNEsp32Overrides.cpp"
     "WebServer.cpp"
-    "Interfaces/nextion/NextionInterface.cpp"
-    "Interfaces/nextion/NextionInterfaceAddressPage.cpp"
-    "Interfaces/nextion/NextionInterfaceBasePage.cpp"
-    "Interfaces/nextion/NextionInterfaceSetupPage.cpp"
-    "Interfaces/nextion/NextionInterfaceThrottlePage.cpp"
-    "Interfaces/nextion/NextionInterfaceTurnoutPage.cpp"
 )
 
 set(COMPONENT_ADD_INCLUDEDIRS ".")
@@ -60,9 +53,3 @@ set_source_files_properties(ESP32CommandStation.cpp PROPERTIES COMPILE_FLAGS "-W
 set_source_files_properties(ESP32TrainDatabase.cpp PROPERTIES COMPILE_FLAGS -Wno-ignored-qualifiers)
 set_source_files_properties(OpenMRNEsp32Overrides.cpp PROPERTIES COMPILE_FLAGS -Wno-ignored-qualifiers)
 set_source_files_properties(WebServer.cpp PROPERTIES COMPILE_FLAGS "-Wno-implicit-fallthrough -Wno-ignored-qualifiers")
-set_source_files_properties(Interfaces/nextion/NextionInterface.cpp PROPERTIES COMPILE_FLAGS -Wno-ignored-qualifiers)
-set_source_files_properties(Interfaces/nextion/NextionInterfaceAddressPage.cpp PROPERTIES COMPILE_FLAGS -Wno-ignored-qualifiers)
-set_source_files_properties(Interfaces/nextion/NextionInterfaceBasePage.cpp PROPERTIES COMPILE_FLAGS -Wno-ignored-qualifiers)
-set_source_files_properties(Interfaces/nextion/NextionInterfaceSetupPage.cpp PROPERTIES COMPILE_FLAGS -Wno-ignored-qualifiers)
-set_source_files_properties(Interfaces/nextion/NextionInterfaceThrottlePage.cpp PROPERTIES COMPILE_FLAGS -Wno-ignored-qualifiers)
-set_source_files_properties(Interfaces/nextion/NextionInterfaceTurnoutPage.cpp PROPERTIES COMPILE_FLAGS -Wno-ignored-qualifiers)
