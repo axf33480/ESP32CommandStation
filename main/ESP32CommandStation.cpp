@@ -15,33 +15,36 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
   along with this program.  If not, see http://www.gnu.org/licenses
 **********************************************************************/
 
-#include "ESP32CommandStation.h"
 #include "sdkconfig.h"
 #include "CSConfigDescriptor.h"
+#include "ESP32TrainDatabase.h"
 #include "OTAMonitor.h"
 
 #include <AllTrainNodes.hxx>
-
+#include <ConfigurationManager.h>
 #include <dcc/ProgrammingTrackBackend.hxx>
 #include <dcc/RailcomHub.hxx>
+#include <dcc/SimpleUpdateLoop.hxx>
+#include <DCCSignalVFS.h>
+#include <driver/uart.h>
+#include <DuplexedTrackIf.h>
 #include <esp_adc_cal.h>
 #include <esp_log.h>
+#include <esp_ota_ops.h>
 #include <executor/PoolToQueueFlow.hxx>
 #include <FreeRTOSTaskMonitor.h>
-
+#include <HC12Radio.h>
+#include <Httpd.h>
+#include <HttpStringUtils.h>
+#include <LCCStackManager.h>
+#include <LCCWiFiManager.h>
 #include <nvs.h>
 #include <nvs_flash.h>
 #include <openlcb/SimpleInfoProtocol.hxx>
-
-#include <DCCSignalVFS.h>
-#include <DuplexedTrackIf.h>
+#include <os/MDNS.hxx>
 #include <StatusDisplay.h>
 #include <StatusLED.h>
-#include <HC12Radio.h>
-
-#include <LCCStackManager.h>
-#include <LCCWiFiManager.h>
-#include <Httpd.h>
+#include <Turnouts.h>
 
 #if CONFIG_GPIO_SENSORS
 #include <Sensors.h>
@@ -114,7 +117,7 @@ OVERRIDE_CONST_DEFERRED(executor_select_prescaler
 OVERRIDE_CONST_DEFERRED(local_nodes_count, CONFIG_LCC_LOCAL_NODE_COUNT);
 OVERRIDE_CONST_DEFERRED(local_alias_cache_size, CONFIG_LCC_LOCAL_NODE_COUNT);
 
-unique_ptr<openlcb::SimpleStackBase> lccStack;
+std::unique_ptr<openlcb::SimpleStackBase> lccStack;
 
 // Esp32ConfigDef comes from CSConfigDescriptor.h and is specific to this
 // particular device and target. It defines the layout of the configuration

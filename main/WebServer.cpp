@@ -15,20 +15,28 @@ COPYRIGHT (c) 2017-2020 Mike Dunston
   along with this program.  If not, see http://www.gnu.org/licenses
 **********************************************************************/
 
-#include "ESP32CommandStation.h"
+#include "sdkconfig.h"
+#include "ESP32TrainDatabase.h"
 
 #include <AllTrainNodes.hxx>
 #include <ConfigurationManager.h>
+#include <DCCppProtocol.h>
+#include <DCCProgrammer.h>
+#include <dcc/Loco.hxx>
 #include <Dnsd.h>
 #include <DCCSignalVFS.h>
 #include <esp_log.h>
+#include <esp_ota_ops.h>
 #include <freertos_drivers/esp32/Esp32WiFiManager.hxx>
 #include <Httpd.h>
 #include <json.hpp>
+#include <JsonConstants.h>
 #include <LCCStackManager.h>
 #include <LCCWiFiManager.h>
+#include <Turnouts.h>
 #include <utils/FileUtils.hxx>
 #include <utils/SocketClientParams.hxx>
+#include <utils/StringPrintf.hxx>
 #include "OTAMonitor.h"
 
 #if CONFIG_GPIO_OUTPUTS
@@ -102,7 +110,7 @@ static constexpr const char * const CAPTIVE_PORTAL_HTML = R"!^!(
 </html>)!^!";
 
 OSMutex webSocketLock;
-vector<unique_ptr<WebSocketClient>> webSocketClients;
+std::vector<std::unique_ptr<WebSocketClient>> webSocketClients;
 WEBSOCKET_STREAM_HANDLER(process_websocket_event);
 HTTP_STREAM_HANDLER(process_ota);
 HTTP_HANDLER(process_power);
@@ -295,7 +303,7 @@ private:
   const esp32cs::Esp32ConfigDef cfg_;
 };
 
-unique_ptr<WebConfigListener> configListener;
+std::unique_ptr<WebConfigListener> configListener;
 
 void init_webserver(const esp32cs::Esp32ConfigDef &cfg)
 {
@@ -422,7 +430,7 @@ WEBSOCKET_STREAM_HANDLER_IMPL(process_websocket_event, client, event, data
   {
     webSocketClients.erase(std::remove_if(webSocketClients.begin()
                                         , webSocketClients.end()
-    , [client](unique_ptr<WebSocketClient> &inst) -> bool
+    , [client](const auto &inst) -> bool
       {
         return inst->id() == client->id();
       }));
@@ -430,7 +438,7 @@ WEBSOCKET_STREAM_HANDLER_IMPL(process_websocket_event, client, event, data
   else if (event == WebSocketEvent::WS_EVENT_TEXT)
   {
     auto ent = std::find_if(webSocketClients.begin(), webSocketClients.end()
-    , [client](unique_ptr<WebSocketClient> &inst) -> bool
+    , [client](const auto &inst) -> bool
       {
         return inst->id() == client->id();
       }

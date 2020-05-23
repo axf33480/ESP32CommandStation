@@ -15,12 +15,13 @@ COPYRIGHT (c) 2019-2020 Mike Dunston
   along with this program.  If not, see http://www.gnu.org/licenses
 **********************************************************************/
 
-#include "ESP32CommandStation.h"
 #include "ESP32TrainDatabase.h"
 
 #include <AllTrainNodes.hxx>
 #include <CDIHelper.h>
+#include <ConfigurationManager.h>
 #include <json.hpp>
+#include <JsonConstants.h>
 #include <TrainDbCdi.hxx>
 #include <utils/FileUtils.hxx>
 
@@ -232,7 +233,7 @@ Esp32TrainDatabase::Esp32TrainDatabase(openlcb::SimpleStackBase *stack)
     {
       auto data = entry.get<Esp32PersistentTrainData>();
       auto ent = std::find_if(knownTrains_.begin(), knownTrains_.end(),
-      [data](const shared_ptr<Esp32TrainDbEntry> &train)
+      [data](const auto &train)
       {
         return train->get_legacy_address() == data.address;
       });
@@ -267,19 +268,19 @@ Esp32TrainDatabase::Esp32TrainDatabase(openlcb::SimpleStackBase *stack)
     , knownTrains_.size());
 }
 
-#define FIND_TRAIN(id)                                                \
-  std::find_if(knownTrains_.begin(), knownTrains_.end(),              \
-    [id](const shared_ptr<Esp32TrainDbEntry> &train)                  \
-    {                                                                 \
-      return train->get_legacy_address() == id;                       \
+#define FIND_TRAIN(id)                                    \
+  std::find_if(knownTrains_.begin(), knownTrains_.end(),  \
+    [id](const auto &train)                               \
+    {                                                     \
+      return train->get_legacy_address() == id;           \
     })
 
-#define FIND_TRAIN_HINT(id, id2)                                      \
-  std::find_if(knownTrains_.begin(), knownTrains_.end(),              \
-    [id,id2](const shared_ptr<Esp32TrainDbEntry> &train)              \
-    {                                                                 \
-      return train->get_traction_node() == id ||                      \
-             train->get_legacy_address() == id2;                      \
+#define FIND_TRAIN_HINT(id, id2)                          \
+  std::find_if(knownTrains_.begin(), knownTrains_.end(),  \
+    [id,id2](const auto &train)                           \
+    {                                                     \
+      return train->get_traction_node() == id ||          \
+             train->get_legacy_address() == id2;          \
     })
 
 std::shared_ptr<TrainDbEntry> Esp32TrainDatabase::create_if_not_found(unsigned address
@@ -346,7 +347,7 @@ void Esp32TrainDatabase::delete_entry(unsigned address)
   }
 }
 
-shared_ptr<TrainDbEntry> Esp32TrainDatabase::get_entry(unsigned train_id)
+std::shared_ptr<TrainDbEntry> Esp32TrainDatabase::get_entry(unsigned train_id)
 {
   OSMutexLock l(&knownTrainsLock_);
   LOG(VERBOSE, "[TrainDB] get_entry(%u) : %zu", train_id, knownTrains_.size());
@@ -363,8 +364,8 @@ shared_ptr<TrainDbEntry> Esp32TrainDatabase::get_entry(unsigned train_id)
   return nullptr;
 }
 
-shared_ptr<TrainDbEntry> Esp32TrainDatabase::find_entry(openlcb::NodeID node_id
-                                                      , unsigned hint)
+std::shared_ptr<TrainDbEntry> Esp32TrainDatabase::find_entry(openlcb::NodeID node_id
+                                                           , unsigned hint)
 {
   OSMutexLock l(&knownTrainsLock_);
   LOG(VERBOSE, "[TrainDB] Searching for Train Node:%s, Hint:%u"
@@ -427,9 +428,9 @@ unsigned Esp32TrainDatabase::add_dynamic_entry(uint16_t address, DccMode mode)
   return index;
 }
 
-set<uint16_t> Esp32TrainDatabase::get_default_train_addresses(uint16_t limit)
+std::set<uint16_t> Esp32TrainDatabase::get_default_train_addresses(uint16_t limit)
 {
-  set<uint16_t> results;
+  std::set<uint16_t> results;
   OSMutexLock l(&knownTrainsLock_);
   for(auto entry : knownTrains_)
   {
@@ -453,11 +454,7 @@ void Esp32TrainDatabase::set_train_name(unsigned address, std::string name)
 {
   OSMutexLock l(&knownTrainsLock_);
   LOG(VERBOSE, "[TrainDB] Searching for train with address %u", address);
-  auto entry = std::find_if(knownTrains_.begin(), knownTrains_.end(),
-    [address](const shared_ptr<Esp32TrainDbEntry> &train)
-    {
-      return train->get_legacy_address() == (uint16_t)address;
-    });
+  auto entry = FIND_TRAIN(address);
   if (entry != knownTrains_.end())
   {
     LOG(VERBOSE, "[TrainDB] Setting train(%u) name: %s", address, name.c_str());
@@ -473,11 +470,7 @@ void Esp32TrainDatabase::set_train_auto_idle(unsigned address, bool idle)
 {
   OSMutexLock l(&knownTrainsLock_);
   LOG(VERBOSE, "[TrainDB] Searching for train with address %u", address);
-  auto entry = std::find_if(knownTrains_.begin(), knownTrains_.end(),
-    [address](const shared_ptr<Esp32TrainDbEntry> &train)
-    {
-      return train->get_legacy_address() == (uint16_t)address;
-    });
+  auto entry = FIND_TRAIN(address);
   if (entry != knownTrains_.end())
   {
     LOG(VERBOSE, "[TrainDB] Setting auto-idle: %s"
@@ -496,11 +489,7 @@ void Esp32TrainDatabase::set_train_show_on_limited_throttle(unsigned address
 {
   OSMutexLock l(&knownTrainsLock_);
   LOG(VERBOSE, "[TrainDB] Searching for train with address %u", address);
-  auto entry = std::find_if(knownTrains_.begin(), knownTrains_.end(),
-    [address](const shared_ptr<Esp32TrainDbEntry> &train)
-    {
-      return train->get_legacy_address() == (uint16_t)address;
-    });
+  auto entry = FIND_TRAIN(address);
   if (entry != knownTrains_.end())
   {
     LOG(VERBOSE, "[TrainDB] Setting visible on limited throttes: %s"
@@ -534,11 +523,7 @@ string Esp32TrainDatabase::get_all_entries_as_json()
 string Esp32TrainDatabase::get_entry_as_json(unsigned address)
 {
   OSMutexLock l(&knownTrainsLock_);
-  auto entry = std::find_if(knownTrains_.begin(), knownTrains_.end(),
-    [address](const shared_ptr<Esp32TrainDbEntry> &train)
-    {
-      return train->get_legacy_address() == (uint16_t)address;
-    });
+  auto entry = FIND_TRAIN(address);
   if (entry != knownTrains_.end())
   {
     json j = (*entry)->get_data();
@@ -552,7 +537,7 @@ void Esp32TrainDatabase::persist()
   OSMutexLock l(&knownTrainsLock_);
   LOG(VERBOSE, "[TrainDB] Checking if roster needs to be persisted...");
   auto ent = std::find_if(knownTrains_.begin(), knownTrains_.end(),
-    [](const shared_ptr<Esp32TrainDbEntry> &train)
+    [](const auto &train)
     {
       return train->is_dirty() && train->is_persisted();
     });

@@ -15,8 +15,7 @@ COPYRIGHT (c) 2019-2020 Mike Dunston
   along with this program.  If not, see http://www.gnu.org/licenses
 **********************************************************************/
 
-#include "ESP32CommandStation.h"
-
+#include <ConfigurationManager.h>
 #include <DCCSignalVFS.h>
 #include <ESP32TrainDatabase.h>
 #include <FreeRTOSTaskMonitor.h>
@@ -24,9 +23,11 @@ COPYRIGHT (c) 2019-2020 Mike Dunston
 #include <Httpd.h>
 #include <LCCStackManager.h>
 #include <LCCWiFiManager.h>
+#include <os/OS.hxx>
 #include <StatusDisplay.h>
 #include <StatusLED.h>
 #include <Turnouts.h>
+#include <utils/Singleton.hxx>
 
 extern "C"
 {

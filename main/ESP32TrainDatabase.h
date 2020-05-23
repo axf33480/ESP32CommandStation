@@ -36,6 +36,11 @@ COPYRIGHT (c) 2019-2020 Mike Dunston
 #define CONFIG_ROSTER_AUTO_IDLE_NEW_LOCOS false
 #endif
 
+namespace openlcb
+{
+  class SimpleStackBase;
+}
+
 namespace esp32cs
 {
   using namespace commandstation;
@@ -260,7 +265,7 @@ namespace esp32cs
     openlcb::SimpleStackBase *stack_;
     bool entryDeleted_{false};
     OSMutex knownTrainsLock_;
-    std::vector<shared_ptr<Esp32TrainDbEntry>> knownTrains_;
+    std::vector<std::shared_ptr<Esp32TrainDbEntry>> knownTrains_;
     std::unique_ptr<openlcb::MemorySpace> trainCdiFile_;
     std::unique_ptr<openlcb::MemorySpace> tempTrainCdiFile_;
     uninitialized<AutoPersistFlow> persistFlow_;
