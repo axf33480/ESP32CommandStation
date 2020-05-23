@@ -362,6 +362,18 @@ void init_webserver(const esp32cs::Esp32ConfigDef &cfg)
     features += "}";
     return new JsonResponse(features);
   });
+  httpd->uri("/version", [&](HttpRequest *req)
+  {
+    const esp_app_desc_t *app_data = esp_ota_get_app_description();
+    const esp_partition_t *partition = esp_ota_get_running_partition();
+    string version =
+      StringPrintf("{\"version\":\"%s\",\"build\":\"%s\","
+                    "\"timestamp\":\"%s %s\",\"ota\":\"%s\",\"uptime\":%llu}"
+                 , CONFIG_ESP32CS_SW_VERSION, app_data->version
+                 , app_data->date, app_data->time
+                 , partition->label, esp_timer_get_time());
+    return new JsonResponse(version);
+  });
   httpd->uri("/fs", HttpMethod::GET, [&](HttpRequest *req)
   {
     string path = req->param("path");
