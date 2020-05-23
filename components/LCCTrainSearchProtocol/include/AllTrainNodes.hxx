@@ -69,7 +69,7 @@ class AllTrainNodes : public Singleton<AllTrainNodes>
   /// Removes a TrainImpl for the requested address if it exists.
   void remove_train_impl(int address);
 
-  openlcb::TrainImpl* get_train_impl(openlcb::NodeID id);
+  openlcb::TrainImpl* get_train_impl(openlcb::NodeID id, bool allocate=true);
 
   /// Finds or creates a TrainImpl for the requested address and drive_type.
   /// @param drive_type is the drive type for the loco to create if it doesn't exist.
@@ -80,7 +80,7 @@ class AllTrainNodes : public Singleton<AllTrainNodes>
   std::shared_ptr<TrainDbEntry> get_traindb_entry(int id);
 
   /// Returns a node id or 0 if the id is not known to be a train.
-  openlcb::NodeID get_train_node_id(int id);
+  openlcb::NodeID get_train_node_id(int id, bool allocate=true);
 
   /// Creates a new train node based on the given address and drive mode.
   /// @param drive_type describes what kind of train node this should be

@@ -899,6 +899,18 @@ string convert_loco_to_json(openlcb::TrainImpl *t)
     n.wait_for_notification();                                                        \
   }
 
+#define REMOVE_LOCO_VIA_EXECUTOR(address)                                             \
+  {                                                                                   \
+    SyncNotifiable n;                                                                 \
+    Singleton<esp32cs::LCCStackManager>::instance()->stack()->executor()->add(        \
+    new CallbackExecutable([&]()                                                      \
+    {                                                                                 \
+      Singleton<commandstation::AllTrainNodes>::instance()->remove_train_impl(address); \
+      n.notify();                                                                     \
+    }));                                                                              \
+    n.wait_for_notification();                                                        \
+  }
+
 // method - url pattern - meaning
 // ANY /locomotive/estop - send emergency stop to all locomotives
 // GET /locomotive/roster - roster
@@ -971,15 +983,18 @@ HTTP_HANDLER_IMPL(process_loco, request)
       auto trains = Singleton<commandstation::AllTrainNodes>::instance();
       for (size_t id = 0; id < trains->size(); id++)
       {
-        auto nodeid = trains->get_train_node_id(id);
+        auto nodeid = trains->get_train_node_id(id, false);
         if (nodeid)
         {
-          if (res.length() > 1)
+          auto loco = trains->get_train_impl(nodeid, false);
+          if (loco)
           {
-            res += ",";
+            if (res.length() > 1)
+            {
+              res += ",";
+            }
+            res += convert_loco_to_json(loco);
           }
-          auto loco = trains->get_train_impl(nodeid);
-          res += convert_loco_to_json(loco);
         }
       }
       res += "]";
@@ -1004,8 +1019,12 @@ HTTP_HANDLER_IMPL(process_loco, request)
           {
             forward = !request->param(JSON_DIRECTION_NODE).compare(JSON_VALUE_FORWARD);
           }
-          uint8_t speed = request->param(JSON_SPEED_NODE, 0);
-          loco->set_speed(dcc::SpeedType::from_mph(forward ? speed : -speed));
+          auto speed = dcc::SpeedType::from_mph(request->param(JSON_SPEED_NODE, 0));
+          if (!forward)
+          {
+            speed.set_direction(dcc::SpeedType::REVERSE);
+          }
+          loco->set_speed(speed);
         }
         else if (request->has_param(JSON_DIRECTION_NODE))
         {
@@ -1029,8 +1048,7 @@ HTTP_HANDLER_IMPL(process_loco, request)
       }
       else if (request->method() == HttpMethod::DELETE)
       {
-        // we don't need to queue it up on the executor as it is done internally.
-        Singleton<commandstation::AllTrainNodes>::instance()->remove_train_impl(address);
+        REMOVE_LOCO_VIA_EXECUTOR(address)
 #if CONFIG_NEXTION
         static_cast<NextionThrottlePage *>(nextionPages[THROTTLE_PAGE])->invalidateLocomotive(address);
 #endif

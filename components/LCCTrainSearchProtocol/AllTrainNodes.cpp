@@ -78,26 +78,15 @@ void AllTrainNodes::remove_train_impl(int address)
   if (it != trains_.end())
   {
     Impl *impl = (*it);
-    if (os_thread_self() != impl->node_->iface()->executor()->thread_handle())
-    {
-      impl->node_->iface()->executor()->add(new CallbackExecutable([impl]()
-      {
-        impl->node_->iface()->delete_local_node(impl->node_);
-        delete impl;
-      }));
-    }
-    else
-    {
-      impl->node_->iface()->delete_local_node(impl->node_);
-      delete impl;
-    }
+    impl->node_->iface()->delete_local_node(impl->node_);
+    delete impl;
     trains_.erase(it);
   }
 }
 
-openlcb::TrainImpl* AllTrainNodes::get_train_impl(openlcb::NodeID id)
+openlcb::TrainImpl* AllTrainNodes::get_train_impl(openlcb::NodeID id, bool allocate)
 {
-  auto it = find_node(id);
+  auto it = find_node(id, allocate);
   if (it)
   {
     return it->train_;
@@ -199,7 +188,7 @@ std::shared_ptr<TrainDbEntry> AllTrainNodes::get_traindb_entry(int id)
 }
 
 /// Returns a node id or 0 if the id is not known to be a train.
-openlcb::NodeID AllTrainNodes::get_train_node_id(int id)
+openlcb::NodeID AllTrainNodes::get_train_node_id(int id, bool allocate)
 {
   {
     OSMutexLock l(&trainsLock_);
@@ -207,6 +196,10 @@ openlcb::NodeID AllTrainNodes::get_train_node_id(int id)
     {
       return trains_[id]->node_->node_id();
     }
+  }
+  if (!allocate)
+  {
+    return 0;
   }
 
   LOG(CONFIG_LCC_TSP_LOG_LEVEL

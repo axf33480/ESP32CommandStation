@@ -220,7 +220,12 @@ DCC_PROTOCOL_COMMAND_HANDLER(ThrottleCommandAdapter,
   LOG(INFO, "[DCC++ loco %d] Set speed to %d", loco_addr, req_speed);
   LOG(INFO, "[DCC++ loco %d] Set direction to %s", loco_addr
       , req_dir ? "FWD" : "REV");
-  impl->set_speed(dcc::SpeedType::from_mph(req_dir ? req_speed : -req_speed));
+  auto speed = dcc::SpeedType::from_mph(req_speed);
+  if (!req_dir)
+  {
+    speed.set_direction(dcc::SpeedType::REVERSE);
+  }
+  impl->set_speed(speed);
   return convert_loco_to_dccpp_state(impl, reg_num);
 });
 
