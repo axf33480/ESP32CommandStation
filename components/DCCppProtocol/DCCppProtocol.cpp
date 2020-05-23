@@ -244,13 +244,14 @@ DCC_PROTOCOL_COMMAND_HANDLER(ThrottleExCommandAdapter,
 
   if (req_speed >= 0)
   {
+    auto speed = dcc::SpeedType::from_mph(req_speed);
     if (req_dir == 0)
     {
-      req_speed = -req_speed;
+      speed.set_direction(dcc::SpeedType::REVERSE);
     }
     LOG(INFO, "[DCC++ loco %d] Set speed to %d (%s)", loco_addr, abs(req_speed)
       , req_speed > 0 ? "FWD" : "REV");
-    impl->set_speed(dcc::SpeedType::from_mph(req_speed));
+    impl->set_speed(speed);
   }
   else if (req_dir >= 0)
   {
