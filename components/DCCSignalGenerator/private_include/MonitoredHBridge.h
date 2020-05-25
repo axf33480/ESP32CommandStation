@@ -35,6 +35,9 @@ COPYRIGHT (c) 2018-2020 Mike Dunston
 #include <esp_adc_cal.h>
 #include <esp_bit_defs.h>
 
+namespace esp32cs
+{
+
 class HBridgeShortDetector : public DefaultConfigUpdateListener
                            , public openlcb::Polling
 {
@@ -184,4 +187,5 @@ private:
   void configure();
 };
 
+} // namespace esp32cs
 #endif // MONITORED_H_BRIDGE_

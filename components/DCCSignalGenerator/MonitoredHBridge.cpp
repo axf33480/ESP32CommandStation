@@ -21,6 +21,9 @@ COPYRIGHT (c) 2019-2020 Mike Dunston
 #include <numeric>
 #include <StatusLED.h>
 
+namespace esp32cs
+{
+
 HBridgeShortDetector::HBridgeShortDetector(openlcb::Node *node
                                          , const adc1_channel_t senseChannel
                                          , const Gpio *enablePin
@@ -283,3 +286,5 @@ void HBridgeShortDetector::poll_33hz(openlcb::WriteHelper *helper, Notifiable *d
     done->notify();
   }
 }
+
+} // namespace esp32cs

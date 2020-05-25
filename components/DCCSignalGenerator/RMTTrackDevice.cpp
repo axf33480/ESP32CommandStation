@@ -21,6 +21,9 @@ COPYRIGHT (c) 2019-2020 Mike Dunston
 #include <dcc/DccDebug.hxx>
 #include <soc/gpio_struct.h>
 
+
+namespace esp32cs
+{
 ///////////////////////////////////////////////////////////////////////////////
 // The NMRA DCC Signal is sent as a square wave with each half having
 // identical timing (or nearly identical). Packet Bytes have a minimum of 11
@@ -441,3 +444,5 @@ void RMTTrackDevice::encode_next_packet()
 
   railcomDriver_->set_feedback_key(packet.feedback_key);
 }
+
+} // namespace esp32cs

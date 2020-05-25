@@ -40,6 +40,9 @@ COPYRIGHT (c) 2019-2020 Mike Dunston
 #include "MonitoredHBridge.h"
 #include "sdkconfig.h"
 
+namespace esp32cs
+{
+
 class RMTTrackDevice : public dcc::PacketFlowInterface
 {
 public:
@@ -89,5 +92,7 @@ private:
 
   DISALLOW_COPY_AND_ASSIGN(RMTTrackDevice);
 };
+
+} // namespace esp32cs
 
 #endif // _RMT_TRACK_DEVICE_H_
