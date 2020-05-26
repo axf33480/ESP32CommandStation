@@ -15,13 +15,12 @@ These are must have features/bug fixes for v1.5.0:
     -   [x] Persisted locos that are not active can not be requested from UWT-100.
 -   [x] LCC: Add fallback option for Esp32WiFiManager to not reboot the node when SSID connect fails and SoftAP is active.
 -   [ ] Misc: Scrub code for TODO comments or unimplemented methods.
--   [ ] Nextion: rewrite from scratch.
 -   [x] Roster: Implement delete loco.
 -   [x] Roster: Implement auto-idle loco.
 -   [x] S88: Convert to use openlcb::Polling model rather than tasks.
 -   [x] Turnouts: Switch fully to DCC address only support, for DCC++ compatibility decode the data and convert.
 -   [x] Web: Entering loco name as "loco #3" results in "loco 33" being registered.
--   [ ] Web: Delete of roster entry doesn't always force refresh of section.
+-   [x] Web: Delete of roster entry doesn't always force refresh of section.
 -   [ ] Web: Test all endpoints to ensure proper functionality after httpd rework.
 
 ### Completed for v1.5.0
@@ -76,6 +75,7 @@ These entries are items being tracked for a future release, these are not listed
 -   [ ] DCC: Continue sending eStop packet until eStop is cleared.
 -   [ ] DCC: Reimplement DCC Prog Track interface so it supports multiple requests (serialized).
 -   [ ] DCC: Introduced priority queue mechanism for DCC packets.
+-   [ ] DCC: Expire inactive locos that are not auto-idle.
 -   [ ] GPIO: Expose Outputs, Sensors, S88 events on LCC.
 -   [ ] LCC: Rewrite HW Can driver.
 -   [ ] LCC: Broadcast events for turnout state change.
@@ -87,6 +87,7 @@ These entries are items being tracked for a future release, these are not listed
 -   [ ] Misc: Switch to shared_ptr instead of raw pointers.
 -   [ ] Misc: WiThrottle support (https://github.com/atanisoft/ESP32CommandStation/issues/15)
 -   [ ] Misc: Combine usages of openlcb::RefreshLoop.
+-   [ ] Nextion: rewrite from scratch.
 -   [ ] Nextion: Add support for Nextion Upload via OTA in NeoNextion.
 -   [ ] Nextion: Add notification of turnout state change when changed external to the nextion code.
 -   [ ] Nextion: Auto turn on of track power from Nextion when interacting with loco/turnouts.
@@ -99,7 +100,6 @@ These entries are items being tracked for a future release, these are not listed
 -   [ ] OTA: Return to normal mode on Nextion when OTA fails.
 -   [ ] Roster: Roster Entries should contain function id mappings.
 -   [ ] Roster: Expose db entries via R/W CDI.
--   [ ] Roster: Expire locos that are not auto-idle and have not been "used" within a configurable period.
 -   [ ] S88: Add S88 sensor data to InfoScreen status line, 16 sensor output rotation.
 -   [ ] Sensors: Convert to use openlcb::Polling model rather than tasks.
 -   [ ] Web: Add strict validation of input parameter data.
