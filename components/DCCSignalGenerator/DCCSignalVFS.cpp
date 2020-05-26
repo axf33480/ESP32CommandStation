@@ -17,11 +17,16 @@ COPYRIGHT (c) 2020 Mike Dunston
 
 #include "RMTTrackDevice.h"
 #include "EStopHandler.h"
+#include "Esp32RailComDriver.h"
 #include "HBridgeThermalMonitor.h"
 #include "TrackPowerBitInterface.h"
 
 #include <dcc/ProgrammingTrackBackend.hxx>
+#include <dcc/RailCom.hxx>
+#include <dcc/RailcomHub.hxx>
+#include <dcc/RailcomPortDebug.hxx>
 #include <driver/rmt.h>
+#include <driver/timer.h>
 #include <esp_vfs.h>
 #include <freertos_drivers/arduino/DummyGPIO.hxx>
 #include <freertos_drivers/esp32/Esp32Gpio.hxx>
@@ -55,31 +60,6 @@ GPIO_PIN(OPS_THERMAL, GpioInputPU, CONFIG_OPS_THERMAL_PIN);
 typedef DummyPinWithReadHigh OPS_THERMAL_Pin;
 #endif // CONFIG_OPS_THERMAL_PIN
 
-#if defined(CONFIG_OPS_RAILCOM)
-/// OPS Track h-bridge brake pin, active HIGH.
-GPIO_PIN(OPS_RAILCOM_BRAKE, GpioOutputSafeHigh, CONFIG_OPS_RAILCOM_BRAKE_PIN);
-
-/// RailCom detector enable pin, active HIGH.
-GPIO_PIN(OPS_RAILCOM_ENABLE, GpioOutputSafeLow, CONFIG_OPS_RAILCOM_ENABLE_PIN);
-
-/// RailCom detector UART.
-static constexpr uart_port_t RAILCOM_UART_NUM =
-  (uart_port_t)CONFIG_OPS_RAILCOM_UART;
-
-/// RailCom driver instance for the OPS track.
-NoRailcomDriver opsRailComDriver;
-#else
-/// OPS Track h-bridge brake pin, active HIGH.
-typedef DummyPin OPS_RAILCOM_BRAKE_Pin;
-
-/// RailCom detector enable pin, active HIGH.
-typedef DummyPin OPS_RAILCOM_ENABLE_Pin;
-
-/// RailCom driver instance for the OPS track.
-NoRailcomDriver opsRailComDriver;
-
-#endif // CONFIG_OPS_RAILCOM
-
 /// RailCom driver instance for the PROG track, unused.
 NoRailcomDriver progRailComDriver;
 
@@ -89,11 +69,84 @@ GPIO_PIN(PROG_SIGNAL, GpioOutputSafeLow, CONFIG_PROG_SIGNAL_PIN);
 /// PROG Track h-bridge enable pin.
 GPIO_PIN(PROG_ENABLE, GpioOutputSafeLow, CONFIG_PROG_ENABLE_PIN);
 
+#if defined(CONFIG_OPS_RAILCOM)
+/// OPS Track h-bridge brake pin, active HIGH.
+GPIO_PIN(OPS_HBRIDGE_BRAKE, GpioOutputSafeHigh, CONFIG_OPS_RAILCOM_BRAKE_PIN);
+
+/// RailCom detector enable pin, active HIGH.
+GPIO_PIN(OPS_RAILCOM_ENABLE, GpioOutputSafeLow, CONFIG_OPS_RAILCOM_ENABLE_PIN);
+
+/// RailCom detector data pin.
+GPIO_PIN(OPS_RAILCOM_DATA, GpioInputPU, CONFIG_OPS_RAILCOM_UART_RX_PIN);
+
+/// RailCom hardware definition
+struct RailComHW
+{
+#if defined(CONFIG_OPS_RAILCOM_UART1)
+  static constexpr uart_port_t UART = UART_NUM_1;
+  static constexpr uart_dev_t *UART_BASE = &UART1;
+  static constexpr periph_module_t UART_PERIPH = PERIPH_UART1_MODULE;
+  static constexpr int UART_ISR_SOURCE = ETS_UART1_INTR_SOURCE;
+  static constexpr uint32_t UART_MATRIX_IDX = U1RXD_IN_IDX;
+#elif defined(CONFIG_OPS_RAILCOM_UART2)
+  static constexpr uart_port_t UART = UART_NUM_2;
+  static constexpr uart_dev_t *UART_BASE = &UART2;
+  static constexpr periph_module_t UART_PERIPH = PERIPH_UART2_MODULE;
+  static constexpr int UART_ISR_SOURCE = ETS_UART2_INTR_SOURCE;
+  static constexpr uint32_t UART_MATRIX_IDX = U2RXD_IN_IDX;
+#else
+  #error Unsupported UART selected for OPS RailCom!
+#endif
+
+  using DATA = OPS_RAILCOM_DATA_Pin;
+  using HB_BRAKE = OPS_HBRIDGE_BRAKE_Pin;
+  using HB_ENABLE = OPS_ENABLE_Pin;
+  using RC_ENABLE = OPS_RAILCOM_ENABLE_Pin;
+
+  static void hw_init()
+  {
+    DATA::hw_init();
+    HB_BRAKE::hw_init();
+    RC_ENABLE::hw_init();
+
+    // initialize the UART
+    periph_module_enable(UART_PERIPH);
+    PIN_FUNC_SELECT(GPIO_PIN_MUX_REG[DATA::pin()], PIN_FUNC_GPIO);
+    gpio_matrix_in(DATA::pin(), UART_MATRIX_IDX, 0);
+  }
+
+  static constexpr timg_dev_t *TIMER_BASE = &TIMERG0;
+  static constexpr timer_idx_t TIMER_IDX = TIMER_0;
+  static constexpr timer_group_t TIMER_GRP = TIMER_GROUP_0;
+  static constexpr periph_module_t TIMER_PERIPH = PERIPH_TIMG0_MODULE;
+  static constexpr int TIMER_ISR_SOURCE = ETS_TG0_T0_LEVEL_INTR_SOURCE + TIMER_IDX;
+
+  /// Number of microseconds to wait after the final packet bit completes
+  /// before disabling the ENABLE pin on the h-bridge.
+  static constexpr uint32_t RAILCOM_TRIGGER_DELAY_USEC = 1;
+
+  /// Number of microseconds to wait for railcom data on channel 1.
+  static constexpr uint32_t RAILCOM_MAX_READ_DELAY_CH_1 =
+    177 - RAILCOM_TRIGGER_DELAY_USEC;
+
+  /// Number of microseconds to wait for railcom data on channel 2.
+  static constexpr uint32_t RAILCOM_MAX_READ_DELAY_CH_2 =
+    454 - RAILCOM_MAX_READ_DELAY_CH_1;
+};
+
+/// RailCom driver instance for the OPS track.
+Esp32RailComDriver<RailComHW> opsRailComDriver;
+
+#else
+
+/// RailCom driver instance for the OPS track.
+NoRailcomDriver opsRailComDriver;
+
+#endif // CONFIG_OPS_RAILCOM
 /// Initializer for all GPIO pins.
 typedef GpioInitializer<
   OPS_SIGNAL_Pin, OPS_ENABLE_Pin, OPS_THERMAL_Pin
 , PROG_SIGNAL_Pin, PROG_ENABLE_Pin
-, OPS_RAILCOM_BRAKE_Pin, OPS_RAILCOM_ENABLE_Pin
 > DCCGpioInitializer;
 
 static std::unique_ptr<openlcb::RefreshLoop> dcc_poller;
@@ -103,6 +156,10 @@ static std::unique_ptr<HBridgeThermalMonitor> ops_thermal_mon;
 static std::unique_ptr<openlcb::BitEventConsumer> power_event;
 static std::unique_ptr<EStopHandler> estop_handler;
 static std::unique_ptr<ProgrammingTrackBackend> prog_track_backend;
+#if defined(CONFIG_OPS_RAILCOM)
+static std::unique_ptr<dcc::RailcomHubFlow> railcom_hub;
+static std::unique_ptr<dcc::RailcomPrintfFlow> railcom_dumper;
+#endif // CONFIG_OPS_RAILCOM
 
 /// Updates the status display with the current state of the track outputs.
 static void update_status_display()
@@ -139,7 +196,6 @@ void enable_ops_track_output()
           StatusLED::LED::OPS_TRACK, StatusLED::COLOR::GREEN);
 #endif // CONFIG_STATUS_LED
     update_status_display();
-    OPS_RAILCOM_BRAKE_Pin::instance()->clr();
   }
 }
 
@@ -155,7 +211,6 @@ void disable_ops_track_output()
           StatusLED::LED::OPS_TRACK, StatusLED::COLOR::OFF);
 #endif // CONFIG_STATUS_LED
     update_status_display();
-    OPS_RAILCOM_BRAKE_Pin::instance()->set();
   }
 }
 
@@ -289,7 +344,7 @@ static void init_rmt_outputs(void *param)
     new RMTTrackDevice(CONFIG_OPS_TRACK_NAME, OPS_RMT_CHANNEL
                      , CONFIG_OPS_DCC_PREAMBLE_BITS
                      , CONFIG_OPS_PACKET_QUEUE_SIZE, OPS_SIGNAL_Pin::pin()
-                     , &opsRailComDriver));
+                     , reinterpret_cast<RailcomDriver *>(&opsRailComDriver)));
 
   track[PROG_RMT_CHANNEL].reset(
     new RMTTrackDevice(CONFIG_PROG_TRACK_NAME, PROG_RMT_CHANNEL
@@ -331,6 +386,14 @@ void init_dcc_vfs(openlcb::Node *node, Service *service
   DCCGpioInitializer::hw_init();
   OPS_ENABLE_Pin::set_pulldown_on();
   PROG_ENABLE_Pin::set_pulldown_on();
+
+#if defined(CONFIG_OPS_RAILCOM)
+  railcom_hub.reset(new dcc::RailcomHubFlow(service));
+  opsRailComDriver.hw_init(railcom_hub.get());
+#if defined(CONFIG_OPS_RAILCOM_DUMP_PACKETS)
+  railcom_dumper.reset(new dcc::RailcomPrintfFlow(railcom_hub.get()));
+#endif
+#endif // CONFIG_OPS_RAILCOM
 
   ops_thermal_mon.reset(
     new HBridgeThermalMonitor(node, ops_cfg, OPS_THERMAL_Pin::instance()));
