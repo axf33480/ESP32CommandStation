@@ -663,13 +663,7 @@ StateFlowBase::Action StatusDisplay::update()
       }
       else if (_lccStatusIndex == 4)
       {
-        auto pool =
-#ifdef CONFIG_LCC_TCP_STACK
-          static_cast<openlcb::SimpleTcpStack *>(stack_)->tcp_hub()->pool();
-#else
-          static_cast<openlcb::SimpleCanStack *>(stack_)->can_hub()->pool();
-#endif
-        status("LCC Pool: %d/%d", pool->free_items(), pool->total_size());
+        status("LCC Pool: %.2fkB", mainBufferPool->total_size() / 1024.0f);
 
         // if enough time has passed since our last refresh trigger a new one.
         if (esp_timer_get_time() >= nextLccNodeCountRefreshTime_)
