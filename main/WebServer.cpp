@@ -296,6 +296,8 @@ void init_webserver(const esp32cs::Esp32ConfigDef &cfg)
   configListener.reset(new WebConfigListener(cfg));
 
   auto httpd = Singleton<Httpd>::instance();
+  httpd->process_options_requests(true);
+  httpd->set_allow_origins("*");
   httpd->redirect_uri("/", "/index.html");
   // if the soft AP interface is enabled, setup the captive portal
   if (Singleton<esp32cs::LCCWiFiManager>::instance()->is_softap_enabled())
