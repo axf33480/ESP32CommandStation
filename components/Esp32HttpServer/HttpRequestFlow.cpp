@@ -369,7 +369,14 @@ StateFlowBase::Action HttpRequestFlow::process_request()
 
 StateFlowBase::Action HttpRequestFlow::process_request_handler()
 {
-  if (server_->have_known_response(req_.uri()))
+  if (req_.method() == HttpMethod::OPTIONS &&
+      server_->is_process_options_requests())
+  {
+    res_.reset(
+      new OptionsResponse(req_.method()
+                        , req_.header(HttpHeader::ACCESS_CONTROL_ALLOW_HEADERS)));
+  }
+  else if (server_->have_known_response(req_.uri()))
   {
     res_ = server_->response(&req_);
   }
@@ -383,6 +390,11 @@ StateFlowBase::Action HttpRequestFlow::process_request_handler()
     }
   }
 
+  if (!server_->get_origins_header().empty())
+  {
+    res_->header(HttpHeader::ACCESS_CONTROL_ALLOW_ORIGIN
+               , server_->get_origins_header());
+  }
   return yield_and_call(STATE(send_response_headers));
 }
 

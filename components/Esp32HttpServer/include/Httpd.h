@@ -169,14 +169,20 @@ enum HttpMethod
   PATCH           = BIT(5),
   /// Request is for applying an update to an existing resource.
   PUT             = BIT(6),
+  /// Request is to describe a resource.
+  OPTIONS         = BIT(7),
   /// Request type was not understood by the server.
-  UNKNOWN_METHOD  = BIT(7),
+  UNKNOWN_METHOD  = BIT(8),
 };
 
 /// Commonly used and well-known HTTP headers
 enum HttpHeader
 {
   ACCEPT,
+  ACCESS_CONTROL_ALLOW_ORIGIN,
+  ACCESS_CONTROL_ALLOW_METHODS,
+  ACCESS_CONTROL_ALLOW_HEADERS,
+  ALLOW,
   CACHE_CONTROL,
   CONNECTION,
   CONTENT_ENCODING,
@@ -253,7 +259,7 @@ static constexpr const char * MIME_TYPE_TEXT_CSS = "text/css";
 static constexpr const char * MIME_TYPE_TEXT_HTML = "text/html";
 static constexpr const char * MIME_TYPE_TEXT_JAVASCRIPT = "text/javascript";
 static constexpr const char * MIME_TYPE_TEXT_PLAIN = "text/plain";
-static constexpr const char * MIME_TYPE_TEXT_XML = "text/XML";
+static constexpr const char * MIME_TYPE_TEXT_XML = "text/xml";
 static constexpr const char * MIME_TYPE_IMAGE_GIF = "image/gif";
 static constexpr const char * MIME_TYPE_IMAGE_PNG = "image/png";
 static constexpr const char * MIME_TYPE_APPLICATION_JSON = "application/json";
@@ -412,6 +418,16 @@ public:
 private:
   /// Temporary storage for the response body.
   const std::string body_;
+};
+
+/// Generic response object for an OPTIONS request
+class OptionsResponse : public AbstractHttpResponse
+{
+public:
+  /// Constructor.
+  ///
+  /// @param method_mask The supported methods to advertise in the response.
+  OptionsResponse(const size_t method_mask, const string &req_headers);
 };
 
 /// HTTP Response object used to redirect the client to a different location
@@ -666,7 +682,6 @@ private:
 typedef std::function<
   AbstractHttpResponse *(HttpRequest * /** request*/)> RequestProcessor;
 
-
 #define HTTP_HANDLER(name) \
 AbstractHttpResponse * name (HttpRequest *);
 
@@ -703,7 +718,6 @@ AbstractHttpResponse * name (HttpRequest * request                        \
                              , const std::string & filename, size_t size  \
                              , const uint8_t * data, size_t length        \
                              , size_t offset, bool final, bool * abort)
-
 
 /// WebSocket processing Handler.
 ///
@@ -750,7 +764,20 @@ public:
   Httpd(MDNS *mdns = nullptr, uint16_t port = DEFAULT_HTTP_PORT
       , const std::string &name = "httpd"
       , const std::string service_name = "_http._tcp");
-  
+
+  /// Constructor.
+  ///
+  /// @param executor is the @ref Executor to use for all http requests.
+  /// @param mdns is the @ref MDNS instance to use for publishing mDNS records
+  /// when the server is active. This is disabled by default.
+  /// @param port is the port to listen for HTTP requests on, default is 80.
+  /// @param name is the name to use for the executor, default is "httpd".
+  /// @param service_name is the mDNS service name to advertise when the server
+  /// is active, default is _http._tcp.
+  Httpd(ExecutorBase *executor, MDNS *mdns = nullptr
+      , uint16_t port = DEFAULT_HTTP_PORT, const std::string &name = "httpd"
+      , const std::string service_name = "_http._tcp");
+
   /// Destructor.
   ~Httpd();
 
@@ -867,6 +894,18 @@ public:
                     , std::string auth_uri = "/captiveauth"
                     , uint64_t auth_timeout = UINT32_MAX);
 
+  /// Sets the value for the 'Access-Control-Allow-Origin' header used for CORS
+  /// preflight OPTIONS requests.
+  ///
+  /// @param origin The origin value to return in the header.
+  void set_allow_origins(const std::string &origin);
+
+  /// Enables server side processing OPTIONS requests.
+  ///
+  /// @param enable will enable or disable the processing.
+  ///
+  /// When enabled and an OPTIONS request is received
+  void process_options_requests(bool enable);
 private:
   /// Gives @ref WebSocketFlow access to protected/private members.
   friend class WebSocketFlow;
@@ -937,6 +976,12 @@ private:
   /// @return true if the @param request can be serviced by this @ref Httpd.
   bool is_servicable_uri(HttpRequest *request);
 
+  /// @return true if the server should process OPTIONS requests automatically.
+  bool is_process_options_requests();
+
+  /// @return the origin header to use, if empty the header should be omitted.
+  std::string get_origins_header();
+
   /// Name to use for the @ref Httpd server.
   const std::string name_;
 
@@ -949,6 +994,10 @@ private:
 
   /// @ref Executor that manages all @ref StateFlow for the @ref Httpd server.
   Executor<1> executor_;
+
+  /// Internal flag to indicate if this class owns the executor or if it is
+  /// externally managed.
+  bool externalExecutor_{false};
 
   /// TCP/IP port to listen for HTTP requests on.
   uint16_t port_;
@@ -965,6 +1014,12 @@ private:
 
   /// Internal state flag for the dns_ being active.
   bool dns_active_{false};
+
+  /// Internal state flag for the server to process OPTIONS requests.
+  bool process_options_{false};
+
+  /// Internal holder for CORS origins header;
+  std::string origins_{""};
 
   /// Internal map of all registered @ref RequestProcessor handlers.
   std::map<std::string, std::pair<size_t, RequestProcessor>> handlers_;

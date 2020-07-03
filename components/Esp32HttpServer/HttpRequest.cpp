@@ -26,10 +26,15 @@ static constexpr const char * HTTP_METHOD_HEAD = "HEAD";
 static constexpr const char * HTTP_METHOD_POST = "POST";
 static constexpr const char * HTTP_METHOD_PATCH = "PATCH";
 static constexpr const char * HTTP_METHOD_PUT = "PUT";
+static constexpr const char * HTTP_METHOD_OPTIONS = "OPTIONS";
 
 std::map<HttpHeader, string> well_known_http_headers =
 {
   { ACCEPT, "Accept" }
+, { ACCESS_CONTROL_ALLOW_ORIGIN, "Access-Control-Allow-Origin" }
+, { ACCESS_CONTROL_ALLOW_METHODS, "Access-Control-Allow-Methods" }
+, { ACCESS_CONTROL_ALLOW_HEADERS, "Access-Control-Allow-Headers" }
+, { ALLOW, "Allow" }
 , { CACHE_CONTROL, "Cache-Control" }
 , { CONNECTION, "Connection" }
 , { CONTENT_ENCODING, "Content-Encoding" }
@@ -76,6 +81,10 @@ void HttpRequest::method(const string &value)
   else if (!raw_method_.compare(HTTP_METHOD_PUT))
   {
     method_ = HttpMethod::PUT;
+  }
+  else if (!raw_method_.compare(HTTP_METHOD_OPTIONS))
+  {
+    method_ = HttpMethod::OPTIONS;
   }
 }
 

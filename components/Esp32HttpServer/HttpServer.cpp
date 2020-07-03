@@ -33,6 +33,8 @@ namespace http
 
 string HTTP_BUILD_TIME = __DATE__ " " __TIME__;
 
+static constexpr size_t HTTP_METHOD_ANY = 0xFFFF;
+
 /// Callback for a newly accepted socket connection.
 ///
 /// @param fd is the socket handle.
@@ -54,7 +56,41 @@ Httpd::Httpd(MDNS *mdns, uint16_t port, const string &name, const string service
   socket_timeout_.tv_sec = 0;
   socket_timeout_.tv_usec = MSEC_TO_USEC(config_httpd_socket_timeout_ms());
 
-#ifdef ESP32
+#ifdef CONFIG_IDF_TARGET
+  // Hook into the Esp32WiFiManager to start/stop the listener automatically
+  // based on the AP/Station interface status.
+  Singleton<Esp32WiFiManager>::instance()->register_network_up_callback(
+  [&](esp_interface_t interface, uint32_t ip)
+  {
+    if (interface == ESP_IF_WIFI_AP)
+    {
+      start_dns_listener(ntohl(ip));
+    }
+    start_http_listener();
+  });
+  Singleton<Esp32WiFiManager>::instance()->register_network_down_callback(
+  [&](esp_interface_t interface)
+  {
+    stop_http_listener();
+    stop_dns_listener();
+  });
+#endif // CONFIG_IDF_TARGET
+}
+
+Httpd::Httpd(ExecutorBase *executor, MDNS *mdns, uint16_t port, const string &name, const string service_name)
+  : Service(executor)
+  , name_(name)
+  , mdns_(mdns)
+  , mdns_service_(service_name)
+  , executor_(NO_THREAD()) // unused
+  , externalExecutor_(true)
+  , port_(port)
+{
+  // pre-initialize the timeout parameters for all sockets that are accepted
+  socket_timeout_.tv_sec = 0;
+  socket_timeout_.tv_usec = MSEC_TO_USEC(config_httpd_socket_timeout_ms());
+
+#ifdef CONFIG_IDF_TARGET
   // Hook into the Esp32WiFiManager to start/stop the listener automatically
   // based on the AP/Station interface status.
   Singleton<Esp32WiFiManager>::instance()->register_network_up_callback(
@@ -79,7 +115,10 @@ Httpd::~Httpd()
 {
   stop_http_listener();
   stop_dns_listener();
-  executor_.shutdown();
+  if (!externalExecutor_)
+  {
+    executor_.shutdown();
+  }
   handlers_.clear();
   static_uris_.clear();
   redirect_uris_.clear();
@@ -99,7 +138,7 @@ void Httpd::uri(const std::string &uri, const size_t method_mask
 
 void Httpd::uri(const std::string &uri, RequestProcessor handler)
 {
-  this->uri(uri, 0xFFFF, handler, nullptr);
+  this->uri(uri, HTTP_METHOD_ANY, handler, nullptr);
 }
 
 void Httpd::redirect_uri(const string &source, const string &target)
@@ -195,6 +234,26 @@ void Httpd::captive_portal(string first_access_response
   captive_auth_uri_.assign(std::move(auth_uri));
   captive_timeout_ = auth_timeout;
   captive_active_ = true;
+}
+
+void Httpd::set_allow_origins(const std::string &origin)
+{
+  origins_ = origin;
+}
+
+void Httpd::process_options_requests(bool enable)
+{
+  process_options_ = enable;
+}
+
+bool Httpd::is_process_options_requests()
+{
+  return process_options_;
+}
+
+std::string Httpd::get_origins_header()
+{
+  return origins_;
 }
 
 void Httpd::schedule_cleanup(Executable *flow)

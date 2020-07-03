@@ -157,6 +157,39 @@ void AbstractHttpResponse::header(const HttpHeader header, const string &value)
   headers_[well_known_http_headers[header]] = std::move(value);
 }
 
+OptionsResponse::OptionsResponse(const size_t method_mask, const string &req_headers)
+  : AbstractHttpResponse(HttpStatusCode::STATUS_NO_CONTENT, MIME_TYPE_NONE)
+{
+  string methods = "OPTIONS, HEAD";
+  if (method_mask & DELETE)
+  {
+    methods += ", DELETE";
+  }
+  if (method_mask & GET)
+  {
+    methods += ", GET";
+  }
+  if (method_mask & POST)
+  {
+    methods += ", POST";
+  }
+  if (method_mask & PATCH)
+  {
+    methods += ", PATCH";
+  }
+  if (method_mask & PUT)
+  {
+    methods += ", PUT";
+  }
+  header(HttpHeader::ALLOW, methods);
+  header(HttpHeader::ACCESS_CONTROL_ALLOW_METHODS, methods);
+  // if we received a list of requested headers return them to the caller
+  if (req_headers.length() > 0)
+  {
+    header(HttpHeader::ACCESS_CONTROL_ALLOW_HEADERS, req_headers);
+  }
+}
+
 RedirectResponse::RedirectResponse(const string &target_uri)
   : AbstractHttpResponse(HttpStatusCode::STATUS_FOUND)
 {
